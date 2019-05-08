@@ -1,4 +1,4 @@
-[submodule "modules/raven"]
-    path = modules/raven
-    url = git@github.com:idaholab/raven.git
+[submodule "raven"]
+	path = raven
+	url = git@github.com:idaholab/raven.git
 

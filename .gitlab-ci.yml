@@ -11,7 +11,6 @@ before_script:
     - cd raven
       # we technically still need moose for running the tests, currently
     - git checkout master
-    - git submodule update --init moose
     - git clean -xfd
       # check that we have conda
     - export PATH=$HOME/miniconda2/bin:$PATH
@@ -24,7 +23,7 @@ before_script:
       fi
       # create libraries or create them
     - ./scripts/establish_conda_env.sh --install --conda-defs $HOME/miniconda2/etc/profile.d/conda.sh
-    - make
+    - ./build_raven
       # Install plugin branch ...
     - cd scripts
     - python install_plugins.py -s ../../ -f
@@ -34,4 +33,4 @@ before_script:
 test:
     script:
       - cd raven
-      - ./run_tests -j4 --re=plugins/PRA # does this return a failed status?
+      - ./run_tests -j4 --re=plugins/NuSAR # does this return a failed status?
