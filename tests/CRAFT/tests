@@ -1,0 +1,23 @@
+[Tests]
+
+ [./mc_fw_cost]
+  type  = 'RavenFramework'
+  input = 'test_mc_fw_cost.xml'
+  UnorderedCsv   = 'testMC/Print_sim_PS.csv'
+  output = 'testMC/1-plot_P1P2_scatter.png testMC/1-plot_SG_scatter.png testMC/1-plot_V1_scatter.png testMC/1-plot_V2_scatter.png'
+ [../]
+
+ [./time_dep_fw_cost]
+  type  = 'RavenFramework'
+  input = 'test_time_dep_fw_cost.xml'
+  UnorderedCsv   = 'testMC_timeDep/Print_sim_PS.csv'
+ [../]
+
+ [./sept_milestone]
+  type  = 'RavenFramework'
+  input = 'test_sept_milestone.xml'
+  UnorderedCsv   = 'MFW/Print_basicStats_0.csv'
+  output = 'MFW/Print_basicStats.csv MFW/1-plot_P1P2_1_line-line-line-line-line.png MFW/1-plot_P1P2_2_line-line-line-line-line.png MFW/1-plot_SG_line-line-line-line-line.png MFW/1-plot_V1_line-line-line-line-line.png MFW/1-plot_V2_line-line-line-line-line.png MFW/1-plot_cost_P1P2_1_line-line-line-line-line.png MFW/1-plot_cost_P1P2_2_line-line-line-line-line.png MFW/1-plot_cost_SG_line-line-line-line-line.png MFW/1-plot_cost_V1_line-line-line-line-line.png MFW/1-plot_cost_V2_line-line-line-line-line.png'
+ [../]
+
+[]
