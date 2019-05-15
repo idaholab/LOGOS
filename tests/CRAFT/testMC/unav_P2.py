@@ -1,5 +1,9 @@
 import random
 
+def initialize(self, runInfo, inputs):
+  seed = 9491
+  random.seed(seed)
+
 def unavailability(rho, compLambda, delta, T):
   # see J.K. Vaurio RESS vol.49, pp. 23-36 (1995)
   unavail = rho + delta/T + 0.5*compLambda*T

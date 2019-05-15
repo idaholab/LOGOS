@@ -2,6 +2,10 @@ from scipy.stats import norm
 from scipy.integrate import quad
 import random
 
+def initialize(self, runInfo, inputs):
+  seed = 9491
+  random.seed(seed)
+
 def RULmodel(mu,sigma,time):
   # a = 2.31
   # b = 0.267

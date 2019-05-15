@@ -3,6 +3,10 @@ import math
 import random
 from scipy.integrate import quad
 
+def initialize(self, runInfo, inputs):
+  seed = 9491
+  random.seed(seed)
+
 def timeDepLambda(t,a,b):
   return a+t*b
 

@@ -3,6 +3,11 @@ from scipy.stats import beta
 from scipy.integrate import quad
 import random
 
+def initialize(self, runInfo, inputs):
+  seed = 9491
+  random.seed(seed)
+
+
 def RULmodel(a,b):
   # a = 2.31
   # b = 0.267

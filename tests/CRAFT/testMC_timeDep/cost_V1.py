@@ -1,6 +1,10 @@
 import random
 import numpy as np
 
+def initialize(self, runInfo, inputs):
+  seed = 9491
+  random.seed(seed)
+
 def run(self,Input):
   # intput:
   # output:
