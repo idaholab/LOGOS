@@ -1,10 +1,11 @@
 from scipy.stats import beta
 from scipy.integrate import quad
 import random
+import numpy as np
 
 def initialize(self, runInfo, inputs):
   seed = 9491
-  random.seed(seed)
+  np.random.seed(seed)
 
 def RULmodel(a,b):
   # a = 2.31
