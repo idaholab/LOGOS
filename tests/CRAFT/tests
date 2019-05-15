@@ -10,7 +10,7 @@
  [./time_dep_fw_cost]
   type  = 'RavenFramework'
   input = 'test_time_dep_fw_cost.xml'
-  UnorderedCsv   = 'testMC_timeDep/Print_sim_PS.csv'
+  output   = 'testMC_timeDep/Print_sim_PS.csv'
  [../]
 
  [./sept_milestone]
