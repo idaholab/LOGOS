@@ -1,0 +1,9 @@
+[Tests]
+
+ [./skp_optimization]
+  type  = 'RavenFramework'
+  input = 'test_skp.xml'
+  output = 'skp/Print_PS.csv'
+ [../]
+
+[]

@@ -1,4 +1,4 @@
-.libs
+*.libs
 *.dylib
 *.la
 *.lo
@@ -14,6 +14,7 @@
 *.log
 *.out
 *.toc
+*.png
 
 #osx
 .DS_Store

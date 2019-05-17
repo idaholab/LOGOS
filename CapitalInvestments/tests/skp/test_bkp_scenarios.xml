@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  For the bounded knapsack with scenarios analysis
+-->
+<riam>
+  <Sets>
+    <investments>
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22
+    </investments>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index="investments">
+      150,35,200,60,60,45,60,40,30,10,70,30,15,10,40,70,75,80,20,12,50,10
+    </net_present_values>
+    <costs index="investments">
+      9,13,153,50,15,68,27,39,23,52,11,32,24,48,73,42,43,22,7,18,4,30
+    </costs>
+    <available_capitals>
+      400
+    </available_capitals>
+  </Parameters>
+
+  <Uncertainties>
+    <available_capitals>
+      <totalScenarios>5</totalScenarios>
+      <probabilities>
+        0.2, 0.1, 0.5, 0.05, 0.15
+      </probabilities>
+      <scenarios>
+        350, 380, 400, 420, 450
+      </scenarios>
+    </available_capitals>
+    <net_present_values>
+      <totalScenarios>2</totalScenarios>
+      <probabilities>
+        0.3, 0.7
+      </probabilities>
+      <scenarios>
+        150,35,200,60,60,45,60,40,30,10,70,30,15,10,40,70,75,80,20,12,50,10,
+        150,35,200,60,60,45,60,40,30,10,70,30,15,10,40,70,75,80,20,12,50,10
+      </scenarios>
+    </net_present_values>
+  </Uncertainties>
+
+  <Settings>
+    <lowerBounds>
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    </lowerBounds>
+    <upperBounds>
+      1,1,2,2,2,3,3,3,1,3,1,1,2,2,1,1,1,1,1,2,1,2
+    </upperBounds>
+    <solver>cbc</solver>
+    <sense>maximize</sense>
+  </Settings>
+</riam>

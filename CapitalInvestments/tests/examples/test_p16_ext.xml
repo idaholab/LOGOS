@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+-->
+<riam>
+  <Sets>
+    <investments>
+      FeedwaterHeater
+      EmergencySump
+      Transformer
+      TurbineHallCrane
+      ReactorCoolantPumps
+      MitigateBuriedPiping
+      RefurbishTurbineGovernors
+      ServiceCircWaterPumps
+      MaintainRAOC
+      ReplaceCoolantInjectPiping
+      ReplaceChiller
+      VessellHeadWeldRemediate
+      MaintainCondensor
+      ReplaceConrolCables
+      CranePowerFeed
+      MoisterSeparatorReheater
+    </investments>
+    <time_periods>year1 year2 year3 year4 year5</time_periods>
+    <resources>CapitalFunds OandMFunds</resources>
+    <options index='investments'>
+      PlanA PlanB DoNothing;
+      PlanA DoNothing;
+      PlanA PlanB DoNothing;
+      PlanA PlanB DoNothing;
+      PlanA PlanB DoNothing;
+      PlanA PlanB DoNothing;
+      PlanA DoNothing;
+      PlanA PlanB DoNothing;
+      PlanA PlanB DoNothing;
+      PlanA;
+      PlanA PlanB;
+      PlanA PlanB;
+      PlanA PlanB;
+      PlanA PlanB;
+      PlanA PlanB;
+      PlanA
+    </options>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index='options'>
+      2.315 2.199 -1.101
+      0.824 -0.400
+      22.459 21.336 -10.100
+      60.589 57.559 -30.200
+      0.667 0.633 -0.300
+      5.173 4.914 -2.500
+      4.003 -2.000
+      0.582 0.553 -0.250
+      0.122 0.116 -0.050
+      -2.870
+      -0.322 -0.339
+      -0.279 -0.293
+      -3.996 -4.196
+      -0.102 -0.108
+      -0.246 -0.258
+      -20.155
+    </net_present_values>
+    <costs index='options, resources, time_periods'>
+      0.219 0.257 0 0 0
+      0 0 0.085 0 0
+      0 0.219 0.257 0 0
+      0 0 0 0.085 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      0 0 0.122 0.103 0.003
+      0 0 0 0 0.010
+      0 0 0 0 0
+      0 0 0 0 0
+
+      5.000 0 0 0 0
+      0.044 1.839 0 0 0
+      0 5.000 0 0 0
+      0 0.044 1.839 0 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      6.000 6.134 5.442 0 0
+      0.740 0 5.000 0 0
+      0 6.000 6.134 5.442 0
+      0 0.740 0 5.000 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      0.425 0 0 0 0
+      0  0  0 0 0
+      0 0.425 0 0 0
+      0 0 0 0 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      2.125 0 0 0 0
+      0 2.122 0 0 0
+      0 2.125 0 0 0
+      0 0 2.122 0 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      2.000 0.190 0.012 0.000 0.092
+      0.387 0.000 0.000 2.383 0.100
+      0 0 0 0 0
+      0 0 0 0 0
+
+      0 0 0 0 0
+      0 0.950 0 0 0
+      0 0 0 0 0
+      0 0 0.950 0 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      0.030 0.030 0 0 0
+      0 0 0.688 0 0
+      0 0.030 0.030 0 0
+      0 0 0 0.688 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      0 0.200 0.763 0.739 2.539
+      0 0 0 0 0
+
+      0.347 0 0 0 0
+      0 0 0 0 0
+      0 0.347 0 0 0
+      0 0 0 0 0
+
+      0.300	0 0 0 0
+      0 0 0 0 0
+      0 0.300 0 0 0
+      0 0 0 0 0
+
+      4.025	0.297 0 0 0
+      0 0 0 0 0
+      0 4.025 0.297 0 0
+      0 0 0 0 0
+
+      0.081	0.032 0 0 0
+      0 0 0 0 0
+      0 0.081 0.032 0 0
+      0 0 0 0 0
+
+      0.095	0.095	0.095 0.095 0
+      0 0 0 0 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      5.488	5.665	0.501	6.803	6.778
+      0 0 0 0 0
+    </costs>
+    <available_capitals index="resources,time_periods">
+      11.000 10.974 8.083 8.080 9.817
+      0.000 2.026 4.917 3.320 1.683
+    </available_capitals>
+  </Parameters>
+
+  <Settings>
+    <regulatoryMandated>
+      FeedwaterHeater
+      EmergencySump
+      Transformer
+      TurbineHallCrane
+      ReactorCoolantPumps
+      MitigateBuriedPiping
+      RefurbishTurbineGovernors
+      ServiceCircWaterPumps
+      MaintainRAOC
+      ReplaceCoolantInjectPiping
+      ReplaceChiller
+      VessellHeadWeldRemediate
+      MaintainCondensor
+      ReplaceConrolCables
+      CranePowerFeed
+      MoisterSeparatorReheater
+    </regulatoryMandated>
+    <solver>cbc</solver>
+    <sense>maximize</sense>
+    <problem_type>mckp</problem_type>
+  </Settings>
+</riam>

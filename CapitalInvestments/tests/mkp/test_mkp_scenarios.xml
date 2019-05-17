@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  For the multi-knapsack, optimal solution for knapsack 1: 3, 4, 5; and for knapsack 2: 1, 6, 9 with maximum npv 452
+  or for knapsack: 1, 3, 6, and knapsack 4, 5, 9 with maximum 452
+-->
+<riam>
+  <Sets>
+    <investments>
+      1,2,3,4,5,6,7,8,9,10
+    </investments>
+    <capitals>
+      unit_1, unit_2
+    </capitals>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index="investments">
+      78, 35, 89, 36, 94, 75, 74, 79, 80, 16
+    </net_present_values>
+    <costs index="investments">
+      18, 9, 23, 20, 59, 61, 70, 75, 76, 30
+    </costs>
+    <available_capitals index="capitals">
+      103, 156
+    </available_capitals>
+  </Parameters>
+
+  <Uncertainties>
+    <available_capitals>
+      <totalScenarios>2</totalScenarios>
+      <probabilities>
+        0.3 0.7
+      </probabilities>
+      <scenarios>
+        103, 156,
+        103, 156
+      </scenarios>
+    </available_capitals>
+    <net_present_values>
+      <totalScenarios>2</totalScenarios>
+      <probabilities>
+        0.3, 0.7
+      </probabilities>
+      <scenarios>
+        78, 35, 89, 36, 94, 75, 74, 79, 80, 16,
+        78, 35, 89, 36, 94, 75, 74, 79, 80, 16
+      </scenarios>
+    </net_present_values>
+  </Uncertainties>
+
+  <Settings>
+    <solver>glpk</solver>
+    <sense>maximize</sense>
+    <problem_type>MultipleKnapsack</problem_type>
+  </Settings>
+</riam>

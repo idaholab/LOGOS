@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+-->
+<riam>
+  <Sets>
+    <investments>
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28
+    </investments>
+    <capitals>
+      unit_1, unit_2
+    </capitals>
+    <time_periods>
+      t1, t2
+    </time_periods>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index="investments">
+      1898 440 22507 270 14148 3100 4650
+      30800 615 4975 1160 4225 510 11880
+      479 440 490 330 110 560 24355
+      2885 11748 4550 750 3720 1950 10500
+    </net_present_values>
+    <costs index="investments, time_periods">
+      22.5,   22.5,  117.5,  117.5,   80. ,   80. ,   15. ,   15. ,
+      85. ,   85. ,   32.5,   32.5,   10. ,   10. ,   12.5,   12.5,
+      0. ,    0. ,   12.5,   12.5,   82.5,   82.5,   42.5,   42.5,
+      0. ,    0. ,   50. ,   50. ,   25. ,   25. ,   65. ,   65. ,
+      52.5,   52.5,   54. ,   54. ,   13.5,   13.5,   27.5,   27.5,
+      7.5,    7.5,   11. ,   11. ,    9.5,    9.5,   10. ,   10. ,
+      50. ,   50. ,   43. ,   43. ,   44.5,   44.5,   84.5,   84.5
+    </costs>
+    <available_capitals index="capitals, time_periods">
+      600, 300,
+      600, 300
+    </available_capitals>
+  </Parameters>
+
+  <Settings>
+    <solver>glpk</solver>
+    <sense>maximize</sense>
+    <problem_type>MultipleKnapsack</problem_type>
+  </Settings>
+</riam>
