@@ -12,11 +12,11 @@
 
   <Models>
     <ExternalModel name="singleKnapsack" subType="CapitalInvestmentModel">
-      <variables>available_capitals,Obj</variables>
+      <variables>available_capitals,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,MaxNPV</variables>
       <ModelData>
         <Sets>
           <investments>
-            1,2,3,4,5,6,7,8,9,10
+            i1,i2,i3,i4,i5,i6,i7,i8,i9,i10
           </investments>
         </Sets>
         <Parameters>
@@ -40,8 +40,8 @@
 
   <Distributions>
     <Uniform name="distrib">
-      <lowerBound>1.0</lowerBound>
-      <upperBound>10.0</upperBound>
+      <lowerBound>11.0</lowerBound>
+      <upperBound>20.0</upperBound>
     </Uniform>
   </Distributions>
 
@@ -77,7 +77,7 @@
   <DataObjects>
     <PointSet name="PS">
       <Input>available_capitals</Input>
-      <Output>Obj</Output>
+      <Output>i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,MaxNPV</Output>
     </PointSet>
   </DataObjects>
 

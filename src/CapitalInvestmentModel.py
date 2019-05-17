@@ -22,7 +22,7 @@ import xml.etree.ElementTree as ET
 
 #Internal Modules------------------------------------------------------------------------------------
 import PyomoModels
-from utils import inputReader
+from investment_utils import inputReader
 #Internal Modules End--------------------------------------------------------------------------------
 
 try:

@@ -221,7 +221,7 @@ class ModelBase:
         if results.solver.termination_condition != TerminationCondition.optimal:
           raise RuntimeError("Solver did not report optimality:\n%s" %(results.solver))
         model.solutions.load_from(results)
-        self.printSolution(model)
+        outputDict.update(self.printSolution(model))
         # TODO: Add collect output and return a dictionary for raven to retrieve information
     else:
       tree_model = self.pysp_scenario_tree_model_callback()
@@ -240,9 +240,10 @@ class ModelBase:
     """
       Output optimization solution to screen
       @ In, model, instance, pyomo optimization model
-      @ Out, None
+      @ Out, outputDict, dict, dictionary stores the outputs
     """
-    pass
+    outputDict = {}
+    return outputDict
 
   def printScenarioSolution(self, stsolver):
     """

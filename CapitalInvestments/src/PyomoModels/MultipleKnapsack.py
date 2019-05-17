@@ -213,9 +213,9 @@ class MultipleKnapsack(KnapsackBase):
     """
       Output optimization solution to screen
       @ In, model, instance, pyomo optimization model
-      @ Out, None
+      @ Out, outputDict, dict, dictionary stores the outputs
     """
-    KnapsackBase.printSolution(self, model)
+    outputDict = KnapsackBase.printSolution(self, model)
     msg = "Selected investments include:"
     logger.info(msg)
     for cap in model.capitals:
@@ -240,3 +240,5 @@ class MultipleKnapsack(KnapsackBase):
         if const.name == 'constraintCapacity':
           for index in const:
             print("{0:20s} {1:10.1f}".format(str(index), model.dual[const[index]]))
+
+    return outputDict

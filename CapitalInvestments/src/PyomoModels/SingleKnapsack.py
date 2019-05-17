@@ -173,15 +173,16 @@ class SingleKnapsack(KnapsackBase):
     """
       Output optimization solution to screen
       @ In, model, instance, pyomo optimization model
-      @ Out, None
+      @ Out, outputDict, dict, dictionary stores the outputs
     """
-    KnapsackBase.printSolution(self, model)
+    outputDict = KnapsackBase.printSolution(self, model)
     msg = "Selected investments include:"
     logger.info(msg)
     for var in model.component_objects(pyomo.Var, active=True):
       if var.name == 'x':
         for index in var:
           numSelected = pyomo.value(var[index])
+          outputDict[str(index)] = numSelected
           if numSelected == 1:
             msg = "Investment: " + str(index) + " is selected"
             logger.info(msg)
@@ -197,6 +198,7 @@ class SingleKnapsack(KnapsackBase):
     #     msg = "Investment: " + str(item) + " is selected with limit " + str(int(numSelected))
     #     logger.info(msg)
     logger.info("Maximum NPV: %16.4f" %(model.obj()))
+    outputDict['MaxNPV'] = model.obj()
     # Accessing Duals
     # In some cases, a solver plugin will raise an exception if it encounters a Suffix type that it does not handle
     # One should be careful in verifying that Suffix declarations are being handled as expected when switching
@@ -208,3 +210,5 @@ class SingleKnapsack(KnapsackBase):
         if const.name == 'constraintCapacity':
           for index in const:
             print("{0:10s} {1:10.1f}".format(index, model.dual[const[index]]))
+
+    return outputDict
