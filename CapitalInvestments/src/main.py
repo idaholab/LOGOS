@@ -17,9 +17,9 @@ import logging
 #External Modules End--------------------------------------------------------------------------------
 
 #Internal Modules------------------------------------------------------------------------------------
-#import models
-import models
-from utils import inputReader
+#import PyomoModels
+import PyomoModels
+from investment_utils import inputReader
 #Internal Modules End--------------------------------------------------------------------------------
 
 logging.basicConfig(format='%(asctime)s %(name)-20s %(levelname)-8s %(message)s', datefmt='%d-%b-%y %H:%M:%S', level=logging.DEBUG)
@@ -50,7 +50,7 @@ if __name__ == "__main__":
   problemType = initDict['Settings'].pop('problem_type', 'SingleKnapsack')
   logger.info('Set problem type to default: %s', 'Knapsacks Problem')
   logger.info('Starting to create Optimization Instance')
-  modelInstance = models.returnInstance(problemType)
+  modelInstance = PyomoModels.returnInstance(problemType)
   logger.info('Optimization Instance: %s is successfully created', modelInstance.name)
   logger.info('Starting to initialize Optimizer Instance: %s', modelInstance.name)
   modelInstance.initialize(initDict)

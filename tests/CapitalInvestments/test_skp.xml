@@ -12,7 +12,7 @@
 
   <Models>
     <ExternalModel name="singleKnapsack" subType="CapitalInvestmentModel">
-      <variables>NPV,Obj</variables>
+      <variables>available_capitals,Obj</variables>
       <ModelData>
         <Sets>
           <investments>
@@ -50,7 +50,7 @@
       <samplerInit>
         <limit>10</limit>
       </samplerInit>
-      <variable name="NPV">
+      <variable name="available_capitals">
         <distribution>distrib</distribution>
       </variable>
     </MonteCarlo>
@@ -76,7 +76,7 @@
 
   <DataObjects>
     <PointSet name="PS">
-      <Input>NPV</Input>
+      <Input>available_capitals</Input>
       <Output>Obj</Output>
     </PointSet>
   </DataObjects>

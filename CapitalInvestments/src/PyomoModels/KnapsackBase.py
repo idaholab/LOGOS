@@ -24,7 +24,7 @@ import pyomo.environ as pyomo
 #External Modules End--------------------------------------------------------------------------------
 
 #Internal Modules------------------------------------------------------------------------------------
-from utils import utils
+from investment_utils import utils
 from .ModelBase import ModelBase
 #Internal Modules End--------------------------------------------------------------------------------
 

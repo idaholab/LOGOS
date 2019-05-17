@@ -16,12 +16,12 @@ import os
 import sys
 import logging
 import copy
+import numpy as np
 import xml.etree.ElementTree as ET
 #External Modules End--------------------------------------------------------------------------------
 
 #Internal Modules------------------------------------------------------------------------------------
-#import models
-import models
+import PyomoModels
 from utils import inputReader
 #Internal Modules End--------------------------------------------------------------------------------
 
@@ -81,7 +81,7 @@ class CapitalInvestmentModel(ExternalModelPluginBase):
       problemType = 'SingleKnapsack'
       logger.info('Set problem type to default: %s', %problemType)
     logger.info('Starting to create Optimization Instance')
-    self.modelInstance = models.returnInstance(problemType)
+    self.modelInstance = PyomoModels.returnInstance(problemType)
 
   def createNewInput(self, container, inputs, samplerType, **Kwargs):
     """
@@ -97,7 +97,10 @@ class CapitalInvestmentModel(ExternalModelPluginBase):
     paramNode = newXml.find('Parameters')
     for child in paramNode:
       if child.tag in Kwargs['SampledVars']:
-        child.text = Kwargs['SampledVars'][child.tag]
+        if isinstance(Kwargs['SampledVars'][child.tag],(list, np.ndarray)):
+          child.text = ','.join(str(var) for var in Kwargs['SampledVars'][child.tag])
+        else:
+          child.text = Kwargs['SampledVars'][child.tag]
     inputDict = inputReader.readInput(paramNode)
     return inputDict
 

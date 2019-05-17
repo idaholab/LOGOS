@@ -24,7 +24,7 @@ from pyomo.pysp.scenariotree.tree_structure_model import CreateAbstractScenarioT
 #External Modules End--------------------------------------------------------------------------------
 
 #Internal Modules------------------------------------------------------------------------------------
-from utils import utils
+from investment_utils import utils
 #Internal Modules End--------------------------------------------------------------------------------
 
 logger = logging.getLogger(__name__)
