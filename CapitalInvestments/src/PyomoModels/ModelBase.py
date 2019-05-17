@@ -27,6 +27,9 @@ from pyomo.pysp.scenariotree.tree_structure_model import CreateAbstractScenarioT
 from investment_utils import utils
 #Internal Modules End--------------------------------------------------------------------------------
 
+import pyutilib.subprocess.GlobalData
+pyutilib.subprocess.GlobalData.DEFINE_SIGNAL_HANDLERS_DEFAULT = False
+
 logger = logging.getLogger(__name__)
 
 class ModelBase:
@@ -217,7 +220,7 @@ class ModelBase:
       inputData = self.generateModelInputData()
       with SolverFactory(self.solver) as opt:
         model = self.createInstance(inputData)
-        results = opt.solve(model, load_solutions=False, tee=self.tee)
+        results = opt.solve(model, load_solutions=False, tee=self.tee, **{'use_signal_handling':False})
         if results.solver.termination_condition != TerminationCondition.optimal:
           raise RuntimeError("Solver did not report optimality:\n%s" %(results.solver))
         model.solutions.load_from(results)
