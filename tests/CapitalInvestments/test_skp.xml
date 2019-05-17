@@ -1,0 +1,84 @@
+<Simulation verbosity="debug">
+
+  <RunInfo>
+    <WorkingDir>skp</WorkingDir>
+    <Sequence>skpRun</Sequence>
+    <batchSize>1</batchSize>
+  </RunInfo>
+
+  <Files>
+    <Input name="skp_input" type="">skp_input.xml</Input>
+  </Files>
+
+  <Models>
+    <ExternalModel name="singleKnapsack" subType="CapitalInvestmentModel">
+      <variables>NPV,Obj</variables>
+      <ModelData>
+        <Sets>
+          <investments>
+            1,2,3,4,5,6,7,8,9,10
+          </investments>
+        </Sets>
+        <Parameters>
+          <net_present_values index="investments">
+            18,20,17,19,25,21,27,23,25,24
+          </net_present_values>
+          <costs index="investments">
+            1,3,7,4,8,9,6,10,2,5
+          </costs>
+          <available_capitals>
+            15
+          </available_capitals>
+        </Parameters>
+        <Settings>
+          <solver>cbc</solver>
+          <sense>maximize</sense>
+        </Settings>
+      </ModelData>
+    </ExternalModel>
+  </Models>
+
+  <Distributions>
+    <Uniform name="distrib">
+      <lowerBound>1.0</lowerBound>
+      <upperBound>10.0</upperBound>
+    </Uniform>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="MC_external">
+      <samplerInit>
+        <limit>10</limit>
+      </samplerInit>
+      <variable name="NPV">
+        <distribution>distrib</distribution>
+      </variable>
+    </MonteCarlo>
+  </Samplers>
+
+  <Steps>
+    <MultiRun name="skpRun">
+      <Input   class="Files"        type=""                >skp_input</Input>
+      <Model   class="Models"       type="ExternalModel"   >singleKnapsack</Model>
+      <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
+      <Output  class="DataObjects"  type="PointSet"        >PS</Output>
+      <Output  class="OutStreams"   type="Print"           >Print_PS</Output>
+    </MultiRun>
+  </Steps>
+
+  <OutStreams>
+    <Print name="Print_PS">
+      <type>csv</type>
+      <source>PS</source>
+      <what>input,output</what>
+    </Print>
+  </OutStreams>
+
+  <DataObjects>
+    <PointSet name="PS">
+      <Input>NPV</Input>
+      <Output>Obj</Output>
+    </PointSet>
+  </DataObjects>
+
+</Simulation>
