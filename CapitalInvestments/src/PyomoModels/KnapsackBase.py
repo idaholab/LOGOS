@@ -25,7 +25,7 @@ import pyomo.environ as pyomo
 
 #Internal Modules------------------------------------------------------------------------------------
 from investment_utils import utils
-from .ModelBase import ModelBase
+from PyomoModels.ModelBase import ModelBase
 #Internal Modules End--------------------------------------------------------------------------------
 
 logger = logging.getLogger(__name__)

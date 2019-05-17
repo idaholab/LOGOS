@@ -20,7 +20,7 @@ import pyomo.environ as pyomo
 #External Modules End--------------------------------------------------------------------------------
 
 #Internal Modules------------------------------------------------------------------------------------
-from .KnapsackBase import KnapsackBase
+from PyomoModels.KnapsackBase import KnapsackBase
 #Internal Modules End--------------------------------------------------------------------------------
 
 logger = logging.getLogger(__name__)

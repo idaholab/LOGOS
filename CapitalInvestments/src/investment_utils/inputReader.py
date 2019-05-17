@@ -274,12 +274,13 @@ def readInput(filename):
   if type(filename) == str:
     tree = ET.parse(filename)
     root = tree.getroot()
-  elif isinstance(filename, ET):
+  elif isinstance(filename, ET.ElementTree):
     root = filename.getroot()
   elif isinstance(filename, ET.Element):
     root = filename
   else:
-    raise IOError('Unsupported type of input is provided: ' + type(filename))
+    root = filename
+    #raise IOError('Unsupported type of input is provided: ' + str(type(filename)))
   initDict = {'Sets':None, 'Parameters':None, 'Settings':None, 'Meta': None, 'Uncertainties': None}
   metaData = {'Parameters':None}
 

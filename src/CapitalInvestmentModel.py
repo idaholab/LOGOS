@@ -79,7 +79,7 @@ class CapitalInvestmentModel(ExternalModelPluginBase):
     problemType = settings.find('problem_type') if settings is not None else 'SingleKnapsack'
     if problemType is None:
       problemType = 'SingleKnapsack'
-      logger.info('Set problem type to default: %s', %problemType)
+      logger.info('Set problem type to default: %s', problemType)
     logger.info('Starting to create Optimization Instance')
     self.modelInstance = PyomoModels.returnInstance(problemType)
 
@@ -100,8 +100,8 @@ class CapitalInvestmentModel(ExternalModelPluginBase):
         if isinstance(Kwargs['SampledVars'][child.tag],(list, np.ndarray)):
           child.text = ','.join(str(var) for var in Kwargs['SampledVars'][child.tag])
         else:
-          child.text = Kwargs['SampledVars'][child.tag]
-    inputDict = inputReader.readInput(paramNode)
+          child.text = str(Kwargs['SampledVars'][child.tag])
+    inputDict = inputReader.readInput(newXml)
     return inputDict
 
   def run(self, container, inputDict):

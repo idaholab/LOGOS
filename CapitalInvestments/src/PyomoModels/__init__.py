@@ -9,14 +9,13 @@ Created on March. 19, 2019
 from __future__ import absolute_import
 
 
-from .SingleKnapsack import SingleKnapsack
-from .MultipleKnapsack import MultipleKnapsack
-from .MCKP import MCKP
+from PyomoModels.SingleKnapsack import SingleKnapsack
+from PyomoModels.MultipleKnapsack import MultipleKnapsack
+from PyomoModels.MCKP import MCKP
 
-
-from .Factory import knownTypes
-from .Factory import returnInstance
-from .Factory import returnClass
+from PyomoModels.Factory import knownTypes
+from PyomoModels.Factory import returnInstance
+from PyomoModels.Factory import returnClass
 
 __all__ = ['SingleKnapsack',
            'MultipleKnapsack',
