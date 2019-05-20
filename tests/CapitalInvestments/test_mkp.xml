@@ -76,7 +76,7 @@
 
   <Steps>
     <MultiRun name="Run">
-      <Input   class="DataObjects"  type="PointSet"        >dummy</Input>
+      <Input   class="DataObjects"  type="PointSet"        >dummyI</Input>
       <Model   class="Models"       type="EnsembleModel"   >ensemble</Model>
       <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
       <Output  class="DataObjects"  type="DataSet"         >mkp_ds</Output>
