@@ -258,5 +258,4 @@ class MCKP(KnapsackBase):
         if const.name == 'constraintCapacity':
           for index in const:
             print("{0:20s} {1:10.1f}".format(str(index), model.dual[const[index]]))
-    print(outputDict)
     return outputDict
