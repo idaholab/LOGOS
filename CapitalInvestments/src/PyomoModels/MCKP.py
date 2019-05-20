@@ -239,7 +239,9 @@ class MCKP(KnapsackBase):
     logger.info(msg)
     for item in model.investments:
       for opt in model.optionsOut[item]:
+        outputName = '|'.join([item,opt])
         numSelected = pyomo.value(model.x[item, opt])
+        outputDict[outputName] = numSelected
         if numSelected == 1:
           msg = "Investment: " + str(item) + " with option: " + str(opt) + " is selected!"
           logger.info(msg)

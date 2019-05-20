@@ -1,32 +1,40 @@
 <Simulation verbosity="debug">
 
   <RunInfo>
-    <WorkingDir>skp</WorkingDir>
-    <Sequence>skpRun</Sequence>
+    <WorkingDir>bkp</WorkingDir>
+    <Sequence>Run</Sequence>
     <batchSize>1</batchSize>
   </RunInfo>
 
   <Models>
-    <ExternalModel name="singleKnapsack" subType="CapitalInvestmentModel">
-      <variables>available_capitals,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,MaxNPV</variables>
+    <ExternalModel name="boundedSingleKnapsack" subType="CapitalInvestmentModel">
+      <variables>available_capitals,i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19, i20, i21, i22,MaxNPV</variables>
       <ModelData>
         <Sets>
           <investments>
-            i1,i2,i3,i4,i5,i6,i7,i8,i9,i10
+            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19, i20, i21, i22
           </investments>
         </Sets>
+
         <Parameters>
           <net_present_values index="investments">
-            18,20,17,19,25,21,27,23,25,24
+            150,35,200,60,60,45,60,40,30,10,70,30,15,10,40,70,75,80,20,12,50,10
           </net_present_values>
           <costs index="investments">
-            1,3,7,4,8,9,6,10,2,5
+            9,13,153,50,15,68,27,39,23,52,11,32,24,48,73,42,43,22,7,18,4,30
           </costs>
           <available_capitals>
-            15
+            400
           </available_capitals>
         </Parameters>
+
         <Settings>
+          <lowerBounds>
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          </lowerBounds>
+          <upperBounds>
+            1,1,2,2,2,3,3,3,1,3,1,1,2,2,1,1,1,1,1,2,1,2
+          </upperBounds>
           <solver>glpk</solver>
           <sense>maximize</sense>
         </Settings>
@@ -36,8 +44,8 @@
 
   <Distributions>
     <Uniform name="distrib">
-      <lowerBound>11.0</lowerBound>
-      <upperBound>20.0</upperBound>
+      <lowerBound>350.0</lowerBound>
+      <upperBound>450.0</upperBound>
     </Uniform>
   </Distributions>
 
@@ -53,9 +61,9 @@
   </Samplers>
 
   <Steps>
-    <MultiRun name="skpRun">
+    <MultiRun name="Run">
       <Input   class="DataObjects"  type="PointSet"        >dummy</Input>
-      <Model   class="Models"       type="ExternalModel"   >singleKnapsack</Model>
+      <Model   class="Models"       type="ExternalModel"   >boundedSingleKnapsack</Model>
       <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
       <Output  class="DataObjects"  type="PointSet"        >PS</Output>
       <Output  class="OutStreams"   type="Print"           >Print_PS</Output>
@@ -77,7 +85,7 @@
     </PointSet>
     <PointSet name="PS">
       <Input>available_capitals</Input>
-      <Output>i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,MaxNPV</Output>
+      <Output>i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19, i20, i21, i22,MaxNPV</Output>
     </PointSet>
   </DataObjects>
 

@@ -5,5 +5,20 @@
   input = 'test_skp.xml'
   output = 'skp/Print_PS.csv'
  [../]
+ [./bkp_optimization]
+  type  = 'RavenFramework'
+  input = 'test_bkp.xml'
+  output = 'bkp/Print_PS.csv'
+ [../]
+ [./mckp_optimization]
+  type  = 'RavenFramework'
+  input = 'test_mckp.xml'
+  output = 'mckp/Print_PS.csv'
+ [../]
+ [./mkp_optimization]
+  type  = 'RavenFramework'
+  input = 'test_mkp.xml'
+  output = 'mkp/Print_DS.csv'
+ [../]
 
 []

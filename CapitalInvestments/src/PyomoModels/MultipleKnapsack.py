@@ -218,9 +218,12 @@ class MultipleKnapsack(KnapsackBase):
     outputDict = KnapsackBase.printSolution(self, model)
     msg = "Selected investments include:"
     logger.info(msg)
+    outputDict.update({item:list() for item in model.investments})
+    outputDict['capitals'] = list(cap for cap in model.capitals)
     for cap in model.capitals:
       for item in model.investments:
         numSelected = pyomo.value(model.x[item, cap])
+        outputDict[item].append(numSelected)
         if numSelected == 1:
           msg = "Investment: " + str(item) + " is selected for capitals: " + str(cap)
           logger.info(msg)
