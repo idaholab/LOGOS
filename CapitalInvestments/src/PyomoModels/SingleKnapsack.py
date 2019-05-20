@@ -182,7 +182,7 @@ class SingleKnapsack(KnapsackBase):
       if var.name == 'x':
         for index in var:
           numSelected = pyomo.value(var[index])
-          outputDict[str(index)] = numSelected
+          outputDict[str(index)] = [numSelected]
           if numSelected == 1:
             msg = "Investment: " + str(index) + " is selected"
             logger.info(msg)

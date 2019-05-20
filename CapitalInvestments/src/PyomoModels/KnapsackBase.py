@@ -196,4 +196,4 @@ class KnapsackBase(ModelBase):
       @ In, filename, string, filename of output file
       @ Out, None
     """
-    pass
+    ModelBase.writeOutput(self,filename)

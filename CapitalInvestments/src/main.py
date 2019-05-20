@@ -40,7 +40,7 @@ if __name__ == "__main__":
   try:
     outFile = sys.argv[sys.argv.index('-o')+1]
   except ValueError:
-    outFile = 'result.o'
+    outFile = '.'.join(inFile.split('.')[:-1]) + '.o'
     logger.warning('Output file is not specifies, default output file with name ' + outFile + ' will be used')
 
   # process input file
