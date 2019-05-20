@@ -76,10 +76,13 @@ class CapitalInvestmentModel(ExternalModelPluginBase):
       @ Out, None
     """
     settings = self.xmlModelData.find('Settings')
-    problemType = settings.find('problem_type') if settings is not None else 'SingleKnapsack'
-    if problemType is None:
+    if settings is None:
       problemType = 'SingleKnapsack'
       logger.info('Set problem type to default: %s', problemType)
+    else:
+      problemType = settings.find('problem_type')
+      problemType = problemType.text.strip() if problemType is not None else 'SingleKnapsack'
+      logger.info('Set problem type to: %s', problemType)
     logger.info('Starting to create Optimization Instance')
     self.modelInstance = PyomoModels.returnInstance(problemType)
 
