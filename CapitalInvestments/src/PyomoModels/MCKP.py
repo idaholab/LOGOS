@@ -239,7 +239,7 @@ class MCKP(KnapsackBase):
     logger.info(msg)
     for item in model.investments:
       for opt in model.optionsOut[item]:
-        outputName = '|'.join([item,opt])
+        outputName = '__'.join([item,opt])
         numSelected = pyomo.value(model.x[item, opt])
         outputDict[outputName] = numSelected
         if numSelected == 1:
