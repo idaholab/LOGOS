@@ -231,6 +231,7 @@ class MultipleKnapsack(KnapsackBase):
           msg = "Investment: " + str(item) + " is selected with limit " + str(int(numSelected)) + " for capitals " + str(cap)
           logger.info(msg)
     logger.info("Maximum NPV: %16.4f" %(model.obj()))
+    outputDict['MaxNPV'] = model.obj()
 
     # Accessing Duals
     # In some cases, a solver plugin will raise an exception if it encounters a Suffix type that it does not handle

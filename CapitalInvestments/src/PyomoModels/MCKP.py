@@ -246,7 +246,7 @@ class MCKP(KnapsackBase):
           msg = "Investment: " + str(item) + " with option: " + str(opt) + " is selected!"
           logger.info(msg)
     logger.info("Maximum NPV: %16.4f" %(model.obj()))
-
+    outputDict['MaxNPV'] = model.obj()
     # Accessing Duals
     # In some cases, a solver plugin will raise an exception if it encounters a Suffix type that it does not handle
     # One should be careful in verifying that Suffix declarations are being handled as expected when switching

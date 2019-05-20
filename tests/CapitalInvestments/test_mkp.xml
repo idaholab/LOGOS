@@ -43,12 +43,12 @@
     </ExternalModel>
     <EnsembleModel name="ensemble" subType="">
       <Model class="Models" type="ExternalModel">genInput
-        <Input class="DataObject" type="PointSet">dummyI</Input>
-        <TargetEvaluation class="DataObject" type="DataSet">capital_ds</TargetEvaluation>
+        <Input class="DataObjects" type="PointSet">dummyI</Input>
+        <TargetEvaluation class="DataObjects" type="DataSet">capital_ds</TargetEvaluation>
       </Model>
       <Model class="Models" type="ExternalModel">mkp
-        <Input class="DataObject" type="PointSet">dummyII</Input>
-        <TargetEvaluation class="DataObject" type="DataSet">mkp_ds</TargetEvaluation>
+        <Input class="DataObjects" type="PointSet">dummyII</Input>
+        <TargetEvaluation class="DataObjects" type="DataSet">mkp_ds</TargetEvaluation>
       </Model>
     </EnsembleModel>
   </Models>
@@ -80,6 +80,7 @@
       <Model   class="Models"       type="EnsembleModel"   >ensemble</Model>
       <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
       <Output  class="DataObjects"  type="DataSet"         >mkp_ds</Output>
+      <Output  class="DataObjects"  type="DataSet"         >capital_ds</Output>
       <Output  class="OutStreams"   type="Print"           >Print_DS</Output>
     </MultiRun>
   </Steps>
