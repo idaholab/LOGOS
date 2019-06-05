@@ -1,4 +1,17 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.mkp_optimization</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-20</created>
+    <classesTested>Models.ExternalModel.CapitalInvestmentModel</classesTested>
+    <description>
+       This test is aimed to check the capital investment model for multiple knapsacks problem
+    </description>
+    <revisions>
+      <revision author="wangc" date="2019-05-20">debug</revision>
+      <revision author="wangc" date="2019-05-20">fix</revision>
+    </revisions>
+  </TestInfo>
 
   <RunInfo>
     <WorkingDir>mkp</WorkingDir>

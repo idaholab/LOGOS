@@ -1,4 +1,14 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.mc_fw_cost</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-14</created>
+    <classesTested>Models.EnsembleModel</classesTested>
+    <description>
+       This test is aimed to check the craft workflow
+    </description>
+    <revisions>
+  </TestInfo>
 
   <RunInfo>
       <WorkingDir>testMC</WorkingDir>

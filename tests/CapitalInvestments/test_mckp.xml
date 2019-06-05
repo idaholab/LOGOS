@@ -1,4 +1,18 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.mckp_optimization</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-20</created>
+    <classesTested>Models.ExternalModel.CapitalInvestmentModel</classesTested>
+    <description>
+       This test is aimed to check the capital investment model for multi-choice knapsack problem
+    </description>
+    <revisions>
+      <revision author="wangc" date="2019-05-20">update test_mckp</revision>
+      <revision author="wangc" date="2019-05-20">change variable names, this is because RAVEN External model currently
+        can only store variables that follow the python variable rules, I think this should be changed</revision>
+    </revisions>
+  </TestInfo>
 
   <RunInfo>
     <WorkingDir>mckp</WorkingDir>

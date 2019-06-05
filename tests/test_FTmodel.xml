@@ -1,4 +1,14 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.TestFTModel</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-08</created>
+    <classesTested>Models.ExternalModel.FTModel</classesTested>
+    <description>
+       This test is aimed to check fault tree external model
+    </description>
+    <revisions>
+  </TestInfo>
 
   <RunInfo>
     <WorkingDir>FTmodel</WorkingDir>
@@ -9,8 +19,8 @@
   <Files>
     <Input name="faultTreeTest" type="">FT1.xml</Input>
   </Files>
-  
-  <Models> 
+
+  <Models>
     <ExternalModel name="FT" subType="FTModel">
       <variables>statusBE1,statusBE2,statusBE3,statusBE4,TOP</variables>
       <!-- xml portion for this plugin only -->
@@ -65,7 +75,7 @@
       <what>input,output</what>
     </Print>
   </OutStreams>
-  
+
   <DataObjects>
     <PointSet name="inputPlaceHolder">
       <Input>statusBE1,statusBE2,statusBE3,statusBE4</Input>
@@ -76,5 +86,5 @@
       <Output>TOP</Output>
     </PointSet>
   </DataObjects>
-  
+
 </Simulation>

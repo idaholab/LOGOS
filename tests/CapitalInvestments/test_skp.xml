@@ -1,4 +1,19 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.skp_optimization</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-16</created>
+    <classesTested>Models.ExternalModel.CapitalInvestmentModel</classesTested>
+    <description>
+       This test is aimed to check the capital investment model for single knapsack problem
+    </description>
+    <revisions>
+      <revision author="wangc" date="2019-05-17">rename models to PyomoModels and utils to investment_utils</revision>
+      <revision author="wangc" date="2019-05-17">add raven CapitalInvestment external model test</revision>
+      <revision author="wangc" date="2019-05-17">fix import issue for raven plugins</revision>
+      <revision author="wangc" date="2019-05-20">Dump PyomoModel's outputs into raven data objects</revision>
+    </revisions>
+  </TestInfo>
 
   <RunInfo>
     <WorkingDir>skp</WorkingDir>

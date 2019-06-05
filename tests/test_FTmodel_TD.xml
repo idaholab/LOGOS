@@ -1,4 +1,14 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.TestFTModelTD</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-08</created>
+    <classesTested>Models.ExternalModel.FTModel</classesTested>
+    <description>
+       This test is aimed to check time dependent fault tree external model
+    </description>
+    <revisions>
+  </TestInfo>
 
   <RunInfo>
     <WorkingDir>FTmodelTD</WorkingDir>
@@ -9,8 +19,8 @@
   <Files>
     <Input name="faultTreeTest" type="">FT1.xml</Input>
   </Files>
-  
-  <Models> 
+
+  <Models>
     <ExternalModel name="FT" subType="FTModel">
       <variables>statusA,statusB,statusC,statusD,TOP</variables>
       <topEvents>TOP</topEvents>
@@ -68,7 +78,7 @@
       <what>input,output</what>
     </Print>
   </OutStreams>
-  
+
   <DataObjects>
     <PointSet name="inputPlaceHolder">
       <Input>statusA,statusB,statusC,statusD</Input>
@@ -79,5 +89,5 @@
       <Output>TOP</Output>
     </PointSet>
   </DataObjects>
-  
+
 </Simulation>

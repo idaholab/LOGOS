@@ -1,4 +1,14 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.TestGraphModel</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-08</created>
+    <classesTested>Models.ExternalModel.GraphModel</classesTested>
+    <description>
+       This test is aimed to check the Graph Model
+    </description>
+    <revisions>
+  </TestInfo>
 
   <RunInfo>
     <WorkingDir>graphModel</WorkingDir>
@@ -31,7 +41,7 @@
       </variable>
     </MonteCarlo>
   </Samplers>
-  
+
   <Models>
     <ExternalModel name="graph" subType="GraphModel">
       <variables>status2,status3,status4,status5,statusSG1,statusSG2,statusSG3</variables>
@@ -66,7 +76,7 @@
       <what>input,output</what>
     </Print>
   </OutStreams>
-  
+
   <DataObjects>
     <PointSet name="inputPlaceHolder">
       <Input>status2,status3,status4,status5</Input>
@@ -77,5 +87,5 @@
       <Output>statusSG1,statusSG2,statusSG3</Output>
     </PointSet>
   </DataObjects>
-  
+
 </Simulation>

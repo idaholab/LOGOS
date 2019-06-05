@@ -1,4 +1,14 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.TestGraphModelTD</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-08</created>
+    <classesTested>Models.ExternalModel.GraphModel</classesTested>
+    <description>
+       This test is aimed to check the time dependent graph model
+    </description>
+    <revisions>
+  </TestInfo>
 
   <RunInfo>
     <WorkingDir>graphModelTD</WorkingDir>
@@ -35,7 +45,7 @@
       </variable>
     </MonteCarlo>
   </Samplers>
-  
+
   <Models>
     <ExternalModel name="graph" subType="GraphModel">
       <variables>statusA,statusB,statusC,statusD,statusOUT</variables>
@@ -67,7 +77,7 @@
       <what>input,output</what>
     </Print>
   </OutStreams>
-  
+
   <DataObjects>
     <PointSet name="inputPlaceHolder">
       <Input>statusA,statusB,statusC,statusD</Input>
@@ -78,5 +88,5 @@
       <Output>statusOUT</Output>
     </PointSet>
   </DataObjects>
-  
+
 </Simulation>

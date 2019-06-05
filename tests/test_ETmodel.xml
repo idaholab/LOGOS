@@ -1,4 +1,14 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.TestETModel</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-08</created>
+    <classesTested>Models.ExternalModel.ETModel</classesTested>
+    <description>
+       This test is aimed to check the event tree external model
+    </description>
+    <revisions>
+  </TestInfo>
 
   <RunInfo>
     <WorkingDir>ETmodel</WorkingDir>
@@ -9,8 +19,8 @@
   <Files>
     <Input name="eventTreeTest" type="">eventTree.xml</Input>
   </Files>
-  
-  <Models> 
+
+  <Models>
     <ExternalModel name="ET" subType="ETModel">
       <variables>statusACC,statusLPI,statusLPR,sequence</variables>
       <!-- xml portion for this plugin only -->
@@ -61,7 +71,7 @@
       <what>input,output</what>
     </Print>
   </OutStreams>
-  
+
   <DataObjects>
     <PointSet name="inputPlaceHolder">
       <Input>statusACC,statusLPI,statusLPR</Input>
@@ -72,5 +82,5 @@
       <Output>sequence</Output>
     </PointSet>
   </DataObjects>
-  
+
 </Simulation>

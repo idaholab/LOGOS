@@ -1,4 +1,14 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.TestEnesembleDiscrete</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-08</created>
+    <classesTested>Models.ExternalModel.EnsembleModel</classesTested>
+    <description>
+       This test is aimed to check ensemble model with fault tree and exvent tree external model
+    </description>
+    <revisions>
+  </TestInfo>
 
   <RunInfo>
     <WorkingDir>ensembleDiscrete</WorkingDir>
@@ -69,7 +79,7 @@
       </variable>
     </MonteCarlo>
   </Samplers>
-  
+
   <Models>
     <ExternalModel name="ET" subType="ETModel">
       <variables>initEvent,statusACC,statusLPI,LPR,sequence</variables>
@@ -113,9 +123,9 @@
       <state name='0'>
         <transition type='tau' value='1.25' >1</transition>
       </state>
-      <state name='1'> 
+      <state name='1'>
         <transition type='tau' value='5.'>0</transition>
-      </state>     
+      </state>
     </ExternalModel>
 
     <EnsembleModel name="PRA_Model" subType="">
@@ -146,7 +156,7 @@
       </Model>
     </EnsembleModel>
   </Models>
-  
+
   <DataObjects>
     <PointSet name="inputPlaceHolder">
       <Input>A,B,C,beta,gamma,initialState,initEvent</Input>
@@ -185,5 +195,5 @@
       <Output>statusACC</Output>
     </PointSet>
   </DataObjects>
-  
+
 </Simulation>

@@ -1,4 +1,14 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.TestMarkovModel_2states</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-08</created>
+    <classesTested>Models.ExternalModel.MarkovModel</classesTested>
+    <description>
+       This test is aimed to check the Markov Model
+    </description>
+    <revisions>
+  </TestInfo>
 
   <RunInfo>
     <WorkingDir>markovModel_2states</WorkingDir>
@@ -24,7 +34,7 @@
       </variable>
     </MonteCarlo>
   </Samplers>
-  
+
   <Models>
     <ExternalModel name="markov2" subType="MarkovModel">
       <variables>initialState,finalState</variables>
@@ -36,7 +46,7 @@
       </state>
       <state name='2'> <!-- Failed -->
         <transition type='lambda' value='0.2'>1</transition>
-      </state>     
+      </state>
     </ExternalModel>
   </Models>
 
@@ -78,7 +88,7 @@
       </actions>
     </Plot>
   </OutStreams>
-  
+
   <DataObjects>
     <PointSet name="inputPlaceHolder">
       <Input>initialState</Input>
@@ -89,5 +99,5 @@
       <Output>finalState</Output>
     </PointSet>
   </DataObjects>
-  
+
 </Simulation>

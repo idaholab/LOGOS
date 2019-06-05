@@ -1,4 +1,14 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.bkp_optimization</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-20</created>
+    <classesTested>Models.ExternalModel.CapitalInvestmentModel</classesTested>
+    <description>
+       This test is aimed to check the capital investment model for bounded knapsack problem
+    </description>
+    <revisions>
+  </TestInfo>
 
   <RunInfo>
     <WorkingDir>bkp</WorkingDir>
