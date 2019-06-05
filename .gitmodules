@@ -1,4 +1,0 @@
-[submodule "raven"]
-	path = raven
-	url = git@github.com:idaholab/raven.git
-
