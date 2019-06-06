@@ -1,11 +1,6 @@
 before_script:
       # Print out python version for debugging
     - python -V
-      # set up proxy for runner user
-    - export http_proxy=http://webbalance.inl.gov:8080;
-        export https_proxy=http://webbalance.inl.gov:8080;
-        export ftp_proxy=http://webbalance.inl.gov:8080;
-        export ftps_proxy=http://webbalance.inl.gov:8080;
       # clone raven
     - git clone https://github.com/idaholab/raven.git
     - cd raven
