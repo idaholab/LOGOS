@@ -18,4 +18,4 @@ default: *.tex
 .PHONY: clean
 
 clean:
-	@rm -f *~ *.aux *.bbl *.blg *.log *.out *.toc *.lot *.lof software_requirements_specifications.pdf dependencies.tex
+	@rm -f *~ *.aux *.bbl *.blg *.log *.out *.toc *.lot *.lof software_requirements_specifications.pdf dependencies.tex requirements.tex
