@@ -1,0 +1,48 @@
+<?xml version="1.0" ?>
+<requirements_specification application="NuSAR">
+    
+    <requirement_group id="Minimum Requirements">
+        
+      <requirement_set caption="Minimum Requirements">
+          <requirement id_code="R-M-1">
+              <description>Computer: Any POSIX (and POSIX-like) system</description>
+              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continous Integration System</source>
+          </requirement>
+          <requirement id_code="R-M-2">
+              <description>RAM: 2 GB per core execution (depending on the type of analysis and data genarated)</description>
+              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continous Integration System</source>
+          </requirement>
+          <requirement id_code="R-M-3">
+              <description>Disk: 10 GB (size depending on the type of analysis and data generated)</description>
+              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continous Integration System</source>
+          </requirement>
+          <requirement id_code="R-M-4">
+              <description>Compilers: GCC, Clang, or Intel</description>
+              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continous Integration System</source>
+          </requirement>
+          <requirement id_code="R-M-5">
+              <description>Language: Python 3.7</description>
+              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continous Integration System</source>
+          </requirement>
+          <requirement id_code="R-M-6">
+              <description>Version Control: Git</description>
+              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continous Integration System</source>
+          </requirement>
+        </requirement_set>
+          
+    </requirement_group>
+
+    <requirement_group id="Functional Requirements">
+        
+      <requirement_set caption="Framework, I/O, Execution Control">
+          <requirement id_code="R-F-3">
+              <source>RAVEN User Manual, INL/EXT-15-34123</source>
+              <description>RAVEN shall support a programmatic method for building up and/or downloading the necessary compiled objects/dependencies necessary for a simulation.</description>
+          </requirement>
+      </requirement_set>
+          
+    </requirement_group>
+          
+</requirements_specification>
+
+
