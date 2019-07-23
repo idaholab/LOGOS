@@ -18,6 +18,9 @@ import itertools
 import numpy as np
 import logging
 import pandas as pd
+import collections
+import six
+from six import iterkeys, iteritems, itervalues
 import pyomo.environ as pyomo
 from pyomo.opt import SolverFactory, TerminationCondition
 import pyomo.pysp.util.rapper as rapper
@@ -238,6 +241,8 @@ class ModelBase:
        raise RuntimeError("Solver did not report optimality:\n%s" %(results.solver))
       # TODO: Add collect output and return a dictionary for raven to retrieve information
       self.printScenarioSolution(stsolver)
+      outputDict.update(self.getScenarioSolution(stsolver.scenario_tree))
+      self.output.update(outputDict)
 
     return outputDict
 
@@ -259,6 +264,77 @@ class ModelBase:
     # use function from ./pyomo/pysp/scenariotree/tree_structure.py pprintSolution to
     # pretty-print the solution associated with a scenario tree
     stsolver.scenario_tree.pprintSolution()
+    stsolver.scenario_tree.pprintCosts()
+
+  def writeScenarioInfo(self, filename):
+    """
+      write scenario info into files
+      @ In, filename, string, filename of output file
+      @ Out, None
+    """
+    fileObj = open(filename,"w")
+    fileObj.write("Scenarios: \n")
+    for scenarioName, scenarioInfo in self.scenarios['scenario_data'].items():
+      fileObj.write("\t%s:\n" %scenarioName)
+      for var, valDict in scenarioInfo.items():
+        fileObj.write("\t\t%s:" % var)
+        for val in valDict.values():
+          fileObj.write("%10.4f" % val)
+        fileObj.write("\n")
+    fileObj.close()
+
+  def getScenarioSolution(self, ts):
+    """
+      Output optimization solution to csv file
+      @ In, ts, instance, scenario tree structure intance
+      @ Out, None
+    """
+    # dump scenario solutions into csv file
+    logger.info("Dumping scenario solutions ...")
+    scenarioOutput = collections.OrderedDict()
+    scenarioNameList = []
+    probabilityWeight = []
+    # Loop over scenario tree to get the the solutions for each scienario
+    for treeNodeName in sorted(iterkeys(ts._tree_node_map)):
+      treeNode = ts._tree_node_map[treeNodeName]
+      if treeNodeName == "RootNode":
+        continue
+      scenarioNameList.append(treeNodeName.replace("leaf_", ""))
+      probabilityWeight.append(treeNode._conditional_probability)
+      if (len(treeNode._stage._variable_templates) > 0) or (len(treeNode._variable_templates) > 0):
+        for name in sorted(treeNode._variable_indices):
+          for index in sorted(treeNode._variable_indices[name]):
+            id = treeNode._name_index_to_id[name, index]
+            if id in treeNode._standard_variable_ids:
+              # if a solution has not yet been stored snapshotted, then the value won't be in the solution map
+              try:
+                value = treeNode._solution[id]
+              except KeyError:
+                value = None
+              if value is not None:
+                if index not in scenarioOutput:
+                  scenarioOutput[index] = []
+                scenarioOutput[index].append(value)
+    scenarioOutput['ScenarioName'] = scenarioNameList
+    scenarioOutput['ProbabilityWeight'] = probabilityWeight
+    # Loop over scenario to get the cost
+    costList = []
+    for scenarioName in scenarioNameList:
+      scenario = ts._scenario_map[scenarioName]
+      aggregateCost = 0.0
+      for stage in ts._stages:
+        treeNode = None
+        for node in scenario._node_list:
+          if node._stage == stage:
+            treeNode = node
+            break
+        costVariableValue = scenario._stage_costs[stage._name]
+        if costVariableValue is not None:
+          aggregateCost += costVariableValue
+      costList.append(aggregateCost)
+
+    scenarioOutput['MaxNPV'] = costList
+    return scenarioOutput
 
   def writeOutput(self, filename):
     """
@@ -267,4 +343,7 @@ class ModelBase:
       @ Out, None
     """
     df = pd.DataFrame(self.output)
+    df = df.sort_values(by=["MaxNPV"])
     df.to_csv(filename, index=False)
+    scenarioInfoFile = ".".join(filename.split('.')[:-1]) + "_scenario_info.o"
+    self.writeScenarioInfo(scenarioInfoFile)
