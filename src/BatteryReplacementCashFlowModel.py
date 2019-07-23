@@ -37,7 +37,6 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     container.unitsDowntimeCost = 6720000
     container.electricityMarginalCost = 32 #/MWh
     container.contributionFactor = {"hardSavings":1., "projectedSavings":0.9, "reliabilitySavings":0.8, "efficientSavings":0.65, "otherSavings":0.5}
-    # container.replacementTime = {1:2019, 2:2035} # {option:replacement year}
     container.lifetime = 16
     container.startTime = 2019
     container.startMaintenanceTime = 2020
