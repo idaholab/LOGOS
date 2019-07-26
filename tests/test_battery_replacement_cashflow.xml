@@ -16,7 +16,7 @@
 
   <Models>
     <ExternalModel name="batteryCost" subType="BatteryReplacementCashFlowModel">
-      <variables>batteryIncurringShutdownProbability, batteryFailureProbability, cashflows, time</variables>
+      <variables>batteryIncurringShutdownProbability, batteryFailureProbability, cashflows, NPV, time</variables>
       <plannedReplacementCost>70000</plannedReplacementCost>
       <unplannedReplacementCost>350000</unplannedReplacementCost>
       <batteryFailureProbability>0.01</batteryFailureProbability>
@@ -64,10 +64,11 @@
       <Input>batteryIncurringShutdownProbability, batteryFailureProbability</Input>
       <Output>OutputPlaceHolder</Output>
     </PointSet>
-    <HistorySet name="costOutput">
+    <DataSet name="costOutput">
       <Input>batteryIncurringShutdownProbability, batteryFailureProbability</Input>
-      <Output>cashflows</Output>
-    </HistorySet>
+      <Output>cashflows, NPV</Output>
+      <Index var="time">cashflows</Index>
+    </DataSet>
   </DataObjects>
 
   <Steps>
@@ -75,10 +76,10 @@
       <Input          class="DataObjects"   type="PointSet">dummy</Input>
       <Model          class="Models"        type="ExternalModel">batteryCost</Model>
       <Sampler        class="Samplers"      type="MonteCarlo">test_MC</Sampler>
-      <Output         class="DataObjects"   type="PointSet">costOutput</Output>
+      <Output         class="DataObjects"   type="DataSet">costOutput</Output>
     </MultiRun>
     <IOStep name="printTOfile">
-     <Input          class="DataObjects"   type="PointSet">costOutput</Input>
+     <Input          class="DataObjects"   type="DataSet">costOutput</Input>
      <Output         class="OutStreams"    type="Print">dumpCostOutput</Output>
     </IOStep>
   </Steps>
