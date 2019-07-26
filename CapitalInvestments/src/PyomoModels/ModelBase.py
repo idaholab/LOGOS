@@ -345,5 +345,6 @@ class ModelBase:
     df = pd.DataFrame(self.output)
     df = df.sort_values(by=["MaxNPV"])
     df.to_csv(filename, index=False)
-    scenarioInfoFile = ".".join(filename.split('.')[:-1]) + "_scenario_info.o"
-    self.writeScenarioInfo(scenarioInfoFile)
+    if self.scenarios is not None:
+      scenarioInfoFile = ".".join(filename.split('.')[:-1]) + "_scenario_info.o"
+      self.writeScenarioInfo(scenarioInfoFile)

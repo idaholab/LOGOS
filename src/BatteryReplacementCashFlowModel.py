@@ -9,12 +9,21 @@ warnings.simplefilter('default', DeprecationWarning)
 #External Modules---------------------------------------------------------------
 import numpy as np
 import math
+import os
+import sys
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
 from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 #Internal Modules End-----------------------------------------------------------
 
+#CashFlow modules---------------------------------------------------------------
+sys.path.append(os.path.expanduser('~/projects/raven/plugins/CashFlow/src'))
+import main
+import CashFlows
+# from main import run
+# from CashFlows import GlobalSettings, Component, Capex
+#CashFlow modules End-----------------------------------------------------------
 
 class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
   ############################################################################
@@ -43,6 +52,8 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     container.endMaintenanceTime = 2034
     container.inflation = 0.015
     container.discountRate = 0.09
+    container.tax = 0.
+
 
     for child in xmlNode:
       if child.tag.strip() == "variables":
@@ -70,6 +81,8 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
         container.inflation = float(child.text)
       elif child.tag.strip() == "discountRate":
         container.discountRate = float(child.text)
+      elif child.tag.strip() == "tax":
+        container.tax = float(child.text)
       elif child.tag.strip() == "lifetime":
         container.lifetime = int(child.text)
       elif child.tag.strip() == "startTime":
@@ -160,18 +173,63 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
       container.cashflows[i] = container.totalSaving[time]
       container.time = np.asarray(container.time)
 
-    print("Expected Lost Revenue:")
-    print(container.expectedLostRevenue)
-    print("Expeced Downtime Cost:")
-    print(container.expectedDowntimeCost)
+    # print("Expected Lost Revenue:")
+    # print(container.expectedLostRevenue)
+    # print("Expeced Downtime Cost:")
+    # print(container.expectedDowntimeCost)
+    #
+    # print("Projected Soft Saving:")
+    # print(container.projectedSoftSaving)
+    # print("Reliability Saving:")
+    # print(container.reliabilitySoftSaving)
+    # print("Total Hard Saving:")
+    # print(container.totalHardSaving)
+    # print("Total Soft Saving:")
+    # print(container.totalSoftSaving)
+    # print("Total Saving:")
+    # print(container.cashflows)
 
-    print("Projected Soft Saving:")
-    print(container.projectedSoftSaving)
-    print("Reliability Saving:")
-    print(container.reliabilitySoftSaving)
-    print("Total Hard Saving:")
-    print(container.totalHardSaving)
-    print("Total Soft Saving:")
-    print(container.totalSoftSaving)
-    print("Total Saving:")
-    print(container.cashflows)
+    # construct cashflow related objects
+    #GlobalSettings
+    settings = CashFlows.GlobalSettings(verbosity=0)
+    paramDict = {}
+    paramDict['DiscountRate'] = container.discountRate
+    paramDict['tax'] = container.tax
+    paramDict['inflation'] = container.inflation
+    paramDict['projectTime'] = container.lifetime
+    paramDict['Indicator'] = {'name':['NPV'], 'target':None, 'active':['Battery|Replacement']}
+    settings.set_params(paramDict)
+
+    #Cashflow, using Capex
+    cashflow = CashFlows.Recurring(component='Battery', verbosity=0)
+    paramDict = {}
+    paramDict['name'] = 'Replacement'
+    paramDict['tax'] = container.tax
+    paramDict['inflation'] = container.inflation
+    paramDict['alpha'] = 1
+    paramDict['X'] = 1.
+    paramDict['reference'] = 1.
+    # paramDict['multiply'] = 1.
+    paramDict['driver'] = 1.
+    cashflow.set_params(paramDict)
+    cashflow._yearly_cashflow = container.cashflows
+
+    #Component
+    component = CashFlows.Component(verbosity=0)
+    paramDict ={}
+    paramDict['name'] = 'Battery'
+    paramDict['Life_time'] = container.lifetime
+    paramDict['StartTime'] = 0
+    paramDict['Repetitions'] = 0
+    paramDict['tax'] = container.tax
+    paramDict['inflation'] = container.inflation
+    paramDict['cash_flows'] = [cashflow]
+    component.set_params(paramDict)
+
+    # variables = {'TotalSaving':container.cashflows}
+    # run the calculations, and compute NPV, IRR and PI
+    metrics = main.run(settings, [component], {})
+    for k, v in metrics.items():
+      print("name: ", k)
+      print("value: ", v)
+      setattr(container, k, v)
