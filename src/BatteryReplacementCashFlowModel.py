@@ -53,6 +53,9 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     container.inflation = 0.015
     container.discountRate = 0.09
     container.tax = 0.
+    container.paramList = ["plannedReplacementCost", "unplannedReplacementCost", "batteryFailureProbability", "numberBatteries", \
+                          "weeklyInspectionCost", "batteryIncurringShutdownProbability", "unitsCapacity", "unitsDowntimeCost", \
+                          "electricityMarginalCost", "inflation", "tax"]
 
 
     for child in xmlNode:
@@ -114,6 +117,16 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     container.failureProbability = {}
     container.failureProbabilityAtTime = {}
     container.incurringShutdownProbabilityAtTime = {}
+
+  def run(self, container, Inputs):
+    """
+      This method compute the cashflows of battery replacement case.
+      @ In, container, object, self-like object where all the variables can be stored
+      @ In, Inputs, dict, dictionary of inputs from RAVEN
+    """
+    for k, v in Inputs.items():
+      if k in container.paramList:
+        setattr(container, k, v)
     for time in container.time:
       if time == container.startTime:
         container.survivalProbability[time] = 1.0
@@ -126,13 +139,6 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
         container.failureProbabilityAtTime[time] = container.failureProbability[time] - container.failureProbability[time-1]
         container.incurringShutdownProbabilityAtTime[time] = container.survivalProbability[time] * container.batteryIncurringShutdownProbability
 
-  def run(self, container, Inputs):
-    """
-      This method compute the cashflows of battery replacement case.
-      @ In, container, object, self-like object where all the variables can be stored
-      @ In, Inputs, dict, dictionary of inputs from RAVEN
-
-    """
     container.expectedReplacementCost = {}
     container.expectedInspectionCostsNoReplacement = {}
     container.expectedInspectionCostsWithReplacement = {}
@@ -191,7 +197,8 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
 
     # construct cashflow related objects
     #GlobalSettings
-    settings = CashFlows.GlobalSettings(verbosity=0)
+    verbosity = 100
+    settings = CashFlows.GlobalSettings(verbosity=verbosity)
     paramDict = {}
     paramDict['DiscountRate'] = container.discountRate
     paramDict['tax'] = container.tax
@@ -201,7 +208,7 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     settings.set_params(paramDict)
 
     #Cashflow, using Capex
-    cashflow = CashFlows.Recurring(component='Battery', verbosity=0)
+    cashflow = CashFlows.Recurring(component='Battery', verbosity=verbosity)
     paramDict = {}
     paramDict['name'] = 'Replacement'
     paramDict['tax'] = container.tax
@@ -215,7 +222,7 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     cashflow._yearly_cashflow = container.cashflows
 
     #Component
-    component = CashFlows.Component(verbosity=0)
+    component = CashFlows.Component(verbosity=verbosity)
     paramDict ={}
     paramDict['name'] = 'Battery'
     paramDict['Life_time'] = container.lifetime
