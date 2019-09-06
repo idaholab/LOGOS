@@ -28,4 +28,4 @@ before_script:
 test:
     script:
       - cd raven
-      - ./run_tests -j4 --re=plugins/NuSAR # does this return a failed status?
+      - ./run_tests -j4 --re=plugins/Logos # does this return a failed status?
