@@ -7,7 +7,6 @@
     <description>
        This test is aimed to check Markov model with 3 states with instant transition
     </description>
-    <revisions>
   </TestInfo>
 
   <RunInfo>

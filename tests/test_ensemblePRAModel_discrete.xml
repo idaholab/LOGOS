@@ -7,7 +7,6 @@
     <description>
        This test is aimed to check ensemble model with fault tree and exvent tree external model
     </description>
-    <revisions>
   </TestInfo>
 
   <RunInfo>
