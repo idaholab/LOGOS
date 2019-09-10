@@ -16,6 +16,7 @@
  [./sept_milestone]
   type  = 'RavenFramework'
   input = 'test_sept_milestone.xml'
+  max_time = 450
   UnorderedCsv   = 'MFW/Print_basicStats_0.csv'
   output = 'MFW/Print_basicStats.csv MFW/1-plot_P1P2_1_line-line-line-line-line.png MFW/1-plot_P1P2_2_line-line-line-line-line.png MFW/1-plot_SG_line-line-line-line-line.png MFW/1-plot_V1_line-line-line-line-line.png MFW/1-plot_V2_line-line-line-line-line.png MFW/1-plot_cost_P1P2_1_line-line-line-line-line.png MFW/1-plot_cost_P1P2_2_line-line-line-line-line.png MFW/1-plot_cost_SG_line-line-line-line-line.png MFW/1-plot_cost_V1_line-line-line-line-line.png MFW/1-plot_cost_V2_line-line-line-line-line.png'
  [../]
