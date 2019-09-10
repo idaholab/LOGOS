@@ -124,5 +124,5 @@ class CapitalInvestmentModel(ExternalModelPluginBase):
     logger.info('Optimization Instance: %s is successfully optimized', self.modelInstance.name)
     # store requested information into container
     for key, val in outputDict.items():
-      container.__dict__[key] = val
+      container.__dict__[key] = np.atleast_1d(val)
     logger.info("Run complete!")
