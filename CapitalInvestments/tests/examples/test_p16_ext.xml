@@ -1,6 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-
+Case Example for FY19
+Case 2: This case extends the analysis done in Case 1 (test_p16_ext.xml) by allowing a second option,
+PlanB, and a second resource O&M funds. PlanB shifts the starting time for some of the projects to one
+year later. The costs and budgets are split between the two available resources CapitalFunds and O&M funds.
+Best NPV = -60.852
+Selected Investments:
+FeedwaterHeater with option: PlanA is selected
+EmergencySump with option: PlanA is selected
+Transformer with option: DoNothing is selected
+TurbineHallCrane with option: DoNothing is selected
+ReactorCoolantPumps with option: PlanA is selected
+MitigateBuriedPiping with option: PlanB is selected
+RefurbishTurbineGovernors with option: DoNothing is selected
+ServiceCircWaterPumps with option: PlanA is selected
+MaintainRAOC with option: PlanA is selected
+ReplaceCoolantInjectPiping with option: PlanA is selected
+ReplaceChiller with option: PlanA is selected
+VessellHeadWeldRemediate with option: PlanA is selected
+MaintainCondensor with option: PlanA is selected
+ReplaceConrolCables with option: PlanB is selected
+CranePowerFeed with option: PlanA is selected
+MoisterSeparatorReheater with option: PlanA is selected
 -->
 <riam>
   <Sets>
