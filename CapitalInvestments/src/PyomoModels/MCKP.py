@@ -36,6 +36,7 @@ class MCKP(KnapsackBase):
       @ Out, None
     """
     KnapsackBase.__init__(self)
+    self.maxDim = {'available_capitals':2, 'net_present_values':1, 'costs':3}
 
   def initialize(self, initDict):
     """
@@ -58,13 +59,22 @@ class MCKP(KnapsackBase):
     paramList = []
     for paramName, scenarioDict in self.uncertainties.items():
       if paramName == 'available_capitals':
-        dataList = []
-        for scenarioData in scenarioDict['scenarios'].values():
-          indices = [list(scenarioData.keys()), ['None']]
-          indices = list(itertools.product(*indices))
-          paramDict = dict(zip(indices, list(scenarioData.values())))
-          dataList.append(paramDict)
-        scenarioList.append(dataList)
+        options = [[None], ['resources'], ['time_periods'], ['resources','time_periods']]
+        sdKeys = list(self.meta['Parameters'][paramName].keys())
+        print(sdKeys)
+        if len(sdKeys) == self.maxDim['available_capitals']:
+          scenarioList.append(list(scenarioDict['scenarios'].values()))
+        elif len(sdKeys) == 1 and sdKeys in options:
+          pos = options.index(sdKeys)
+          dataList = []
+          for scenarioData in scenarioDict['scenarios'].values():
+            indices = [list(scenarioData.keys()), ['None']] if pos == 1 else [['None'], list(scenarioData.keys())]
+            indices = list(itertools.product(*indices))
+            paramDict = dict(zip(indices, list(scenarioData.values())))
+            dataList.append(paramDict)
+          scenarioList.append(dataList)
+        else:
+          raise IOError('Not supported index: ' + ','.join(sdKeys))
       else:
         scenarioList.append(list(scenarioDict['scenarios'].values()))
       scenarioNameList.append(list(scenarioDict['scenarios'].keys()))
@@ -84,18 +94,15 @@ class MCKP(KnapsackBase):
     data = KnapsackBase.generateModelInputData(self)
     paramName = 'available_capitals'
     options = [[None], ['resources'], ['time_periods'], ['resources','time_periods']]
-    maxDim = 2
-    data[paramName] = self.setParameters(paramName, options, maxDim)
+    data[paramName] = self.setParameters(paramName, options, self.maxDim[paramName])
 
     paramName = 'net_present_values'
     options = [['options']]
-    maxDim = 1
-    data[paramName] = self.setParameters(paramName, options, maxDim)
+    data[paramName] = self.setParameters(paramName, options, self.maxDim[paramName])
 
     paramName = 'costs'
     options = [['options'],['options','resources'],['options','time_periods'],['options','resources','time_periods']]
-    maxDim = 3
-    data[paramName] = self.setParameters(paramName, options, maxDim)
+    data[paramName] = self.setParameters(paramName, options, self.maxDim[paramName])
     data = {None:data}
     return data
 
