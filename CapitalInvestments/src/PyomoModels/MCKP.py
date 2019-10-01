@@ -135,31 +135,11 @@ class MCKP(KnapsackBase):
     # The options in input file can include DoNothing, but not required to be selected by optimization
     # Only the investment added to regulatoryMandated will be selected.
 
-    def constraintX(model,i):
-      """ sum of investments over knapsacks should less or equal than bounds """
-      expr = sum(model.x[i,j] for j in model.optionsOut[i])
-      if not self.nonSelection:
-        return sum(model.x[i,j] for j in model.optionsOut[i]) <= 1
-      else:
-        # When Non-Selection is included, the following constraint should be used.
-        return sum(model.x[i,j] for j in model.optionsOut[i]) == 1
-    model.constraintX = pyomo.Constraint(model.investments, rule=constraintX)
-
-    def constraintCapacity(model, k, t):
-      """Knapsacks capacity constraints"""
-      expr = sum(sum(model.costs[i,j,k,t]*model.x[i,j] for j in model.optionsOut[i]) for i in model.investments)
-      return expr <= model.available_capitals[k,t]
-    model.constraintCapacity = pyomo.Constraint(model.resources, model.time_periods, rule=constraintCapacity)
-
-    # last option of any project will be denoted as "non-selection" option
-    if self.regulatoryMandated is not None:
-      model.regulatoryMandated = pyomo.Set()
-      def constraintRegulatory(model, i):
-        """Regulatory constraints, always required projects/investments"""
-        return sum(model.x[i,j] for j in model.optionsOut[i]) == 1
-        # When Non-Selection is included, the following constraint should be used.
-        # return sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,model.optionsOut[i].last()] == 1
-      model.constraintRegulatory = pyomo.Constraint(model.regulatoryMandated, rule=constraintRegulatory)
+    # objective function (1a)
+    def objExpression(model):
+      """objective expression"""
+      return model.firstStageCost + model.secondStageCost
+    model.obj = pyomo.Objective(rule=objExpression, sense=self.sense)
 
     def computeFirstStageCost(model):
       """"Frist stage cost of stochastic programming"""
@@ -172,8 +152,44 @@ class MCKP(KnapsackBase):
       return expr
     model.secondStageCost = pyomo.Expression(rule=computeSecondStageCost)
 
+    # constraint (1d)
+    def constraintCapacity(model, k, t):
+      """
+        Knapsacks capacity constraints
+        This constraint requires that we be within budget in each time period,
+        for each resource type, under each scenario
+      """
+      expr = sum(sum(model.costs[i,j,k,t]*model.x[i,j] for j in model.optionsOut[i]) for i in model.investments)
+      return expr <= model.available_capitals[k,t]
+    model.constraintCapacity = pyomo.Constraint(model.resources, model.time_periods, rule=constraintCapacity)
+
+    # constraint (1e) and (1f)
+    # last option of any project will be denoted as "non-selection" option
+    if self.regulatoryMandated is not None:
+      model.regulatoryMandated = pyomo.Set()
+      def constraintRegulatory(model, i):
+        """Regulatory constraints, always required projects/investments"""
+        return sum(model.x[i,j] for j in model.optionsOut[i]) == 1
+        # When Non-Selection is included, the following constraint should be used.
+        # return sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,model.optionsOut[i].last()] == 1
+      model.constraintRegulatory = pyomo.Constraint(model.regulatoryMandated, rule=constraintRegulatory)
+
+    # constraint to handle 'DoNothing' options --> (1f)
+    def constraintX(model,i):
+      """ sum of investments over knapsacks should less or equal than bounds """
+      expr = sum(model.x[i,j] for j in model.optionsOut[i])
+      if not self.nonSelection:
+        return sum(model.x[i,j] for j in model.optionsOut[i]) <= 1
+      else:
+        # When Non-Selection is included, the following constraint should be used.
+        return sum(model.x[i,j] for j in model.optionsOut[i]) == 1
+    model.constraintX = pyomo.Constraint(model.investments, rule=constraintX)
+
+    # constraint for scenario analysis
     if self.uncertainties is not None:
       model.y = pyomo.Var(model.investments, model.investments, domain=self.solutionVariableType)
+
+      # constraint (1b)
       def orderConstraintI(model, i, j):
         """Constraint for variable y if priority project selection is required"""
         if i == j:
@@ -182,6 +198,13 @@ class MCKP(KnapsackBase):
           return model.y[i,j] + model.y[j,i] >= 1
       model.orderConstraintI = pyomo.Constraint(model.investments, model.investments, rule=orderConstraintI)
 
+      # constraint (1b) extension
+      def constraintY(model, i):
+        """Constraint for variable y if priority project selection is required"""
+        return model.y[i,i] == 0
+      model.constraintY = pyomo.Constraint(model.investments)
+
+      # constraint (1c)
       def consistentConstraint(model, i, ip):
         """Constraint for variable y if priority project selection is required"""
         if i == ip:
@@ -208,16 +231,6 @@ class MCKP(KnapsackBase):
                 expr2 = sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,lastIndexI]
           return expr1 <= expr2
       model.consistentConstraint = pyomo.Constraint(model.investments, model.investments, rule=consistentConstraint)
-
-      def constraintY(model, i):
-        """Constraint for variable y if priority project selection is required"""
-        return model.y[i,i] == 0
-      model.constraintY = pyomo.Constraint(model.investments)
-
-    def objExpression(model):
-      """objective expression"""
-      return model.firstStageCost + model.secondStageCost
-    model.obj = pyomo.Objective(rule=objExpression, sense=self.sense)
 
     return model
 
