@@ -131,23 +131,14 @@ Best NPV=263.17
 
   <Settings>
     <regulatoryMandated>
-        HPFeedwaterHeaterUpgrade
         PresurizerReplacement
-        ImprovementEmergencyDieselGenerators
-        SecondarySystemPHMSystem
         ReplacementTwoReactorCoolantPumps
-        SeismicModificationRequalificationReinforcementImprovement
         FireProtection
-        ServiceWaterSystemUpgrade
-        BatteriesReplacement
         ReplaceCCWPipingHeatExchangersValues
-        ReactorVesselInternals
         ReactorVesselUpgrade
-        ReplaceLPTurbine
         ReplaceInstrumentationAndControlCables
-        CondenserRetubing
-        ReplaceMoistureSeparatorReheater
     </regulatoryMandated>
+    <nonSelection>True</nonSelection> <!-- options should include DoNothing except regulartory mandated if True -->
     <solver>cbc</solver>
     <sense>maximize</sense>
     <problem_type>mckp</problem_type>
