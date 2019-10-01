@@ -151,23 +151,14 @@ In this case, we only consider capital budget (O&M is not included)
 
   <Settings>
     <regulatoryMandated>
-        HPFeedwaterHeaterUpgrade
         PresurizerReplacement
-        ImprovementEmergencyDieselGenerators
-        SecondarySystemPHMSystem
         ReplacementTwoReactorCoolantPumps
-        SeismicModificationRequalificationReinforcementImprovement
         FireProtection
-        ServiceWaterSystemUpgrade
-        BatteriesReplacement
         ReplaceCCWPipingHeatExchangersValues
-        ReactorVesselInternals
         ReactorVesselUpgrade
-        ReplaceLPTurbine
         ReplaceInstrumentationAndControlCables
-        CondenserRetubing
-        ReplaceMoistureSeparatorReheater
     </regulatoryMandated>
+    <nonSelection>True</nonSelection> <!-- options should include DoNothing except regulartory mandated if True -->
     <solver>cbc</solver>
     <sense>maximize</sense>
     <problem_type>mckp</problem_type>

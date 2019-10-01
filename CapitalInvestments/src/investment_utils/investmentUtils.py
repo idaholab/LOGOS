@@ -80,3 +80,15 @@ def toString(s):
     return s
   else:
     return s.decode()
+
+def convertStringToBool(nodeText):
+  """
+    Convert string to bool
+    @ In, nodeText, str, string from xml node text
+    @ Out, , bool, True or False
+  """
+  stringsThatMeanTrue = list(['yes','y','true','t','on'])
+  if nodeText.lower() in stringsThatMeanTrue:
+    return True
+  else:
+    return False

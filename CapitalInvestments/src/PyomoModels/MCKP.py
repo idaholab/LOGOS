@@ -137,10 +137,12 @@ class MCKP(KnapsackBase):
 
     def constraintX(model,i):
       """ sum of investments over knapsacks should less or equal than bounds """
-      return sum(model.x[i,j] for j in model.optionsOut[i]) <= 1
-      # When Non-Selection is included, the following constraint should be used.
-      # This can be also achieved by regulatory mandated options without specify DoNothing option
-      # return sum(model.x[i,j] for j in model.optionsOut[i]) == 1
+      expr = sum(model.x[i,j] for j in model.optionsOut[i])
+      if not self.nonSelection:
+        return sum(model.x[i,j] for j in model.optionsOut[i]) <= 1
+      else:
+        # When Non-Selection is included, the following constraint should be used.
+        return sum(model.x[i,j] for j in model.optionsOut[i]) == 1
     model.constraintX = pyomo.Constraint(model.investments, rule=constraintX)
 
     def constraintCapacity(model, k, t):
@@ -185,14 +187,26 @@ class MCKP(KnapsackBase):
         if i == ip:
           return model.y[i,ip] == model.y[ip,i]
         else:
-          expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) + model.y[i,ip] - 1
-          expr2 = sum(model.x[i,j] for j in model.optionsOut[i])
+          if not self.nonSelection:
+            expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) + model.y[i,ip] - 1
+            expr2 = sum(model.x[i,j] for j in model.optionsOut[i])
+          else:
+            # When Non-Selection is included, the following constraint should be used.
+            lastIndexI = model.optionsOut[i].last()
+            lastIndexIP = model.optionsOut[ip].last()
+            if not self.regulatoryMandated:
+              expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) - model.x[ip,lastIndexIP] + model.y[i,ip] - 1
+              expr2 = sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,lastIndexI]
+            else:
+              if ip in model.regulatoryMandated:
+                expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) + model.y[i,ip] - 1
+              else:
+                expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) - model.x[ip,lastIndexIP] + model.y[i,ip] - 1
+              if i in model.regulatoryMandated:
+                expr2 = sum(model.x[i,j] for j in model.optionsOut[i])
+              else:
+                expr2 = sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,lastIndexI]
           return expr1 <= expr2
-          # When Non-Selection is included, the following constraint should be used.
-          # lastIndex = model.optionsOut[i].last()
-          # expr1 = sum(model.x[ip,j] for j in model.optionsOut[i]) - model.x[ip,lastIndex] + model.y[i,ip] - 1
-          # expr2 = sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,lastIndex]
-          # return expr1 <= expr2
       model.consistentConstraint = pyomo.Constraint(model.investments, model.investments, rule=consistentConstraint)
 
       def constraintY(model, i):

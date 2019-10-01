@@ -63,6 +63,8 @@ class ModelBase:
     self.scenarios = None
     self.solutionVariableType = pyomo.Binary
     self.output = {}
+    self.nonSelection = False
+
 
   def initialize(self, initDict):
     """
@@ -114,6 +116,7 @@ class ModelBase:
     self.sense = pyomo.maximize if self.settings.pop('sense', 'minimize') == 'maximize' else pyomo.maximize
     self.solver = self.settings.pop('solver', 'cbc')
     self.tee = self.settings.pop('tee',False)
+    self.nonSelection = utils.convertStringToBool(self.settings.pop('nonSelection', 'False'))
     lowerBounds, upperBounds = self.settings.pop('lowerBounds', None), self.settings.pop('upperBounds', None)
     if lowerBounds is not None:
       self.lowerBounds = utils.convertNodeTextToFloatList(lowerBounds)
