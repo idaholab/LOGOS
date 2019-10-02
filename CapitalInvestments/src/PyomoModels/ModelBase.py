@@ -241,7 +241,7 @@ class ModelBase:
       stsolver = rapper.StochSolver("", fsfct=self.pysp_instance_creation_callback, tree_model=tree_model)
       ef_sol = stsolver.solve_ef(self.solver, tee=self.tee)
       if ef_sol.solver.termination_condition != TerminationCondition.optimal:
-       raise RuntimeError("Solver did not report optimality:\n%s" %(results.solver))
+       raise RuntimeError("Solver did not report optimality:\n%s" %(ef_sol.solver))
       # TODO: Add collect output and return a dictionary for raven to retrieve information
       self.printScenarioSolution(stsolver)
       outputDict.update(self.getScenarioSolution(stsolver.scenario_tree))
