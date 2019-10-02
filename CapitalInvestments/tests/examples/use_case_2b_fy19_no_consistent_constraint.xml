@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 Stochastic capital budgeting for use case 2 for FY19
-Uniform distribution U[19, 40] is used for the annaul budget, we create the following 10 scenarios:
-S1: 19.00, S2: 22.15, S3: 24.25, S4: 26.35, S5: 28.45, S6: 30.55, S7: 32.65, S8: 34.75, S9:3 6.85, S10: 40.00
-and we use the same scenarios for all five years.
+We rerun the full stochastic optimization model with different uniform budget distributions
+for the five years:
+Y1~[20,23], Y2~[34,38], Y3~[17,22], Y4~[20, 25], Y5~[18,24]
 In this case, we only consider capital budget (O&M is not included but added to the capital budget)
-Only enable the consistent constraint I (1c)
-Best NPV=264.995
+and both consistent constraint are disable (1c) and (1j)
+Best NPV=248.545
 -->
 <riam>
   <Sets>
@@ -140,16 +140,16 @@ Best NPV=264.995
         0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
       </probabilities>
       <scenarios>
-        19.0, 19.0, 19.0,19.0,19.0,
-        22.15,22.15,22.15,22.15,22.15,
-        24.25,24.25,24.25,24.25,24.25,
-        26.35,26.35,26.35,26.35,26.35,
-        28.45,28.45,28.45,28.45,28.45,
-        30.55,30.55,30.55,30.55,30.55,
-        32.65,32.65,32.65,32.65,32.65,
-        34.75,34.75,34.75,34.75,34.75,
-        36.85,36.85,36.85,36.85,36.85,
-        40.00,40.00,40.00,40.00,40.00
+        20.0 34.0 17.0 20.0 18.0
+        20.3333 34.4444 17.5556 20.5556 18.6667
+        20.6667 34.8889 18.1111 21.1111 19.3333
+        21.0 35.3333 18.6667 21.6667 20.0
+        21.3333 35.7778 19.2222 22.2222 20.6667
+        21.6667 36.2222 19.7778 22.7778 21.3333
+        22.0000 36.6667 20.3333 23.3333 22.0000
+        22.3333 37.1111 20.8889 23.8889 22.6667
+        22.6667 37.5556 21.4444 24.4444 23.3333
+        23.0000 38.0000 22.0000 25.0000 24.0000
       </scenarios>
     </available_capitals>
   </Uncertainties>
@@ -164,7 +164,7 @@ Best NPV=264.995
         ReplaceInstrumentationAndControlCables
     </regulatoryMandated>
     <nonSelection>True</nonSelection> <!-- options should include DoNothing except regulartory mandated if True -->
-    <consistentConstraintI>True</consistentConstraintI>
+    <consistentConstraintI>False</consistentConstraintI>
     <consistentConstraintII>False</consistentConstraintII>
     <solver>cbc</solver>
     <sense>maximize</sense>
