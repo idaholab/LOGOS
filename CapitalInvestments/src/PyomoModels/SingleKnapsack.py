@@ -36,6 +36,7 @@ class SingleKnapsack(KnapsackBase):
       @ Out, None
     """
     KnapsackBase.__init__(self)
+    self.optionalConstraints = {'consistentConstraintI':True}
 
   def initialize(self, initDict):
     """
@@ -121,13 +122,13 @@ class SingleKnapsack(KnapsackBase):
           return model.y[i,j] + model.y[j,i] >= 1
       model.orderConstraintI = pyomo.Constraint(model.investments, model.investments, rule=orderConstraintI)
 
-      def consistentConstraint(model, i, j):
+      def consistentConstraintI(model, i, j):
         """Constraint for variable y if priority project selection is required"""
         if i == j:
           return model.y[i,j] == model.y[j,i]
         else:
           return model.x[j] + model.y[i,j] - 1 <= model.x[i]
-      model.consistentConstraint = pyomo.Constraint(model.investments, model.investments, rule=consistentConstraint)
+      model.consistentConstraintI = pyomo.Constraint(model.investments, model.investments, rule=consistentConstraintI)
 
       def constraintY(model, i):
         """Constraint for variable y if priority project selection is required"""

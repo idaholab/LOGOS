@@ -64,7 +64,7 @@ class ModelBase:
     self.solutionVariableType = pyomo.Binary
     self.output = {}
     self.nonSelection = False
-
+    self.optionalConstraints = {}
 
   def initialize(self, initDict):
     """
@@ -117,6 +117,12 @@ class ModelBase:
     self.solver = self.settings.pop('solver', 'cbc')
     self.tee = self.settings.pop('tee',False)
     self.nonSelection = utils.convertStringToBool(self.settings.pop('nonSelection', 'False'))
+    for optCon in self.optionalConstraints:
+      if optCon == 'consistentConstraintI':
+        self.optionalConstraints[optCon] = utils.convertStringToBool(self.settings.pop(optCon, 'True'))
+      else:
+        self.optionalConstraints[optCon] = utils.convertStringToBool(self.settings.pop(optCon, 'False'))
+    self.optionalConstraints
     lowerBounds, upperBounds = self.settings.pop('lowerBounds', None), self.settings.pop('upperBounds', None)
     if lowerBounds is not None:
       self.lowerBounds = utils.convertNodeTextToFloatList(lowerBounds)
@@ -163,6 +169,17 @@ class ModelBase:
       model = model.create_instance(data)
       # model.pprint()
     model.dual = pyomo.Suffix(direction=pyomo.Suffix.IMPORT)
+    # Default to disable some optional constraints
+    if len(self.optionalConstraints) > 0:
+      # if 'consistentConstraintI' in self.optionalConstraints:
+      #   model.consistentConstraint.deactivate()
+      if 'consistentConstraintII' in self.optionalConstraints:
+        model.consistentConstraintII.deactivate()
+      for optCon, decision in self.optionalConstraints.items():
+        if optCon == 'consistentConstraintI' and not decision:
+          model.consistentConstraintI.deactivate()
+        if optCon == 'consistentConstraintII' and decision:
+          model.consistentConstraintII.activate()
     return model
 
   def createScenarioTreeModel(self):

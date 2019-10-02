@@ -36,6 +36,7 @@ class MCKP(KnapsackBase):
       @ Out, None
     """
     KnapsackBase.__init__(self)
+    self.optionalConstraints = {'consistentConstraintI':True, 'consistentConstraintII':False}
     self.maxDim = {'available_capitals':2, 'net_present_values':1, 'costs':3}
 
   def initialize(self, initDict):
@@ -209,8 +210,8 @@ class MCKP(KnapsackBase):
         return model.y[i,i] == 0
       model.constraintY = pyomo.Constraint(model.investments)
 
-      # constraint (1c)
-      def consistentConstraint(model, i, ip):
+      # constraint (1c) --> optional
+      def consistentConstraintI(model, i, ip):
         """Constraint for variable y if priority project selection is required"""
         if i == ip:
           return model.y[i,ip] == model.y[ip,i]
@@ -235,7 +236,7 @@ class MCKP(KnapsackBase):
               else:
                 expr2 = sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,lastIndexI]
           return expr1 <= expr2
-      model.consistentConstraint = pyomo.Constraint(model.investments, model.investments, rule=consistentConstraint)
+      model.consistentConstraintI = pyomo.Constraint(model.investments, model.investments, rule=consistentConstraintI)
 
       # constraint (1i) helps to remove ties
       def constraintNoTie(model, i, ip, idp):
