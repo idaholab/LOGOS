@@ -4,7 +4,7 @@ Stochastic capital budgeting for use case 2 for FY19
 We rerun the full stochastic optimization model with different uniform budget distributions
 for the five years:
 Y1~[20,23], Y2~[34,38], Y3~[17,22], Y4~[20, 25], Y5~[18,24]
-In this case, we consider bothe capital budget and O&M
+In this case, we consider both capital budget and O&M
 and both consistent constraint are enabled i.e. (1c) and (1j)
 Best NPV=222.795
 -->

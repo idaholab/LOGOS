@@ -1,7 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-Deterministic capital budgeting for use case 1 FY19
-Best NPV=253.53
+Stochastic capital budgeting for use case 3 for FY19
+We run the full stochastic optimization model with different uniform budget distributions
+for the five years: Y1~[20,23], Y2~[34,38], Y3~[17,22], Y4~[20, 25], Y5~[18,24]
+For the budget, ew again discretize the uniform interval in 10 equally spaced values
+(see scenarios for available_capitals). For the budget scenarios we assume that the realizations
+of the budget values are perfectly correlated across the five years. So, if we observe the lowest
+budget scenario in year 1 we also observe the lowest budget scenario in years 2-5. In addition, for
+our computation we assume that each of ten budget scenarios is equally likely; i.e. each scenario
+occurs with probability 0.1. To create scenarios for the probabilities of failure, we do a similar
+discretization by taking three values for each case (NPV), namely the lowest, the middle, and the highest
+values. With this understanding, the following probabilities for each of the three scenarios:
+P(low) = 0.3333, P(medium) = 0.5 and P(high) = 0.1667
+In this case, we consider both capital budget and O&M
+and both consistent constraint are enabled i.e. (1c) and (1j)
+Best NPV=157.9138
 -->
 <riam>
   <Sets>
@@ -180,39 +193,43 @@ Best NPV=253.53
         0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
       </probabilities>
       <scenarios>
-        19.0, 19.0, 19.0,19.0,19.0,0.08, 0.17, 0.05, 0.15, 0.14,
-        22.15,22.15,22.15,22.15,22.15,0.08, 0.17, 0.05, 0.15, 0.14,
-        24.25,24.25,24.25,24.25,24.25,0.08, 0.17, 0.05, 0.15, 0.14,
-        26.35,26.35,26.35,26.35,26.35,0.08, 0.17, 0.05, 0.15, 0.14,
-        28.45,28.45,28.45,28.45,28.45,0.08, 0.17, 0.05, 0.15, 0.14,
-        30.55,30.55,30.55,30.55,30.55,0.08, 0.17, 0.05, 0.15, 0.14,
-        32.65,32.65,32.65,32.65,32.65,0.08, 0.17, 0.05, 0.15, 0.14,
-        34.75,34.75,34.75,34.75,34.75,0.08, 0.17, 0.05, 0.15, 0.14,
-        36.85,36.85,36.85,36.85,36.85,0.08, 0.17, 0.05, 0.15, 0.14,
-        40.00,40.00,40.00,40.00,40.00,0.08, 0.17, 0.05, 0.15, 0.14
+        20.0 34.0 17.0 20.0 18.0 0.08 0.17 0.05 0.15 0.14
+        20.3333 34.4444 17.5556 20.5556 18.6667 0.08 0.17 0.05 0.15 0.14
+        20.6667 34.8889 18.1111 21.1111 19.3333 0.08 0.17 0.05 0.15 0.14
+        21.0 35.3333 18.6667 21.6667 20.0 0.08 0.17 0.05 0.15 0.14
+        21.3333 35.7778 19.2222 22.2222 20.6667 0.08 0.17 0.05 0.15 0.14
+        21.6667 36.2222 19.7778 22.7778 21.3333 0.08 0.17 0.05 0.15 0.14
+        22.0000 36.6667 20.3333 23.3333 22.0000 0.08 0.17 0.05 0.15 0.14
+        22.3333 37.1111 20.8889 23.8889 22.6667 0.08 0.17 0.05 0.15 0.14
+        22.6667 37.5556 21.4444 24.4444 23.3333 0.08 0.17 0.05 0.15 0.14
+        23.0000 38.0000 22.0000 25.0000 24.0000 0.08 0.17 0.05 0.15 0.14
       </scenarios>
     </available_capitals>
+    <net_present_values index='options'>
+      <totalScenarios>3</totalScenarios>
+      <probabilities>
+        0.3333, 0.5, 0.1667
+      </probabilities>
+      <scenarios>
+        13.3129 12.0228 0. -10.0700 -9.7767 -9.2155 -2.4372 -2.6301 0. 35.0000 33.9806 0. -18.6000 -17.0216 7.4458 5.5379 4.7605 0. -1.4400 -1.3178 0.7879 0.6783 0. 2.1000 0. -5.0300 -5.1809 -4.8835 -0.9595 -0.7563 0. -5.2500 128.1380 128.2798 0. -6.5200 2.8700  2.4705  0. 1.0747 0.8547 0.7869 0.
+        21.8624 18.9040 0. -10.0700 -9.7767 -9.2155  1.7311  1.8953 0. 35.0000 33.9806 0. -18.6000 -17.0216 7.6872 3.5478 2.4095 0. -1.4400 -1.3178 6.1143 4.9364 0. 2.1000 0. -5.0300 -5.1809 -4.8835 19.6488 14.0932 0. -5.2500 137.9677 137.2397 0. -6.5200 12.6347 10.5147 0. 5.7381 4.3390 3.9302 0.
+        25.9080 21.2811 0. -10.0700 -9.7767 -9.2155  4.3399  4.8291 0. 35.0000 33.9806 0. -18.6000 -17.0216 5.7428 1.3533 0.6569 0. -1.4400 -1.3178 8.6657 6.4683 0. 2.1000 0. -5.0300 -5.1809 -4.8835 28.5139 18.2305 0. -5.2500 141.9167 140.7095 0. -6.5200 16.8106 13.6791 0. 7.7351 5.6566 5.0684 0.
+      </scenarios>
+    </net_present_values>
   </Uncertainties>
 
   <Settings>
     <regulatoryMandated>
-        HPFeedwaterHeaterUpgrade
-        PresurizerReplacement
-        ImprovementEmergencyDieselGenerators
-        SecondarySystemPHMSystem
-        ReplacementTwoReactorCoolantPumps
-        SeismicModificationRequalificationReinforcementImprovement
-        FireProtection
-        ServiceWaterSystemUpgrade
-        BatteriesReplacement
-        ReplaceCCWPipingHeatExchangersValues
-        ReactorVesselInternals
-        ReactorVesselUpgrade
-        ReplaceLPTurbine
-        ReplaceInstrumentationAndControlCables
-        CondenserRetubing
-        ReplaceMoistureSeparatorReheater
+      PresurizerReplacement
+      ReplacementTwoReactorCoolantPumps
+      FireProtection
+      ReplaceCCWPipingHeatExchangersValues
+      ReactorVesselUpgrade
+      ReplaceInstrumentationAndControlCables
     </regulatoryMandated>
+    <nonSelection>True</nonSelection> <!-- options should include DoNothing except regulartory mandated if True -->
+    <consistentConstraintI>True</consistentConstraintI>
+    <consistentConstraintII>True</consistentConstraintII>
     <solver>cbc</solver>
     <sense>maximize</sense>
     <problem_type>mckp</problem_type>
