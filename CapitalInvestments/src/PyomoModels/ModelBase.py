@@ -175,14 +175,14 @@ class ModelBase:
       #   model.consistentConstraint.deactivate()
       if 'consistentConstraintII' in self.optionalConstraints:
         model.consistentConstraintII.deactivate()
-        logger.info('Default to deactivate consistent constraint II')
+        logger.debug('Default to deactivate consistent constraint II')
       for optCon, decision in self.optionalConstraints.items():
         if optCon == 'consistentConstraintI' and not decision:
           model.consistentConstraintI.deactivate()
-          logger.info('Deactivate consistent constraint I')
+          logger.debug('Deactivate consistent constraint I')
         if optCon == 'consistentConstraintII' and decision:
           model.consistentConstraintII.activate()
-          logger.info('Activate consistent constraint II')
+          logger.debug('Activate consistent constraint II')
     return model
 
   def createScenarioTreeModel(self):
