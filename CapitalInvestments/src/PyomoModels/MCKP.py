@@ -50,6 +50,9 @@ class MCKP(KnapsackBase):
 
   def setScenarioData(self):
     """
+      Method to setup the scenario data for scenario tree construction
+      @ In, None
+      @ Out, None
     """
     # uncertainties for multiple parameters
     logger.info('Initialize Uncertainties for Optimization Instance: %s', self.name)

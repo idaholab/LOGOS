@@ -40,6 +40,9 @@ def findRequiredNode(xmlNode, nodeTag):
 
 def computeIndices(indexNameList, setsDict):
   """
+    compute the required index that is used as input for pyomo model
+    @ In, indexNameList, list, list of index name
+    @ Out, indices, list, list of indices
   """
   indices = None
   if len(indexNameList) == 1:

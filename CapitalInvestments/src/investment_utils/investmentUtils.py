@@ -54,6 +54,8 @@ def convertNodeTextToFloatList(nodeText, sep=None):
 def convertStringToFloat(xmlNode):
   """
     Convert xml node text to float
+    @ In, xmlNode, xml.etree.ElementTree.Element, xml element
+    @ Out, val, float, value of xml element text
   """
   try:
     val = float(xmlNode.text)
@@ -64,9 +66,12 @@ def convertStringToFloat(xmlNode):
 def convertStringToInt(xmlNode):
   """
     Convert xml node text to integer.
+    @ In, xmlNode, xml.etree.ElementTree.Element, xml element
+    @ Out, val, integer, value of xml element text
   """
   try:
-    return int(xmlNode.text)
+    val = int(xmlNode.text)
+    return val
   except (ValueError,TypeError):
     raise IOError('Integer value is required for content of node %s, but got %s' %(node.tag, node.text))
 
@@ -74,7 +79,7 @@ def toString(s):
   """
     Method aimed to convert a string in type str
     @ In, s, string,  string to be converted
-    @ Out, response, string, the casted value
+    @ Out, s, string, the casted value
   """
   if type(s) == type(""):
     return s
@@ -85,10 +90,10 @@ def convertStringToBool(nodeText):
   """
     Convert string to bool
     @ In, nodeText, str, string from xml node text
-    @ Out, , bool, True or False
+    @ Out, val, bool, True or False
   """
   stringsThatMeanTrue = list(['yes','y','true','t','on'])
+  val = False
   if nodeText.lower() in stringsThatMeanTrue:
-    return True
-  else:
-    return False
+    val = True
+  return val

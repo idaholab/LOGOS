@@ -63,7 +63,7 @@ if __name__ == "__main__":
   end = start + timeout
   fail = 0
   success = 0
-  pythonPath = '/Users/wangc/miniconda2/envs/riam_libraries/bin/python'
+  pythonPath = '/Users/wangc/miniconda3/envs/riam_libraries/bin/python'
   failList = []
   for test in testInputs:
     command = pythonPath + ' ' + directory + '/src/main.py -i ' + directory + '/tests/' + test

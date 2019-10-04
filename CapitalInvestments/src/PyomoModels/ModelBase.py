@@ -46,25 +46,27 @@ class ModelBase:
       @ In, None
       @ Out, None
     """
+    # used for deterministic optimization
     self.type = self.__class__.__name__
     self.name = self.__class__.__name__
-    self.sense = pyomo.minimize
-    self.solver = 'cbc'
-    self.lowerBounds = None
-    self.upperBounds = None
-    self.regulatoryMandated = None
-    self.tee = False
-    self.meta = None
-    self.scenariosData = None
-    self.settings = None
-    self.sets = None
-    self.params = None
-    self.uncertainties = None
-    self.scenarios = None
-    self.solutionVariableType = pyomo.Binary
-    self.output = {}
-    self.nonSelection = False
-    self.optionalConstraints = {}
+    self.sense = pyomo.minimize # type of optimization problem, i.e. minimize or maximize, default to minimize
+    self.solver = 'cbc'         # type of solver, i.e. glpk, cbc, default cbc solver
+    self.lowerBounds = None     # lower bounds of solution decision variables
+    self.upperBounds = None     # upper bounds of solution decision variables
+    self.regulatoryMandated = None # regulatory mandated projects
+    self.tee = False            # print the output of the solver if True, otherwise not
+    self.settings = None        # user provided controls
+    self.sets = None            # pyomo required input sets info
+    self.params = None          # pyomo required params info
+    self.solutionVariableType = pyomo.Binary # solution variable type, i.e. Binary, Integers, Reals, default to Binary
+    self.output = {}            # dictionary contains all outputs
+    # additional info needed by stochastic optimization
+    self.meta = None            # additional info
+    self.scenariosData = None   # containers for scenarios/uncertainties input data
+    self.uncertainties = None   # uncertainty info provided by users
+    self.scenarios = {}         # dictionary contains scenarios information generated from self.uncertainties
+    self.nonSelection = False   # options DoNothing should be included for each projects if True, otherwise should not be included
+    self.optionalConstraints = {} # dictionary of optional constraints that users can turn on or off, i.e. {consistentConstraintI:True}
 
   def initialize(self, initDict):
     """
@@ -170,7 +172,7 @@ class ModelBase:
       # model.pprint()
     model.dual = pyomo.Suffix(direction=pyomo.Suffix.IMPORT)
     # Default to disable some optional constraints
-    if len(self.optionalConstraints) > 0:
+    if len(self.optionalConstraints) > 0 and self.uncertainties is not None:
       # if 'consistentConstraintI' in self.optionalConstraints:
       #   model.consistentConstraint.deactivate()
       if 'consistentConstraintII' in self.optionalConstraints:
@@ -368,6 +370,6 @@ class ModelBase:
     df = pd.DataFrame(self.output)
     df = df.sort_values(by=["MaxNPV"])
     df.to_csv(filename, index=False)
-    if self.scenarios is not None:
+    if self.scenarios:
       scenarioInfoFile = ".".join(filename.split('.')[:-1]) + "_scenario_info.o"
       self.writeScenarioInfo(scenarioInfoFile)
