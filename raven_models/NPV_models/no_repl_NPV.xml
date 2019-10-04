@@ -1,0 +1,128 @@
+<Simulation verbosity="silent">
+
+  <RunInfo>
+      <WorkingDir>./</WorkingDir>
+      <Sequence>MultiRun,plot</Sequence>
+      <batchSize>1</batchSize>
+  </RunInfo>
+
+  <Steps>
+      <MultiRun  name='MultiRun'>
+        <Input   class="DataObjects" type="PointSet"      >inputPlaceHolderMain</Input>
+        <Model   class='Models'      type='ExternalModel' >CRAFT_repl_model</Model>
+        <Sampler class='Samplers'    type='MonteCarlo'    >MC_main</Sampler>
+        <Output  class='DataObjects' type='PointSet'      >main_PS</Output>
+      </MultiRun>
+      <IOStep name='plot'>
+        <Input   class="DataObjects" type="PointSet"      >main_PS</Input>
+        <Output  class='OutStreams'  type='Plot'          >NPV_no_repl_hist</Output>
+        <Output  class='OutStreams'  type='Print'         >print_no_repl</Output>
+      </IOStep>
+  </Steps>
+
+  <Distributions>
+    <Uniform name='fail_dist_old'>
+      <lowerBound>0.0</lowerBound>
+      <upperBound>10.0</upperBound>
+    </Uniform>
+    <Uniform name='fail_dist_new'>
+      <lowerBound>0.0</lowerBound>
+      <upperBound>50.0</upperBound>
+    </Uniform>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="MC_main">
+      <samplerInit>
+        <limit>100000</limit>
+        <initialSeed>2561978</initialSeed>
+      </samplerInit>
+
+      <constant name='r'            >0.02</constant>
+      <constant name='T'            >20.</constant>
+      <constant name='cost_TM_old'  >-0.2</constant>
+      <constant name='cost_TM_new'  >-0.15</constant>
+      <constant name='cost_repl'    >-50.</constant>
+      <constant name='cost_penalty' >-100.</constant>
+
+      <variable name='failure_time_old'>
+        <distribution>fail_dist_old</distribution>
+      </variable>
+      <variable name='failure_time_new'>
+        <distribution>fail_dist_new</distribution>
+      </variable>
+    </MonteCarlo>
+  </Samplers>
+
+  <Models>
+    <EnsembleModel name="CRAFT_repl_model" subType="">
+      <Model class="Models" type="ExternalModel">failureModel
+        <Input            class="DataObjects" type="PointSet"  >inputPlaceHolderFailureModel</Input>
+        <TargetEvaluation class="DataObjects" type="PointSet"  >failureModel_PS</TargetEvaluation>
+      </Model>
+      <Model class="Models" type="ExternalModel">NPV_no_repl
+        <Input            class="DataObjects" type="PointSet"  >inputPlaceHolderMain</Input>
+        <TargetEvaluation class="DataObjects" type="PointSet"  >NPV_repl_PS</TargetEvaluation>
+      </Model> 
+    </EnsembleModel>
+
+    <ExternalModel name="failureModel" ModuleToLoad="failure_no_repl" subType="">
+      <variables>T,failure_time_old,failure_time_new,
+                 failure_time_old_act,failure_time_new_act</variables>
+    </ExternalModel>
+
+    <ExternalModel name="NPV_no_repl" ModuleToLoad="NPV_no_repl" subType="">
+      <variables>r,T,failure_time_old_act,failure_time_new_act,cost_TM_new,cost_TM_old,cost_repl,cost_penalty,
+                 NPV</variables>
+    </ExternalModel>
+  </Models>
+
+  <DataObjects>
+    <PointSet name="inputPlaceHolderMain">
+      <Input>r,T,cost_TM_old,cost_TM_new,cost_repl,cost_penalty</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="main_PS">
+      <Input>failure_time_old,failure_time_new,r,T,cost_TM_old,cost_TM_new,cost_repl,cost_penalty</Input>
+      <Output>failure_time_old_act,failure_time_new_act,NPV</Output>
+    </PointSet>
+
+    <PointSet name="inputPlaceHolderFailureModel">
+      <Input>failure_time_old,failure_time_new,T</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="failureModel_PS">
+      <Input>failure_time_old,failure_time_new,T</Input>
+      <Output>failure_time_old_act,failure_time_new_act</Output>
+    </PointSet>
+
+    <PointSet name="NPV_repl_PS">
+      <Input>failure_time_old_act,failure_time_new_act,r,T,cost_TM_old,cost_TM_new,cost_repl,cost_penalty</Input>
+      <Output>NPV</Output>
+    </PointSet>
+
+  </DataObjects>
+
+  <OutStreams>
+    <Plot  name="NPV_no_repl_hist" overwrite="false">
+      <plotSettings>
+        <plot>
+          <type>histogram</type>
+          <x>main_PS|Output|NPV</x>
+        </plot>
+        <xlabel>NPV</xlabel>
+      </plotSettings>
+      <actions>
+        <how>png</how>
+        <scale>
+          <yscale>log</yscale>
+        </scale>
+      </actions>
+    </Plot>
+    <Print name='print_no_repl'>
+      <type>csv</type>
+      <source>main_PS</source>
+    </Print>
+  </OutStreams>
+
+</Simulation>
