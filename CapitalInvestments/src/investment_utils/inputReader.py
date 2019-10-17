@@ -187,6 +187,10 @@ def readSettings(root, nodeTag):
   for subnode in settings:
     if subnode.tag == 'regulatoryMandated':
       settingDict[subnode.tag] = subnode.text.strip()
+    elif subnode.tag == 'solverOptions':
+      settingDict[subnode.tag] = {}
+      for child in subnode:
+        settingDict[subnode.tag][child.tag] = child.text.strip()
     else:
       settingDict[subnode.tag] = subnode.text.strip().lower()
   return settingDict

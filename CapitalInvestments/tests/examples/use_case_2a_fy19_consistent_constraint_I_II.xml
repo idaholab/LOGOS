@@ -167,6 +167,9 @@ Best NPV=241.632
     <consistentConstraintI>True</consistentConstraintI>
     <consistentConstraintII>True</consistentConstraintII>
     <solver>cbc</solver>
+    <solverOptions>
+      <threads>1</threads>
+    </solverOptions>
     <sense>maximize</sense>
     <problem_type>mckp</problem_type>
   </Settings>

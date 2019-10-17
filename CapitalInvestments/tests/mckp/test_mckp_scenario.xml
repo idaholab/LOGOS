@@ -173,6 +173,9 @@
 
   <Settings>
     <solver>cbc</solver>
+    <solverOptions>
+      <threads>1</threads>
+    </solverOptions>
     <sense>maximize</sense>
     <problem_type>mckp</problem_type>
   </Settings>
