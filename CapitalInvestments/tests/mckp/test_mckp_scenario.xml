@@ -175,6 +175,7 @@
     <solver>cbc</solver>
     <solverOptions>
       <threads>1</threads>
+      <StochSolver>EF</StochSolver>
     </solverOptions>
     <sense>maximize</sense>
     <problem_type>mckp</problem_type>
