@@ -18,8 +18,8 @@ import logging
 
 #Internal Modules------------------------------------------------------------------------------------
 #import PyomoModels
-import PyomoModels
-from investment_utils import inputReader
+import Logos.src.PyomoModels
+from Logos.src.investment_utils import inputReader
 #Internal Modules End--------------------------------------------------------------------------------
 
 logging.basicConfig(format='%(asctime)s %(name)-20s %(levelname)-8s %(message)s', datefmt='%d-%b-%y %H:%M:%S', level=logging.DEBUG)

@@ -4,10 +4,8 @@
 #_________________________________________________________________
 
 """
-Created on March. 19, 2019
+Created on Nov. 18, 2019
 @author: wangc, mandd
 """
 
-from __future__ import absolute_import
-from Logos.src.inputReader import *
-from Logos.src..investmentUtils import *
+from Logos.src import CapitalInvestmentModel

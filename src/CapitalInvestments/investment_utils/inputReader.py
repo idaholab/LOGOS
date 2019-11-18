@@ -21,7 +21,7 @@ import pandas as pd
 #External Modules End--------------------------------------------------------------------------------
 
 #Internal Modules------------------------------------------------------------------------------------
-from investment_utils import investmentUtils as utils
+from Logos.src.investment_utils import investmentUtils as utils
 #Internal Modules End--------------------------------------------------------------------------------
 
 logger = logging.getLogger(__name__)

@@ -21,8 +21,8 @@ import xml.etree.ElementTree as ET
 #External Modules End--------------------------------------------------------------------------------
 
 #Internal Modules------------------------------------------------------------------------------------
-import PyomoModels
-from investment_utils import inputReader
+import Logos.src.PyomoModels
+from Logos.src.investment_utils import inputReader
 #Internal Modules End--------------------------------------------------------------------------------
 
 try:
