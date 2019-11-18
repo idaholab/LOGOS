@@ -3,11 +3,11 @@
 SCRIPT_NAME=`readlink $0`
 if test -x "$SCRIPT_NAME";
 then
-    RIAM_DIRNAME=`dirname $SCRIPT_NAME`
+    LOGOS_DIRNAME=`dirname $SCRIPT_NAME`
 else
-    RIAM_DIRNAME=`dirname $0`
+    LOGOS_DIRNAME=`dirname $0`
 fi
-RIAM_DIR=`(cd $RIAM_DIRNAME; pwd)`
+LOGOS_DIR=`(cd $LOGOS_DIRNAME; pwd)`
 
 # set up run keywords
 # "ARGS" stores command line arguments not treated in this file (passed through)
@@ -47,29 +47,29 @@ fi
 # run Driver.py based on the mode chosen
 case $MODE in
   'opt' )
-    echo 'Running RIAM in "opt" mode.'
-    $PYTHON_COMMAND -O $RIAM_DIR/src/main.py "${ARGS[@]}"
+    echo 'Running LOGOS in "opt" mode.'
+    $PYTHON_COMMAND -O $LOGOS_DIR/src/main.py "${ARGS[@]}"
     ;;
   'dev' )
-    echo 'Running RIAM in "dev" mode.'
-    $PYTHON_COMMAND $RIAM_DIR/src/main.py "${ARGS[@]}"
+    echo 'Running LOGOS in "dev" mode.'
+    $PYTHON_COMMAND $LOGOS_DIR/src/main.py "${ARGS[@]}"
     ;;
   'help' )
     echo ''
     echo '  ------------------------------------------'
     echo '  Default usage:'
-    echo '    riam -i filename.xml -o outputfilename.o'
+    echo '    logos -i filename.xml -o outputfilename.o'
     echo ''
     echo '  Description:'
-    echo '      This will run RIAM in "opt" mode using "filename.xml" as the input.  This should be'
-    echo '      sufficient for the majority of RIAM calculations.  For more options, see below.'
+    echo '      This will run LOGOS in "opt" mode using "filename.xml" as the input.  This should be'
+    echo '      sufficient for the majority of LOGOS calculations.  For more options, see below.'
     echo '  ------------------------------------------'
     echo ''
     echo '  Advanced usage:'
-    echo '    riam filename [-D]'
+    echo '    logos filename [-D]'
     echo ''
     echo '  Description:'
-    echo '    Runs RIAM using the input file given by "filename".'
+    echo '    Runs LOGOS using the input file given by "filename".'
     echo ''
     echo '  Options:'
     echo '    -D'
@@ -80,5 +80,5 @@ case $MODE in
     echo ''
     ;;
   *)
-    echo 'Unrecognized MODE "'${MODE}'" in RIAM_framework! Exiting ...'
+    echo 'Unrecognized MODE "'${MODE}'" in LOGOS_framework! Exiting ...'
 esac
