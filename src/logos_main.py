@@ -14,6 +14,7 @@ warnings.simplefilter('default',DeprecationWarning)
 #External Modules------------------------------------------------------------------------------------
 import sys
 import logging
+import argparse
 #External Modules End--------------------------------------------------------------------------------
 
 #Internal Modules------------------------------------------------------------------------------------
@@ -37,15 +38,17 @@ logger.addHandler(fh)
 
 
 if __name__ == "__main__":
-  try:
-    inFile = sys.argv[sys.argv.index('-i')+1]
-  except ValueError:
-    msg = "Input file is not found, please use '-i' to sprecify the iput file"
-    logger.error(msg, exc_info=False)
-    raise IOError(msg)
-  try:
-    outFile = sys.argv[sys.argv.index('-o')+1]
-  except ValueError:
+  parser = argparse.ArgumentParser(description='Run Logos as a stand-alone code')
+  parser.add_argument('-i', '--input', nargs=1, required=True, help='Logos input filename')
+  parser.add_argument('-o', '--output', nargs=1, help='Logos output filename')
+  args = parser.parse_args()
+  args = vars(args)
+  inFile = args['input'][0]
+  logger.info('Logos input file: %s', inFile)
+  if args['output'] is not None:
+    outFile = args['output'][0]
+    logger.info('Logos output file: %s', outFile)
+  else:
     outFile = '.'.join(inFile.split('.')[:-1]) + '.csv'
     logger.warning('Output file is not specifies, default output file with name ' + outFile + ' will be used')
 
