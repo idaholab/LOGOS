@@ -14,9 +14,7 @@ from Logos.src.CapitalInvestments.PyomoModels.SingleKnapsack import SingleKnapsa
 from Logos.src.CapitalInvestments.PyomoModels.MultipleKnapsack import MultipleKnapsack
 from Logos.src.CapitalInvestments.PyomoModels.MCKP import MCKP
 
-from Logos.src.CapitalInvestments.PyomoModels.Factory import knownTypes
-from Logos.src.CapitalInvestments.PyomoModels.Factory import returnInstance
-from Logos.src.CapitalInvestments.PyomoModels.Factory import returnClass
+from Logos.src.CapitalInvestments.PyomoModels.Factory import knownTypes, returnInstance, returnClass
 
 __all__ = ['SingleKnapsack',
            'MultipleKnapsack',
