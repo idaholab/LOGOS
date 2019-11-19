@@ -28,7 +28,10 @@ from pyomo.pysp.scenariotree.tree_structure_model import CreateAbstractScenarioT
 #External Modules End--------------------------------------------------------------------------------
 
 #Internal Modules------------------------------------------------------------------------------------
-from Logos.src.CapitalInvestments.investment_utils import investmentUtils as utils
+try:
+  from Logos.src.CapitalInvestments.investment_utils import investmentUtils as utils
+except ImportError:
+  from CapitalInvestments.investment_utils import investmentUtils as utils
 #Internal Modules End--------------------------------------------------------------------------------
 
 import pyutilib.subprocess.GlobalData
