@@ -29,7 +29,7 @@ do
       MODE='help'
       ;;
     *)
-      # otherwise, pass through arguments to main.py
+      # otherwise, pass through arguments to logos_main.py
       ARGS[${#ARGS[@]}]="$1"
   esac
   shift
@@ -48,11 +48,11 @@ fi
 case $MODE in
   'opt' )
     echo 'Running LOGOS in "opt" mode.'
-    $PYTHON_COMMAND -O $LOGOS_DIR/src/main.py "${ARGS[@]}"
+    $PYTHON_COMMAND -O $LOGOS_DIR/src/logos_main.py "${ARGS[@]}"
     ;;
   'dev' )
     echo 'Running LOGOS in "dev" mode.'
-    $PYTHON_COMMAND $LOGOS_DIR/src/main.py "${ARGS[@]}"
+    $PYTHON_COMMAND $LOGOS_DIR/src/logos_main.py "${ARGS[@]}"
     ;;
   'help' )
     echo ''
