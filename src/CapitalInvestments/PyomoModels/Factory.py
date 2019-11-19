@@ -12,9 +12,9 @@ warnings.simplefilter('default',DeprecationWarning)
 #End compatibility block for Python 3-------------------------------------------
 
 ################################################################################
-from Logos.src.PyomoModels.SingleKnapsack import SingleKnapsack
-from Logos.src.PyomoModels.MultipleKnapsack import MultipleKnapsack
-from Logos.src.PyomoModels.MCKP import MCKP
+from Logos.src.CapitalInvestments.PyomoModels.SingleKnapsack import SingleKnapsack
+from Logos.src.CapitalInvestments.PyomoModels.MultipleKnapsack import MultipleKnapsack
+from Logos.src.CapitalInvestments.PyomoModels.MCKP import MCKP
 
 """
  Interface Dictionary (factory) (private)
