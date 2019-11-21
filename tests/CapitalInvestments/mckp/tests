@@ -1,0 +1,19 @@
+[Tests]
+
+ [./logos_mckp]
+  type  = 'RavenPluginExecutable'
+  input = 'test_mckp.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_mckp'
+ [../]
+
+ [./logos_mckp_scenario]
+  type  = 'RavenPluginExecutable'
+  input = 'test_mckp_scenario.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_mckp_scenario.csv'
+ [../]
+
+[]

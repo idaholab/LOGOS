@@ -1,11 +1,91 @@
 [Tests]
 
- [./skp_optimization]
+ [./logos_skp]
   type  = 'RavenPluginExecutable'
   input = 'test_skp.xml'
   required_executable = 'Logos/logos'
   parameters = '-i'
   UnorderedCsv = 'test_skp.csv'
+ [../]
+
+ [./logos_bkp]
+  type  = 'RavenPluginExecutable'
+  input = 'test_bkp.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_bkp.csv'
+ [../]
+
+ [./logos_bkp_scenarios]
+  type  = 'RavenPluginExecutable'
+  input = 'test_bkp_scenarios.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_bkp_scenarios.csv'
+ [../]
+
+ [./logos_dkp]
+  type  = 'RavenPluginExecutable'
+  input = 'test_dkp.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_dkp.csv'
+ [../]
+
+ [./logos_skp_mandated]
+  type  = 'RavenPluginExecutable'
+  input = 'test_mandated.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_mandated.csv'
+ [../]
+
+ [./logos_skp_multi_variation]
+  type  = 'RavenPluginExecutable'
+  input = 'test_multi_variation.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_multi_variation.csv'
+ [../]
+
+ [./logos_skp_no_index]
+  type  = 'RavenPluginExecutable'
+  input = 'test_noIndex.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_noIndex.csv'
+ [../]
+
+ [./logos_skp_npv]
+  type  = 'RavenPluginExecutable'
+  input = 'test_npv.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_npv.csv'
+ [../]
+
+ [./logos_skp_scenarios]
+  type  = 'RavenPluginExecutable'
+  input = 'test_skp_scenarios.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_skp_scenarios.csv'
+ [../]
+
+ [./logos_skp_variation]
+  type  = 'RavenPluginExecutable'
+  input = 'test_variation.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_variation.csv'
+ [../]
+
+ [./logos_skp_EE_41_projects]
+  type  = 'RavenPluginExecutable'
+  input = 'test_EE_41_projects.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_EE_41_projects.csv'
  [../]
 
 []
