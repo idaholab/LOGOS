@@ -3,7 +3,17 @@
 Deterministic capital budgeting for use case 1 FY19
 Best NPV=253.53
 -->
-<riam>
+<Logos>
+  <TestInfo>
+    <name>Logos.logos_examples_use_case_1c_fy19</name>
+    <author>wangc</author>
+    <created>2019-11-18</created>
+    <classesTested>MCKP</classesTested>
+    <description>
+       This test is aimed to check logos_examples_use_case_1c_fy19
+    </description>
+    <revisions>
+  </TestInfo>
   <Sets>
     <investments>
         HPFeedwaterHeaterUpgrade
@@ -187,4 +197,4 @@ Best NPV=253.53
     <sense>maximize</sense>
     <problem_type>mckp</problem_type>
   </Settings>
-</riam>
+</Logos>

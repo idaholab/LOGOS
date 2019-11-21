@@ -2,7 +2,17 @@
 <!--
   Single knapsack problem with scenario analysis
 -->
-<riam>
+<Logos>
+  <TestInfo>
+    <name>Logos.logos_skp_scenarios</name>
+    <author>wangc</author>
+    <created>2019-11-18</created>
+    <classesTested>SingleKnapsack</classesTested>
+    <description>
+       This test is aimed to check logos_skp_scenarios
+    </description>
+    <revisions>
+  </TestInfo>
   <Sets>
     <investments>
       1,2,3,4,5,6,7,8,9,10
@@ -47,4 +57,4 @@
     <sense>maximize</sense>
     <tee>False</tee>
   </Settings>
-</riam>
+</Logos>
