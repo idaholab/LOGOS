@@ -1,7 +1,7 @@
-# Logos or SR2HM: Safety, Risk, Reliability and Health Management Toolkit
-The Raven Plugin for: Risk-Informed Asset Management, and Plant Health Management
+# Logos: Operation Optimization Toolkit
+The Raven Plugin for: SSC replacement optimization and maintenance optimization
 
-## Optimization Package for Capital Investments
+## Optimization for Capital Investments
 
 ### Problems that can be solved by this package:
 - Deterministic Capital Budgeting
@@ -12,17 +12,17 @@ The Raven Plugin for: Risk-Informed Asset Management, and Plant Health Managemen
 - Multi-choice multi-dimensional Knapsack problem optimization
 - SSC cashflow and NPV models
 
-### Installation:
+## Installation:
 ./build.sh
 
-### How to run:
+## How to run:
 - source activate logos_libraries
-- python main.py -i inputfile.xml -o outputfile.o
+- path/to/Logos/.logos -i inputfile.xml -o outputfile.csv
 
-### Tests
+## Tests
 ./src/tests
 
-### Docs
+## Docs
 ./docs
 
 ### Developers:
