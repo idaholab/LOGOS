@@ -4,7 +4,17 @@
   'net_present_values'. Priority List will be: 1, 10, 11, 12, 13, 14, 15, 16, 2, 8, 5, 9, 4, 6, 3, 7 with
   expected NPV 2.589. In this case, items 10, 11, 12, 13, 14, 15, 16 are regulatory mandated items
 -->
-<riam>
+<Logos>
+  <TestInfo>
+    <name>Logos.logos_skp_multi_variation</name>
+    <author>wangc</author>
+    <created>2019-11-18</created>
+    <classesTested>SingleKnapsack</classesTested>
+    <description>
+       This test is aimed to check logos_skp_multi_variation
+    </description>
+    <revisions>
+  </TestInfo>
   <Sets>
     <investments>
       1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
@@ -81,4 +91,4 @@
     <solver>glpk</solver>
     <sense>maximize</sense>
   </Settings>
-</riam>
+</Logos>

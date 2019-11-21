@@ -8,7 +8,17 @@ In this case, we only consider capital budget (O&M is not included but added to 
 and both consistent constraint are enabled i.e. (1c) and (1j)
 Best NPV=228.511
 -->
-<riam>
+<Logos>
+  <TestInfo>
+    <name>Logos.logos_examples_use_case_2b_fy19_consistent_constraint_I_II</name>
+    <author>wangc</author>
+    <created>2019-11-18</created>
+    <classesTested>MCKP</classesTested>
+    <description>
+       This test is aimed to check logos_examples_use_case_2b_fy19_consistent_constraint_I_II
+    </description>
+    <revisions>
+  </TestInfo>
   <Sets>
     <investments>
         HPFeedwaterHeaterUpgrade
@@ -170,4 +180,4 @@ Best NPV=228.511
     <sense>maximize</sense>
     <problem_type>mckp</problem_type>
   </Settings>
-</riam>
+</Logos>

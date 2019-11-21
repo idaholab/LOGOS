@@ -3,7 +3,17 @@
   For the multi-knapsack with regulatory mandated projects, items, 1, 2, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15, 16
   will be selected with NPV 37.13. In this case, items 10, 11, 12, 13, 14, 15, 16 are regulatory mandated items
 -->
-<riam>
+<Logos>
+  <TestInfo>
+    <name>Logos.logos_skp_mandated</name>
+    <author>wangc</author>
+    <created>2019-11-18</created>
+    <classesTested>SingleKnapsack</classesTested>
+    <description>
+       This test is aimed to check logos_skp_mandated
+    </description>
+    <revisions>
+  </TestInfo>
   <Sets>
     <investments>
       1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
@@ -45,4 +55,4 @@
     <solver>cbc</solver>
     <sense>maximize</sense>
   </Settings>
-</riam>
+</Logos>

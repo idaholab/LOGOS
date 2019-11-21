@@ -22,7 +22,17 @@ ReplaceConrolCables with option: PlanA is selected
 CranePowerFeed with option: PlanA is selected
 MoisterSeparatorReheater with option: PlanA is selected
 -->
-<riam>
+<Logos>
+  <TestInfo>
+    <name>Logos.logos_examples_p16</name>
+    <author>wangc</author>
+    <created>2019-11-18</created>
+    <classesTested>MCKP</classesTested>
+    <description>
+       This test is aimed to check logos_examples_p16
+    </description>
+    <revisions>
+  </TestInfo>
   <Sets>
     <investments>
       FeedwaterHeater
@@ -137,4 +147,4 @@ MoisterSeparatorReheater with option: PlanA is selected
     <sense>maximize</sense>
     <problem_type>mckp</problem_type>
   </Settings>
-</riam>
+</Logos>

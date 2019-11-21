@@ -2,7 +2,17 @@
 <!--
   For the multi-dimensional knapsack, items, 1, 2, 5, 8 will be selected with NPV 4.388.
 -->
-<riam>
+<Logos>
+  <TestInfo>
+    <name>Logos.logos_dkp</name>
+    <author>wangc</author>
+    <created>2019-11-18</created>
+    <classesTested>SingleKnapsack</classesTested>
+    <description>
+       This test is aimed to check logos_dkp
+    </description>
+    <revisions>
+  </TestInfo>
   <Sets>
     <investments>
       1,2,3,4,5,6,7,8,9
@@ -36,4 +46,4 @@
     <solver>glpk</solver>
     <sense>maximize</sense>
   </Settings>
-</riam>
+</Logos>
