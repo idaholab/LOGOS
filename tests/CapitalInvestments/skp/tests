@@ -1,0 +1,11 @@
+[Tests]
+
+ [./skp_optimization]
+  type  = 'RavenPluginExecutable'
+  input = 'test_skp.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_skp.csv'
+ [../]
+
+[]
