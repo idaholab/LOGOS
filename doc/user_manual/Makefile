@@ -1,6 +1,5 @@
 SRCFILE = user_manual
-MANUAL_FILES = user_manual.tex Introduction.tex include/DataClassifier.tex include/ETdataImporter.tex \
-							 include/ETmodel.tex include/FTdataImporter.tex include/FTmodel.tex include/MarkovModel.tex include/RBDmodel.tex
+MANUAL_FILES = user_manual.tex Introduction.tex
 LATEX_FLAGS=-interaction=nonstopmode
 
 all: user_manual.pdf
@@ -19,4 +18,3 @@ clean:
 #creating version file
 ../version.tex : $(MANUAL_FILES)
 	git log -1 --format="%H %an %aD"  .. > ../version.tex
-

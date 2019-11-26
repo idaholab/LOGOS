@@ -231,7 +231,7 @@ showstringspaces=false            %
 %
 % Set the title, author, and date
 %
-\title{NuSAR User Manual}
+\title{LOGOS User Manual}
 %\author{%
 %\begin{tabular}{c} Author 1 \\ University1 \\ Mail1 \\ \\
 %Author 3 \\ University3 \\ Mail3 \end{tabular} \and
@@ -241,9 +241,8 @@ showstringspaces=false            %
 
 
 \author{
-\\Diego Mandelli
 \\Congjian Wang
-\\Andrea Alfonsi
+\\Diego Mandelli
 }
 
 % There is a "Printed" date on the title page of a SAND report, so
@@ -256,7 +255,7 @@ showstringspaces=false            %
 %
 \SANDnum{INL/EXT-XX-XXXXX}
 \SANDprintDate{\today}
-\SANDauthor{Diego Mandelli, Congjian Wang and Andrea Alfonsi}
+\SANDauthor{Congjian Wang and Diego Mandelli}
 \SANDreleaseType{Revision 0}
 \def\component#1{\texttt{#1}}
 
@@ -287,19 +286,12 @@ showstringspaces=false            %
     %\listoffigures
     %\listoftables
     % ---------------------------------------------------------------------- %
-    \SANDmain 
+    \SANDmain
 
     % ---------------------------------------------------------------------- %
     % This is where the body of the report begins; usually with an Introduction
     %
     \input{Introduction.tex}
-    \input{include/ETmodel.tex}
-    \input{include/FTmodel.tex}
-    \input{include/MarkovModel.tex}
-    \input{include/RBDmodel.tex}
-    \input{include/DataClassifier.tex}
-    \input{include/ETdataImporter.tex}
-    \input{include/FTdataImporter.tex}
 
     \section*{Document Version Information}
     This document has been compiled using the following version of the plug-in git repository:
