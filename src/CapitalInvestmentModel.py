@@ -104,6 +104,22 @@ class CapitalInvestmentModel(ExternalModelPluginBase):
           child.text = ','.join(str(var) for var in Kwargs['SampledVars'][child.tag])
         else:
           child.text = str(Kwargs['SampledVars'][child.tag])
+      # check the text of each child
+      else:
+        pertData = []
+        if ',' in child.text:
+          listData = list(elem.strip() for elem in child.text.split(','))
+        else:
+          listData = list(elem.strip() for elem in child.text.split())
+        for var in listData:
+          if var in Kwargs['SampledVars']:
+            pertData.append(Kwargs['SampledVars'][var])
+          else:
+            pertData.append(var)
+        if len(pertData) > 1:
+          child.text = ','.join(str(var) for var in pertData)
+        elif len(pertData) == 1:
+          child.text = str(pertData[0])
     inputDict = inputReader.readInput(newXml)
     return inputDict
 

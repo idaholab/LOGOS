@@ -1,0 +1,9 @@
+[Tests]
+
+ [./capital_budgeting_II]
+  type  = 'RavenFramework'
+  input = 'raven_capital_budgeting_II.xml'
+  UnorderedCsv = 'MC/datasetPrint.csv MC/print_main.csv'
+ [../]
+
+[]

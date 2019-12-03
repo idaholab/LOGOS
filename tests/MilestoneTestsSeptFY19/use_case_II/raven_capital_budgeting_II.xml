@@ -1,0 +1,746 @@
+<Simulation verbosity="debug">
+  <RunInfo>
+    <WorkingDir>MC</WorkingDir>
+    <Sequence>Run, statistics</Sequence>
+    <batchSize>1</batchSize>
+  </RunInfo>
+
+  <Models>
+    <EnsembleModel name="Captial_Budget_Model" subType="">
+      <Model class="Models" type="ExternalModel">hp_fwh_model
+        <Input            class="DataObjects" type="PointSet">input_hp_fwh_ps</Input>
+        <TargetEvaluation class="DataObjects" type="PointSet">hp_fwh_ps</TargetEvaluation>
+      </Model>
+      <Model class="Models" type="ExternalModel">edg_model
+        <Input            class="DataObjects" type="PointSet">input_edg_ps</Input>
+        <TargetEvaluation class="DataObjects" type="PointSet">edg_ps</TargetEvaluation>
+      </Model>
+      <Model class="Models" type="ExternalModel">sm_model
+        <Input            class="DataObjects" type="PointSet">input_sm_ps</Input>
+        <TargetEvaluation class="DataObjects" type="PointSet">sm_ps</TargetEvaluation>
+      </Model>
+      <Model class="Models" type="ExternalModel">sws_model
+        <Input            class="DataObjects" type="PointSet">input_sws_ps</Input>
+        <TargetEvaluation class="DataObjects" type="PointSet">sws_ps</TargetEvaluation>
+      </Model>
+      <Model class="Models" type="ExternalModel">rvi_model
+        <Input            class="DataObjects" type="PointSet">input_rvi_ps</Input>
+        <TargetEvaluation class="DataObjects" type="PointSet">rvi_ps</TargetEvaluation>
+      </Model>
+      <Model class="Models" type="ExternalModel">rlpt_model
+        <Input            class="DataObjects" type="PointSet">input_rlpt_ps</Input>
+        <TargetEvaluation class="DataObjects" type="PointSet">rlpt_ps</TargetEvaluation>
+      </Model>
+      <Model class="Models" type="ExternalModel">cr_model
+        <Input            class="DataObjects" type="PointSet">input_cr_ps</Input>
+        <TargetEvaluation class="DataObjects" type="PointSet">cr_ps</TargetEvaluation>
+      </Model>
+      <Model class="Models" type="ExternalModel">msr_model
+        <Input            class="DataObjects" type="PointSet">input_msr_ps</Input>
+        <TargetEvaluation class="DataObjects" type="PointSet">msr_ps</TargetEvaluation>
+      </Model>
+      <Model class="Models" type="ExternalModel">mckp
+        <Input            class="DataObjects" type="PointSet">input_mckp_ps</Input>
+        <TargetEvaluation class="DataObjects" type="PointSet">mckp_ps</TargetEvaluation>
+      </Model>
+    </EnsembleModel>
+
+    <ExternalModel name="hp_fwh_model" ModuleToLoad="hp_feedwater_heater_upgrade_npv" subType="">
+      <variables>hp_fwh_p_failure,hp_fwh_npv_a,hp_fwh_npv_b</variables>
+    </ExternalModel>
+    <ExternalModel name="edg_model" ModuleToLoad="emergency_diesel_generators" subType="">
+      <variables>edg_p_failure,edg_npv_a,edg_npv_b</variables>
+    </ExternalModel>
+    <ExternalModel name="sm_model" ModuleToLoad="seismic_modification" subType="">
+      <variables>sm_p_failure,sm_npv_a,sm_npv_b,sm_npv_c</variables>
+    </ExternalModel>
+    <ExternalModel name="sws_model" ModuleToLoad="service_water_system" subType="">
+      <variables>sws_p_failure,sws_npv_a,sws_npv_b</variables>
+    </ExternalModel>
+    <ExternalModel name="rvi_model" ModuleToLoad="reactor_vessel_internals" subType="">
+      <variables>rvi_p_failure,rvi_npv_a,rvi_npv_b</variables>
+    </ExternalModel>
+    <ExternalModel name="rlpt_model" ModuleToLoad="replace_lp_turbine" subType="">
+      <variables>rlpt_p_failure,rlpt_npv_a,rlpt_npv_b</variables>
+    </ExternalModel>
+    <ExternalModel name="cr_model" ModuleToLoad="condenser_retubing" subType="">
+      <variables>cr_p_failure,cr_npv_a,cr_npv_b</variables>
+    </ExternalModel>
+    <ExternalModel name="msr_model" ModuleToLoad="moisture_separator_reheater" subType="">
+      <variables>msr_p_failure,msr_npv_a,msr_npv_b,msr_npv_c</variables>
+    </ExternalModel>
+
+    <ExternalModel name="mckp" subType="Logos.CapitalInvestmentModel">
+      <variables>
+        hp_fwh_npv_a,hp_fwh_npv_b,
+        edg_npv_a,edg_npv_b,
+        sm_npv_a,sm_npv_b,sm_npv_c,
+        sws_npv_a,sws_npv_b,
+        rvi_npv_a,rvi_npv_b,
+        rlpt_npv_a,rlpt_npv_b,
+        cr_npv_a,cr_npv_b,
+        msr_npv_a,msr_npv_b,msr_npv_c,
+        capital_budget_y1,
+        capital_budget_y2,
+        capital_budget_y3,
+        capital_budget_y4,
+        capital_budget_y4,
+        MaxNPV,
+        HPFeedwaterHeaterUpgrade__PlanA, HPFeedwaterHeaterUpgrade__PlanB, HPFeedwaterHeaterUpgrade__DoNothing,
+        PresurizerReplacement__PlanA,PresurizerReplacement__PlanB,PresurizerReplacement__PlanC,
+        ImprovementEmergencyDieselGenerators__PlanA,ImprovementEmergencyDieselGenerators__PlanB,ImprovementEmergencyDieselGenerators__DoNothing,
+        SecondarySystemPHMSystem__PlanA,SecondarySystemPHMSystem__PlanB,SecondarySystemPHMSystem__DoNothing,
+        ReplacementTwoReactorCoolantPumps__PlanA,ReplacementTwoReactorCoolantPumps__PlanB,
+        SeismicModificationRequalificationReinforcementImprovement__PlanA,SeismicModificationRequalificationReinforcementImprovement__PlanB,SeismicModificationRequalificationReinforcementImprovement__PlanC,SeismicModificationRequalificationReinforcementImprovement__DoNothing,
+        FireProtection__PlanA,FireProtection__PlanB,
+        ServiceWaterSystemUpgrade__PlanA,ServiceWaterSystemUpgrade__PlanB,ServiceWaterSystemUpgrade__DoNothing,
+        BatteriesReplacement__PlanA,BatteriesReplacement__DoNothing,
+        ReplaceCCWPipingHeatExchangersValues__PlanA,ReplaceCCWPipingHeatExchangersValues__PlanB,ReplaceCCWPipingHeatExchangersValues__PlanC,
+        ReactorVesselInternals__PlanA,ReactorVesselInternals__PlanB,ReactorVesselInternals__DoNothing,
+        ReactorVesselUpgrade__PlanA,
+        ReplaceLPTurbine__PlanA,ReplaceLPTurbine__PlanB,ReplaceLPTurbine__DoNothing,
+        ReplaceInstrumentationAndControlCables__PlanA,
+        CondenserRetubing__PlanA,CondenserRetubing__PlanB,CondenserRetubing__DoNothing,
+        ReplaceMoistureSeparatorReheater__PlanA,ReplaceMoistureSeparatorReheater__PlanB,ReplaceMoistureSeparatorReheater__PlanC,ReplaceMoistureSeparatorReheater__DoNothing
+      </variables>
+      <ModelData>
+        <Sets>
+          <investments>
+              HPFeedwaterHeaterUpgrade
+              PresurizerReplacement
+              ImprovementEmergencyDieselGenerators
+              SecondarySystemPHMSystem
+              ReplacementTwoReactorCoolantPumps
+              SeismicModificationRequalificationReinforcementImprovement
+              FireProtection
+              ServiceWaterSystemUpgrade
+              BatteriesReplacement
+              ReplaceCCWPipingHeatExchangersValues
+              ReactorVesselInternals
+              ReactorVesselUpgrade
+              ReplaceLPTurbine
+              ReplaceInstrumentationAndControlCables
+              CondenserRetubing
+              ReplaceMoistureSeparatorReheater
+          </investments>
+          <time_periods>year1 year2 year3 year4 year5</time_periods>
+          <resources>CapitalFunds OandMFunds</resources>
+          <options index='investments'>
+            PlanA PlanB DoNothing;
+            PlanA PlanB PlanC;
+            PlanA PlanB DoNothing;
+            PlanA PlanB DoNothing;
+            PlanA PlanB;
+            PlanA PlanB PlanC DoNothing;
+            PlanA PlanB;
+            PlanA PlanB DoNothing;
+            PlanA DoNothing;
+            PlanA PlanB PlanC;
+            PlanA PlanB DoNothing;
+            PlanA;
+            PlanA PlanB DoNothing;
+            PlanA;
+            PlanA PlanB DoNothing;
+            PlanA PlanB PlanC DoNothing
+          </options>
+        </Sets>
+        <Parameters>
+          <net_present_values index='options'>
+            hp_fwh_npv_a hp_fwh_npv_b 0.
+            -10.07 -9.78 -9.22
+            edg_npv_a edg_npv_b 0.0
+            35 33.98 0.
+            -18.6 -17.02
+            sm_npv_a sm_npv_b sm_npv_c 0.
+            -1.44 -1.32
+            sws_npv_a sws_npv_b 0.
+            2.1 0.
+            -5.03 -5.18 -4.88
+            rvi_npv_a rvi_npv_b 0.
+            -5.25
+            rlpt_npv_a rlpt_npv_b 0.
+            -6.52
+            cr_npv_a cr_npv_b 0.
+            msr_npv_a msr_npv_b msr_npv_c 0.
+          </net_present_values>
+          <costs index='options, resources, time_periods'>
+            12.99 1.3 0 0 0
+            0.02 0.01 0 0 0
+            0 12.99 1.3 0 0
+            0 0.02 0.01 0 0
+            0 0 0 0 0
+            0 0 0 0 0
+
+            9.15 0.92 0 0 0
+            0.04 0.01 0 0 0
+            0 9.15 0.92 0 0
+            0 0.04 0.01 0 0
+            0 0 0 9.15 0.92
+            0 0 0 0.04 0.01
+
+            0 0 0 10.08 1.1
+            0 0 0 0.01 0.01
+            0 0 10.08 1.1 0
+            0 0 0.01 0.01 0
+            0 0 0 0 0
+            0 0 0 0 0
+
+            0 4.5 0.3 0.2 0
+            0 0.01 0.01 0.01 0
+            0 0 4.5 0.3 0.2
+            0 0 0.01 0.01 0.01
+            0 0 0 0 0
+            0 0 0 0 0
+
+            0 18.6 0 0 0
+            0 0.03 0 0 0
+            0 0 0 0 18.6
+            0 0 0 0 0.03
+
+            0 2.24 0 0 0
+            0 0.2 0 0 0
+            0 0 0 2.24 0
+            0 0 0 0.2 0
+            0 0 0 0 2.24
+            0 0 0 0 0.2
+            0 0 0 0 0
+            0 0 0 0 0
+
+            1.31 0.13 0 0 0
+            0.01 0.01 0 0 0
+            0 0 0 1.31 0.13
+            0 0 0 0.01 0.01
+
+            2.34 0 0 0 0
+            0.01 0 0 0 0
+            0 0 2.34 0 0
+            0 0 0.01 0 0
+            0 0 0 0 0
+            0 0 0 0 0
+
+            0.28 0 0 0 0
+            0.01 0 0 0 0
+            0 0 0 0 0
+            0 0 0 0 0
+
+            0 0 4.57 0.46 0
+            0 0 0.01 0.01 0
+            0 4.57 0.46 0 0
+            0 0.01 0.01 0 0
+            0 0 0 4.57 0.46
+            0 0 0 0.01 0.01
+
+            0 19.82 0 0 0
+            0 0.03 0 0 0
+            0 0 0 0 19.82
+            0 0 0 0 0.03
+            0 0 0 0 0
+            0 0 0 0 0
+
+            5.25 0 0 0 0
+            0.02 0 0 0 0
+
+            0	0 18.77 0 0
+            0 0 0.02 0 0
+            0 0 0 18.77 0
+            0 0 0 0.02 0
+            0 0 0 0 0
+            0 0 0 0 0
+
+            5.92 0.6 0 0 0
+            0.02 0.01 0 0 0
+
+            5.24 0 0 0 0
+            0.02 0 0 0 0
+            0 0 5.24 0 0
+            0 0 0.02 0 0
+            0 0 0 0 0
+            0 0 0 0 0
+
+            3.16 0 0 0 0
+            0.01 0 0 0 0
+            0 0 0 3.16 0
+            0 0 0 0.01 0
+            0 0 0 0 3.16
+            0 0 0 0 0.01
+            0 0 0 0 0
+            0 0 0 0 0
+          </costs>
+          <available_capitals index="resources,time_periods">
+            capital_budget_y1 capital_budget_y2 capital_budget_y3 capital_budget_y4 capital_budget_y5
+            0.08 0.17 0.05 0.15 0.14
+          </available_capitals>
+        </Parameters>
+        <Settings>
+          <regulatoryMandated>
+              HPFeedwaterHeaterUpgrade
+              PresurizerReplacement
+              ImprovementEmergencyDieselGenerators
+              SecondarySystemPHMSystem
+              ReplacementTwoReactorCoolantPumps
+              SeismicModificationRequalificationReinforcementImprovement
+              FireProtection
+              ServiceWaterSystemUpgrade
+              BatteriesReplacement
+              ReplaceCCWPipingHeatExchangersValues
+              ReactorVesselInternals
+              ReactorVesselUpgrade
+              ReplaceLPTurbine
+              ReplaceInstrumentationAndControlCables
+              CondenserRetubing
+              ReplaceMoistureSeparatorReheater
+          </regulatoryMandated>
+          <solver>cbc</solver>
+          <sense>maximize</sense>
+          <problem_type>mckp</problem_type>
+        </Settings>
+      </ModelData>
+    </ExternalModel>
+    <PostProcessor name="basicStats" subType="BasicStatistics" verbosity="debug">
+      <dataset>True</dataset>
+      <percentile prefix="percentile">MaxNPV</percentile>
+      <expectedValue prefix="mean">MaxNPV</expectedValue>
+      <median prefix="median">MaxNPV</median>
+      <maximum prefix="max">MaxNPV</maximum>
+      <minimum prefix="min">MaxNPV</minimum>
+      <variance prefix="var">MaxNPV</variance>
+      <sigma prefix="sigma">MaxNPV</sigma>
+      <NormalizedSensitivity prefix="nsen">
+        <targets>MaxNPV</targets>
+        <features>hp_fwh_p_failure,
+                edg_p_failure,
+                sm_p_failure,
+                sws_p_failure,
+                rvi_p_failure,
+                rlpt_p_failure,
+                cr_p_failure,
+                msr_p_failure,
+                capital_budget_y1,
+                capital_budget_y2,
+                capital_budget_y3,
+                capital_budget_y4,
+                capital_budget_y5</features>
+      </NormalizedSensitivity>
+      <sensitivity prefix="sen">
+        <targets>MaxNPV</targets>
+        <features>hp_fwh_p_failure,
+                edg_p_failure,
+                sm_p_failure,
+                sws_p_failure,
+                rvi_p_failure,
+                rlpt_p_failure,
+                cr_p_failure,
+                msr_p_failure,
+                capital_budget_y1,
+                capital_budget_y2,
+                capital_budget_y3,
+                capital_budget_y4,
+                capital_budget_y5</features>
+      </sensitivity>
+      <pearson prefix="pear">
+        <targets>MaxNPV</targets>
+        <features>hp_fwh_p_failure,
+                edg_p_failure,
+                sm_p_failure,
+                sws_p_failure,
+                rvi_p_failure,
+                rlpt_p_failure,
+                cr_p_failure,
+                msr_p_failure,
+                capital_budget_y1,
+                capital_budget_y2,
+                capital_budget_y3,
+                capital_budget_y4,
+                capital_budget_y5</features>
+      </pearson>
+    </PostProcessor>
+  </Models>
+
+  <Distributions>
+    <Uniform name="hp_fwh">
+      <lowerBound>0.05</lowerBound>
+      <upperBound>0.15</upperBound>
+    </Uniform>
+    <Uniform name="edg">
+      <lowerBound>0.005</lowerBound>
+      <upperBound>0.05</upperBound>
+    </Uniform>
+    <Uniform name="sm">
+      <lowerBound>0.1</lowerBound>
+      <upperBound>0.5</upperBound>
+    </Uniform>
+    <Uniform name="sws">
+      <lowerBound>0.01</lowerBound>
+      <upperBound>0.1</upperBound>
+    </Uniform>
+    <Uniform name="rvi">
+      <lowerBound>0.01</lowerBound>
+      <upperBound>0.1</upperBound>
+    </Uniform>
+    <Uniform name="rlpt">
+      <lowerBound>0.01</lowerBound>
+      <upperBound>0.05</upperBound>
+    </Uniform>
+    <Uniform name="cr">
+      <lowerBound>0.01</lowerBound>
+      <upperBound>0.05</upperBound>
+    </Uniform>
+    <Uniform name="msr">
+      <lowerBound>0.01</lowerBound>
+      <upperBound>0.05</upperBound>
+    </Uniform>
+    <Uniform name="budget_dist_y1">
+      <lowerBound>20</lowerBound>
+      <upperBound>23</upperBound>
+    </Uniform>
+    <Uniform name="budget_dist_y2">
+      <lowerBound>34</lowerBound>
+      <upperBound>38</upperBound>
+    </Uniform>
+    <Uniform name="budget_dist_y3">
+      <lowerBound>17</lowerBound>
+      <upperBound>22</upperBound>
+    </Uniform>
+    <Uniform name="budget_dist_y4">
+      <lowerBound>20</lowerBound>
+      <upperBound>25</upperBound>
+    </Uniform>
+    <Uniform name="budget_dist_y5">
+      <lowerBound>18</lowerBound>
+      <upperBound>24</upperBound>
+    </Uniform>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="MC_external">
+      <samplerInit>
+        <limit>20</limit>
+      </samplerInit>
+      <variable name="hp_fwh_p_failure">
+        <distribution>hp_fwh</distribution>
+      </variable>
+      <variable name="edg_p_failure">
+        <distribution>edg</distribution>
+      </variable>
+      <variable name="sm_p_failure">
+        <distribution>sm</distribution>
+      </variable>
+      <variable name="sws_p_failure">
+        <distribution>sws</distribution>
+      </variable>
+      <variable name="rvi_p_failure">
+        <distribution>rvi</distribution>
+      </variable>
+      <variable name="rlpt_p_failure">
+        <distribution>rlpt</distribution>
+      </variable>
+      <variable name="cr_p_failure">
+        <distribution>cr</distribution>
+      </variable>
+      <variable name="msr_p_failure">
+        <distribution>msr</distribution>
+      </variable>
+      <variable name="capital_budget_y1">
+        <distribution>budget_dist_y1</distribution>
+      </variable>
+      <variable name="capital_budget_y2">
+        <distribution>budget_dist_y2</distribution>
+      </variable>
+      <variable name="capital_budget_y3">
+        <distribution>budget_dist_y3</distribution>
+      </variable>
+      <variable name="capital_budget_y4">
+        <distribution>budget_dist_y4</distribution>
+      </variable>
+      <variable name="capital_budget_y5">
+        <distribution>budget_dist_y5</distribution>
+      </variable>
+
+      <!-- <constant name='hp_fwh_p_failure'>0.1</constant>
+      <constant name='edg_p_failure'>0.01</constant>
+      <constant name='sm_p_failure'>0.5</constant>
+      <constant name='sws_p_failure'>0.05</constant>
+      <constant name='rvi_p_failure'>0.05</constant>
+      <constant name='rlpt_p_failure'>0.02</constant>
+      <constant name='cr_p_failure'>0.04</constant>
+      <constant name='msr_p_failure'>0.03</constant>
+      <constant name='capital_budget_y1'>22.6</constant>
+      <constant name='capital_budget_y2'>36.7</constant>
+      <constant name='capital_budget_y3'>20.6</constant>
+      <constant name='capital_budget_y4'>23.6</constant>
+      <constant name='capital_budget_y5'>22.7</constant> -->
+    </MonteCarlo>
+  </Samplers>
+
+  <Steps>
+    <MultiRun name="Run">
+      <Input   class="DataObjects"  type="PointSet"        >input_mckp_ps</Input>
+      <Model   class="Models"       type="ExternalModel"   >Captial_Budget_Model</Model>
+      <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
+      <Output  class="DataObjects"  type="PointSet"        >main_ps</Output>
+      <Output  class="OutStreams"   type="Print"           >print_main</Output>
+    </MultiRun>
+    <PostProcess name="statistics">
+      <Input class="DataObjects" type="PointSet">main_ps</Input>
+      <Model class="Models" type="PostProcessor">basicStats</Model>
+      <!-- <Output class="DataObjects" type="PointSet">basicStatPP</Output> -->
+      <Output class="DataObjects" type="DataSet">basicStatSet</Output>
+      <!-- <Output class="OutStreams" type="Print">print_basicStat</Output> -->
+      <Output class="OutStreams" type="Print">datasetPrint</Output>
+    </PostProcess>
+  </Steps>
+
+  <OutStreams>
+    <Print name="print_main">
+      <type>csv</type>
+      <source>main_ps</source>
+      <what>input,output</what>
+    </Print>
+    <Print name="print_basicStat">
+      <type>csv</type>
+      <source>basicStatPP</source>
+      <what>input,output</what>
+    </Print>
+    <Print name="datasetPrint">
+      <type>csv</type>
+      <source>basicStatSet</source>
+    </Print>
+  </OutStreams>
+
+  <DataObjects>
+    <!-- input place holder -->
+    <PointSet name="input_hp_fwh_ps">
+      <Input>hp_fwh_p_failure</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="input_edg_ps">
+      <Input>edg_p_failure</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="input_sm_ps">
+      <Input>sm_p_failure</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="input_sws_ps">
+      <Input>sws_p_failure</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="input_rvi_ps">
+      <Input>rvi_p_failure</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="input_rlpt_ps">
+      <Input>rlpt_p_failure</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="input_cr_ps">
+      <Input>cr_p_failure</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="input_msr_ps">
+      <Input>msr_p_failure</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="input_mckp_ps">
+      <Input>hp_fwh_npv_a,hp_fwh_npv_b,
+        edg_npv_a,edg_npv_b,
+        sm_npv_a,sm_npv_b,sm_npv_c,
+        sws_npv_a,sws_npv_b,
+        rvi_npv_a,rvi_npv_b,
+        rlpt_npv_a,rlpt_npv_b,
+        cr_npv_a,cr_npv_b,
+        msr_npv_a,msr_npv_b,msr_npv_c,
+        capital_budget_y1,
+        capital_budget_y2,
+        capital_budget_y3,
+        capital_budget_y4,
+        capital_budget_y5
+      </Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="input_main_ps">
+      <Input>
+        hp_fwh_p_failure,
+        edg_p_failure,
+        sm_p_failure,
+        sws_p_failure,
+        rvi_p_failure,
+        rlpt_p_failure,
+        cr_p_failure,
+        msr_p_failure,
+        capital_budget_y1,
+        capital_budget_y2,
+        capital_budget_y3,
+        capital_budget_y4,
+        capital_budget_y5
+      </Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <!-- target evaluation data object -->
+    <PointSet name="hp_fwh_ps">
+      <Input>hp_fwh_p_failure</Input>
+      <Output>hp_fwh_npv_a,hp_fwh_npv_b</Output>
+    </PointSet>
+    <PointSet name="edg_ps">
+      <Input>edg_p_failure</Input>
+      <Output>edg_npv_a,edg_npv_b</Output>
+    </PointSet>
+    <PointSet name="sm_ps">
+      <Input>sm_p_failure</Input>
+      <Output>sm_npv_a,sm_npv_b,sm_npv_c</Output>
+    </PointSet>
+    <PointSet name="sws_ps">
+      <Input>sws_p_failure</Input>
+      <Output>sws_npv_a,sws_npv_b</Output>
+    </PointSet>
+    <PointSet name="rvi_ps">
+      <Input>rvi_p_failure</Input>
+      <Output>rvi_npv_a,rvi_npv_b</Output>
+    </PointSet>
+    <PointSet name="rlpt_ps">
+      <Input>rlpt_p_failure</Input>
+      <Output>rlpt_npv_a,rlpt_npv_b</Output>
+    </PointSet>
+    <PointSet name="cr_ps">
+      <Input>cr_p_failure</Input>
+      <Output>cr_npv_a,cr_npv_b</Output>
+    </PointSet>
+    <PointSet name="msr_ps">
+      <Input>msr_p_failure</Input>
+      <Output>msr_npv_a,msr_npv_b,msr_npv_c</Output>
+    </PointSet>
+    <PointSet name="mckp_ps">
+      <Input>
+        hp_fwh_npv_a,hp_fwh_npv_b,
+        edg_npv_a,edg_npv_b,
+        sm_npv_a,sm_npv_b,sm_npv_c,
+        sws_npv_a,sws_npv_b,
+        rvi_npv_a,rvi_npv_b,
+        rlpt_npv_a,rlpt_npv_b,
+        cr_npv_a,cr_npv_b,
+        msr_npv_a,msr_npv_b,msr_npv_c,
+        capital_budget_y1,
+        capital_budget_y2,
+        capital_budget_y3,
+        capital_budget_y4,
+        capital_budget_y5
+      </Input>
+      <Output>MaxNPV</Output>
+    </PointSet>
+    <PointSet name="main_ps">
+      <Input>
+        hp_fwh_p_failure,
+        edg_p_failure,
+        sm_p_failure,
+        sws_p_failure,
+        rvi_p_failure,
+        rlpt_p_failure,
+        cr_p_failure,
+        msr_p_failure,
+        capital_budget_y1,
+        capital_budget_y2,
+        capital_budget_y3,
+        capital_budget_y4,
+        capital_budget_y5
+      </Input>
+      <Output>
+        hp_fwh_npv_a,hp_fwh_npv_b,
+        edg_npv_a,edg_npv_b,
+        sm_npv_a,sm_npv_b,sm_npv_c,
+        sws_npv_a,sws_npv_b,
+        rvi_npv_a,rvi_npv_b,
+        rlpt_npv_a,rlpt_npv_b,
+        cr_npv_a,cr_npv_b,
+        msr_npv_a,msr_npv_b,msr_npv_c,
+        MaxNPV,
+        HPFeedwaterHeaterUpgrade__PlanA, HPFeedwaterHeaterUpgrade__PlanB, HPFeedwaterHeaterUpgrade__DoNothing,
+        PresurizerReplacement__PlanA,PresurizerReplacement__PlanB,PresurizerReplacement__PlanC,
+        ImprovementEmergencyDieselGenerators__PlanA,ImprovementEmergencyDieselGenerators__PlanB,ImprovementEmergencyDieselGenerators__DoNothing,
+        SecondarySystemPHMSystem__PlanA,SecondarySystemPHMSystem__PlanB,SecondarySystemPHMSystem__DoNothing,
+        ReplacementTwoReactorCoolantPumps__PlanA,ReplacementTwoReactorCoolantPumps__PlanB,
+        SeismicModificationRequalificationReinforcementImprovement__PlanA,SeismicModificationRequalificationReinforcementImprovement__PlanB,SeismicModificationRequalificationReinforcementImprovement__PlanC,SeismicModificationRequalificationReinforcementImprovement__DoNothing,
+        FireProtection__PlanA,FireProtection__PlanB,
+        ServiceWaterSystemUpgrade__PlanA,ServiceWaterSystemUpgrade__PlanB,ServiceWaterSystemUpgrade__DoNothing,
+        BatteriesReplacement__PlanA,BatteriesReplacement__DoNothing,
+        ReplaceCCWPipingHeatExchangersValues__PlanA,ReplaceCCWPipingHeatExchangersValues__PlanB,ReplaceCCWPipingHeatExchangersValues__PlanC,
+        ReactorVesselInternals__PlanA,ReactorVesselInternals__PlanB,ReactorVesselInternals__DoNothing,
+        ReactorVesselUpgrade__PlanA,
+        ReplaceLPTurbine__PlanA,ReplaceLPTurbine__PlanB,ReplaceLPTurbine__DoNothing,
+        ReplaceInstrumentationAndControlCables__PlanA,
+        CondenserRetubing__PlanA,CondenserRetubing__PlanB,CondenserRetubing__DoNothing,
+        ReplaceMoistureSeparatorReheater__PlanA,ReplaceMoistureSeparatorReheater__PlanB,ReplaceMoistureSeparatorReheater__PlanC,ReplaceMoistureSeparatorReheater__DoNothing
+      </Output>
+    </PointSet>
+    <PointSet name="basicStatPP">
+      <Output>basicStat_vars</Output>
+    </PointSet>
+    <DataSet name='basicStatSet'>
+        <Output>
+            pearson,
+            sensitivity,
+            NormalizedSensitivity
+        </Output>
+        <Index var='targets'>
+          pearson,
+          sensitivity,
+          NormalizedSensitivity
+        </Index>
+        <Index var='features'>
+          pearson,
+          sensitivity,
+          NormalizedSensitivity
+        </Index>
+    </DataSet>
+  </DataObjects>
+  <VariableGroups>
+    <Group name="basicStat_vars">
+      percentile_5_MaxNPV,
+      percentile_95_MaxNPV,
+      mean_MaxNPV,
+      median_MaxNPV,
+      max_MaxNPV,
+      min_MaxNPV,
+      var_MaxNPV,
+      sigma_MaxNPV,
+      nsen_MaxNPV_hp_fwh_p_failure,
+      nsen_MaxNPV_edg_p_failure,
+      nsen_MaxNPV_sm_p_failure,
+      nsen_MaxNPV_sws_p_failure,
+      nsen_MaxNPV_rvi_p_failure,
+      nsen_MaxNPV_rlpt_p_failure,
+      nsen_MaxNPV_cr_p_failure,
+      nsen_MaxNPV_msr_p_failure,
+      nsen_MaxNPV_capital_budget_y1,
+      nsen_MaxNPV_capital_budget_y2,
+      nsen_MaxNPV_capital_budget_y3,
+      nsen_MaxNPV_capital_budget_y4,
+      nsen_MaxNPV_capital_budget_y5,
+      sen_MaxNPV_hp_fwh_p_failure,
+      sen_MaxNPV_edg_p_failure,
+      sen_MaxNPV_sm_p_failure,
+      sen_MaxNPV_sws_p_failure,
+      sen_MaxNPV_rvi_p_failure,
+      sen_MaxNPV_rlpt_p_failure,
+      sen_MaxNPV_cr_p_failure,
+      sen_MaxNPV_msr_p_failure,
+      sen_MaxNPV_capital_budget_y1,
+      sen_MaxNPV_capital_budget_y2,
+      sen_MaxNPV_capital_budget_y3,
+      sen_MaxNPV_capital_budget_y4,
+      sen_MaxNPV_capital_budget_y5,
+      pear_MaxNPV_hp_fwh_p_failure,
+      pear_MaxNPV_edg_p_failure,
+      pear_MaxNPV_sm_p_failure,
+      pear_MaxNPV_sws_p_failure,
+      pear_MaxNPV_rvi_p_failure,
+      pear_MaxNPV_rlpt_p_failure,
+      pear_MaxNPV_cr_p_failure,
+      pear_MaxNPV_msr_p_failure,
+      pear_MaxNPV_capital_budget_y1,
+      pear_MaxNPV_capital_budget_y2,
+      pear_MaxNPV_capital_budget_y3,
+      pear_MaxNPV_capital_budget_y4,
+      pear_MaxNPV_capital_budget_y5
+    </Group>
+  </VariableGroups>
+</Simulation>
