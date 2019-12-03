@@ -9,3 +9,5 @@ Created on Nov. 18, 2019
 """
 
 from Logos.src import CapitalInvestmentModel
+from Logos.src import BatteryReplacementCashFlowModel
+from Logos.src import IncrementalNPV
