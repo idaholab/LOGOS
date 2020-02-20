@@ -17,6 +17,7 @@ import itertools
 import numpy as np
 import collections
 import logging
+import os
 import pandas as pd
 #External Modules End--------------------------------------------------------------------------------
 
@@ -177,7 +178,7 @@ def readUncertainties(root, nodeTag, paramsDict):
   else:
     return None
 
-def readSettings(root, nodeTag):
+def readSettings(root, nodeTag, workingDir):
   """
     Read xml node "Settings" in the input file
     @ In, root, xml.etree.ElementTree.Element, root xml element node
@@ -196,7 +197,41 @@ def readSettings(root, nodeTag):
         settingDict[subnode.tag][child.tag] = child.text.strip()
     else:
       settingDict[subnode.tag] = subnode.text.strip().lower()
+  # set working dir
+  if 'workingDir' in settingDict.keys():
+    if settingDict['workingDir'] is None:
+      raise IOError('"workingDir" is empty! Use "." to indicate "inputfile directory" or specify a directory!')
+    tempDir = settingDict['workingDir']
+  if '~' in tempDir:
+    tempDir = os.path.expanduser(tempDir)
+  if os.path.isabs(tempDir):
+    settingDict['workingDir'] = tempDir
+  else:
+    settingDict['workingDir'] = os.path.join(workingDir, tempDir)
+  utils.makeDir(settingDict['workingDir'])
   return settingDict
+
+def readExternalConstraints(root, nodeTag):
+  """
+    Read xml node "ExternalConstraints" in the input file
+    @ In, root, xml.etree.ElementTree.Element, root xml element node
+    @ In, nodeTag, str, node tag that is used to find the node
+    @ Out, constraintDict, dict, dictionary of settings {tag:val}
+  """
+  logger.info('Read ExternalConstraints information')
+  constraints = root.find(nodeTag)
+  constraintDict = {}
+  if constraints is not None:
+    for subnode in constraints:
+      if subnode.tag == 'constraint':
+        name = subnode.get('name')
+        if name is not None and name not in constraintDict:
+          constraintDict[name] = subnode.text.strip()
+        elif name in constraintDict:
+          raise IOError('Constraints with the same name "{}" are provided!'.format(name))
+        else:
+          raise IOError('Required attribute "name" for node "constraint" is not provided!')
+  return constraintDict
 
 def readEconomics(root, nodeTag, setsDict):
   """
@@ -274,13 +309,15 @@ def computeNPVs(economicsDict):
 #####################################
 # Input XML Reader
 #####################################
-def readInput(filename):
+def readInput(filename, workingDir='.'):
   """
     process input file
     @ In, filename, str or xml.etree.ElementTree.ElementTree, input filename
+    @ In, workingDir, str, the working directory, '.' indicate current input file directory
     @ Out, initDict, dict, dictionary of inputs
     {'Sets':{}, 'Parameters':{}, 'Settings':{}, 'Meta':{}, 'Uncertainties':{}}
   """
+
   if type(filename) == str:
     tree = ET.parse(filename)
     root = tree.getroot()
@@ -291,13 +328,15 @@ def readInput(filename):
   else:
     root = filename
     #raise IOError('Unsupported type of input is provided: ' + str(type(filename)))
-  initDict = {'Sets':None, 'Parameters':None, 'Settings':None, 'Meta': None, 'Uncertainties': None}
+  initDict = {'Sets':None, 'Parameters':None, 'Settings':None, 'Meta': None,
+              'Uncertainties': None, 'ExternalConstraints': None}
   metaData = {'Parameters':None}
 
   initDict['Sets'] = readSets(root, 'Sets')
   initDict['Parameters'], metaData['Parameters'] = readParameters(root, 'Parameters', initDict['Sets'])
   initDict['Uncertainties'] = readUncertainties(root, 'Uncertainties', initDict['Parameters'])
-  initDict['Settings'] = readSettings(root, 'Settings')
+  initDict['Settings'] = readSettings(root, 'Settings', workingDir)
+  initDict['ExternalConstraints'] = readExternalConstraints(root, 'ExternalConstraints')
   initDict['Meta'] = metaData
 
   economicsDict = readEconomics(root, 'Economics', initDict['Sets'])

@@ -70,6 +70,9 @@ class ModelBase:
     self.scenarios = {}         # dictionary contains scenarios information generated from self.uncertainties
     self.nonSelection = False   # options DoNothing should be included for each projects if True, otherwise should not be included
     self.optionalConstraints = {} # dictionary of optional constraints that users can turn on or off, i.e. {consistentConstraintI:True}
+    self.externalConstraints = {} # dictionary of user provided constraints
+    self.externalConstModules = {} # Store the loaded module of user provided constraints
+    self.workingDir = None # working directory
     self.sopts = {} # options for solvers, i.e. self.sopts['threads'] = 4
     self.phopts = {} # options for progressive hedging method
     self.phopts['--output-solver-log'] = None
@@ -78,6 +81,7 @@ class ModelBase:
     self.phRho = 1
     self.executable = None      # specify the path to the solver
     self.stochSolver = 'ef'     # stochastic solver, default runef, can be switched to runph method in pyomo.
+
   def initialize(self, initDict):
     """
       Mehod to initialize
@@ -90,6 +94,7 @@ class ModelBase:
     self.sets = initDict.pop('Sets', None)
     self.params = initDict.pop('Parameters', None)
     self.uncertainties = initDict.pop('Uncertainties', None)
+    self.externalConstraints = initDict.pop('ExternalConstraints')
     if self.uncertainties is not None:
       self.setScenarioData()
     if self.settings is not None:
@@ -132,6 +137,7 @@ class ModelBase:
     if stochSolver is not None:
       self.stochSolver = stochSolver.lower().strip()
     self.executable = solverOptions.pop('executable', None)
+    self.workingDir = self.settings.pop('workingDir')
     self.sopts.update(solverOptions)
     self.tee = self.settings.pop('tee',False)
     self.nonSelection = utils.convertStringToBool(self.settings.pop('nonSelection', 'False'))
@@ -140,7 +146,6 @@ class ModelBase:
         self.optionalConstraints[optCon] = utils.convertStringToBool(self.settings.pop(optCon, 'True'))
       else:
         self.optionalConstraints[optCon] = utils.convertStringToBool(self.settings.pop(optCon, 'False'))
-    self.optionalConstraints
     lowerBounds, upperBounds = self.settings.pop('lowerBounds', None), self.settings.pop('upperBounds', None)
     if lowerBounds is not None:
       self.lowerBounds = utils.convertNodeTextToFloatList(lowerBounds)
@@ -176,6 +181,22 @@ class ModelBase:
     """
     pass
 
+  def addExternalConstraints(self, model):
+    """
+      This method is used to load user provided external constraints
+      @ In, model, pyomo.instance, instance of pyomo model
+      @ Out, model, pyomo.instance, modified instance of pyomo model
+    """
+    logger.info('Add external constraints to optimization model')
+    for key, val in self.externalConstraints.items():
+      moduleToLoadString, filename = utils.identifyIfExternalModuleExists(val, self.workingDir)
+      self.externalConstModules[key] = utils.importFromPath(moduleToLoadString)
+      logger.info('Import external constraint module: "{}"'.format(moduleToLoadString))
+
+    # model.cuts = pyomo.ConstraintList()
+    # model.cuts.add(model.x['1']==1)
+    return model
+
   def createInstance(self, data):
     """
       This method is used to instantiate the pyomo model
@@ -186,6 +207,8 @@ class ModelBase:
     if not model.is_constructed():
       model = model.create_instance(data)
       # model.pprint()
+    if self.externalConstraints:
+      model = self.addExternalConstraints(model)
     model.dual = pyomo.Suffix(direction=pyomo.Suffix.IMPORT)
     # Default to disable some optional constraints
     if len(self.optionalConstraints) > 0 and self.uncertainties is not None:

@@ -13,6 +13,7 @@ warnings.simplefilter('default',DeprecationWarning)
 
 #External Modules------------------------------------------------------------------------------------
 import sys
+import os
 import logging
 import argparse
 #External Modules End--------------------------------------------------------------------------------
@@ -54,7 +55,8 @@ if __name__ == "__main__":
 
   # process input file
   logger.info('Starting to process input file: %s', inFile)
-  initDict = inputReader.readInput(inFile)
+  inputDir = os.path.dirname(os.path.abspath(inFile))
+  initDict = inputReader.readInput(inFile, inputDir)
   logger.info('Input file is successfully processed')
   problemType = initDict['Settings'].pop('problem_type', 'SingleKnapsack')
   logger.info('Set problem type to default: %s', 'Knapsacks Problem')
