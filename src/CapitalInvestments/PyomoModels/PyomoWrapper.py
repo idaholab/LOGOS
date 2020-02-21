@@ -143,8 +143,8 @@ class PyomoWrapper:
   def getComponent(self, name):
     """
       Get an optimization component
-      @ In, name,
-      @ Out, getComponent,
+      @ In, name, str, the component name
+      @ Out, getComponent, return the required component
     """
     try:
       return getattr(self._model, name)
@@ -154,7 +154,7 @@ class PyomoWrapper:
   def writeModel(self, filename):
     """
       Dump the pyomo optimization model
-      @ In, filename,
+      @ In, filename, str, the filename that the model info will be dumped.
       @ Out, None
     """
     try:
@@ -165,15 +165,15 @@ class PyomoWrapper:
   def _removeComponent(self, name):
     """
       Remove an optimization component
-      @ In, name,
+      @ In, name, str, the component name
       @ Out, None
     """
-    delattr(self._model, key)
+    delattr(self._model, name)
 
-  def resetObjective(self):
+  def resetObjective(self, name):
     """
       Reset an optimization objective
-      @ In, None
+      @ In, name, str, the objective name
       @ Out, None
     """
-    delattr(self._model, 'objective')
+    delattr(self._model, name)
