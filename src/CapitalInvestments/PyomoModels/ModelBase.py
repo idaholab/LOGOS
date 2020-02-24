@@ -30,8 +30,10 @@ from pyomo.pysp.scenariotree.tree_structure_model import CreateAbstractScenarioT
 #Internal Modules------------------------------------------------------------------------------------
 try:
   from Logos.src.CapitalInvestments.investment_utils import investmentUtils as utils
+  from Logos.src.CapitalInvestments.PyomoModels.PyomoWrapper import PyomoWrapper
 except ImportError:
   from CapitalInvestments.investment_utils import investmentUtils as utils
+  from .PyomoWrapper import PyomoWrapper
 #Internal Modules End--------------------------------------------------------------------------------
 
 import pyutilib.subprocess.GlobalData
@@ -188,6 +190,8 @@ class ModelBase:
       @ Out, model, pyomo.instance, modified instance of pyomo model
     """
     logger.info('Add external constraints to optimization model')
+    # create pyomo wrapper instance
+    pyomoWrapper = PyomoWrapper(model)
     for key, val in self.externalConstraints.items():
       moduleToLoadString, filename = utils.identifyIfExternalModuleExists(val, self.workingDir)
       self.externalConstModules[key] = utils.importFromPath(moduleToLoadString)

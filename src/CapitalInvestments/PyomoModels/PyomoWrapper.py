@@ -50,7 +50,7 @@ suffixDirections = dict(Local=pyomo.Suffix.LOCAL,
 
 suffixDataTypes = dict(Float=pyomo.Suffix.FLOAT,
     Int=pyomo.Suffix.INT,
-    Non=pyomo.Suffix.None)
+    Non=None)
 
 class PyomoWrapper:
   """
@@ -75,7 +75,7 @@ class PyomoWrapper:
         raise ValueError('no colons allowed in optimization object names')
     self._model.add_component(component.name, component)
 
-  def addObjective(self, name='objective', rule, sense='minimize'):
+  def addObjective(self, rule, name='objective', sense='minimize'):
     """
       Add an objective to the optimization problem
       @ In, name, str, name used to define Pyomo.Objective parameter, self._model.name
@@ -86,17 +86,19 @@ class PyomoWrapper:
     """
     self._model.add_component(name, pyomo.Objective(name='objective', rule=rule, sense=senseKinds[sense]))
 
-  def addSet(self, name, items, ordered=False):
+  def addSet(self, name, values=None, ordered=True):
     """
       Add a :class:`pyomo.Set` to the optimization problem
       @ In, name, str, name used to define Pyomo.Set parameter, self._model.name
         can be used to retrieve this parameter
-      @ In, items, list/function object, An iterable containing the initial members of the Pyomo.Set,
+      @ In, values, list/function object, An iterable containing the initial members of the Pyomo.Set,
         or function that returns an iterable of the initial members the set.
       @ In, ordered, bool, the set will be in order if True
       @ Out, None
     """
-    self._model.add_component(name, pyomo.Set(initialize=items, name=name, ordered=ordered))
+    if values is None:
+      raise IOError('"values" for set "{}" need to be provided in order to add it to optimization model!'.format(name))
+    self._model.add_component(name, pyomo.Set(initialize=values, name=name, ordered=ordered))
 
   def addVariable(self, name, low=None, high=None, domain='Binary'):
     """
@@ -260,7 +262,7 @@ class PyomoWrapper:
     except:
       self._model.pprint(filename)
 
-  def _removeComponent(self, name):
+  def removeComponent(self, name):
     """
       Remove an optimization component
       @ In, name, str, the component name
