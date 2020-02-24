@@ -123,6 +123,32 @@ class PyomoWrapper:
     """
     self._model.add_component(name, pyomo.Constraint(name=name, rule=rule))
 
+  def addParameter(self, name, index=None, values=None, mutable=True, default=None, **kwargs):
+    """
+      Create a new Parameter and add it to the optimization problem
+      @ In, name, str, name used to define Pyomo.Param parameter, self._model.name
+        can be used to retrieve this parameter
+      @ In, index, list-like, index for the parameter
+      @ In, values, dict, {index:value}, the index will be tuple for 2 or high dimensions
+      @ In, mutable, boolean, True if the parameter is mutable
+      @ In, default, float, the value absent any other specification
+      @ In, kwargs, dict, other related parameters
+      @ Out, None
+    """
+    self._model.add_component(name, pyomo.Param(index, name=name, mutable=mutable, default=default, **kwargs))
+    if mutable:
+      if values is not None:
+        var = self.getComponent(name)
+        if index is not None:
+          for i in index:
+            var[i] = values[i]
+        else:
+          var[index] = values[index]
+      else:
+        raise IOError('"values" should be provided when trying to add new paramter "{}"'.format(name))
+    else:
+      raise IOError('Parameter "{}" need to be defined as mutable in order to change the value of this paramter dynamically.'.format(name))
+
   def addSuffix(self, name, direction, datatype):
     """
       Create a new suffix and add it to the optimization problem
@@ -150,6 +176,78 @@ class PyomoWrapper:
       return getattr(self._model, name)
     except (AttributeError, KeyError):
       raise AttributeError('error getting {}'.format(name))
+
+  def getVariable(self, name):
+    """
+      Get an optimization variable
+      @ In, name, str, the variable name
+      @ Out, getVariable, return the required variable
+    """
+    return self.getComponent(name)
+
+  def getParameter(self, name):
+    """
+      Get an optimization Parameter
+      @ In, name, str, the Parameter name
+      @ Out, getParameter, return the required Parameter
+    """
+    return self.getComponent(name)
+
+  def getSet(self, name):
+    """
+      Get an optimization Set parameter
+      @ In, name, str, the Set name
+      @ Out, getSet, return the required Set parameter
+    """
+    return self.getComponent(name)
+
+  def updateParam(self, paramName, updateDict):
+    """
+      A Pyomo Param value can be updated without the user directly accessing the pyomo model.
+      Value(s) will be updated in-place, requiring the user to run the model again to
+      see the effect on results.
+      @ In, paramName, str, name of the parameter to update
+      @ In, updateDict, dict, keys are parameter indeces (either strings or tuples of strings,
+        depending on whether there is one or more than one dimension). Values
+        are the new values being assigned to the parameter at the given indeces.
+      @ Out, None
+    """
+    modelParam = self.getComponent(paramName)
+    if not isinstance(modelParam, pyomo.base.param.IndexedParam):
+      raise IOError(
+          '`{}` not a Parameter in the optimization model. Sets and decision variables '
+          'cannot be updated by the user'.format(paramName)
+      )
+    elif not isinstance(updateDict, dict):
+      raise TypeError('`updateDict` must be a dictionary')
+    else:
+      print(
+          'WARNING: we currently do not check that the updated value is the '
+          'correct data type for this Optimization Parameter, this is your '
+          'responsibility to check!'
+      )
+      modelParam.store_values(updateDict)
+
+  def activateConstraint(constraint, active=True):
+    """
+      Takes a constraint or objective name, finds it in the optimization model and sets
+      its status to either active or deactive.
+      @ In, constraint, str, Name of the constraint/objective to activate/deactivate
+        Built-in constraints include '_constraint'
+      @ In, activate, bool, default is True, status to set the constraint/objective
+      Parameters
+    """
+    modelConstraint = self.getComponent(constraint)
+    if not isinstance(modelConstraint, pyomo.base.Constraint):
+      raise exceptions.ModelError(
+          '`{}` not a constraint in the optimization model!'.format(constraint)
+      )
+    elif active is True:
+      modelConstraint.activate()
+    elif active is False:
+      modelConstraint.deactivate()
+    else:
+      raise ValueError('Argument `active` must be True or False')
 
   def writeModel(self, filename):
     """
