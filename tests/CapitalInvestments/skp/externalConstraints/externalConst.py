@@ -1,6 +1,7 @@
 
 # External constraint function
 import numpy as np
+import pyomo.environ as pyomo
 
 def initialize():
   """
@@ -17,7 +18,16 @@ def initialize():
   }
   return updateDict
 
-def constraint(inputs):
+def constraint(self, name):
   """
+    External constraint provided by users that will be added to optimization problem
+    @ In, self, object,
+
+    @ Out,
   """
-  pass
+  investments = self.getParameter('investments')
+  x = self.getVariable('x')
+
+  def constraintRule(self, i):
+    return self.x[i] <= 1
+  self.addConstraintSet(name, investments, constraintRule)

@@ -70,7 +70,14 @@ class SingleKnapsack(KnapsackBase):
       """ set the bounds for soluion variable x using lowerBounds and upperBounds"""
       return (self.lowerBounds[i], self.upperBounds[i])
     model.x = pyomo.Var(model.investments, domain=pyomo.NonNegativeIntegers, bounds=boundsExpression)
-
+    ## Another way to add Pyomo.Vars
+    # model.add_component(self.decisionVariable,
+    #                     pyomo.Var(model.investments,
+    #                               name=self.decisionVariable,
+    #                               domain=pyomo.NonNegativeIntegers,
+    #                               bounds=boundsExpression
+    #                              )
+    #                    )
     def constraintCapacity(model, t):
       """Knapsacks capacity constraints"""
       return sum(model.costs[i,t]*model.x[i] for i in model.investments) <= model.available_capitals[t]

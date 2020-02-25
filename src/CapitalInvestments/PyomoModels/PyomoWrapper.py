@@ -115,15 +115,26 @@ class PyomoWrapper:
     var = pyomo.Var(name=name, **kwargs)
     self._model.add_component(name, var)
 
-  def addConstraint(self, name, rule):
+  def addConstraint(self, name, expression):
     """
       Create a new constraint and add it to the optimization problem
       @ In, name, str, name used to define Pyomo.Constraint parameter, self._model.name
         can be used to retrieve this constraint
-      @ In, rule, function object, a function that is used to construct constraint
+      @ In, expression, function object, a function that is used to construct constraint
       @ Out, None
     """
-    self._model.add_component(name, pyomo.Constraint(name=name, rule=rule))
+    self._model.add_component(name, pyomo.Constraint(name=name, rule=expression))
+
+  def addConstraintSet(self, name, index, expression):
+    """
+      Create a new set of constraints and add it to the optimization problem
+      @ In, name, str, name used to define Pyomo.Constraint parameter, self._model.name
+        can be used to retrieve this constraint
+      @ In, index, list-like object, index for the variables
+      @ In, expression, function object, a function that is used to construct constraint
+      @ Out, None
+    """
+    self._model.add_component(name, pyomo.Constraint(index, name=name, rule=expression))
 
   def addParameter(self, name, index=None, values=None, mutable=True, default=None, **kwargs):
     """
@@ -313,3 +324,8 @@ class PyomoWrapper:
       @ Out, None
     """
     delattr(self._model, name)
+
+  def getModel(self):
+    """
+    """
+    return self._model

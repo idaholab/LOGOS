@@ -65,8 +65,8 @@ class ModelBase:
     self.params = None          # pyomo required params info
     self.solutionVariableType = pyomo.Binary # solution variable type, i.e. Binary, Integers, Reals, default to Binary
     self.output = {}            # dictionary contains all outputs
-    self.paramsAuxInfo = {}      # dict used by self.setParameters to generate the correct format of input parameters
-
+    self.paramsAuxInfo = {}     # dict used by self.setParameters to generate the correct format of input parameters
+    self.decisionVariable = 'x' # optimization solution variable name
     ## external constraints
     self.externalConstraints = {} # dictionary of user provided constraints
     self.externalConstModules = {} # Store the loaded module of user provided constraints
@@ -200,23 +200,28 @@ class ModelBase:
     # retrieve sets and params
     setsDict = pyomoWrapper.getAllSets(setsNameList)
     paramsDict = pyomoWrapper.getAllParameters(paramsNameList)
+    decisionVar = pyomoWrapper.getVariable(self.decisionVariable)
     # load all external constraint modules
     for key, val in self.externalConstraints.items():
       moduleToLoadString, filename = utils.identifyIfExternalModuleExists(val, self.workingDir)
       self.externalConstModules[key] = utils.importFromPath(moduleToLoadString)
       logger.info('Import external constraint module: "{}"'.format(moduleToLoadString))
     # start to execute functions from external constraint modules
-    for key, constrMod in self.externalConstModules.items():
+    for constrKey, constrMod in self.externalConstModules.items():
       # 'initialize' can be used when the user wants to modify the values of parameters
       if 'initialize' in dir(constrMod):
         updateDict = constrMod.initialize()
         if updateDict:
           if set(updateDict.keys()).issubset(set(paramsNameList)):
-            # pre-process data with extended indices
+            # pre-process data with extended indices (i.e. time_periods)
             extendedDict = {}
             for key, value in updateDict.items():
-              extendedDict[key] = self.setParameters(key, self.paramsAuxInfo[key]['options'], self.paramsAuxInfo[key]['maxDim'], value)
-            # call internal functions to update parameters
+              extendedDict[key] = self.setParameters(key, self.paramsAuxInfo[key]['options'],
+                                    self.paramsAuxInfo[key]['maxDim'],
+                                    value
+                                  )
+            # call internal functions to update parameters, initial values provided by Logos input file will be
+            # modified by given dictionary "extendedDict"
             pyomoWrapper.updateParams(extendedDict)
           else:
             missing = set(updateDict.keys()) - set(paramsNameList)
@@ -226,8 +231,14 @@ class ModelBase:
       if 'constraint' not in dir(constrMod):
         raise IOError(
           'External constraint: "{}" does not contain a method named "constraint". '
-          'It must be present if this needs to be used in Logos optimization!'.format(key)
+          'It must be present if this needs to be used in Logos optimization!'.format(constrKey)
         )
+      else:
+        constrMod.constraint(pyomoWrapper, constrKey)
+
+        ## examples to use addConstraint
+        # pyomoWrapper.addConstraint(constrKey, rule=pyomo.summation(decisionVar)<=4)
+        # model.add_component(constrKey, pyomo.Constraint(name=constrKey, expr=pyomo.summation(decisionVar)<=4))
 
     # model.cuts = pyomo.ConstraintList()
     # model.cuts.add(model.x['1']==1)
