@@ -108,7 +108,6 @@ class KnapsackBase(ModelBase):
     data = {None:data}
     return data
 
-
   def processInputSets(self, indexName):
     """
       Method to generate Set input for pyomo model

@@ -213,9 +213,11 @@ class ModelBase:
         if updateDict:
           if set(updateDict.keys()).issubset(set(paramsNameList)):
             # pre-process data with extended indices
-
+            extendedDict = {}
+            for key, value in updateDict.items():
+              extendedDict[key] = self.setParameters(key, self.paramsAuxInfo[key]['options'], self.paramsAuxInfo[key]['maxDim'], value)
             # call internal functions to update parameters
-            pyomoWrapper.updateParams(updateDict)
+            pyomoWrapper.updateParams(extendedDict)
           else:
             missing = set(updateDict.keys()) - set(paramsNameList)
             raise IOError('The following parameters "{}" is not available in defined optimization problem, '
