@@ -240,14 +240,8 @@ class ModelBase:
         if len(externalConstraint) == 1:
           pyomoWrapper.addConstraint(constrKey, externalConstraint[0])
         else:
-          pyomoWrapper.addConstraintSet(constrKey, externalConstraint[0], externalConstraint[1])
-        # pyomoWrapper.addConstraint(constrKey, constrMod.constraint(pyomoWrapper, constrKey))
-        ## examples to use addConstraint
-        # pyomoWrapper.addConstraint(constrKey, rule=pyomo.summation(decisionVar)<=4)
-        # model.add_component(constrKey, pyomo.Constraint(name=constrKey, expr=pyomo.summation(decisionVar)<=4))
+          pyomoWrapper.addConstraintSet(constrKey, externalConstraint[0], externalConstraint[1:])
 
-    # model.cuts = pyomo.ConstraintList()
-    # model.cuts.add(model.x['1']==1)
     return model
 
   def createInstance(self, data):

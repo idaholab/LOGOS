@@ -134,7 +134,7 @@ class PyomoWrapper:
       @ In, expression, function object, a function that is used to construct constraint
       @ Out, None
     """
-    self._model.add_component(name, pyomo.Constraint(index, name=name, rule=expression))
+    self._model.add_component(name, pyomo.Constraint(*index, name=name, rule=expression))
 
   def addParameter(self, name, index=None, values=None, mutable=True, default=None, **kwargs):
     """
