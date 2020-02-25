@@ -191,7 +191,7 @@ class PyomoWrapper:
     """
       Get an optimization Parameter
       @ In, name, str, the Parameter name
-      @ Out, getParameter, return the required Parameter
+      @ Out, getParameter, pyomo.Param, return the required Parameter
     """
     return self.getComponent(name)
 
@@ -199,9 +199,31 @@ class PyomoWrapper:
     """
       Get an optimization Set parameter
       @ In, name, str, the Set name
-      @ Out, getSet, return the required Set parameter
+      @ Out, getSet, pyomo.Set, return the required Set parameter
     """
     return self.getComponent(name)
+
+  def getAllParameters(self, paramsList):
+    """
+      Get an optimization Parameter
+      @ In, paramsList, list, the list of Parameter names
+      @ Out, paramsDict, dict, return all parameters and their associated Pyomo.Param object
+    """
+    paramsDict = {}
+    for paramName in paramsList:
+      paramsDict[paramName] = self.getParameter(paramName)
+    return paramsDict
+
+  def getAllSets(self, setsList):
+    """
+      Get an optimization Set parameter
+      @ In, setsList, list, the list of Set names
+      @ Out, setsDict, dict, return all sets and their associated Pyomo.Set object
+    """
+    setsDict = {}
+    for setName in setsList:
+      setsDict[setName] = self.getSet(setName)
+    return setsDict
 
   def updateParam(self, paramName, updateDict):
     """
@@ -229,6 +251,20 @@ class PyomoWrapper:
           'responsibility to check!'
       )
       modelParam.store_values(updateDict)
+
+  def updateParams(self, updateDict):
+    """
+      Update Pyomo Parameters values without the user directly accessing the pyomo model.
+      Value(s) will be updated in-place, requiring the user to run the model again to
+      see the effect on results.
+      @ In, updateDict, dict, {paramName:paramInfoDict},  where paramInfoDict contains {Indices:Values}
+        Indices are parameter indices (either strings or tuples of strings, depending on whether there is one or more than one dimension).
+        Values are the new values being assigned to the parameter at the given indeces.
+      @ Out, None
+    """
+    for paramName, paramDict in updateDict.items():
+      self.updateParam(paramName, paramDict)
+
 
   def activateConstraint(constraint, active=True):
     """

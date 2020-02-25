@@ -65,16 +65,19 @@ class ModelBase:
     self.params = None          # pyomo required params info
     self.solutionVariableType = pyomo.Binary # solution variable type, i.e. Binary, Integers, Reals, default to Binary
     self.output = {}            # dictionary contains all outputs
-    # additional info needed by stochastic optimization
+    self.paramsAuxInfo = {}      # dict used by self.setParameters to generate the correct format of input parameters
+
+    ## external constraints
+    self.externalConstraints = {} # dictionary of user provided constraints
+    self.externalConstModules = {} # Store the loaded module of user provided constraints
+    self.workingDir = None # working directory
+    ## additional info needed by stochastic optimization
     self.meta = None            # additional info
     self.scenariosData = None   # containers for scenarios/uncertainties input data
     self.uncertainties = None   # uncertainty info provided by users
     self.scenarios = {}         # dictionary contains scenarios information generated from self.uncertainties
     self.nonSelection = False   # options DoNothing should be included for each projects if True, otherwise should not be included
     self.optionalConstraints = {} # dictionary of optional constraints that users can turn on or off, i.e. {consistentConstraintI:True}
-    self.externalConstraints = {} # dictionary of user provided constraints
-    self.externalConstModules = {} # Store the loaded module of user provided constraints
-    self.workingDir = None # working directory
     self.sopts = {} # options for solvers, i.e. self.sopts['threads'] = 4
     self.phopts = {} # options for progressive hedging method
     self.phopts['--output-solver-log'] = None
@@ -192,10 +195,37 @@ class ModelBase:
     logger.info('Add external constraints to optimization model')
     # create pyomo wrapper instance
     pyomoWrapper = PyomoWrapper(model)
+    setsNameList = self.sets.keys()
+    paramsNameList = self.params.keys()
+    # retrieve sets and params
+    setsDict = pyomoWrapper.getAllSets(setsNameList)
+    paramsDict = pyomoWrapper.getAllParameters(paramsNameList)
+    # load all external constraint modules
     for key, val in self.externalConstraints.items():
       moduleToLoadString, filename = utils.identifyIfExternalModuleExists(val, self.workingDir)
       self.externalConstModules[key] = utils.importFromPath(moduleToLoadString)
       logger.info('Import external constraint module: "{}"'.format(moduleToLoadString))
+    # start to execute functions from external constraint modules
+    for key, constrMod in self.externalConstModules.items():
+      # 'initialize' can be used when the user wants to modify the values of parameters
+      if 'initialize' in dir(constrMod):
+        updateDict = constrMod.initialize()
+        if updateDict:
+          if set(updateDict.keys()).issubset(set(paramsNameList)):
+            # pre-process data with extended indices
+
+            # call internal functions to update parameters
+            pyomoWrapper.updateParams(updateDict)
+          else:
+            missing = set(updateDict.keys()) - set(paramsNameList)
+            raise IOError('The following parameters "{}" is not available in defined optimization problem, '
+              'available parameters include: "{}"!'.format(', '.join(missing), ', '.join(paramsNameList))
+            )
+      if 'constraint' not in dir(constrMod):
+        raise IOError(
+          'External constraint: "{}" does not contain a method named "constraint". '
+          'It must be present if this needs to be used in Logos optimization!'.format(key)
+        )
 
     # model.cuts = pyomo.ConstraintList()
     # model.cuts.add(model.x['1']==1)

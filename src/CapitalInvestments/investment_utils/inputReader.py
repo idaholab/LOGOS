@@ -202,13 +202,15 @@ def readSettings(root, nodeTag, workingDir):
     if settingDict['workingDir'] is None:
       raise IOError('"workingDir" is empty! Use "." to indicate "inputfile directory" or specify a directory!')
     tempDir = settingDict['workingDir']
-  if '~' in tempDir:
-    tempDir = os.path.expanduser(tempDir)
-  if os.path.isabs(tempDir):
-    settingDict['workingDir'] = tempDir
+    if '~' in tempDir:
+      tempDir = os.path.expanduser(tempDir)
+    if os.path.isabs(tempDir):
+      settingDict['workingDir'] = tempDir
+    else:
+      settingDict['workingDir'] = os.path.join(workingDir, tempDir)
+    utils.makeDir(settingDict['workingDir'])
   else:
-    settingDict['workingDir'] = os.path.join(workingDir, tempDir)
-  utils.makeDir(settingDict['workingDir'])
+    settingDict['workingDir'] = workingDir
   return settingDict
 
 def readExternalConstraints(root, nodeTag):

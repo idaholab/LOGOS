@@ -96,7 +96,15 @@ class KnapsackBase(ModelBase):
     # Generate input regulatory mandated data
     if self.regulatoryMandated is not None:
       data['regulatoryMandated'] = {None: self.regulatoryMandated}
+
+    # set the Parameters with the extended indices
+    for paramName, paramInfo in self.paramsAuxInfo.items():
+      options = paramInfo['options']
+      maxDim = paramInfo['maxDim']
+      data[paramName] = self.setParameters(paramName, options, maxDim)
+    data = {None:data}
     return data
+
 
   def processInputSets(self, indexName):
     """

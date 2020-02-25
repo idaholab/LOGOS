@@ -40,6 +40,9 @@ class SingleKnapsack(KnapsackBase):
     """
     KnapsackBase.__init__(self)
     self.optionalConstraints = {'consistentConstraintI':True}
+    self.paramsAuxInfo['available_capitals'] = {'maxDim':1, 'options': [[None], ['time_periods']]}
+    self.paramsAuxInfo['net_present_values'] = {'maxDim':1, 'options': [[None], ['investments']]}
+    self.paramsAuxInfo['costs'] = {'maxDim':2, 'options': [[None], ['investments'], ['investments', 'time_periods']]}
 
   def initialize(self, initDict):
     """
@@ -49,30 +52,6 @@ class SingleKnapsack(KnapsackBase):
       @ Out, None
     """
     KnapsackBase.initialize(self, initDict)
-
-  def generateModelInputData(self):
-    """
-      This method is used to generate input data for pyomo model
-      @ In, None
-      @ Out, data, dict, input data for pyomo model
-    """
-    data = KnapsackBase.generateModelInputData(self)
-    paramName = 'available_capitals'
-    options = [[None], ['time_periods']]
-    maxDim = 1
-    data[paramName] = self.setParameters(paramName, options, maxDim)
-
-    paramName = 'net_present_values'
-    options = [[None], ['investments']]
-    maxDim = 1
-    data[paramName] = self.setParameters(paramName, options, maxDim)
-
-    paramName = 'costs'
-    options = [[None], ['investments'], ['investments', 'time_periods']]
-    maxDim = 2
-    data[paramName] = self.setParameters(paramName, options, maxDim)
-    data = {None:data}
-    return data
 
   def multidimensionalKnapsacks(self):
     """
