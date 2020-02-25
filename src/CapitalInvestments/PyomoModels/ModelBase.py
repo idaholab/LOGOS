@@ -235,7 +235,7 @@ class ModelBase:
         )
       else:
         constrMod.constraint(pyomoWrapper, constrKey)
-
+        # pyomoWrapper.addConstraint(constrKey, constrMod.constraint(pyomoWrapper, constrKey))
         ## examples to use addConstraint
         # pyomoWrapper.addConstraint(constrKey, rule=pyomo.summation(decisionVar)<=4)
         # model.add_component(constrKey, pyomo.Constraint(name=constrKey, expr=pyomo.summation(decisionVar)<=4))

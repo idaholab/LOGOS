@@ -18,16 +18,17 @@ def initialize():
   }
   return updateDict
 
-def constraint(self, name):
+def constraint(model, name):
   """
     External constraint provided by users that will be added to optimization problem
     @ In, self, object,
 
     @ Out,
   """
-  investments = self.getParameter('investments')
-  x = self.getVariable('x')
+  investments = model.getParameter('investments')
+  x = model.getVariable('x')
 
   def constraintRule(self, i):
-    return self.x[i] <= 1
-  self.addConstraintSet(name, investments, constraintRule)
+    return x[i] <= 1
+
+  model.addConstraintSet(name, investments, constraintRule)

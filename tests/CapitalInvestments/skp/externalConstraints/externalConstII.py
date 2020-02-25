@@ -43,7 +43,7 @@ def initialize():
 def constraint(model, name):
   """
     External constraint provided by users that will be added to optimization problem
-    @ In, self, object,
+    @ In, model, object,
 
     @ Out,
   """
@@ -51,6 +51,8 @@ def constraint(model, name):
   x = model.getVariable('x')
 
   def constraintRule(self):
-    return sum(self.x[i] for i in self.investments) <= 4
+    return sum(2.0*x[i] for i in investments) <= 8
+
+  # return constraintRule
 
   model.addConstraint(name, constraintRule)
