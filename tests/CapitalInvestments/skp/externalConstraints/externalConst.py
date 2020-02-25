@@ -18,17 +18,39 @@ def initialize():
   }
   return updateDict
 
-def constraint(model, name):
+def constraint(var, sets, params):
   """
     External constraint provided by users that will be added to optimization problem
-    @ In, self, object,
+    @ In, sets, dict, all "Sets" provided in the Logos input file will be stored and
+      available in this dictionary, i.e. {setName: setObject}
+    @ In, params, dict, all "Parameters" provided in the Logos input file will be stored and
+      available in this dictionary, i.e. {paramName: paramObject}
+    @ In, var, object, the internally used decision variable, the dimensions/indices of this
+      variable depend the type of optimization problems (i.e. "<problem_type>" from Logos input file).
+      Currently, we will accept the following problem types:
+
+      1. "singleknapsack": in this case, "var" will be var[:], where the index will be the element from
+        xml node of "investment" in Logos input file.
+
+      2. "multipleknapsack": in this case, "var" will be var[:,:], where the indices are the combinations
+        element from set "investment" and element from set "capitals" in Logos input file
+
+      3. "mckp": in this case, "var" will be var[:,:], where the indices are the combinations
+        element from set "investment" and element from set "options" in Logos input file
+
+      (Note that all element that is used as index will be converted to string even if
+      a number is provided in the Logos input file).
 
     @ Out,
+
+    (Note that any modifications in provided sets and params will only have impact on this local module,
+    i.e. the external constraint. In other words, the Sets and Params used in the internal constraints and
+    objective will be kept unchanged!)
   """
-  investments = model.getParameter('investments')
-  x = model.getVariable('x')
+
+  investments = sets['investments']
 
   def constraintRule(self, i):
-    return x[i] <= 1
+    return var[i] <= 1
 
-  model.addConstraintSet(name, investments, constraintRule)
+  return (constraintRule, investments)

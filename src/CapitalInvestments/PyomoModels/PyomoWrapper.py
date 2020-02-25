@@ -125,7 +125,7 @@ class PyomoWrapper:
     """
     self._model.add_component(name, pyomo.Constraint(name=name, rule=expression))
 
-  def addConstraintSet(self, name, index, expression):
+  def addConstraintSet(self, name, expression, index):
     """
       Create a new set of constraints and add it to the optimization problem
       @ In, name, str, name used to define Pyomo.Constraint parameter, self._model.name

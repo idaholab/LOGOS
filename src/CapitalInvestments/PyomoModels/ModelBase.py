@@ -17,6 +17,7 @@ import abc
 import itertools
 import numpy as np
 import logging
+import copy
 import pandas as pd
 import collections
 import six
@@ -198,8 +199,8 @@ class ModelBase:
     setsNameList = self.sets.keys()
     paramsNameList = self.params.keys()
     # retrieve sets and params
-    setsDict = pyomoWrapper.getAllSets(setsNameList)
-    paramsDict = pyomoWrapper.getAllParameters(paramsNameList)
+    setsDict = copy.deepcopy(pyomoWrapper.getAllSets(setsNameList))
+    paramsDict = copy.deepcopy(pyomoWrapper.getAllParameters(paramsNameList))
     decisionVar = pyomoWrapper.getVariable(self.decisionVariable)
     # load all external constraint modules
     for key, val in self.externalConstraints.items():
@@ -234,7 +235,12 @@ class ModelBase:
           'It must be present if this needs to be used in Logos optimization!'.format(constrKey)
         )
       else:
-        constrMod.constraint(pyomoWrapper, constrKey)
+        # constrMod.constraint(pyomoWrapper, constrKey)
+        externalConstraint = constrMod.constraint(decisionVar, setsDict, paramsDict)
+        if len(externalConstraint) == 1:
+          pyomoWrapper.addConstraint(constrKey, externalConstraint[0])
+        else:
+          pyomoWrapper.addConstraintSet(constrKey, externalConstraint[0], externalConstraint[1])
         # pyomoWrapper.addConstraint(constrKey, constrMod.constraint(pyomoWrapper, constrKey))
         ## examples to use addConstraint
         # pyomoWrapper.addConstraint(constrKey, rule=pyomo.summation(decisionVar)<=4)
