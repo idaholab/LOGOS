@@ -317,7 +317,13 @@ def readInput(filename, workingDir='.'):
     @ In, filename, str or xml.etree.ElementTree.ElementTree, input filename
     @ In, workingDir, str, the working directory, '.' indicate current input file directory
     @ Out, initDict, dict, dictionary of inputs
-    {'Sets':{}, 'Parameters':{}, 'Settings':{}, 'Meta':{}, 'Uncertainties':{}}
+    {
+      'Sets':{setName: list of setValues},
+      'Parameters':{paramName:{setsIndex:paramValue}} or {paramName:{'None':paramValue}},
+      'Settings':{xmlTag:xmlVal},
+      'Meta':{paramName:{setIndexName:indexDim}} or {paramName:None},
+      'Uncertainties':{paramName:{'scenarios':{scenarioName:{setIndex:uncertaintyVal}}, 'probabilities': [ProbVals]}}
+    }
   """
 
   if type(filename) == str:
