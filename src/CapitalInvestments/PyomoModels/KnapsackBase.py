@@ -126,7 +126,8 @@ class KnapsackBase(ModelBase):
       @ In, options, list, list of all optional list of the corresponding parameter index
       @ In, maxDim, int, the max number of indices that the parameter can take
       @ In, initParamDict, dict, initial parameter dictionary {paramName:{originalIndex:paramVal}
-      @ Out, paramDict, dict, {extendedIndex:paramVal}
+      @ Out, paramDict, dict, {extendedIndex:paramVal}, dictionary of parameters in the format that is
+        used by Pyomo model.
     """
     paramDict = None
     if maxDim == 1:

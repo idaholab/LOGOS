@@ -59,7 +59,7 @@ class PyomoWrapper:
   def __init__(self, model):
     """
       Constructor
-      @ In, None
+      @ In, model, pyomo model instance, model used for optimization
       @ Out, None
     """
     # pyomo model instance
@@ -327,5 +327,8 @@ class PyomoWrapper:
 
   def getModel(self):
     """
+      Return the Pyomo model
+      @ In, None
+      @ Out, getModel, Pyomo model instance, model used for optimization
     """
     return self._model
