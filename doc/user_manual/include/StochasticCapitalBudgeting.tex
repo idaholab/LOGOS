@@ -1,0 +1,134 @@
+\section{Stochastic Capital Budgeting}
+\label{sec:StochasticCapitalBudgeting}
+
+The deterministic capital budgeting model previously developed allows for multiple options in how
+we select a project. For example, we might select a project via Plan A, Plan B, Plan C, or not
+select the project at all. In addition, the deterministic model allows for multiple types of
+resources (e.g., capital budgets and O\&M budgets), and further allows for piggybacking constraints.
+Our stochastic capital budgeting model illustrates the ideas of prioritization without the
+additional features of multiple types of resources, piggybacking, and multiple options for selecting
+each project.  The former two features integrate with the prioritization scheme in a straightforward
+way, as we will describe below. The latter-most feature proves to have subtle interactions with
+the notion of prioritization, and we discuss that in some detail in this section. The model
+sketched here is new and, to our knowledge, has not appeared in the literature. Even though the
+notation has been sketched above, we develop the full model here so that this section is
+self-contained, given that it specifies our “full” mathematical model for stochastic capital
+budgeting.
+
+\[
+\begin{array}{ll}
+%%%%%%%%%%%%%% INDICES AND SET %%%%%%%%%%%%%%%%
+\multicolumn{2}{l}{\mbox{\em Indexes and sets:} } \\
+t \in T  & \mbox{time periods (years)} \\
+i,i^{'}, i^{''} \in I  & \mbox{candidate projects} \\
+j, j^{'} \in J_{i}	& \mbox{options for selecting project $i$} \\
+i^{'},j^{'} \in IJ_{ij} & \mbox{piggybacking situations} \\
+k \in K	& \mbox{types of resources} \\
+\omega \in \Omega & \mbox{scenarios}\\
+\\
+%%%%%%%%%%%%%% DATA %%%%%%%%%%%%%%%%
+\multicolumn{2}{l}{\mbox{\em Data:}} \\
+a_{ij}^{\omega} & \mbox{reward of selecting project $i$ via option $j$ under scenario $\omega$}  \\
+b_{kt}^{\omega} & \mbox{available budget for a resource of type $k$ in year $t$ under scenario $\omega$}\\
+c_{ijkt}^{\omega} & \mbox{consumption of resource of type $k$ in year $t$ } \\
+& \mbox{if project $i$ is performed via option $j$ under scenario $\omega$}\\
+\\
+%%%%%%%%%%%%%% DECISION VARS %%%%%%%%%%%%%%%%
+\multicolumn{2}{l}{\mbox{\em Decision variables:}}  \\
+x_{ij}^{\omega} & \mbox{1 if project $i$ is selected via option $j$ under scenario $\omega$; 0 otherwise} \hspace*{4.0in}\\
+s_{ii^{'}} & \mbox{1 if project $i$ has no lower priority than project $i^{'}$; 0 otherwise} \hspace*{4.0in}\\
+y_{i}^{\omega} & \mbox{1 if project $i$ is selected for {\it some} option under scenario $\omega$; 0 otherwise} \hspace*{4.0in}\\
+z_{ij} & \mbox{1 if project $i$ is selected via option $j$ under {\it some} scenario; 0 otherwise} \hspace*{4.0in}\\
+\end{array}
+\]
+
+Model formulation:\\
+
+\begin{equation}\label{stoc_obja}
+\mathop{\max}_{s,x,y,z} \sum _{ \omega  \in  \Omega }^{}q^{ \omega } \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}a_{ij}^{ \omega }x_{ij}^{ \omega }
+\end{equation}
+
+\begin{equation}\label{stoc_objb}
+~~~~~~~~~~~~s.t.~~~~~s_{ii^{'}}+s_{i^{'}i} \geq 1,~ i<i^{'}\text{, i, }i^{'} \in I
+\end{equation}
+
+\begin{equation}\label{stoc_objc}
+~~~~~~~~y_{i}^{ \omega } \geq y_{i^{'}}^{ \omega }+s_{ii^{'}}-1,~ i \neq i^{'}\text{, i, }i^{'} \in I,  \omega  \in  \Omega
+\end{equation}
+
+For simplicity, in what follows we will say that variable $s_{ii^{'}}=1$  means that project
+$i$  is higher priority than $i^{'}$  even though the variable definition allows for ties,
+i.e., the projects being the same priority. Constraint~(\ref{stoc_objb}) indicates that either
+project  $i$  is higher priority than project  $i^{'}$  or vice versa, and further allows both
+(i.e., a tie). Constraint~(\ref{stoc_objc}) indicates that if project  $i$  is higher priority
+than project  $i^{'}$  $s_{ii^{'}}=1$  then if we select the lower priority project
+\textit{under some option} then we must also select the higher priority project; if  $s_{ii^{'}}=0$
+or if  $y_{i^{'}}^{\omega}=0$  then the constraint is vacuous.\par
+
+\begin{equation}\label{stoc_objd}
+ \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}\text{~ c}_{ijkt}^{ \omega }x_{ij}^{ \omega }~  \leq  b_{kt}^{ \omega },~ k \in K, t \in T,  \omega  \in  \Omega
+\end{equation}
+
+Constraint~(\ref{stoc_objd}) requires that we be within budget in each time period, for each resource type, and under each scenario.
+
+\begin{equation}\label{stoc_obje}
+ \sum _{j \in J_{i}}^{}~~x_{ij}^{ \omega }= y_{i}^{ \omega },~~~~~~~~~~i \in I,~ \omega  \in  \Omega
+\end{equation}
+
+\begin{equation}\label{stoc_objf}
+y_{i}^{ \omega }=1,~ i \in I,  \omega  \in  \Omega
+\end{equation}
+
+Constraint~(\ref{stoc_obje}) defines binary variable  $y_{i}^{ \omega }$  and simultaneously ensures that we select project  $i$  via at most one option. Constraint~(\ref{stoc_objf}) ensures that we select all must-do projects. We note that this illustrates the alternative to the situation in which we must include the {\it Do Nothing}  option among the alternatives for optional projects.\par
+
+\begin{equation}\label{stoc_objg}
+x_{i^{'}j^{'}}^{ \omega }  \leq \text{~ x}_{ij}^{ \omega },~~ \left( i^{'},j^{'} \right)  \in IJ_{ij} , j \in J_{i},i \in I
+\end{equation}
+
+Constraint~(\ref{stoc_objg}) captures piggybacking conditions.\par
+
+\begin{equation}\label{stoc_objh}
+s_{ii^{'}}+s_{i^{'}i} \leq 1,~ i<i^{'}\text{, i, }i^{'} \in I
+\end{equation}
+
+\begin{equation}\label{stoc_obji}
+s_{ii^{'}~}+s_{i^{'}i^{''}}+s_{i^{''}i} \leq 2,~ i \neq i^{'},i^{'} \neq  i^{''},i^{''} \neq i,~i,~i^{'},i^{''} \in I
+\end{equation}
+
+Constraints~(\ref{stoc_objh})-(\ref{stoc_obji}) require that we produce a total ordering of the
+projects rather than allowing for ties. If we remove constraints~(\ref{stoc_objh})-(\ref{stoc_obji})
+then it will not change the optimal NPV that we obtain, but including the constraints can facilitate
+easier parsing of the solutions.\par
+
+\begin{equation}\label{stoc_objj}
+x_{i^{'}j}^{ \omega }+s_{ii^{'}~}-1 \leq  \sum _{\begin{array}{c}
+	j^{'} \in J_{i}\\
+	j^{'} \leq j~\\
+	\end{array}}^{}x_{ij}^{ \omega }~,~~i \neq i^{'}~i,~i^{'} \in I,~j \in J_{i^{'}},~ \omega  \in  \Omega
+\end{equation}
+
+
+Constraint~(\ref{stoc_objj}) is a type of consistency constraint with respect to the notion of
+options; the constraint matters only when project  $i$  is higher priority than project
+$i^{'}$ $s_{ii^{'}}=1$ . In this case, if we select Plan A for the lower priority project
+then we must select plan A for the higher priority project. If we select Plan B for the lower
+priority project, then we can select Plan A or Plan B for the higher priority project. And,
+if we select Plan C for the lower priority project then we can select Plan A, B, or C for the
+higher priority project. Inclusion of constraint~(\ref{stoc_objj}) is optional and reflects
+how the decision maker prefers to interpret the notion of priorities.
+
+\begin{equation}\label{stoc_objk}
+ \sum _{ \omega  \in  \Omega }^{}\text{~ x}_{ij}^{ \omega } \leq   \vert  \Omega  \vert ~z_{ij} ,i \in I, j \in J_{i}
+\end{equation}
+
+\begin{equation}\label{stoc_objl}
+ \sum _{j \in J_{i}}^{}z_{ij} \leq ~1,~  i \in I
+\end{equation}
+
+\begin{equation}\label{stoc_objm}
+s_{ii^{'}},x_{ij}^{ \omega },y_{i}^{ \omega },z_{ij} \in { 0,1 } , i \neq i^{'},i,i^{'} \in I, j \in J_{i} ,  \omega  \in  \Omega
+\end{equation}
+%\begin{comment}
+
+Constraints~(\ref{stoc_objk}) and (\ref{stoc_objl}) taken together indicate that, for each
+project separately, we cannot mix use of Plans A, B, and C across different scenarios.

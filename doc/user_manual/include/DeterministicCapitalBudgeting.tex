@@ -1,2 +1,80 @@
 \section{Deterministic Capital Budgeting}
 \label{sec:DeterministicCapitalBudgeting}
+
+We consider a capital budgeting problem for a nuclear generation station, with possible extension to
+a larger fleet of plants. Due to limited resources, we can only select a subset from a list of
+several candidate capital projects. Our goal is to maximize overall NPV associated with the
+selected subset. In doing so, we must respect resource limits and capture key structural and
+stochastic dependencies of the system, although in this section we start with the simpler
+deterministic case, ignoring randomness.  Example projects include upgrading a steam turbine,
+refurbishing or replacing a set of reactor coolant pumps, and replacing a set of feed-water heaters.
+
+\[
+\begin{array}{ll}
+%%%%%%%%%%%%%% INDICES AND SET %%%%%%%%%%%%%%%%
+\multicolumn{2}{l}{\mbox{\em Indexes and sets:} } \\
+t \in T  & \mbox{time periods (years)} \\
+i \in I  & \mbox{candidate projects} \\
+j \in J_{i}	& \mbox{options for selecting project $i$} \\%, e.g., initiate project $i$ in year $t$ or $t+2$ and in a standard (three year) or in an expedited (two year) manner} \\
+i^{'},j^{'} \in IJ_{ij} & \mbox{piggybacking situations} \\%, i.e., option $j^{'}$ for project $i^{'}$ can be selected only if option $j$ is selected for project $i$} \\
+k \in K	& \mbox{types of resources} \\%, e.g., capital funds, O\&M funds, labor-hours, time during outage} \\
+\\
+%%%%%%%%%%%%%% DATA %%%%%%%%%%%%%%%%
+\multicolumn{2}{l}{\mbox{\em Data:}} \\
+a_{ij} & \mbox{reward (revenue less financial cost) of selecting project $i$ via option $j$}  \\
+b_{kt} & \mbox{available budget for a resource of type $k$ in year $t$}\\
+c_{ijkt}  & \mbox{consumption of resource of type $k$ in year $t$ if project $i$ is performed via option $j$} \\
+\\
+%%%%%%%%%%%%%% DECISION VARS %%%%%%%%%%%%%%%%
+\multicolumn{2}{l}{\mbox{\em Decision variables:}}  \\
+x_{ij} & \mbox{1 if project $i$ is selected via option $j$; 0 otherwise} \hspace*{4.0in}\\
+\end{array}
+\]
+
+\vst \noi {\em Formulation:}
+\begin{subequations}\label{model-deter}
+\begin{eqnarray}
+&\dst \max_{x} &  \dst \sum_{i \in I, j \in J_{i}} a_{ij} x_{ij} \label{obj_deter} \\
+& s. t.  & \sum_{j \in J_{i}} x_{ij} = 1,   i \in I \\
+& & \sum_{i \in I, j \in J_{i}} c_{ijkt} x_{ij} \leq b_{kt}, k \in K, t \in T \\
+& & x_{ij} \in \{0,1\}, j \in J_{i}, i \in I.
+\end{eqnarray}
+\end{subequations}
+
+The decision variables, $x_{ij}$, indicate whether we choose to do project i by means j. Restated,
+if $x_{ij}=1$, then we recommend doing project $i$ via option $j$, and taken together these decision
+variables produce both a portfolio of selected projects and a schedule for performing those projects
+over time.  The set of available options, $j \in J_i$, can explicitly include the “do-nothing” option,
+and the first constraint ensures that we choose exactly one option from the available set for each
+project, including the possibility of selecting the do-nothing option. Even if we select the
+do-nothing option for a project, it induces an NPV, $a_{ij}$, which may be negative, representing
+growing O\&M costs, losses in plant efficiency, etc. The second structural constraint ensures that
+the budget of each resource $k$ is respected in each year $t$. The third structural constraint
+captures piggybacking situations in which option $j^{'}$ for project $i^{'}$ (which may have cheaper
+costs) may be selected only if project-option pair $(i,j)$ is also selected. The objective function
+includes the NPV for each project-option pair, $a_{ij}$, and the correct NPV is selected by
+the $0-1$ decision variable, $x_{ij}$.
+
+We note that sometimes there are projects that must be done, e.g., for safety and or regulatory
+reasons. This can be handled within the mathematical formulation just given, without introducing
+additional constructs. The set $J_i$ typically includes a do-nothing option for each project,
+but when project $i$ must be done, we simply do not include the do-nothing option. Mathematically,
+an alternative is to not include an explicit do-nothing option, to replace the first structural
+constraint with an inequality, and to add an additional set of must-do projects with an equality
+constraint. Both options are mathematically equivalent and simply represent a choice to be made by
+the analyst. The mathematical model is simpler using our approach in this section, but the set of
+input data is a bit more complicated. Handling the do-nothing option implicitly leads to the
+opposite situation. To illustrate ideas, we include an explicit do-nothing option in this
+section, and later we illustrate the implicit alternative. We do note that the choice that we
+make affects the NPV calculations. The scheme described in this section requires NPV calculations
+that are absolute and includes an NPV value for the do-nothing case. In contrast, if the do-nothing
+option is implicit then the NPV of plan A, plan B, etc., should be calculated relative to that of
+the do-nothing option.
+
+The deterministic model can be repeatedly solved by changing the input values,
+$a_{ij}$, $b_{kt}$, $c_{ijkt}$. This will allow for what-if sensitivity analysis to identify the
+crucial drivers behind the optimal project selection decision. Monte Carlo simulation permits a
+powerful variant of this approach in which we model $a_{ij}$, $b_{kt}$, $c_{ijkt}$ as random
+variables, sample from their distributions, and perform a form of uncertainty quantification
+in terms of the resulting distributions governing the binary decisions selected, $x_{ij}$, and
+the overall NPV of the selected portfolio.
