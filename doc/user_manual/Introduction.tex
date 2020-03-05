@@ -29,6 +29,95 @@ uncertainties (associated to constraints or item cost and reward).
 These models can be employed as stand-alone models or interfaced with the INL developed RAVEN code
 to propagate data uncertainties and analyze the generated data (i.e., sensitivity analysis).
 
+\subsection{Acquiring and Installing LOGOS}
+LOGOS is supported on three separate computing platforms: Linux, OSX (Apple Macintosh), and Microsoft
+Windows. Currently, LOGOS is downloadable from LOGOS GitLab repository:
+\url{https://hpcgitlab.hpc.inl.gov/RAVEN_PLUGINS/LOGOS.git}. New users should contact LOGOS developers to
+get start with LOGOS. This typically involves the following steps:
+
+\begin{itemize}
+  \item \textit{Download LOGOS}
+    \\ You can download the source code of RAVEN from \url{https://hpcgitlab.hpc.inl.gov/RAVEN_PLUGINS/LOGOS.git}.
+  \item \textit{Install LOGOS dependencies}
+	\begin{lstlisting}[language=bash]
+	path/to/LOGOS/build.sh
+	\end{lstlisting}
+  \item \textit{Run LOGOS}
+	\begin{lstlisting}[language=bash]
+	./run_tests
+	\end{lstlisting}
+  	Alternatively, the \texttt{logos} script
+    contained in the folder ``\texttt{LOGOS}'' can be directly used:
+\begin{lstlisting}[language=bash]
+path/to/LOGOS/logos -i <inputFile.xml> -o <outputFile.csv>
+\end{lstlisting}
+	\item \textit{Used as RAVEN Plugin}, RAVEN need to be installed
+		\\ Instructions are available from \url{https://github.com/idaholab/raven/wiki}.
+\end{itemize}
+
+\subsection{User Manual Formats}
+In order to highlight some parts of the user manual having a particular meaning
+(input structure, examples, terminal commands, etc.), specific formats have been used.
+This section provides the formats with a specific meaning:
+\begin{itemize}
+\item \textbf{\textit{Python Coding:}}
+\begin{lstlisting}[language=python]
+class AClass():
+  def aMethodImplementation(self):
+    pass
+\end{lstlisting}
+\item \textbf{\textit{LOGOS XML input example:}}
+\begin{lstlisting}[style=XML,morekeywords={anAttribute}]
+<MainXMLBlock>
+  ...
+  <aXMLnode name='anObjectName' anAttribute='aValue'>
+     <aSubNode>body</aSubNode>
+  </aXMLnode>
+  <!-- This is  commented block -->
+  ...
+</MainXMLBlock>
+\end{lstlisting}
+\item \textbf{\textit{Bash Commands:}}
+\begin{lstlisting}[language=bash]
+cd path/to/LOGOS/
+./build.sh
+cd ../../
+\end{lstlisting}
+\end{itemize}
+
+\subsection{Components of LOGOS}
+In LOGOS, eXtensible Markup Language (XML) format is used to create the input file. For more
+information about XML, please click on the link:
+\href{https://www.w3schools.com/xml/default.asp}{\textbf{XML tutorial}}.
+%
+\\The main input blocks are as follows:
+\begin{itemize}
+  \item \xmlNode{Logos}: The root node containing the
+  entire input, all of
+  the following blocks fit inside the \emph{Logos} block.
+  %
+  \item \xmlNode{Settings}: Specifies the calculation settings
+  %
+  \item \xmlNode{Sets}: Specifies a collection of data, possibly including
+	numeric data (e.g. real or integer values) as well as symbolic data (e.g. strings)
+	that is typically used to specify the valid indices for an indexed components.
+	\nb numeric data provided in the \xmlNode{Sets} would be treated as strings.
+  %
+	\item \xmlNode{Parameters}: Specifies a collection of parameters, a parameter
+	is a numerical value that is used to formulate constraints and objectives in a
+	optimization model. It can denote a single value, an array of values or a multi-dimensional
+	array of values.
+	%
+	\item \xmlNode{Uncertainties}:
+	%
+	%
+	\item \xmlNode{ExternalConstraints}:
+	%
+\end{itemize}
+
+Each of these components are explained in dedicated sections of the user manual.
+
+\subsection{Capabilities of LOGOS}
 This document provides a detailed description of the LOGOS, and the features included in LOGOS are:
 \begin{itemize}
 	\item Deterministic Capital Budgeting (See Section~\ref{sec:DeterministicCapitalBudgeting})
