@@ -6,12 +6,74 @@ aspects of the model, including \xmlNode{Sets}, \xmlNode{Parameters},
 \xmlNode{Uncertainties} and \xmlNode{ExternalConstraints}. In addition, \xmlNode{Setting}
 block specifies how the overall computation should be run.
 
-\subsection{Settings}
+%
+\subsection{Settings: Options for Optimization}
+This sub-section contains the information regarding the XML nodes used to define the
+settings of the optimization model that is being performed through LOGOS:
+\begin{itemize}
+  \item \xmlNode{problem\_type}, \xmlDesc{string, required parameter}, specifies the type of
+  optimization problem. Available types including \xmlString{SingleKnapsack},
+  \xmlString{MultipleKnapsack} and \xmlString{MCKP}.
+  \item \xmlNode{solver}, \xmlDesc{string, optional parameter}, available solvers including:
+  \xmlNode{cbc} from \url{https://github.com/coin-or/Cbc.git} and \xmlNode{glpk} from
+  \url{https://www.gnu.org/software/glpk/}
+  \item \xmlNode{sense}, \xmlDesc{string, optional parameter}, specifies the \xmlString{minimize}
+  or \xmlString{maximize} for minimization or maximization, respectively.
+  \default{minimize}
+  \item \xmlNode{regulatoryMandated}, \xmlDesc{comma/space-separated string, optional parameter},
+  specifies the regulatory mandated or must do projects.
+  \item \xmlNode{nonSelection}, \xmlDesc{boolean, optional parameter}, indicates whether the
+  options of investments including \textit{DoNothing} option or not.
+  \default{False}
+  \item \xmlNode{consistentConstraintI}, \xmlDesc{string, optional parameter}, indicates whether
+  this constraint is enabled or not.
+  \default{True}
+  \item \xmlNode{consistentConstraintII}, \xmlDesc{string, optional parameter}, indicates whether
+  this constraint is enabled or not.
+  \default{False}
+  \item \xmlNode{solverOptions}, \xmlDesc{optional parameter}. This node will accept
+  different options for given solver provided in \xmlNode{solver}. A simple XML nodes only contains
+  node tag and node text can be used to provide the options for the solver. For example:
+  \begin{lstlisting}[style=XML]
+    <solverOptions>
+      <threads>1</threads>
+      <StochSolver>EF</StochSolver>
+    </solverOptions>
+  \end{lstlisting}
+\end{itemize}
 
+Example XML:
+\begin{lstlisting}[style=XML]
+<Settings>
+  <regulatoryMandated>
+    PresurizerReplacement
+    ReplacementTwoReactorCoolantPumps
+    FireProtection
+    ReplaceCCWPipingHeatExchangersValues
+    ReactorVesselUpgrade
+    ReplaceInstrumentationAndControlCables
+  </regulatoryMandated>
+  <nonSelection>True</nonSelection>
+  <consistentConstraintI>True</consistentConstraintI>
+  <consistentConstraintII>True</consistentConstraintII>
+  <solver>cbc</solver>
+  <solverOptions>
+    <threads>1</threads>
+    <StochSolver>EF</StochSolver>
+  </solverOptions>
+  <sense>maximize</sense>
+  <problem_type>mckp</problem_type>
+</Settings>
+\end{lstlisting}
+
+%
 \subsection{Sets}
 
+%
 \subsection{Parameters}
 
+%
 \subsection{Uncertainties}
 
+%
 \subsection{External Constraints}
