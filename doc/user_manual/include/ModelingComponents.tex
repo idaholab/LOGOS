@@ -1,15 +1,278 @@
 \section{Overview of Modeling Components}
 \label{sec:ModelingComponents}
 
+We consider a capital budgeting problem for a nuclear generation station, with possible
+extension to a larger fleet of plants. Due to limited resources, we can only select a
+subset from a number of candidate investment projects. Our goal is to maximize overall net
+present value (NPV), or a variant of this objective when we incorporate uncertainty in
+project cost–and project revenue–streams. In doing so, we must respect resource limits
+and capture key structural and stochastic dependencies of the system. Example projects
+include upgrading a steam turbine, refurbishing or replacing a set of reactor coolant pumps,
+and replacing a set of feed-water heaters. Selecting an individual project has multiple
+facets and implications.
+
+\begin{itemize}
+  \item \textbf{Rewards or Net Present Values}: Selecting a project can improve revenue, e.g.,
+  upgrading a steam turbine may lead to an uprate in plant capacity resulting in larger
+  revenue from selling power. Replacing a key system component can improve reliability,
+  increasing revenue due to a reduction in forced outages and reducing operations and
+  maintenance (O\&M) costs. Choosing to perform minimum maintenance versus refurbishing
+  a component versus replacing and improving a system can produce “reward” streams over
+  years which can be negative or positive depending on the selection. Parameter
+  \xmlNode{net\_present\_values} is used to specify the rewards (See Section~\ref{subsec:Parameters}).
+
+  \item \textbf{Resources and Liabilities}: Critical resources, including: (i) capital costs,
+  (ii) O\&M costs, (iii) time and labor-hours during a planned outage, (iv) personnel,
+  installation \& maintenance equipment, space, and more. Within these categories, resources
+  can be placed in further subcategories, each with its own budget, due to a plant’s organizational
+  structure so that there are multiple “colors” of money within capital costs, within O\&M costs,
+  within personnel availability, etc. Set \xmlNode{resources} is used to specify the resources and
+  liabilities (See Section~\ref{subsec:Sets}).
+
+  \item \textbf{Costs}: Selecting a project in year $t$ induces multiple
+  cost streams in year $t$ and in subsequent years, where we interpret “cost” broadly to
+  include commitment of critical resources. Parameter \xmlNode{costs} is used to specify
+  the costs (See Section~\ref{subsec:Parameters}).
+
+  \item \textbf{Time Periods}: Multiple capital projects can compete for time that would
+  limit project selection. Set \xmlNode{time\_periods} is used to provide indices for
+  \textbf{costs} and \textbf{available capitals} (See Section~\ref{subsec:Sets}).
+
+  \item \textbf{Options}: The goal of selecting a project is typically to improve or maintain
+  a particular function that the plant performs, and there may be multiple ways to carry out
+  the task. A project may be performed over a three-year period, say, years $t$,$t+1$, $t+2$, or the
+  start of the project could instead be two years hence with project implementation over
+  years $t+2$, $t+3$, $t+4$. Alternatively, at increased cost and increased benefit, it may be
+  possible to complete the project in two years, $t$, $t+1$ or $t+2$, $t+3$. When selecting a project
+  to uprate plant capacity, we may have two options that increase capacity by 3% or 6%.
+  In all these cases, we can perform the project in at most one way, from a collection of
+  multiple options. We represent this by cloning a “project” into multiple project-option pairs,
+  and adding a constraint saying that we can select at most one of from this set of options.
+  Sets \xmlNode{options} is used to provided indices for these multiple project-option pairs
+  (See Section~\ref{subsec:Sets}).
+
+  \item \textbf{Capitals}: If we consider a maintenance for multi-units NPP in parallel,
+  i.e. it has to be decided whether to accept a particular replacement and in the positive
+  case in which unit to conduct the corresponding replacement. In this case, set \xmlNode{capitals}
+  is used to provided indices for these units (See Section~\ref{subsec:Sets}).
+
+  \item \textbf{Available Capitals}: available budgets for resources/units. Parameter
+  \xmlNode{available\_capitals} is used to specify the available capitals for different
+  resources/captials at different $t$ (See Section~\ref{subsec:Parameters}).
+
+  \item \textbf{Non-Selection}: Not selecting a project also has implications, inducing growth
+  in O\&M costs in future years, a decrease in plant production, an increase in forced outages,
+  and even risking a premature end to plant life. Thus, not selecting a project can be seen as
+  one more “option” as to how a larger project is executed, expanding the list just discussed.
+  Selection is of the “do nothing” option is reflected in both liability streams and reward
+  streams. This can be activated via setting \xmlNode{nonSelection} to \xmlString{True}
+  (See Section~\ref{subsec:Settings}).
+
+  \item \textbf{Uncertainty}: One limitation of traditional optimization models for capital
+  budgeting is that they do not account for uncertainty in reward and cost streams associated
+  with individual projects, they do not account for uncertainty in resource availability in
+  future years. Projects can incur cost over-runs, especially when projects are large, performed
+  infrequently, and when there is uncertainty regarding technical viability, external contractors,
+  and/or suppliers of requisite parts and materials. Occasionally, projects are performed ahead
+  of schedule and with cost savings. Planned budgets for capital improvements can be cut and key
+  personnel may be lost. Or, there may be surprise windfalls in budgets for maintenance activities
+  due to decreased costs for “unplanned” maintenance. XML node \xmlNode{Uncertainties} is used
+  to specify the uncertainties (See Section~\ref{subsec:Uncertainties}).
+
+  %\item \textbf{Synergies}: Selecting a project may require replacing a structure, system, or
+  %component (SSC) during a planned outage of the plant. Depending on the physical location of
+  %an SSC in the plant and its relationship to other components, selecting one project may
+  %reduce the cost of selecting another project (e.g., time or know-how required to implement
+  %the project) if they are selected at the same time or close in proximity. For example, if
+  %a plant has two units, selecting a project for one unit in a spring outage (e.g., replacement
+  %of a condensate cooler and a set of feed-water heaters) may be followed by the same activity
+  %in the fall outage in the second unit, at reduced cost.
+
+  %\item \textbf{Planned Outage}: Nuclear power plants have planned outages at regular
+  %intervals (e.g., every 18 months) often in the fall and spring to be well-prepared for winter
+  %and summer peaks in load. While refueling only takes a fraction of a two-month (say) period
+  %without power production, maintenance projects may be deferred until an outage. Moreover,
+  %an outage can provide the only possible time period in which to carry out certain types of
+  %projects. Because of lost revenue, an operator seeks to limit downtime. As a result, this
+  %provides a special type of resource constraint limiting project selection due to multiple
+  %projects competing for time, space, personnel, and equipment during an outage.
+
+\end{itemize}
+
 LOGOS consists of a collection of modeling entities/components that define different
 aspects of the model, including \xmlNode{Sets}, \xmlNode{Parameters},
 \xmlNode{Uncertainties} and \xmlNode{ExternalConstraints}. In addition, \xmlNode{Setting}
 block specifies how the overall computation should be run.
 
 %
-\subsection{Settings: Options for Optimization}
+\subsection{Sets}
+\label{subsec:Sets}
+
 This sub-section contains the information regarding the XML nodes used to define the
-settings of the optimization model that is being performed through LOGOS:
+\xmlNode{Sets} of the optimization model that is being performed through LOGOS.
+\xmlNode{Sets} specifies a collection of data, possibly including
+numeric data (e.g. real or integer values) as well as symbolic data (e.g. strings)
+that is typically used to specify the valid indices for an indexed components.
+\nb numeric data provided in the \xmlNode{Sets} would be treated as strings.
+\xmlNode{Sets} accepts the following additional sub-nodes:
+\begin{itemize}
+  \item \xmlNode{investments}, \xmlDesc{comma/space-separated string, required}, specifies
+  the valid indices for investment projects.
+  \item \xmlNode{capitals}, \xmlDesc{comma/space-separated string, optional},
+  specifies the indices for NPP units.
+  \item \xmlNode{time\_periods}, \xmlDesc{comma/space-separated string, optional},
+  specifies the indices for time.
+  \item \xmlNode{resources}, \xmlDesc{comma/space-separated string, optional},
+  specifies indices for the resources and liabilities.
+  \item \xmlNode{options}, \xmlDesc{comma/space-separated string, optional},
+  specifies the indices for multiple project-option pairs.
+\end{itemize}
+
+Example XML:
+\begin{lstlisting}[style=XML]
+<Sets>
+  <investments>
+      HPFeedwaterHeaterUpgrade
+      PresurizerReplacement
+      ...
+      ReplaceMoistureSeparatorReheater
+  </investments>
+  <time_periods>year1 year2 year3 year4 year5</time_periods>
+  <resources>CapitalFunds OandMFunds</resources>
+  <options index='investments'>
+    PlanA PlanB DoNothing;
+    PlanA PlanB PlanC;
+    ...
+    PlanA PlanB PlanC DoNothing
+  </options>
+</Sets>
+\end{lstlisting}
+
+
+%
+\subsection{Parameters}
+\label{subsec:Parameters}
+This sub-section contains the information regarding the XML nodes used to define the
+\xmlNode{Parameters} of the optimization model that is being performed through LOGOS:
+\begin{itemize}
+  \item \xmlNode{net\_present\_values}, \xmlDesc{comma/space-separated string, required},
+  specifies the NPVs for capital projects or project-option pairs. This node accepts the
+  following optional attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{comma-separated string, optional},
+    specifies the indices of this parameter, keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{investments} and \xmlString{options}.
+    \default{investments}
+  \end{itemize}
+  \item \xmlNode{costs}, \xmlDesc{comma/space-separated string, required},
+  specifies the costs for capital projects or project-option pairs. This node accepts the
+  following optional attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{comma-separated string, optional},
+    specifies the indices of this parameter, keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{investments} and \xmlString{investments, time\_periods},
+    \xmlString{options}, \xmlString{options, resources}, \xmlString{options, time\_periods},
+    \xmlString{options, resources, time\_periods}.
+    \default{'investments'}
+  \end{itemize}
+  \item \xmlNode{available\_capitals}, \xmlDesc{comma/space-separated string, required},
+  specifies the available capitals for capital projects or project-option pairs.
+  This node accepts the following optional attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{comma-separated string, optional},
+    specifies the indices of this parameter, keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{resources}, \xmlString{time\_periods}, \xmlString{capitals},
+    \xmlString{resources, time\_periods}, \xmlString{capitals, time\_periods}
+    \default{None}
+  \end{itemize}
+\end{itemize}
+
+Example XML:
+\begin{lstlisting}[style=XML]
+<Parameters>
+  <net_present_values index='options'>
+    27.98 27.17 0.
+    -10.07 -9.78 -9.22
+    ...
+    8.26 7.56 7.34 0.
+  </net_present_values>
+  <costs index='options, resources, time_periods'>
+    12.99 1.3 0 0 0
+    ...
+    0.01 0 0 0 0
+  </costs>
+  <available_capitals index="resources,time_periods">
+    22.6 36.7 20.6 23.6 22.7
+    0.08 0.17 0.05 0.15 0.14
+  </available_capitals>
+</Parameters>
+\end{lstlisting}
+
+
+%
+\subsection{Uncertainties}
+\label{subsec:Uncertainties}
+This sub-section contains the information regarding the XML nodes used to define the
+\xmlNode{Uncertainties} of the optimization model that is being performed through LOGOS:
+\begin{itemize}
+  \item \xmlNode{}, \xmlDesc{},
+  \item \xmlNode{}, \xmlDesc{},
+  \item \xmlNode{}, \xmlDesc{},
+  \item \xmlNode{}, \xmlDesc{},
+\end{itemize}
+
+Example XML:
+\begin{lstlisting}[style=XML]
+<Uncertainties>
+  <available_capitals index="resources,time_periods">
+    <totalScenarios>10</totalScenarios>
+    <probabilities>
+      0.5, 0.5
+    </probabilities>
+    <scenarios>
+      20.0 34.0 17.0 20.0 18.0 0.08 0.17 0.05 0.15 0.14
+      23.0 38.0 22.0 25.0 24.0 0.08 0.17 0.05 0.15 0.14
+    </scenarios>
+  </available_capitals>
+  <net_present_values index='options'>
+    <totalScenarios>9</totalScenarios>
+    <probabilities>
+      0.3 0.8
+    </probabilities>
+    <scenarios>
+      13.3129 12.0228 0.0 -10.07
+      ...
+    </scenarios>
+  </net_present_values>
+</Uncertainties>
+\end{lstlisting}
+
+
+
+%
+\subsection{External Constraints}
+\label{subsec:ExternalConstraints}
+This sub-section contains the information regarding the XML nodes used to define the
+\xmlNode{ExternalConstraints} of the optimization model that is being performed through LOGOS:
+\begin{itemize}
+  \item \xmlNode{}, \xmlDesc{},
+  \item \xmlNode{}, \xmlDesc{},
+  \item \xmlNode{}, \xmlDesc{},
+  \item \xmlNode{}, \xmlDesc{},
+\end{itemize}
+
+Example XML:
+\begin{lstlisting}[style=XML]
+
+\end{lstlisting}
+
+
+%
+\subsection{Settings: Options for Optimization}
+\label{subsec:Settings}
+
+This sub-section contains the information regarding the XML nodes used to define the
+\xmlNode{Settings} of the optimization model that is being performed through LOGOS:
 \begin{itemize}
   \item \xmlNode{problem\_type}, \xmlDesc{string, required parameter}, specifies the type of
   optimization problem. Available types including \xmlString{SingleKnapsack},
@@ -47,10 +310,7 @@ Example XML:
 <Settings>
   <regulatoryMandated>
     PresurizerReplacement
-    ReplacementTwoReactorCoolantPumps
-    FireProtection
-    ReplaceCCWPipingHeatExchangersValues
-    ReactorVesselUpgrade
+    ...
     ReplaceInstrumentationAndControlCables
   </regulatoryMandated>
   <nonSelection>True</nonSelection>
@@ -65,15 +325,3 @@ Example XML:
   <problem_type>mckp</problem_type>
 </Settings>
 \end{lstlisting}
-
-%
-\subsection{Sets}
-
-%
-\subsection{Parameters}
-
-%
-\subsection{Uncertainties}
-
-%
-\subsection{External Constraints}
