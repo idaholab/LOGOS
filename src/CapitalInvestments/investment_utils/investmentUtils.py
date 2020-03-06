@@ -14,6 +14,9 @@ warnings.simplefilter('default',DeprecationWarning)
 #External Modules------------------------------------------------------------------------------------
 import numpy as np
 import logging
+import os
+import errno
+import imp
 import xml.etree.ElementTree as ET
 #External Modules End--------------------------------------------------------------------------------
 
@@ -97,3 +100,68 @@ def convertStringToBool(nodeText):
   if nodeText.lower() in stringsThatMeanTrue:
     val = True
   return val
+
+def identifyIfExternalModuleExists(moduleIn, workingDir):
+  """
+    Method to check if a external module exists and in case return the module that needs to be loaded with
+    the correct path
+    @ In, moduleIn, string, module read from the XML file
+    @ In, workingDir, string, the path of the working directory
+    @ Out, (moduleToLoad, fileName), tuple, a tuple containing the module to load (that should be used in
+      method importFromPath) and the filename (no path)
+  """
+  if moduleIn.endswith('.py'):
+    moduleToLoadString = moduleIn[:-3]
+  else:
+    moduleToLoadString = moduleIn
+  workingDirModule = os.path.abspath(os.path.join(workingDir,moduleToLoadString))
+  if os.path.exists(workingDirModule + ".py"):
+    moduleToLoadString = workingDirModule
+    path, filename = os.path.split(workingDirModule)
+    os.sys.path.append(os.path.abspath(path))
+  else:
+    path, filename = os.path.split(moduleToLoadString)
+    if (path != ''):
+      abspath = os.path.abspath(path)
+      if '~' in abspath:
+        abspath = os.path.expanduser(abspath)
+      if os.path.exists(abspath):
+        os.sys.path.append(abspath)
+      else:
+        raise IOError('The file "{}" provided does not exist!'.format(moduleIn))
+  return moduleToLoadString, filename
+
+def importFromPath(filename):
+  """
+    Method to import a module from a given path
+    @ In, filename, str, the full path of the module to import
+    @ Out, importedModule, module, the imported module
+  """
+  try:
+    path, name = os.path.split(filename)
+    name, ext = os.path.splitext(name)
+    file, filename, data = imp.find_module(name, [path])
+    importedModule = imp.load_module(name, file, filename, data)
+  except Exception as ae:
+    raise Exception('Importing module '+ filename + ' at ' + path + os.sep + name + ' failed with error '+ str(ae))
+  return importedModule
+
+def makeDir(dirName):
+  """
+    Function that will attempt to create a directory. If the directory already
+    exists, this function will return silently with no error, however if it
+    fails to create the directory for any other reason, then an error is
+    raised.
+    @ In, dirName, string, specifying the new directory to be created
+    @ Out, None
+  """
+  try:
+    os.makedirs(dirName)
+  except OSError as exc:
+    if exc.errno == errno.EEXIST and os.path.isdir(dirName):
+      ## The path already exists so we can safely ignore this exception
+      pass
+    else:
+      ## If it failed for some other reason, we want to see what the
+      ## error is still
+      raise

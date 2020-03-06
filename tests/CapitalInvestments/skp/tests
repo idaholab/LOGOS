@@ -8,6 +8,14 @@
   UnorderedCsv = 'test_skp.csv'
  [../]
 
+ [./logos_skp]
+  type  = 'RavenPluginExecutable'
+  input = 'test_skp_external_constraint.xml'
+  required_executable = 'Logos/logos'
+  parameters = '-i'
+  UnorderedCsv = 'test_skp_external_constraint.csv'
+ [../]
+
  [./logos_bkp]
   type  = 'RavenPluginExecutable'
   input = 'test_bkp.xml'

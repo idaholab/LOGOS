@@ -48,7 +48,13 @@ class KnapsackBase(ModelBase):
     """
       Mehod to initialize
       @ In, initDict, dict, dictionary of preprocessed input data
-        {'Sets':{}, 'Parameters':{}, 'Settings':{}, 'Meta':{}, 'Uncertainties':{}}
+        {
+          'Sets':{setName: list of setValues},
+          'Parameters':{paramName:{setsIndex:paramValue}} or {paramName:{'None':paramValue}},
+          'Settings':{xmlTag:xmlVal},
+          'Meta':{paramName:{setIndexName:indexDim}} or {paramName:None},
+          'Uncertainties':{paramName:{'scenarios':{scenarioName:{setIndex:uncertaintyVal}}, 'probabilities': [ProbVals]}}
+        }
       @ Out, None
     """
     ModelBase.initialize(self, initDict)
@@ -96,6 +102,16 @@ class KnapsackBase(ModelBase):
     # Generate input regulatory mandated data
     if self.regulatoryMandated is not None:
       data['regulatoryMandated'] = {None: self.regulatoryMandated}
+
+    # set the Parameters with the extended indices
+    for paramName, paramInfo in self.paramsAuxInfo.items():
+      options = paramInfo['options']
+      maxDim = paramInfo['maxDim']
+      if paramName not in self.params.keys():
+        raise IOError('Required node ' + paramName + ' is not found in input file, please specify it under node "Parameters"!')
+      else:
+        data[paramName] = self.setParameters(paramName, options, maxDim, self.params[paramName])
+    data = {None:data}
     return data
 
   def processInputSets(self, indexName):
@@ -109,47 +125,46 @@ class KnapsackBase(ModelBase):
     else:
       return {None:self.sets[indexName]}
 
-  def setParameters(self, paramName, options, maxDim):
+  def setParameters(self, paramName, options, maxDim, initParamDict):
     """
       Method to generate Parameter input for pyomo model
       @ In, paramName, str, name of parameter
-      @ options, list, list of all optional list of the corresponding parameter index
-      @ maxDim, int, the max number of indices that the parameter can take
-      @ paramDict, dict, {index:paramVal}
+      @ In, options, list, list of all optional list of the corresponding parameter index
+      @ In, maxDim, int, the max number of indices that the parameter can take
+      @ In, initParamDict, dict, initial parameter dictionary {paramName:{originalIndex:paramVal}
+      @ Out, paramDict, dict, {extendedIndex:paramVal}, dictionary of parameters in the format that is
+        used by Pyomo model.
     """
     paramDict = None
-    if paramName not in self.params.keys():
-      raise IOError('Required node ' + paramName + ' is not found in input file, please specify it under node "Parameters"!')
+    if maxDim == 1:
+      indexList = list(self.meta['Parameters'][paramName].keys())
+      if len(indexList) == 1 and indexList in options:
+        paramDict = initParamDict
+    elif maxDim == 2:
+      indexList = list(self.meta['Parameters'][paramName].keys())
+      if len(indexList) == 1 and indexList in options:
+        pos = options.index(indexList)
+        indices = [list(initParamDict.keys()),['None']] if pos == 1 else [['None'], list(initParamDict.keys())]
+        indices = list(itertools.product(*indices))
+        paramDict = dict(zip(indices,initParamDict.values()))
+      elif len(indexList) == 2 and indexList in options:
+        paramDict = initParamDict
+    elif maxDim == 3:
+      indexList = list(self.meta['Parameters'][paramName].keys())
+      if len(indexList) == 1 and indexList in options:
+        indices = [list(initParamDict.keys()), ['None'], ['None']]
+        indices = list(itertools.product(*indices))
+        paramDict = dict(zip(indices,initParamDict.values()))
+      elif len(indexList) == 2 and indexList in options:
+        paramDict = collections.OrderedDict()
+        pos = options.index(indexList)
+        for key, val in initParamDict.items():
+          newKey = key + ('None',) if pos == 1 else (key[0],'None',key[1])
+          paramDict[newKey] = val
+      elif len(indexList) == 3 and indexList in options:
+        paramDict = initParamDict
     else:
-      if maxDim == 1:
-        indexList = list(self.meta['Parameters'][paramName].keys())
-        if len(indexList) == 1 and indexList in options:
-          paramDict = self.params[paramName]
-      elif maxDim == 2:
-        indexList = list(self.meta['Parameters'][paramName].keys())
-        if len(indexList) == 1 and indexList in options:
-          pos = options.index(indexList)
-          indices = [list(self.params[paramName].keys()),['None']] if pos == 1 else [['None'], list(self.params[paramName].keys())]
-          indices = list(itertools.product(*indices))
-          paramDict = dict(zip(indices,self.params[paramName].values()))
-        elif len(indexList) == 2 and indexList in options:
-          paramDict = self.params[paramName]
-      elif maxDim == 3:
-        indexList = list(self.meta['Parameters'][paramName].keys())
-        if len(indexList) == 1 and indexList in options:
-          indices = [list(self.params[paramName].keys()), ['None'], ['None']]
-          indices = list(itertools.product(*indices))
-          paramDict = dict(zip(indices,self.params[paramName].values()))
-        elif len(indexList) == 2 and indexList in options:
-          paramDict = collections.OrderedDict()
-          pos = options.index(indexList)
-          for key, val in self.params[paramName].items():
-            newKey = key + ('None',) if pos == 1 else (key[0],'None',key[1])
-            paramDict[newKey] = val
-        elif len(indexList) == 3 and indexList in options:
-          paramDict = self.params[paramName]
-      else:
-        raise IOError('Not implemented for parameters with indices more than three!')
+      raise IOError('Not implemented for parameters with indices more than three!')
     if paramDict is None:
       msg = 'Please check the index for node ' + paramName + '! Options include: '
       msg += ','.join([str(ind) for ind in options]) + '\n'

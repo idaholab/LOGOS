@@ -48,6 +48,7 @@ class CapitalInvestmentModel(ExternalModelPluginBase):
     self.xmlModelData = None
     self.modelInstance = None
     self.type = None
+    self.workingDir = None
     self.name = self.__class__.__name__
 
   def _readMoreXML(self, container, xmlNode):
@@ -85,6 +86,7 @@ class CapitalInvestmentModel(ExternalModelPluginBase):
       logger.info('Set problem type to: %s', problemType)
     logger.info('Starting to create Optimization Instance')
     self.modelInstance = PyomoModels.returnInstance(problemType)
+    self.workingDir = runInfoDict['WorkingDir']
 
   def createNewInput(self, container, inputs, samplerType, **Kwargs):
     """
@@ -120,7 +122,7 @@ class CapitalInvestmentModel(ExternalModelPluginBase):
           child.text = ','.join(str(var) for var in pertData)
         elif len(pertData) == 1:
           child.text = str(pertData[0])
-    inputDict = inputReader.readInput(newXml)
+    inputDict = inputReader.readInput(newXml, self.workingDir)
     return inputDict
 
   def run(self, container, inputDict):
