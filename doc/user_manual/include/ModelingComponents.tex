@@ -126,6 +126,11 @@ that is typically used to specify the valid indices for an indexed components.
   specifies indices for the resources and liabilities.
   \item \xmlNode{options}, \xmlDesc{comma/space-separated string, optional},
   specifies the indices for multiple project-option pairs.
+  This sub-node accepts the following attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{string, required}, specifies the index dependence.
+    Valid index is \xmlString{investments}.
+  \end{itemize}
 \end{itemize}
 
 Example XML:
