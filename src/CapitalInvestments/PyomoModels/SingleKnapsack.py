@@ -40,39 +40,24 @@ class SingleKnapsack(KnapsackBase):
     """
     KnapsackBase.__init__(self)
     self.optionalConstraints = {'consistentConstraintI':True}
+    self.paramsAuxInfo['available_capitals'] = {'maxDim':1, 'options': [[None], ['time_periods']]}
+    self.paramsAuxInfo['net_present_values'] = {'maxDim':1, 'options': [[None], ['investments']]}
+    self.paramsAuxInfo['costs'] = {'maxDim':2, 'options': [[None], ['investments'], ['investments', 'time_periods']]}
 
   def initialize(self, initDict):
     """
       Mehod to initialize
       @ In, initDict, dict, dictionary of preprocessed input data
-        {'Sets':{}, 'Parameters':{}, 'Settings':{}, 'Meta':{}, 'Uncertainties':{}}
+        {
+          'Sets':{setName: list of setValues},
+          'Parameters':{paramName:{setsIndex:paramValue}} or {paramName:{'None':paramValue}},
+          'Settings':{xmlTag:xmlVal},
+          'Meta':{paramName:{setIndexName:indexDim}} or {paramName:None},
+          'Uncertainties':{paramName:{'scenarios':{scenarioName:{setIndex:uncertaintyVal}}, 'probabilities': [ProbVals]}}
+        }
       @ Out, None
     """
     KnapsackBase.initialize(self, initDict)
-
-  def generateModelInputData(self):
-    """
-      This method is used to generate input data for pyomo model
-      @ In, None
-      @ Out, data, dict, input data for pyomo model
-    """
-    data = KnapsackBase.generateModelInputData(self)
-    paramName = 'available_capitals'
-    options = [[None], ['time_periods']]
-    maxDim = 1
-    data[paramName] = self.setParameters(paramName, options, maxDim)
-
-    paramName = 'net_present_values'
-    options = [[None], ['investments']]
-    maxDim = 1
-    data[paramName] = self.setParameters(paramName, options, maxDim)
-
-    paramName = 'costs'
-    options = [[None], ['investments'], ['investments', 'time_periods']]
-    maxDim = 2
-    data[paramName] = self.setParameters(paramName, options, maxDim)
-    data = {None:data}
-    return data
 
   def multidimensionalKnapsacks(self):
     """
@@ -91,7 +76,14 @@ class SingleKnapsack(KnapsackBase):
       """ set the bounds for soluion variable x using lowerBounds and upperBounds"""
       return (self.lowerBounds[i], self.upperBounds[i])
     model.x = pyomo.Var(model.investments, domain=pyomo.NonNegativeIntegers, bounds=boundsExpression)
-
+    ## Another way to add Pyomo.Vars
+    # model.add_component(self.decisionVariable,
+    #                     pyomo.Var(model.investments,
+    #                               name=self.decisionVariable,
+    #                               domain=pyomo.NonNegativeIntegers,
+    #                               bounds=boundsExpression
+    #                              )
+    #                    )
     def constraintCapacity(model, t):
       """Knapsacks capacity constraints"""
       return sum(model.costs[i,t]*model.x[i] for i in model.investments) <= model.available_capitals[t]

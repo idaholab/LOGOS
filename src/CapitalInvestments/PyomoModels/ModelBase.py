@@ -17,6 +17,7 @@ import abc
 import itertools
 import numpy as np
 import logging
+import copy
 import pandas as pd
 import collections
 import six
@@ -30,8 +31,10 @@ from pyomo.pysp.scenariotree.tree_structure_model import CreateAbstractScenarioT
 #Internal Modules------------------------------------------------------------------------------------
 try:
   from Logos.src.CapitalInvestments.investment_utils import investmentUtils as utils
+  from Logos.src.CapitalInvestments.PyomoModels.PyomoWrapper import PyomoWrapper
 except ImportError:
   from CapitalInvestments.investment_utils import investmentUtils as utils
+  from .PyomoWrapper import PyomoWrapper
 #Internal Modules End--------------------------------------------------------------------------------
 
 import pyutilib.subprocess.GlobalData
@@ -63,7 +66,13 @@ class ModelBase:
     self.params = None          # pyomo required params info
     self.solutionVariableType = pyomo.Binary # solution variable type, i.e. Binary, Integers, Reals, default to Binary
     self.output = {}            # dictionary contains all outputs
-    # additional info needed by stochastic optimization
+    self.paramsAuxInfo = {}     # dict used by self.setParameters to generate the correct format of input parameters
+    self.decisionVariable = 'x' # optimization solution variable name
+    ## external constraints
+    self.externalConstraints = {} # dictionary of user provided constraints
+    self.externalConstModules = {} # Store the loaded module of user provided constraints
+    self.workingDir = None # working directory
+    ## additional info needed by stochastic optimization
     self.meta = None            # additional info
     self.scenariosData = None   # containers for scenarios/uncertainties input data
     self.uncertainties = None   # uncertainty info provided by users
@@ -78,11 +87,18 @@ class ModelBase:
     self.phRho = 1
     self.executable = None      # specify the path to the solver
     self.stochSolver = 'ef'     # stochastic solver, default runef, can be switched to runph method in pyomo.
+
   def initialize(self, initDict):
     """
       Mehod to initialize
       @ In, initDict, dict, dictionary of preprocessed input data
-        {'Sets':{}, 'Parameters':{}, 'Settings':{}, 'Meta':{}, 'Uncertainties':{}}
+        {
+          'Sets':{setName: list of setValues},
+          'Parameters':{paramName:{setsIndex:paramValue}} or {paramName:{'None':paramValue}},
+          'Settings':{xmlTag:xmlVal},
+          'Meta':{paramName:{setIndexName:indexDim}} or {paramName:None},
+          'Uncertainties':{paramName:{'scenarios':{scenarioName:{setIndex:uncertaintyVal}}, 'probabilities': [ProbVals]}}
+        }
       @ Out, None
     """
     self.meta = initDict.pop('Meta', None)
@@ -90,6 +106,7 @@ class ModelBase:
     self.sets = initDict.pop('Sets', None)
     self.params = initDict.pop('Parameters', None)
     self.uncertainties = initDict.pop('Uncertainties', None)
+    self.externalConstraints = initDict.pop('ExternalConstraints')
     if self.uncertainties is not None:
       self.setScenarioData()
     if self.settings is not None:
@@ -132,6 +149,7 @@ class ModelBase:
     if stochSolver is not None:
       self.stochSolver = stochSolver.lower().strip()
     self.executable = solverOptions.pop('executable', None)
+    self.workingDir = self.settings.pop('workingDir')
     self.sopts.update(solverOptions)
     self.tee = self.settings.pop('tee',False)
     self.nonSelection = utils.convertStringToBool(self.settings.pop('nonSelection', 'False'))
@@ -140,7 +158,6 @@ class ModelBase:
         self.optionalConstraints[optCon] = utils.convertStringToBool(self.settings.pop(optCon, 'True'))
       else:
         self.optionalConstraints[optCon] = utils.convertStringToBool(self.settings.pop(optCon, 'False'))
-    self.optionalConstraints
     lowerBounds, upperBounds = self.settings.pop('lowerBounds', None), self.settings.pop('upperBounds', None)
     if lowerBounds is not None:
       self.lowerBounds = utils.convertNodeTextToFloatList(lowerBounds)
@@ -176,6 +193,63 @@ class ModelBase:
     """
     pass
 
+  def addExternalConstraints(self, model):
+    """
+      This method is used to load user provided external constraints
+      @ In, model, pyomo.instance, instance of pyomo model
+      @ Out, model, pyomo.instance, modified instance of pyomo model
+    """
+    logger.info('Add external constraints to optimization model')
+    # create pyomo wrapper instance
+    pyomoWrapper = PyomoWrapper(model)
+    setsNameList = self.sets.keys()
+    paramsNameList = self.params.keys()
+    # retrieve sets and params
+    setsDict = copy.deepcopy(pyomoWrapper.getAllSets(setsNameList))
+    paramsDict = copy.deepcopy(pyomoWrapper.getAllParameters(paramsNameList))
+    decisionVar = pyomoWrapper.getVariable(self.decisionVariable)
+    # load all external constraint modules
+    for key, val in self.externalConstraints.items():
+      moduleToLoadString, filename = utils.identifyIfExternalModuleExists(val, self.workingDir)
+      self.externalConstModules[key] = utils.importFromPath(moduleToLoadString)
+      logger.info('Import external constraint module: "{}"'.format(moduleToLoadString))
+    # start to execute functions from external constraint modules
+    for constrKey, constrMod in self.externalConstModules.items():
+      # 'initialize' can be used when the user wants to modify the values of parameters
+      if 'initialize' in dir(constrMod):
+        updateDict = constrMod.initialize()
+        if updateDict:
+          if set(updateDict.keys()).issubset(set(paramsNameList)):
+            # pre-process data with extended indices (i.e. time_periods)
+            extendedDict = {}
+            for key, value in updateDict.items():
+              extendedDict[key] = self.setParameters(key, self.paramsAuxInfo[key]['options'],
+                                    self.paramsAuxInfo[key]['maxDim'],
+                                    value
+                                  )
+            # call internal functions to update parameters, initial values provided by Logos input file will be
+            # modified by given dictionary "extendedDict"
+            pyomoWrapper.updateParams(extendedDict)
+          else:
+            missing = set(updateDict.keys()) - set(paramsNameList)
+            raise IOError('The following parameters "{}" is not available in defined optimization problem, '
+              'available parameters include: "{}"!'.format(', '.join(missing), ', '.join(paramsNameList))
+            )
+      if 'constraint' not in dir(constrMod):
+        raise IOError(
+          'External constraint: "{}" does not contain a method named "constraint". '
+          'It must be present if this needs to be used in Logos optimization!'.format(constrKey)
+        )
+      else:
+        # constrMod.constraint(pyomoWrapper, constrKey)
+        externalConstraint = constrMod.constraint(decisionVar, setsDict, paramsDict)
+        if len(externalConstraint) == 1:
+          pyomoWrapper.addConstraint(constrKey, externalConstraint[0])
+        else:
+          pyomoWrapper.addConstraintSet(constrKey, externalConstraint[0], externalConstraint[1:])
+
+    return model
+
   def createInstance(self, data):
     """
       This method is used to instantiate the pyomo model
@@ -186,6 +260,8 @@ class ModelBase:
     if not model.is_constructed():
       model = model.create_instance(data)
       # model.pprint()
+    if self.externalConstraints:
+      model = self.addExternalConstraints(model)
     model.dual = pyomo.Suffix(direction=pyomo.Suffix.IMPORT)
     # Default to disable some optional constraints
     if len(self.optionalConstraints) > 0 and self.uncertainties is not None:

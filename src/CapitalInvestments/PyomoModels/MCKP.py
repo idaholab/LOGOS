@@ -40,13 +40,27 @@ class MCKP(KnapsackBase):
     """
     KnapsackBase.__init__(self)
     self.optionalConstraints = {'consistentConstraintI':True, 'consistentConstraintII':False}
-    self.maxDim = {'available_capitals':2, 'net_present_values':1, 'costs':3}
+    self.paramsAuxInfo['available_capitals'] = {'maxDim':2,
+      'options': [[None], ['resources'], ['time_periods'], ['resources','time_periods']]
+    }
+    self.paramsAuxInfo['net_present_values'] = {'maxDim':1,
+      'options': [['options']]
+    }
+    self.paramsAuxInfo['costs'] = {'maxDim':3,
+      'options': [['options'],['options','resources'],['options','time_periods'],['options','resources','time_periods']]
+    }
 
   def initialize(self, initDict):
     """
       Mehod to initialize
       @ In, initDict, dict, dictionary of preprocessed input data
-        {'Sets':{}, 'Parameters':{}, 'Settings':{}, 'Meta':{}, 'Uncertainties':{}}
+        {
+          'Sets':{setName: list of setValues},
+          'Parameters':{paramName:{setsIndex:paramValue}} or {paramName:{'None':paramValue}},
+          'Settings':{xmlTag:xmlVal},
+          'Meta':{paramName:{setIndexName:indexDim}} or {paramName:None},
+          'Uncertainties':{paramName:{'scenarios':{scenarioName:{setIndex:uncertaintyVal}}, 'probabilities': [ProbVals]}}
+        }
       @ Out, None
     """
     KnapsackBase.initialize(self, initDict)
@@ -69,7 +83,7 @@ class MCKP(KnapsackBase):
         options = [[None], ['resources'], ['time_periods'], ['resources','time_periods']]
         sdKeys = list(self.meta['Parameters'][paramName].keys())
         print(sdKeys)
-        if len(sdKeys) == self.maxDim['available_capitals']:
+        if len(sdKeys) == self.paramsAuxInfo['available_capitals']['maxDim']:
           scenarioList.append(list(scenarioDict['scenarios'].values()))
         elif len(sdKeys) == 1 and sdKeys in options:
           pos = options.index(sdKeys)
@@ -91,27 +105,6 @@ class MCKP(KnapsackBase):
     self.scenarios['scenario_name'] = dict(('scenario_' + str(i), name) for i, name in enumerate(list(itertools.product(*scenarioNameList)), 1))
     self.scenarios['probabilities'] = dict(('scenario_' + str(i), float(np.product(list(prob)))) for i, prob in enumerate(list(itertools.product(*scenarioProbList)), 1))
     self.scenarios['scenario_data'] = dict(('scenario_' + str(i), dict(zip(paramList, data))) for i, data in enumerate(list(itertools.product(*scenarioList)), 1))
-
-  def generateModelInputData(self):
-    """
-      This method is used to generate input data for pyomo model
-      @ In, None
-      @ Out, data, dict, input data for pyomo model
-    """
-    data = KnapsackBase.generateModelInputData(self)
-    paramName = 'available_capitals'
-    options = [[None], ['resources'], ['time_periods'], ['resources','time_periods']]
-    data[paramName] = self.setParameters(paramName, options, self.maxDim[paramName])
-
-    paramName = 'net_present_values'
-    options = [['options']]
-    data[paramName] = self.setParameters(paramName, options, self.maxDim[paramName])
-
-    paramName = 'costs'
-    options = [['options'],['options','resources'],['options','time_periods'],['options','resources','time_periods']]
-    data[paramName] = self.setParameters(paramName, options, self.maxDim[paramName])
-    data = {None:data}
-    return data
 
   def multipleKnapsackModel(self):
     """

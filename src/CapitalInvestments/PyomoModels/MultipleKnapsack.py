@@ -40,12 +40,21 @@ class MultipleKnapsack(KnapsackBase):
     """
     KnapsackBase.__init__(self)
     self.optionalConstraints = {'consistentConstraintI':True}
+    self.paramsAuxInfo['available_capitals'] = {'maxDim':2, 'options': [[None], ['capitals'], ['capitals','time_periods']]}
+    self.paramsAuxInfo['net_present_values'] = {'maxDim':1, 'options': [[None], ['investments']]}
+    self.paramsAuxInfo['costs'] = {'maxDim':2, 'options': [[None], ['investments'], ['investments', 'time_periods']]}
 
   def initialize(self, initDict):
     """
       Mehod to initialize
       @ In, initDict, dict, dictionary of preprocessed input data
-        {'Sets':{}, 'Parameters':{}, 'Settings':{}, 'Meta':{}, 'Uncertainties':{}}
+        {
+          'Sets':{setName: list of setValues},
+          'Parameters':{paramName:{setsIndex:paramValue}} or {paramName:{'None':paramValue}},
+          'Settings':{xmlTag:xmlVal},
+          'Meta':{paramName:{setIndexName:indexDim}} or {paramName:None},
+          'Uncertainties':{paramName:{'scenarios':{scenarioName:{setIndex:uncertaintyVal}}, 'probabilities': [ProbVals]}}
+        }
       @ Out, None
     """
     KnapsackBase.initialize(self, initDict)
@@ -83,30 +92,6 @@ class MultipleKnapsack(KnapsackBase):
     self.scenarios['scenario_name'] = dict(('scenario_' + str(i), name) for i, name in enumerate(list(itertools.product(*scenarioNameList)), 1))
     self.scenarios['probabilities'] = dict(('scenario_' + str(i), float(np.product(list(prob)))) for i, prob in enumerate(list(itertools.product(*scenarioProbList)), 1))
     self.scenarios['scenario_data'] = dict(('scenario_' + str(i), dict(zip(paramList, data))) for i, data in enumerate(list(itertools.product(*scenarioList)), 1))
-
-  def generateModelInputData(self):
-    """
-      This method is used to generate input data for pyomo model
-      @ In, None
-      @ Out, data, dict, input data for pyomo model
-    """
-    data = KnapsackBase.generateModelInputData(self)
-    paramName = 'available_capitals'
-    options = [[None], ['capitals'], ['capitals','time_periods']]
-    maxDim = 2
-    data[paramName] = self.setParameters(paramName, options, maxDim)
-
-    paramName = 'net_present_values'
-    options = [[None], ['investments']]
-    maxDim = 1
-    data[paramName] = self.setParameters(paramName, options, maxDim)
-
-    paramName = 'costs'
-    options = [[None], ['investments'], ['investments', 'time_periods']]
-    maxDim = 2
-    data[paramName] = self.setParameters(paramName, options, maxDim)
-    data = {None:data}
-    return data
 
   def multipleKnapsackModel(self):
     """

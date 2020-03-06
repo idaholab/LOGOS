@@ -63,10 +63,10 @@ if __name__ == "__main__":
   end = start + timeout
   fail = 0
   success = 0
-  pythonPath = '/opt/miniconda3/envs/raven_libraries/bin/python'
+  pythonPath = '/Users/wangc/miniconda3/envs/raven_libraries/bin/python'
   failList = []
   for test in testInputs:
-    command = pythonPath + ' ' + directory + '/src/logos_main.py -i ' + directory + '/tests/CapitalInvestments/' + test
+    command = directory + '/logos -i ' + directory + '/tests/CapitalInvestments/' + test
     print(command)
     try:
       print(directory)
