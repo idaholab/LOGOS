@@ -215,10 +215,34 @@ Example XML:
 This sub-section contains the information regarding the XML nodes used to define the
 \xmlNode{Uncertainties} of the optimization model that is being performed through LOGOS:
 \begin{itemize}
-  \item \xmlNode{}, \xmlDesc{},
-  \item \xmlNode{}, \xmlDesc{},
-  \item \xmlNode{}, \xmlDesc{},
-  \item \xmlNode{}, \xmlDesc{},
+  \item \xmlNode{available\_capitals}, \xmlDesc{optional}, specifies the scenarios
+  associated with available capitals. This node accepts the attribute \xmlAttr{index} which
+  should be consistent with \xmlNode{available\_capitals} defined in \xmlNode{Parameters}.
+  This node accepts the following sub-nodes:
+  \begin{itemize}
+    \item \xmlNode{totalScenarios}, \xmlDesc{integer, required}, specifies the total
+    number of scenarios for this parameter.
+    \item \xmlNode{probabilities}, \xmlDesc{comma/space-separated float, required},
+    specifies the probability for each scenario. The length should be equal total number of
+    scenarios.
+    \item \xmlNode{scenarios}, \xmlDesc{comma/space-separated float, required},
+    specifies all scenarios for this parameter. The length should be equal total number
+    of scenarios multiply the length of this parameter defined in \xmlNode{Parameters}.
+  \end{itemize}
+
+  \item \xmlNode{net\_present\_values}, \xmlDesc{optional}, specifies the scenarios
+  associated with net\_present\_values. This node accepts the attribute \xmlAttr{index} which
+  should be consistent with \xmlNode{net\_present\_values} defined in \xmlNode{Parameters}.
+  \begin{itemize}
+    \item \xmlNode{totalScenarios}, \xmlDesc{integer, required}, specifies the total
+    number of scenarios for this parameter.
+    \item \xmlNode{probabilities}, \xmlDesc{comma/space-separated float, required},
+    specifies the probability for each scenario. The length should be equal total number of
+    scenarios.
+    \item \xmlNode{scenarios}, \xmlDesc{comma/space-separated float, required},
+    specifies all scenarios for this parameter. The length should be equal total number
+    of scenarios multiply the length of this parameter defined in \xmlNode{Parameters}.
+  \end{itemize}
 \end{itemize}
 
 Example XML:
@@ -248,22 +272,29 @@ Example XML:
 \end{lstlisting}
 
 
-
 %
 \subsection{External Constraints}
 \label{subsec:ExternalConstraints}
+
 This sub-section contains the information regarding the XML nodes used to define the
-\xmlNode{ExternalConstraints} of the optimization model that is being performed through LOGOS:
+\xmlNode{ExternalConstraints} of the optimization model that is being performed through LOGOS.
+This node accepts the following sub-node(s):
 \begin{itemize}
-  \item \xmlNode{}, \xmlDesc{},
-  \item \xmlNode{}, \xmlDesc{},
-  \item \xmlNode{}, \xmlDesc{},
-  \item \xmlNode{}, \xmlDesc{},
+  \item \xmlNode{constraint}, \xmlDesc{string, required}, specifies the external python
+  module file name. This external python module contains the user defined additional constraint
+  on the optimization problem. This sub-node also requires the following attribute:
+  \begin{itemize}
+    \item \xmlAttr{name}, \xmlDesc{string, required}, specifies the name of constraint that will
+    be added to optimization problem.
+  \end{itemize}
 \end{itemize}
 
 Example XML:
 \begin{lstlisting}[style=XML]
-
+<ExternalConstraints>
+  <constraint name="con_I">externalConst</constraint>
+  <constraint name="con_II">externalConstII</constraint>
+</ExternalConstraints>
 \end{lstlisting}
 
 
