@@ -201,7 +201,7 @@ Example XML:
     ...
     8.26 7.56 7.34 0.
   </net_present_values>
-  <costs index='options, resources, time_periods'>
+  <costs index='options,resources,time_periods'>
     12.99 1.3 0 0 0
     ...
     0.01 0 0 0 0
@@ -249,6 +249,9 @@ This sub-section contains the information regarding the XML nodes used to define
     of scenarios multiply the length of this parameter defined in \xmlNode{Parameters}.
   \end{itemize}
 \end{itemize}
+
+The overall number of scenarios is the total number of scenarios of \xmlNode{available\_capitals}
+multiply the total number of scenarios of \xmlNode{net\_present\_values}.
 
 Example XML:
 \begin{lstlisting}[style=XML]
