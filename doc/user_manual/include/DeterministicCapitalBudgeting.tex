@@ -353,6 +353,142 @@ Example LOGOS output CSV:
 \end{lstlisting}
 
 
-
 \subsection{Multiple-Choice Multi-Dimensional Knapsack Problem Optimization}
 \label{subsec:mckp}
+Another quite different variant of the capital budgeting problem appears if there may
+be multiple ways to carry out each investment/project. Each investment $i$ however exists
+in a number of options where the j-th option has cost $c_{ij}$ and profit
+value $a_{ijj}$ This problem can be expressed as the Multiple-Choice Knapsack Problem
+(MCKP). Assume $J_i$ is the set of different options of investment $i$. Using the
+decision variables $x_{ij}$ to denote whether option $j$ was chosen from the set $J_i$,
+the mathematical formulation of MCKP is given by
+
+\vst \noi {\em Formulation:}
+\begin{subequations}\label{MKP}
+\begin{eqnarray}
+&\dst \max_{x} &  \dst \sum_{i \in I, j \in J_{i}} a_{ij} x_{ij} \\
+& s. t.  & \sum_{j \in J_{i}} x_{ij} = 1,   i \in I \\
+& & \sum_{i \in I, j \in J_{i}} c_{ij} x_{ij} \leq b \\
+& & x_{ij} \in \{0,1\}, j \in J_{i}, i \in I.
+\end{eqnarray}
+\end{subequations}
+
+Considering the limited resources and multi-year investments, the MCKP may be extended
+to D-dimensional MCKP problem (D-MCKP). For example, a project may be performed over
+a three-year period, say, years $t$, $t+1$, $t+2$, or the start of the project could
+instead be two years hence with project implementation over years $t+2$, $t+3$, $t+4$.
+Alternatively, at increased cost and increased benefit, it may be possible to complete
+the project in two years, $t$, $t+1$, or $t+2$, $t+3$. When selecting a project to
+uprate plant capacity, we may have two options that increase capacity by 3% or 6%.
+In these cases, the problem can be expressed as the D-MCKP.
+This problem is formally defined as follows
+
+\vst \noi {\em Formulation:}
+\begin{subequations}\label{model-deter}
+\begin{eqnarray}
+&\dst \max_{x} &  \dst \sum_{i \in I, j \in J_{i}} a_{ij} x_{ij} \label{obj_deter} \\
+& s. t.  & \sum_{j \in J_{i}} x_{ij} = 1,   i \in I \\
+& & \sum_{i \in I, j \in J_{i}} c_{ijt} x_{ij} \leq b_{t}, t \in T \\
+& & x_{ij} \in \{0,1\}, j \in J_{i}, i \in I.
+\end{eqnarray}
+\end{subequations}
+
+or as the same as the problem described at the beginning of this chapter
+(see ~\ref{DeterministicCapitalBudgeting}):
+
+\vst \noi {\em Formulation:}
+\begin{subequations}\label{model-deter}
+\begin{eqnarray}
+&\dst \max_{x} &  \dst \sum_{i \in I, j \in J_{i}} a_{ij} x_{ij} \label{obj_deter} \\
+& s. t.  & \sum_{j \in J_{i}} x_{ij} = 1,   i \in I \\
+& & \sum_{i \in I, j \in J_{i}} c_{ijkt} x_{ij} \leq b_{kt}, k \in K, t \in T \\
+& & x_{ij} \in \{0,1\}, j \in J_{i}, i \in I.
+\end{eqnarray}
+\end{subequations}
+
+Example LOGOS input XML:
+\begin{lstlisting}[style=XML]
+<Logos>
+  <Sets>
+    <investments>
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
+    </investments>
+    <options index='investments'>
+      1;
+      1;
+      1;
+      1,2,3;
+      1,2,3,4;
+      1,2,3,4,5,6,7;
+      1;
+      1;
+      1;
+      1;
+      1;
+      1;
+      1;
+      1;
+      1;
+      1;
+      1
+    </options>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index='options'>
+      2.046 2.679 2.489 2.61 2.313 1.02 3.013 2.55 3.351 3.423 3.781 2.525
+      2.169 2.267 2.747 4.309 6.452 2.849 7.945 2.538 1.761 3.002 3.449
+      2.865 3.999 2.283 0.9 8.608
+    </net_present_values>
+    <costs index='options'>
+      36538462
+      83849038
+      4615385
+      2788461538
+      2692307692
+      5480769231
+      1634615385
+      2981730768
+      7211538462
+      9038461538
+      649038462
+      650000000
+      216346154
+      212500000
+      3076923077
+      3942307692
+      1144230769
+      675721154
+      1442307692
+      99711538
+      4807692
+      123076923
+      138461538
+      86538462
+      108653846
+      75092404
+      6413462
+      147932692
+    </costs>
+    <available_capitals>
+      15E9
+    </available_capitals>
+  </Parameters>
+
+  <Settings>
+    <solver>cbc</solver>
+    <sense>maximize</sense>
+    <problem_type>mckp</problem_type>
+  </Settings>
+</Logos>
+\end{lstlisting}
+
+Example LOGOS output CSV:
+\begin{lstlisting}[language=python]
+1__1,2__1,3__1,4__1,4__2,4__3,...,17__1,MaxNPV
+1.0,1.0,1.0,1.0,0.0,0.0,...,1.0,59.82600000000001
+\end{lstlisting}
+
+In the output file, the name \textbf{"investmentsIndex"\_\_"optionsIndex"} is used to
+specify the decision variable. For example, \textbf{1\_\_1} indicates investment \textbf{1}
+with options \textbf{1} is selected.
