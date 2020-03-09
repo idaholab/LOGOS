@@ -234,7 +234,7 @@ period $t$. By defining $c_{it}$ as the cost of investment $i$ at time period $i
 and $b_t$ as the available capital at time period $t$, we get:
 
 \vst \noi {\em Formulation:}
-\begin{subequations}\label{boundedKP}
+\begin{subequations}\label{DKP}
 \begin{eqnarray}
 &\dst \max_{x} &  \dst \sum_{i \in I} a_{i} x_{i} \\
 & s. t. & \sum_{i \in I} c_{it} x_{i} \leq b_t, t\in T\\
@@ -290,6 +290,68 @@ Example LOGOS output CSV:
 
 \subsection{Multiple Knapsack Problem Optimization}
 \label{subsec:mkp}
+Another interesting variant of the capital budgeting problem arises if we consider
+a maintenance for multi-units NPP in parallel, i.e. it has to be decided whether
+to accept a particular replacement and in the positive case in which unit to conduct
+the corresponding replacement. This can be formulated by
+introducing a binary decision variable for every combination of a maintenance with a unit.
+If there are $I$ investments (investment set $I$) on the list of maintenance requests and $m$
+unit (unit set $M$) available, we use binary variables:
+
+\begin{equation}
+x_{im} \in \{0,1\}, i\in I, m\in M
+\end{equation}
+The resulting problem is called the Multiple Knapsack Problem (MKP),
+and the mathematical formulation is given by
+\vst \noi {\em Formulation:}
+\begin{subequations}\label{MKP}
+\begin{eqnarray}
+&\dst \max_{x} &  \dst \sum_{m \in M} \sum_{i \in I} a_{i} x_{im} \\
+& s. t. & \sum_{i \in I} c_{i} x_{im} \leq b_m, m \in M\\
+& & \sum_{m \in M} x_{im} \leq 1 \\
+& & x_{im} \in \{0,1\}, i \in I, m \in M.
+\end{eqnarray}
+\end{subequations}
+
+Example LOGOS input XML:
+\begin{lstlisting}[style=XML]
+<Logos>
+  <Sets>
+    <investments>
+      1,2,3,4,5,6,7,8,9,10
+    </investments>
+    <capitals>
+      unit_1, unit_2
+    </capitals>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index="investments">
+      78, 35, 89, 36, 94, 75, 74, 79, 80, 16
+    </net_present_values>
+    <costs index="investments">
+      18, 9, 23, 20, 59, 61, 70, 75, 76, 30
+    </costs>
+    <available_capitals index="capitals">
+      103, 156
+    </available_capitals>
+  </Parameters>
+
+  <Settings>
+    <solver>cbc</solver>
+    <sense>maximize</sense>
+    <problem_type>MultipleKnapsack</problem_type>
+  </Settings>
+</Logos>
+\end{lstlisting}
+
+Example LOGOS output CSV:
+\begin{lstlisting}[language=python]
+1,2,3,4,5,6,7,8,9,10,capitals,MaxNPV
+0.0,0.0,1.0,1.0,1.0,0.0,0.0,0.0,0.0,0.0,unit_1,452.0
+1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,unit_2,452.0
+\end{lstlisting}
+
 
 
 \subsection{Multiple-Choice Multi-Dimensional Knapsack Problem Optimization}
