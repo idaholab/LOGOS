@@ -1,5 +1,189 @@
-\section{Stochastic Capital Budgeting}
+\section{Prioritizing Project Selection to Hedge Against Uncertainty}
 \label{sec:StochasticCapitalBudgeting}
+
+One limitation of traditional optimization models for capital budgeting is that
+they do not account for risk/uncertainty in profit and cost streams associated
+with individual projects, they do not account for risk in resource availability
+in future years. Projects can incur cost over-runs, especially when projects are
+large, performed infrequently, and when there is risk regarding technical viability,
+external contractors, and/or suppliers of requisite parts and materials.
+Occasionally, projects are performed ahead of schedule and with cost savings.
+Planned budgets for capital improvements can be cut and key personnel may be
+lost. Or, there may be surprise windfalls in budgets for maintenance activities
+due to decreased costs for “unplanned” maintenance. In these cases, how should
+we resolve capital budgeting when we have risk forecasts for costs, profits and
+budgets? One approach is to re-solve the models described in the previous
+section when refined forecasts for these parameters become available. However,
+it is not always practical to fully revise a project portfolio whenever better
+forecasts become available.
+
+In order to prioritize the project selection with risk forecast for these
+parameters, the two-stage stochastic optimization model~\cite{PrioritizingProjectSelection} is employed to provide
+priority lists to decision-makers to support better risk-informed decisions.
+Its inputs include those described in above sections for different variant of
+the capital budgeting problem, except that a probabilistic description of the
+uncertain parameters is integrated in the optimization process. The two-stage
+stochastic optimization model forms a priority list as its first- stage decision
+and then forms a corresponding project portfolio for each scenario as its
+second-stage decision. When forming the optimal second-stage project portfolio
+under a specific scenario, the stochastic optimization model ensures that the
+portfolio is consistent with the first-stage prioritization; i.e., a project can
+be selected only if all high-priority projects are also selected. Thus, the
+portfolios of projects corresponding to different scenarios are nested.
+
+The notation and formulation of the risk-informed models are as follows:
+
+\[
+\begin{array}{ll}
+%%%%%%%%%%%%%% INDICES AND SET %%%%%%%%%%%%%%%%
+\multicolumn{2}{l}{\mbox{\em Indexes and sets:} } \\
+t \in T  & \mbox{time periods (years)} \\
+i,i^{'} \in I  & \mbox{candidate projects} \\
+j \in J_{i}	& \mbox{options for selecting project $i$} \\
+i^{'},j^{'} \in IJ_{ij} & \mbox{piggybacking situations} \\
+k \in K	& \mbox{types of resources} \\
+\omega \in \Omega & \mbox{scenarios}\\
+\\
+%%%%%%%%%%%%%% DATA %%%%%%%%%%%%%%%%
+\multicolumn{2}{l}{\mbox{\em Data:}} \\
+a_{i}^{\omega} & \mbox{reward of selecting project $i$ under scenario $\omega$}  \\
+a_{ij}^{\omega} & \mbox{reward of selecting project $i$ via option $j$ under scenario $\omega$}  \\
+b^{\omega} & \mbox{available budget under scenario $\omega$}\\
+b_{k}^{\omega} & \mbox{available budget for a resource of type $k$ under scenario $\omega$}\\
+b_{t}^{\omega} & \mbox{available budget in year $t$ under scenario $\omega$}\\
+b_{m}^{\omega} & \mbox{available budget for unit $m$ under scenario $\omega$}\\
+b_{kt}^{\omega} & \mbox{available budget for a resource of type $k$ in year $t$ under scenario $\omega$}\\
+c_{i}^{\omega} & \mbox{cost of investment $i$ under scenario $\omega$} \\
+c_{ik}^{\omega} & \mbox{consumption of resource of type $k$} \\
+& \mbox{if project $i$ is selected under scenario $\omega$}\\
+c_{ijt}^{\omega} & \mbox{consumption of resource in year $t$ } \\
+& \mbox{if project $i$ is performed via option $j$ under scenario $\omega$}\\
+c_{ijkt}^{\omega} & \mbox{consumption of resource of type $k$ in year $t$ } \\
+& \mbox{if project $i$ is performed via option $j$ under scenario $\omega$}\\
+q^{\omega} & \mbox{probability of scenario $\omega$}\\
+\\
+%%%%%%%%%%%%%% DECISION VARS %%%%%%%%%%%%%%%%
+\multicolumn{2}{l}{\mbox{\em Decision variables:}}  \\
+x_{i}^{\omega} & \mbox{1 if project $i$ is selected under scenario $\omega$; 0 otherwise} \hspace*{4.0in}\\
+x_{im}^{\omega} & \mbox{1 if project $i$ is selected for unit $m$ under scenario $\omega$; 0 otherwise} \hspace*{4.0in}\\
+x_{ij}^{\omega} & \mbox{1 if project $i$ is selected via option $j$ under scenario $\omega$; 0 otherwise} \hspace*{4.0in}\\
+y_{ii^{'}} & \mbox{1 if project $i$ has no lower priority than project $i^{'}$; 0 otherwise} \hspace*{4.0in}\\
+\end{array}
+\]
+
+\subsection{Risk-Informed Single Knapsack Problem Optimization}
+\label{subsec:RIskp}
+
+\subsubsection{Risk-Informed Simple Knapsack Problem}
+\vst \noi {\em Formulation:}
+\begin{subequations}\label{RISimpleKP}
+\begin{eqnarray}
+&\dst \max_{x} &  \dst \sum_{\omega\in\Omega} q^\omega \dst \sum_{i \in I} a_{i}^\omega x_{i}^\omega \\
+& s. t. & \sum_{i \in I} c_{i}^\omega x_{i}^\omega \leq b^\omega \label{stoc_cona}\\
+& & y_{ii'} + y_{i'i} \geq 1, i<i' \label{stoc_conb} \\
+& & x_{i}^\omega \geq x_{i'}^\omega + y_{ii'}-1, i\neq i' \label{stoc_conc}
+\end{eqnarray}
+\end{subequations}
+For simplicity, in what follows the variable $y_{ii'}=1$ means that project $i$
+is higher priority than $i'$ even though the variable definition allows for ties,
+i.e., the projects being the same priority.
+Constraint~(\ref{stoc_cona}) requires that we be within budget under each scenarios.
+Constraint~(\ref{stoc_conb}) indicates that either project $i$ is higher priority
+than project $i'$ or vice versa, and further allows both (i.e., a tie).
+Constraint~(\ref{stoc_conc}) indicates that if project $i$ is higher priority than
+project $i'$ ($y_{ii'}=1$), then if we select the lower priority project then we
+must also select the higher priority project; if $y_{ii'}=0$ or if $x_{i'}^\omega$
+then the constraint is vacuous.
+In order to handle the risk in the capital budgeting problems, the entity
+\xmlNode{Uncertainties} (see section~\ref{subsec:Uncertainties}) is used to specify
+different scenarios of input parameters.
+
+Example LOGOS input XML:
+\begin{lstlisting}[style=XML]
+<Logos>
+  <Sets>
+    <investments>
+      1,2,3,4,5,6,7,8,9,10
+    </investments>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index="investments">
+      18,20,17,19,25,21,27,23,25,24
+    </net_present_values>
+    <costs index="investments">
+      1,3,7,4,8,9,6,10,2,5
+    </costs>
+    <available_capitals>
+      15
+    </available_capitals>
+  </Parameters>
+
+  <Uncertainties>
+    <available_capitals>
+      <totalScenarios>10</totalScenarios>
+      <probabilities>
+        0.012, 0.019, 0.032, 0.052, 0.086, 0.142, 0.235, 0.188, 0.141, 0.093
+      </probabilities>
+      <scenarios>
+        11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+      </scenarios>
+    </available_capitals>
+    <net_present_values>
+      <totalScenarios>2</totalScenarios>
+      <probabilities>
+        0.3, 0.7
+      </probabilities>
+      <scenarios>
+        18,20,17,19,25,21,27,23,25,24,
+        18,20,17,19,25,21,27,23,25,24
+      </scenarios>
+    </net_present_values>
+  </Uncertainties>
+  ...
+</Logos>
+\end{lstlisting}
+
+When run this case, LOGOS would generate a CSV (comma separated values) file that
+contains solutions for the optimization problem, i.e. values of decision variables
+and maximum profit (MaxNPV is used to describe the maximum profit). The header of
+this CSV file contains the indices listed under \xmlNode{investments} which are
+used as indices for decision variables, and the objective variable \textbf{MaxNPV}.
+The data provides the values for both decision variables and objective variable.
+
+Example LOGOS output CSV:
+\begin{lstlisting}[language=python]
+1,2,3,4,5,6,7,8,9,10,MaxNPV
+0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,1.0,1.0,96.0
+\end{lstlisting}
+
+In this case, the projects \textbf{2, 7, 9, 10} are selected under all scenarios
+with maximum profit \textbf{96.0}.
+
+
+\subsubsection{Risk-Informed Multi-Dimensional Knapsack Problem}
+
+
+
+\subsection{Risk-Informed Multiple Knapsack Problem Optimization}
+\label{subsec:RImkp}
+
+
+\subsection{Risk-Informed Multiple-Choice Multi-Dimensional Knapsack Problem Optimization}
+\label{subsec:RImckp}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 The deterministic capital budgeting model previously developed allows for multiple options in how
 we select a project. For example, we might select a project via Plan A, Plan B, Plan C, or not
@@ -15,32 +199,7 @@ notation has been sketched above, we develop the full model here so that this se
 self-contained, given that it specifies our “full” mathematical model for stochastic capital
 budgeting.
 
-\[
-\begin{array}{ll}
-%%%%%%%%%%%%%% INDICES AND SET %%%%%%%%%%%%%%%%
-\multicolumn{2}{l}{\mbox{\em Indexes and sets:} } \\
-t \in T  & \mbox{time periods (years)} \\
-i,i^{'}, i^{''} \in I  & \mbox{candidate projects} \\
-j, j^{'} \in J_{i}	& \mbox{options for selecting project $i$} \\
-i^{'},j^{'} \in IJ_{ij} & \mbox{piggybacking situations} \\
-k \in K	& \mbox{types of resources} \\
-\omega \in \Omega & \mbox{scenarios}\\
-\\
-%%%%%%%%%%%%%% DATA %%%%%%%%%%%%%%%%
-\multicolumn{2}{l}{\mbox{\em Data:}} \\
-a_{ij}^{\omega} & \mbox{reward of selecting project $i$ via option $j$ under scenario $\omega$}  \\
-b_{kt}^{\omega} & \mbox{available budget for a resource of type $k$ in year $t$ under scenario $\omega$}\\
-c_{ijkt}^{\omega} & \mbox{consumption of resource of type $k$ in year $t$ } \\
-& \mbox{if project $i$ is performed via option $j$ under scenario $\omega$}\\
-\\
-%%%%%%%%%%%%%% DECISION VARS %%%%%%%%%%%%%%%%
-\multicolumn{2}{l}{\mbox{\em Decision variables:}}  \\
-x_{ij}^{\omega} & \mbox{1 if project $i$ is selected via option $j$ under scenario $\omega$; 0 otherwise} \hspace*{4.0in}\\
-s_{ii^{'}} & \mbox{1 if project $i$ has no lower priority than project $i^{'}$; 0 otherwise} \hspace*{4.0in}\\
-y_{i}^{\omega} & \mbox{1 if project $i$ is selected for {\it some} option under scenario $\omega$; 0 otherwise} \hspace*{4.0in}\\
-z_{ij} & \mbox{1 if project $i$ is selected via option $j$ under {\it some} scenario; 0 otherwise} \hspace*{4.0in}\\
-\end{array}
-\]
+
 
 Model formulation:\\
 
