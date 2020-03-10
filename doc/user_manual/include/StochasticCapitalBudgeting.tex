@@ -40,8 +40,9 @@ The notation and formulation of the risk-informed models are as follows:
 t \in T  & \mbox{time periods (years)} \\
 i,i^{'} \in I  & \mbox{candidate projects} \\
 j \in J_{i}	& \mbox{options for selecting project $i$} \\
-i^{'},j^{'} \in IJ_{ij} & \mbox{piggybacking situations} \\
+%i^{'},j^{'} \in IJ_{ij} & \mbox{piggybacking situations} \\
 k \in K	& \mbox{types of resources} \\
+m \in M & \mbox{units of NPP} \\
 \omega \in \Omega & \mbox{scenarios}\\
 \\
 %%%%%%%%%%%%%% DATA %%%%%%%%%%%%%%%%
@@ -281,126 +282,152 @@ Example LOGOS output CSV:
 \subsection{Risk-Informed Multiple Knapsack Problem Optimization}
 \label{subsec:RImkp}
 
+Model formulation:\\
+
+\begin{equation}\label{rimkp_obja}
+\mathop{\max}_{x,y} \sum _{ \omega  \in  \Omega }q^{ \omega } \sum _{i \in I} \sum _{m \in M}a_{i}^{ \omega }x_{im}^{ \omega }
+\end{equation}
+
+\begin{equation}\label{rimkp_objb}
+~~~~~~~~~~~~s.t.~~~~~y_{ii^{'}}+y_{i^{'}i} \geq 1,~ i<i^{'}\text{, i, }i^{'} \in I
+\end{equation}
+
+\begin{equation}\label{rimkp_objc}
+~~~~~~~~\sum_{m=1}^{M} x_{im}^\omega \geq \sum_{m=1}^{M} x_{i'm}^\omega + y_{ii'} -1,~ i \neq i^{'}\text{, i, }i^{'} \in I,  \omega  \in  \Omega
+\end{equation}
+
+Constraint~(\ref{rimkp_objb}) indicates that either project $i$  is higher priority
+than project  $i^{'}$  or vice versa, and further allows both (i.e., a tie).
+Constraint~(\ref{rimkp_objc}) indicates that if project  $i$  is higher priority than
+project  $i^{'}$ ($y_{ii^{'}}=1$), then if we select the lower priority project
+\textit{for some unit} then we must also select the higher priority project;
+if  $y_{ii^{'}}=0$  or if  $\sum_{m=1}^{M} x_{i'm}^\omega$  then the constraint is vacuous.\par
+
+\begin{equation}\label{rimkp_objd}
+ \sum _{i \in I}^{} c_{i}^{ \omega }x_{im}^{ \omega }~  \leq  b_{m}^{ \omega },~ m \in M,  \omega  \in  \Omega
+\end{equation}
+
+Constraint~(\ref{rimkp_objd}) requires that we be within budget
+for each unit, and under each scenario.
+
+\begin{equation}\label{rimkp_obje}
+\sum_{m\in M} x_{im}^{ \omega } \leq 1,~ i \in I, \omega  \in  \Omega
+\end{equation}
+
+Constraint~(\ref{rimkp_obje}) simultaneously ensures that we select project $i$
+only for one unit.
+
+Example LOGOS input XML:
+\begin{lstlisting}[style=XML]
+  <Sets>
+    <investments>
+      1,2,3,4,5,6,7,8,9,10
+    </investments>
+    <capitals>
+      unit_1, unit_2
+    </capitals>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index="investments">
+      78, 35, 89, 36, 94, 75, 74, 79, 80, 16
+    </net_present_values>
+    <costs index="investments">
+      18, 9, 23, 20, 59, 61, 70, 75, 76, 30
+    </costs>
+    <available_capitals index="capitals">
+      103, 156
+    </available_capitals>
+  </Parameters>
+
+  <Uncertainties>
+    <available_capitals>
+      <totalScenarios>2</totalScenarios>
+      <probabilities>
+        0.3 0.7
+      </probabilities>
+      <scenarios>
+        103, 156,
+        103, 156
+      </scenarios>
+    </available_capitals>
+    <net_present_values>
+      <totalScenarios>2</totalScenarios>
+      <probabilities>
+        0.3, 0.7
+      </probabilities>
+      <scenarios>
+        78, 35, 89, 36, 94, 75, 74, 79, 80, 16,
+        78, 35, 89, 36, 94, 75, 74, 79, 80, 16
+      </scenarios>
+    </net_present_values>
+  </Uncertainties>
+
+  <Settings>
+    <solver>glpk</solver>
+    <sense>maximize</sense>
+    <problem_type>MultipleKnapsack</problem_type>
+  </Settings>
+</Logos>
+\end{lstlisting}
+
+Example LOGOS output CSV:
+\begin{lstlisting}[basicstyle=\tiny,language=python]
+"('1', 'unit_1')","('1', 'unit_2')","('10', 'unit_1')","('10', 'unit_2')","('2', 'unit_1')","('2', 'unit_2')","('3', 'unit_1')",
+"('3', 'unit_2')","('4', 'unit_1')","('4', 'unit_2')","('5', 'unit_1')","('5', 'unit_2')","('6', 'unit_1')","('6', 'unit_2')",
+"('7', 'unit_1')","('7', 'unit_2')","('8', 'unit_1')","('8', 'unit_2')","('9', 'unit_1')","('9', 'unit_2')",
+ScenarioName,ProbabilityWeight,MaxNPV
+1.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,1.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,scenario_1,0.09,452.0
+1.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,1.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,scenario_2,0.21,452.0
+1.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,1.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,scenario_3,0.21,452.0
+0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,1.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,1.0,scenario_4,0.49,452.0
+\end{lstlisting}
 
 \subsection{Risk-Informed Multiple-Choice Multi-Dimensional Knapsack Problem Optimization}
 \label{subsec:RImckp}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-The deterministic capital budgeting model previously developed allows for multiple options in how
-we select a project. For example, we might select a project via Plan A, Plan B, Plan C, or not
-select the project at all. In addition, the deterministic model allows for multiple types of
-resources (e.g., capital budgets and O\&M budgets), and further allows for piggybacking constraints.
-Our stochastic capital budgeting model illustrates the ideas of prioritization without the
-additional features of multiple types of resources, piggybacking, and multiple options for selecting
-each project.  The former two features integrate with the prioritization scheme in a straightforward
-way, as we will describe below. The latter-most feature proves to have subtle interactions with
-the notion of prioritization, and we discuss that in some detail in this section. The model
-sketched here is new and, to our knowledge, has not appeared in the literature. Even though the
-notation has been sketched above, we develop the full model here so that this section is
-self-contained, given that it specifies our “full” mathematical model for stochastic capital
-budgeting.
-
-
-
 Model formulation:\\
 
 \begin{equation}\label{stoc_obja}
-\mathop{\max}_{s,x,y,z} \sum _{ \omega  \in  \Omega }^{}q^{ \omega } \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}a_{ij}^{ \omega }x_{ij}^{ \omega }
+\mathop{\max}_{x,y} \sum _{ \omega  \in  \Omega }^{}q^{ \omega } \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}a_{ij}^{ \omega }x_{ij}^{ \omega }
 \end{equation}
 
 \begin{equation}\label{stoc_objb}
-~~~~~~~~~~~~s.t.~~~~~s_{ii^{'}}+s_{i^{'}i} \geq 1,~ i<i^{'}\text{, i, }i^{'} \in I
+~~~~~~~~~~~~s.t.~~~~~y_{ii^{'}}+y_{i^{'}i} \geq 1,~ i<i^{'}\text{, i, }i^{'} \in I
 \end{equation}
 
 \begin{equation}\label{stoc_objc}
-~~~~~~~~y_{i}^{ \omega } \geq y_{i^{'}}^{ \omega }+s_{ii^{'}}-1,~ i \neq i^{'}\text{, i, }i^{'} \in I,  \omega  \in  \Omega
+~~~~~~~~\sum_{j=1}^{J_i} x_{ij}^\omega \geq \sum_{j=1}^{J_i} x_{i'j}^\omega + y_{ii'} -1,~ i \neq i^{'}\text{, i, }i^{'} \in I,  \omega  \in  \Omega
 \end{equation}
 
-For simplicity, in what follows we will say that variable $s_{ii^{'}}=1$  means that project
-$i$  is higher priority than $i^{'}$  even though the variable definition allows for ties,
-i.e., the projects being the same priority. Constraint~(\ref{stoc_objb}) indicates that either
-project  $i$  is higher priority than project  $i^{'}$  or vice versa, and further allows both
-(i.e., a tie). Constraint~(\ref{stoc_objc}) indicates that if project  $i$  is higher priority
-than project  $i^{'}$  $s_{ii^{'}}=1$  then if we select the lower priority project
-\textit{under some option} then we must also select the higher priority project; if  $s_{ii^{'}}=0$
-or if  $y_{i^{'}}^{\omega}=0$  then the constraint is vacuous.\par
+Constraint~(\ref{stoc_objb}) indicates that either project $i$  is higher priority
+than project  $i^{'}$  or vice versa, and further allows both (i.e., a tie).
+Constraint~(\ref{stoc_objc}) indicates that if project  $i$  is higher priority than
+project  $i^{'}$  $y_{ii^{'}}=1$  then if we select the lower priority project
+\textit{under some option} then we must also select the higher priority project;
+if  $y_{ii^{'}}=0$  or if  $\sum_{j=1}^{J_i} x_{i'j}^\omega$  then the constraint is vacuous.\par
 
 \begin{equation}\label{stoc_objd}
  \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}\text{~ c}_{ijkt}^{ \omega }x_{ij}^{ \omega }~  \leq  b_{kt}^{ \omega },~ k \in K, t \in T,  \omega  \in  \Omega
 \end{equation}
 
-Constraint~(\ref{stoc_objd}) requires that we be within budget in each time period, for each resource type, and under each scenario.
+Constraint~(\ref{stoc_objd}) requires that we be within budget in each time period,
+for each resource type, and under each scenario.
 
 \begin{equation}\label{stoc_obje}
- \sum _{j \in J_{i}}^{}~~x_{ij}^{ \omega }= y_{i}^{ \omega },~~~~~~~~~~i \in I,~ \omega  \in  \Omega
+\sum_{j\in J_i} x_{ij}^{ \omega } \leq 1,~ i \in I, \omega  \in  \Omega
 \end{equation}
 
-\begin{equation}\label{stoc_objf}
-y_{i}^{ \omega }=1,~ i \in I,  \omega  \in  \Omega
-\end{equation}
+Constraint~(\ref{stoc_obje}) simultaneously ensures that we select project  $i$
+via at most one option. We note that this illustrates the situation in which we
+must include the {\it Do Nothing}  option among the alternatives for optional projects.\par
 
-Constraint~(\ref{stoc_obje}) defines binary variable  $y_{i}^{ \omega }$  and simultaneously ensures that we select project  $i$  via at most one option. Constraint~(\ref{stoc_objf}) ensures that we select all must-do projects. We note that this illustrates the alternative to the situation in which we must include the {\it Do Nothing}  option among the alternatives for optional projects.\par
+Example LOGOS input XML:
+\begin{lstlisting}[style=XML]
 
-\begin{equation}\label{stoc_objg}
-x_{i^{'}j^{'}}^{ \omega }  \leq \text{~ x}_{ij}^{ \omega },~~ \left( i^{'},j^{'} \right)  \in IJ_{ij} , j \in J_{i},i \in I
-\end{equation}
+\end{lstlisting}
 
-Constraint~(\ref{stoc_objg}) captures piggybacking conditions.\par
+Example LOGOS output CSV:
+\begin{lstlisting}[basicstyle=\tiny,language=python]
 
-\begin{equation}\label{stoc_objh}
-s_{ii^{'}}+s_{i^{'}i} \leq 1,~ i<i^{'}\text{, i, }i^{'} \in I
-\end{equation}
-
-\begin{equation}\label{stoc_obji}
-s_{ii^{'}~}+s_{i^{'}i^{''}}+s_{i^{''}i} \leq 2,~ i \neq i^{'},i^{'} \neq  i^{''},i^{''} \neq i,~i,~i^{'},i^{''} \in I
-\end{equation}
-
-Constraints~(\ref{stoc_objh})-(\ref{stoc_obji}) require that we produce a total ordering of the
-projects rather than allowing for ties. If we remove constraints~(\ref{stoc_objh})-(\ref{stoc_obji})
-then it will not change the optimal NPV that we obtain, but including the constraints can facilitate
-easier parsing of the solutions.\par
-
-\begin{equation}\label{stoc_objj}
-x_{i^{'}j}^{ \omega }+s_{ii^{'}~}-1 \leq  \sum _{\begin{array}{c}
-	j^{'} \in J_{i}\\
-	j^{'} \leq j~\\
-	\end{array}}^{}x_{ij}^{ \omega }~,~~i \neq i^{'}~i,~i^{'} \in I,~j \in J_{i^{'}},~ \omega  \in  \Omega
-\end{equation}
-
-
-Constraint~(\ref{stoc_objj}) is a type of consistency constraint with respect to the notion of
-options; the constraint matters only when project  $i$  is higher priority than project
-$i^{'}$ $s_{ii^{'}}=1$ . In this case, if we select Plan A for the lower priority project
-then we must select plan A for the higher priority project. If we select Plan B for the lower
-priority project, then we can select Plan A or Plan B for the higher priority project. And,
-if we select Plan C for the lower priority project then we can select Plan A, B, or C for the
-higher priority project. Inclusion of constraint~(\ref{stoc_objj}) is optional and reflects
-how the decision maker prefers to interpret the notion of priorities.
-
-\begin{equation}\label{stoc_objk}
- \sum _{ \omega  \in  \Omega }^{}\text{~ x}_{ij}^{ \omega } \leq   \vert  \Omega  \vert ~z_{ij} ,i \in I, j \in J_{i}
-\end{equation}
-
-\begin{equation}\label{stoc_objl}
- \sum _{j \in J_{i}}^{}z_{ij} \leq ~1,~  i \in I
-\end{equation}
-
-\begin{equation}\label{stoc_objm}
-s_{ii^{'}},x_{ij}^{ \omega },y_{i}^{ \omega },z_{ij} \in { 0,1 } , i \neq i^{'},i,i^{'} \in I, j \in J_{i} ,  \omega  \in  \Omega
-\end{equation}
-%\begin{comment}
-
-Constraints~(\ref{stoc_objk}) and (\ref{stoc_objl}) taken together indicate that, for each
-project separately, we cannot mix use of Plans A, B, and C across different scenarios.
+\end{lstlisting}
