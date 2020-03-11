@@ -181,7 +181,7 @@
   </Uncertainties>
 
   <Settings>
-    <solver>cbc</solver>
+    <solver>glpk</solver>
     <solverOptions>
       <threads>1</threads>
       <StochSolver>EF</StochSolver>

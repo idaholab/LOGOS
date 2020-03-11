@@ -31,7 +31,7 @@
   </Parameters>
 
   <Settings>
-    <solver>cbc</solver>
+    <solver>glpk</solver>
     <sense>maximize</sense>
     <workingDir>externalConstraints</workingDir>
   </Settings>

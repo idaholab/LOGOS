@@ -4,6 +4,7 @@
   type  = 'RavenFramework'
   input = 'raven_capital_budgeting_II.xml'
   UnorderedCsv = 'MC/datasetPrint.csv MC/print_main.csv'
+  skip_if_OS = windows
  [../]
 
 []

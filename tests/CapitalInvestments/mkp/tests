@@ -6,6 +6,7 @@
     required_executable = 'Logos/logos'
     parameters = '-i'
     UnorderedCsv = 'test_mkp.csv'
+    skip_if_OS = windows
   [../]
 
   [./logos_mkp_glpk]
