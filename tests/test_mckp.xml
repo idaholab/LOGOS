@@ -21,7 +21,7 @@
   </RunInfo>
 
   <Models>
-    <ExternalModel name="mckp" subType="Logos.CapitalInvestmentModel">
+    <ExternalModel name="mckp" subType="LOGOS.CapitalInvestmentModel">
       <variables>
         available_capitals,
         i1__1,

@@ -18,9 +18,11 @@ from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 #Internal Modules End-----------------------------------------------------------
 
 #CashFlow modules---------------------------------------------------------------
-sys.path.append(os.path.expanduser('~/projects/raven/plugins/CashFlow/src'))
-import main
-import CashFlows
+# sys.path.append(os.path.expanduser('~/projects/raven/plugins/CashFlow/src'))
+# import main
+# import CashFlows
+from CashFlow.src import main
+from CashFlow.src import CashFlows
 # from main import run
 # from CashFlows import GlobalSettings, Component, Capex
 #CashFlow modules End-----------------------------------------------------------

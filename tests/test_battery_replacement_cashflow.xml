@@ -15,7 +15,7 @@
   </RunInfo>
 
   <Models>
-    <ExternalModel name="batteryCost" subType="Logos.BatteryReplacementCashFlowModel">
+    <ExternalModel name="batteryCost" subType="LOGOS.BatteryReplacementCashFlowModel">
       <variables>batteryIncurringShutdownProbability, batteryFailureProbability, cashflows, NPV, time</variables>
       <plannedReplacementCost>70000</plannedReplacementCost>
       <unplannedReplacementCost>350000</unplannedReplacementCost>

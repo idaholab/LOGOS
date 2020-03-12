@@ -45,7 +45,7 @@
       </Model>
     </EnsembleModel>
 
-    <ExternalModel name="hp_fwh_model" subType="Logos.IncrementalNPV">
+    <ExternalModel name="hp_fwh_model" subType="LOGOS.IncrementalNPV">
       <variables>fp,hp_fwh_npv_a,hp_fwh_npv_b</variables>
       <alias variable="hp_fwh_p_failure" type="input">fp</alias>
       <Cp>12.99</Cp>
@@ -62,7 +62,7 @@
       <lifetime>20</lifetime>
     </ExternalModel>
 
-    <ExternalModel name="edg_model" subType="Logos.IncrementalNPV">
+    <ExternalModel name="edg_model" subType="LOGOS.IncrementalNPV">
       <variables>fp,edg_npv_a,edg_npv_b</variables>
       <alias variable="edg_p_failure" type="input">fp</alias>
       <Cp>10.08</Cp>
@@ -79,7 +79,7 @@
       <lifetime>20</lifetime>
     </ExternalModel>
 
-    <ExternalModel name="sm_model" subType="Logos.IncrementalNPV">
+    <ExternalModel name="sm_model" subType="LOGOS.IncrementalNPV">
       <variables>fp,sm_npv_a,sm_npv_b,sm_npv_c</variables>
       <alias variable="sm_p_failure" type="input">fp</alias>
       <Cp>2.24</Cp>
@@ -96,7 +96,7 @@
       <lifetime>20</lifetime>
     </ExternalModel>
 
-    <ExternalModel name="sws_model" subType="Logos.IncrementalNPV">
+    <ExternalModel name="sws_model" subType="LOGOS.IncrementalNPV">
       <variables>fp,sws_npv_a,sws_npv_b</variables>
       <alias variable="sws_p_failure" type="input">fp</alias>
       <Cp>2.34</Cp>
@@ -113,7 +113,7 @@
       <lifetime>20</lifetime>
     </ExternalModel>
 
-    <ExternalModel name="rvi_model" subType="Logos.IncrementalNPV">
+    <ExternalModel name="rvi_model" subType="LOGOS.IncrementalNPV">
       <variables>fp,rvi_npv_a,rvi_npv_b</variables>
       <alias variable="rvi_p_failure" type="input">fp</alias>
       <Cp>19.82</Cp>
@@ -130,7 +130,7 @@
       <lifetime>20</lifetime>
     </ExternalModel>
 
-    <ExternalModel name="rlpt_model" subType="Logos.IncrementalNPV">
+    <ExternalModel name="rlpt_model" subType="LOGOS.IncrementalNPV">
       <variables>fp,rlpt_npv_a,rlpt_npv_b</variables>
       <alias variable="rlpt_p_failure" type="input">fp</alias>
       <Cp>18.77</Cp>
@@ -148,7 +148,7 @@
       <lifetime>20</lifetime>
     </ExternalModel>
 
-    <ExternalModel name="cr_model" subType="Logos.IncrementalNPV">
+    <ExternalModel name="cr_model" subType="LOGOS.IncrementalNPV">
       <variables>fp,cr_npv_a,cr_npv_b</variables>
       <alias variable="cr_p_failure" type="input">fp</alias>
       <Cp>5.24</Cp>
@@ -165,7 +165,7 @@
       <lifetime>20</lifetime>
     </ExternalModel>
 
-    <ExternalModel name="msr_model" subType="Logos.IncrementalNPV">
+    <ExternalModel name="msr_model" subType="LOGOS.IncrementalNPV">
       <variables>fp,msr_npv_a,msr_npv_b,msr_npv_c</variables>
       <alias variable="msr_p_failure" type="input">fp</alias>
       <Cp>3.16</Cp>
@@ -182,7 +182,7 @@
       <lifetime>20</lifetime>
     </ExternalModel>
 
-    <ExternalModel name="mckp" subType="Logos.CapitalInvestmentModel">
+    <ExternalModel name="mckp" subType="LOGOS.CapitalInvestmentModel">
       <variables>
         hp_fwh_npv_a,hp_fwh_npv_b,
         edg_npv_a,edg_npv_b,
