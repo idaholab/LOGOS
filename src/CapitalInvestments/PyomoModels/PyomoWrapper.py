@@ -19,7 +19,7 @@ import pyomo.environ as pyomo
 
 #Internal Modules------------------------------------------------------------------------------------
 try:
-  from Logos.src.CapitalInvestments.investment_utils import investmentUtils as utils
+  from LOGOS.src.CapitalInvestments.investment_utils import investmentUtils as utils
 except ImportError:
   from CapitalInvestments.investment_utils import investmentUtils as utils
 #Internal Modules End--------------------------------------------------------------------------------

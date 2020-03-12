@@ -30,8 +30,8 @@ from pyomo.pysp.scenariotree.tree_structure_model import CreateAbstractScenarioT
 
 #Internal Modules------------------------------------------------------------------------------------
 try:
-  from Logos.src.CapitalInvestments.investment_utils import investmentUtils as utils
-  from Logos.src.CapitalInvestments.PyomoModels.PyomoWrapper import PyomoWrapper
+  from LOGOS.src.CapitalInvestments.investment_utils import investmentUtils as utils
+  from LOGOS.src.CapitalInvestments.PyomoModels.PyomoWrapper import PyomoWrapper
 except ImportError:
   from CapitalInvestments.investment_utils import investmentUtils as utils
   from .PyomoWrapper import PyomoWrapper
@@ -227,7 +227,7 @@ class ModelBase:
                                     self.paramsAuxInfo[key]['maxDim'],
                                     value
                                   )
-            # call internal functions to update parameters, initial values provided by Logos input file will be
+            # call internal functions to update parameters, initial values provided by LOGOS input file will be
             # modified by given dictionary "extendedDict"
             pyomoWrapper.updateParams(extendedDict)
           else:
@@ -238,7 +238,7 @@ class ModelBase:
       if 'constraint' not in dir(constrMod):
         raise IOError(
           'External constraint: "{}" does not contain a method named "constraint". '
-          'It must be present if this needs to be used in Logos optimization!'.format(constrKey)
+          'It must be present if this needs to be used in LOGOS optimization!'.format(constrKey)
         )
       else:
         # constrMod.constraint(pyomoWrapper, constrKey)

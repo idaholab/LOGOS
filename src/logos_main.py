@@ -30,7 +30,7 @@ logging.basicConfig(format='%(asctime)s %(name)-20s %(levelname)-8s %(message)s'
 # logger = logging.getLogger(__name__)
 logger = logging.getLogger()
 # # create file handler which logs debug messages
-fh = logging.FileHandler(filename='logos.log', mode='w')
+fh = logging.FileHandler(filename='LOGOS.log', mode='w')
 fh.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s %(name)-20s %(levelname)-8s %(message)s')
 fh.setFormatter(formatter)
@@ -39,16 +39,16 @@ logger.addHandler(fh)
 
 
 if __name__ == "__main__":
-  parser = argparse.ArgumentParser(description='Run Logos as a stand-alone code')
-  parser.add_argument('-i', '--input', nargs=1, required=True, help='Logos input filename')
-  parser.add_argument('-o', '--output', nargs=1, help='Logos output filename')
+  parser = argparse.ArgumentParser(description='Run LOGOS as a stand-alone code')
+  parser.add_argument('-i', '--input', nargs=1, required=True, help='LOGOS input filename')
+  parser.add_argument('-o', '--output', nargs=1, help='LOGOS output filename')
   args = parser.parse_args()
   args = vars(args)
   inFile = args['input'][0]
-  logger.info('Logos input file: %s', inFile)
+  logger.info('LOGOS input file: %s', inFile)
   if args['output'] is not None:
     outFile = args['output'][0]
-    logger.info('Logos output file: %s', outFile)
+    logger.info('LOGOS output file: %s', outFile)
   else:
     outFile = '.'.join(inFile.split('.')[:-1]) + '.csv'
     logger.warning('Output file is not specifies, default output file with name ' + outFile + ' will be used')

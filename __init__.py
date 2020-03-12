@@ -8,6 +8,6 @@ Created on Nov. 18, 2019
 @author: wangc, mandd
 """
 
-from Logos.src import CapitalInvestmentModel
-from Logos.src import BatteryReplacementCashFlowModel
-from Logos.src import IncrementalNPV
+from LOGOS.src import CapitalInvestmentModel
+from LOGOS.src import BatteryReplacementCashFlowModel
+from LOGOS.src import IncrementalNPV
