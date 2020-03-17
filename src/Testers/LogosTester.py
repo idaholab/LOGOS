@@ -31,7 +31,7 @@ class LogosRun(RavenTester):
       @ In, None
       @ Out, params, _ValidParameters, the parameters for this class.
     """
-    params = RavenFramework.get_valid_params()
+    params = RavenTester.get_valid_params()
     params.add_param('parameters', '-i', 'Input argument to LOGOS')
     return params
 
