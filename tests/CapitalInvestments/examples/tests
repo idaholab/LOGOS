@@ -110,6 +110,7 @@
    input = 'use_case_3b_fy19_consistent_constraint_I_II.xml'
    UnorderedCsv = 'use_case_3b_fy19_consistent_constraint_I_II.csv'
    skip_if_OS = windows
+   heavy = true
   [../]
 
 []

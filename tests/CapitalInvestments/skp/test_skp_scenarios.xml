@@ -52,7 +52,7 @@
     </net_present_values>
   </Uncertainties>
   <Settings>
-    <solver>glpk</solver>
+    <solver>cbc</solver>
     <sense>maximize</sense>
     <tee>False</tee>
   </Settings>

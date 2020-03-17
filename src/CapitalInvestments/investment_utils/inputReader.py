@@ -195,6 +195,8 @@ def readSettings(root, nodeTag, workingDir):
       settingDict[subnode.tag] = {}
       for child in subnode:
         settingDict[subnode.tag][child.tag] = child.text.strip()
+    elif subnode.tag == 'workingDir':
+      settingDict[subnode.tag] = subnode.text.strip()
     else:
       settingDict[subnode.tag] = subnode.text.strip().lower()
   # set working dir

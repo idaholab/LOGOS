@@ -6,7 +6,7 @@
   UnorderedCsv = 'test_skp.csv'
  [../]
 
- [./logos_skp]
+ [./logos_skp_constraint]
   type  = 'LogosRun'
   input = 'test_skp_external_constraint.xml'
   UnorderedCsv = 'test_skp_external_constraint.csv'
@@ -22,6 +22,7 @@
   type  = 'LogosRun'
   input = 'test_bkp_scenarios.xml'
   UnorderedCsv = 'test_bkp_scenarios.csv'
+  skip_if_OS = windows
  [../]
 
  [./logos_dkp]
@@ -40,6 +41,7 @@
   type  = 'LogosRun'
   input = 'test_multi_variation.xml'
   UnorderedCsv = 'test_multi_variation.csv'
+  skip_if_OS = windows
  [../]
 
  [./logos_skp_no_index]
@@ -58,12 +60,14 @@
   type  = 'LogosRun'
   input = 'test_skp_scenarios.xml'
   UnorderedCsv = 'test_skp_scenarios.csv'
+  skip_if_OS = windows
  [../]
 
  [./logos_skp_variation]
   type  = 'LogosRun'
   input = 'test_variation.xml'
   UnorderedCsv = 'test_variation.csv'
+  skip_if_OS = windows
  [../]
 
  [./logos_skp_EE_41_projects]

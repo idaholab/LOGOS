@@ -43,7 +43,7 @@ class LogosRun(RavenTester):
       @ Out, None
     """
     RavenTester.__init__(self, name, param)
-    self.logos_driver = os.path.join(LOGOS_LOC, 'src', 'logos_main.py')
+    self.logos_driver = os.path.join(LOGOS_LOC, 'logos_main.py')
 
   def get_command(self):
     """
