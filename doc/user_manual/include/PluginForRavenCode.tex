@@ -13,7 +13,7 @@ the overall NPV of the selected portfolio.
 Example RAVEN Input \xmlNode{ExternalModel} XML:
 \begin{lstlisting}[style=XML]
 <Models>
-  <ExternalModel name="singleKnapsack" subType="Logos.CapitalInvestmentModel">
+  <ExternalModel name="singleKnapsack" subType="LOGOS.CapitalInvestmentModel">
     <variables>available_capitals,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,
       MaxNPV</variables>
     <ModelData>
@@ -47,7 +47,7 @@ code at run time. This object allows the user to import LOGOS module that is goi
 to be treated as a predefined internal RAVEN object. In other words, the
 \textbf{External Model} is going to be treated by RAVEN as a normal external code.
 The users can check the RAVEN user manual for more detailed description.
-\nb The value for attribute \xmlAttr{subType} should always be \xmlString{Logos.CapitalInvestmentModel}.
+\nb The value for attribute \xmlAttr{subType} should always be \xmlString{LOGOS.CapitalInvestmentModel}.
 
 The \xmlNode{variables} specifies a list of variable names that need to match
 variables used/defined in LOGOS model. In the above example, the variable

@@ -137,17 +137,17 @@ The NPV of Option 2 is:\par
 \end{equation}
 
 
-We can compare the two options in two ways. The first way is to simply compute the {\it net}  NPV as the difference between the NPV of Option 1 and that of Option 2, i.e.,  \( \mbox{Net NPV}=\mbox{NPV Option }1-\mbox{NPV Option }2 \) . The resulting equation is:\par
+We can compare the two options in two ways. The first way is to simply compute the  NPV as the difference between the NPV of Option 1 and that of Option 2, i.e.,  \( \mbox{NPV}=\mbox{NPV Option }1-\mbox{NPV Option }2 \) . The resulting equation is:\par
 
 
 
 
 \begin{equation}\label{npv_7}
-\mbox{Net NPV}= -C_{P}+ \left[  \sum _{t=1}^{N-1}\frac{ \left( C_{U}+DC_{D} \right) p \left( 1-p \right) ^{t-1}}{ \left( 1+R \right) ^{t-1}}+\frac{C_{P} \left( 1-p \right) ^{N-1}}{ \left( 1+R \right) ^{N-1}} \right]
+\mbox{NPV}= -C_{P}+ \left[  \sum _{t=1}^{N-1}\frac{ \left( C_{U}+DC_{D} \right) p \left( 1-p \right) ^{t-1}}{ \left( 1+R \right) ^{t-1}}+\frac{C_{P} \left( 1-p \right) ^{N-1}}{ \left( 1+R \right) ^{N-1}} \right]
 \end{equation}
 
 
-If the project in question is the only one under consideration, then if  \( \text{Net NPV} \)  $>$ 0 the decision is to replace the item today, and otherwise we replace later.
+If the project in question is the only one under consideration, then if  \( \text{NPV} \)  $>$ 0 the decision is to replace the item today, and otherwise we replace later.
 %As we discuss in detail in Section 6, we\ employ an optimization model when multiple projects are considered simultaneously, and we need to stay within annual budgets in terms of, for example, capital costs.  \par
 
 We now extend the logic of what we have above to the planned replacement occurring in year \( ~T_{0} \) . In what we have presented above, we assumed  \( ~T_{0}=1 \) , but we now allow for delaying this planned replacement to a later year, albeit at the risk of incurring a failure prior to  \( ~T_{0} \)  along with associated unplanned\ replacement costs and downtime costs.  If the planned replacement happens at time  \( T_{0} \) , the corresponding time-series of cash flows will become: one for replacing the item at time  \( T_{0} \) , either at failure before  \( T_{0} \)  or at  \( T_{0} \) , and another for replacing it later, either at failure or at the horizon year  \( N \) .\par
@@ -212,22 +212,22 @@ The second time-series of cash flow is for attempting to delay replacement of th
 \end{equation}
 
 
-We can compute  \( \text{Net NPV} \)  as:\par
+We can compute  \( \text{NPV} \)  as:\par
 
 
 
 
 \begin{eqnarray}\label{npv_12}
-\mbox{Net NPV}&=&\mbox{NPV Option }1-\mbox{NPV Option }2\\
+\mbox{NPV}&=&\mbox{NPV Option }1-\mbox{NPV Option }2\\
 &=& \left[  \sum _{t=T_{0}}^{N-1}\frac{ \left( C_{U}+DC_{D} \right) p \left( 1-p \right) ^{t-1}}{ \left( 1+R \right) ^{t-1}}+\frac{C_{P} \left( 1-p \right) ^{N-1}}{ \left( 1+R \right) ^{N-1}}-\frac{C_{P} \left( 1-p \right) ^{T_{0}-1}}{ \left( 1+R \right) ^{T_{0}-1}} \right]
 \end{eqnarray}
 
-A new RAVEN \textbf{External Model} with \xmlAttr{subType} \xmlString{Logos.IncrementalNPV}
-is created to compute the Net NPV described above.
+A new RAVEN \textbf{External Model} with \xmlAttr{subType} \xmlString{LOGOS.IncrementalNPV}
+is created to compute the NPV described above.
 
 Example RAVEN Input \xmlNode{ExternalModel} XML:
 \begin{lstlisting}[style=XML]
-<ExternalModel name="rvi_model" subType="Logos.IncrementalNPV">
+<ExternalModel name="rvi_model" subType="LOGOS.IncrementalNPV">
   <variables>fp,rvi_npv_a,rvi_npv_b</variables>
   <alias variable="rvi_p_failure" type="input">fp</alias>
   <Cp>19.82</Cp>
@@ -245,7 +245,7 @@ Example RAVEN Input \xmlNode{ExternalModel} XML:
 </ExternalModel>
 \end{lstlisting}
 
-In order to use this external model to compute net NPV, the \xmlString{Logos.IncrementalNPV}
+In order to use this external model to compute NPV, the \xmlString{LOGOS.IncrementalNPV}
 should be always used for \xmlAttr{subType}. Except the common nodes \xmlNode{variables}
 and \xmlNode{alias}, this entity accepts the following sub-nodes:
 \begin{itemize}
@@ -272,7 +272,7 @@ and \xmlNode{alias}, this entity accepts the following sub-nodes:
   \item \xmlNode{lifetime}, \xmlDesc{integer, required parameter}, specifies the lifetime
   of the project.
   \item \xmlNode{options}, \xmlDesc{optional parameter}, specifies options to compute
-  net NPVs of planned replacements occurring in different years relative to start time.
+  NPVs of planned replacements occurring in different years relative to start time.
   \begin{itemize}
     \item \xmlNode{Td}, \xmlDesc{comma separated integers, required parameter},
     specifies the lengths of delaying the planned replacement.
@@ -281,7 +281,7 @@ and \xmlNode{alias}, this entity accepts the following sub-nodes:
     delaying specifies in \xmlNode{Td}. In order to communicate with RAVEN, these
     variables need to be listed under node \xmlNode{variables}.
     \nb These variables are defined by the user that would be used to store the
-    calculated net NPVs.
+    calculated NPVs.
   \end{itemize}
 \end{itemize}
 
@@ -295,7 +295,7 @@ fp,rvi_npv_a,rvi_npv_b
 ...
 \end{lstlisting}
 
-\nb In order to be able to compute the net NPVs, the CashFlow plugin is required.
+\nb In order to be able to compute the NPVs, the CashFlow plugin is required.
 The following link ~\url{https://github.com/idaholab/raven/wiki/Plugins} provides
 the details about how to access and install the plugins.
 
