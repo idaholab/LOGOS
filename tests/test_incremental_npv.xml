@@ -15,7 +15,7 @@
   </RunInfo>
 
   <Models>
-    <ExternalModel name="SSC_replacement_NPV" subType="Logos.IncrementalNPV">
+    <ExternalModel name="SSC_replacement_NPV" subType="LOGOS.IncrementalNPV">
       <variables>fp, NPV, time</variables>
       <Cp>12.99</Cp>
       <Cu>25.98</Cu>

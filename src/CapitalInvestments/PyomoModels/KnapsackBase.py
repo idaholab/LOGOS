@@ -25,7 +25,7 @@ import pyomo.environ as pyomo
 
 #Internal Modules------------------------------------------------------------------------------------
 try:
-  from Logos.src.CapitalInvestments.PyomoModels.ModelBase import ModelBase
+  from LOGOS.src.CapitalInvestments.PyomoModels.ModelBase import ModelBase
 except ImportError:
   from .ModelBase import ModelBase
 #Internal Modules End--------------------------------------------------------------------------------

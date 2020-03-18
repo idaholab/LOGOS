@@ -13,9 +13,9 @@ warnings.simplefilter('default',DeprecationWarning)
 
 ################################################################################
 try:
-  from Logos.src.CapitalInvestments.PyomoModels.SingleKnapsack import SingleKnapsack
-  from Logos.src.CapitalInvestments.PyomoModels.MultipleKnapsack import MultipleKnapsack
-  from Logos.src.CapitalInvestments.PyomoModels.MCKP import MCKP
+  from LOGOS.src.CapitalInvestments.PyomoModels.SingleKnapsack import SingleKnapsack
+  from LOGOS.src.CapitalInvestments.PyomoModels.MultipleKnapsack import MultipleKnapsack
+  from LOGOS.src.CapitalInvestments.PyomoModels.MCKP import MCKP
 except ImportError:
   from .SingleKnapsack import SingleKnapsack
   from .MultipleKnapsack import MultipleKnapsack

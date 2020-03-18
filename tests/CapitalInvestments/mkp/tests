@@ -1,50 +1,39 @@
 [Tests]
 
   [./logos_mkp]
-    type  = 'RavenPluginExecutable'
+    type  = 'LogosRun'
     input = 'test_mkp.xml'
-    required_executable = 'Logos/logos'
-    parameters = '-i'
     UnorderedCsv = 'test_mkp.csv'
+    skip_if_OS = windows
   [../]
 
   [./logos_mkp_glpk]
-    type  = 'RavenPluginExecutable'
+    type  = 'LogosRun'
     input = 'test_mkp_1.xml'
-    required_executable = 'Logos/logos'
-    parameters = '-i'
     UnorderedCsv = 'test_mkp_1.csv'
   [../]
 
   [./logos_mkp_no_index]
-    type  = 'RavenPluginExecutable'
+    type  = 'LogosRun'
     input = 'test_mkp_noindex.xml'
-    required_executable = 'Logos/logos'
-    parameters = '-i'
     UnorderedCsv = 'test_mkp_noindex.csv'
   [../]
 
   [./logos_mkp_scenarios]
-    type  = 'RavenPluginExecutable'
+    type  = 'LogosRun'
     input = 'test_mkp_scenarios.xml'
-    required_executable = 'Logos/logos'
-    parameters = '-i'
     UnorderedCsv = 'test_mkp_scenarios.csv'
   [../]
 
   [./logos_mkp_t]
-    type  = 'RavenPluginExecutable'
+    type  = 'LogosRun'
     input = 'test_mkp_t.xml'
-    required_executable = 'Logos/logos'
-    parameters = '-i'
     UnorderedCsv = 'test_mkp_t.csv'
   [../]
 
   [./logos_mkp_weing]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'test_mkp_weing.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'test_mkp_weing.csv'
   [../]
 

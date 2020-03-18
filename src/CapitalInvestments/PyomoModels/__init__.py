@@ -10,10 +10,10 @@ Created on March. 19, 2019
 from __future__ import absolute_import
 
 try:
-  from Logos.src.CapitalInvestments.PyomoModels.SingleKnapsack import SingleKnapsack
-  from Logos.src.CapitalInvestments.PyomoModels.MultipleKnapsack import MultipleKnapsack
-  from Logos.src.CapitalInvestments.PyomoModels.MCKP import MCKP
-  from Logos.src.CapitalInvestments.PyomoModels.Factory import knownTypes, returnInstance, returnClass
+  from LOGOS.src.CapitalInvestments.PyomoModels.SingleKnapsack import SingleKnapsack
+  from LOGOS.src.CapitalInvestments.PyomoModels.MultipleKnapsack import MultipleKnapsack
+  from LOGOS.src.CapitalInvestments.PyomoModels.MCKP import MCKP
+  from LOGOS.src.CapitalInvestments.PyomoModels.Factory import knownTypes, returnInstance, returnClass
 except ImportError:
   from .SingleKnapsack import SingleKnapsack
   from .MultipleKnapsack import MultipleKnapsack

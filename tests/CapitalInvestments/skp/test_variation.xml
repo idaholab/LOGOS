@@ -77,7 +77,7 @@
 
   <Settings>
     <regulatoryMandated>10,11,12,13,14,15,16</regulatoryMandated>
-    <solver>glpk</solver>
+    <solver>cbc</solver>
     <sense>maximize</sense>
   </Settings>
 </Logos>

@@ -21,7 +21,7 @@
   </RunInfo>
 
   <Models>
-    <ExternalModel name="mckp" subType="Logos.CapitalInvestmentModel">
+    <ExternalModel name="mckp" subType="LOGOS.CapitalInvestmentModel">
       <variables>
         available_capitals,
         i1__1,
@@ -136,7 +136,7 @@
         </Parameters>
 
         <Settings>
-          <solver>cbc</solver>
+          <solver>glpk</solver>
           <sense>maximize</sense>
           <problem_type>mckp</problem_type>
         </Settings>

@@ -168,7 +168,7 @@
   </Parameters>
 
   <Settings>
-    <solver>cbc</solver>
+    <solver>glpk</solver>
     <sense>maximize</sense>
     <problem_type>mckp</problem_type>
   </Settings>

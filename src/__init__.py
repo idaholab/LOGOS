@@ -2,4 +2,4 @@
 #
 #
 #_________________________________________________________________
-from Logos.src.CapitalInvestments import *
+from LOGOS.src.CapitalInvestments import *

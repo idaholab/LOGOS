@@ -70,7 +70,7 @@
       <variables>msr_p_failure,msr_npv_a,msr_npv_b,msr_npv_c</variables>
     </ExternalModel>
 
-    <ExternalModel name="mckp" subType="Logos.CapitalInvestmentModel">
+    <ExternalModel name="mckp" subType="LOGOS.CapitalInvestmentModel">
       <variables>
         hp_fwh_npv_a,hp_fwh_npv_b,
         edg_npv_a,edg_npv_b,

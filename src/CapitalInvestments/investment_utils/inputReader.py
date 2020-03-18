@@ -23,7 +23,7 @@ import pandas as pd
 
 #Internal Modules------------------------------------------------------------------------------------
 try:
-  from Logos.src.CapitalInvestments.investment_utils import investmentUtils as utils
+  from LOGOS.src.CapitalInvestments.investment_utils import investmentUtils as utils
 except ImportError:
   from CapitalInvestments.investment_utils import investmentUtils as utils
 #Internal Modules End--------------------------------------------------------------------------------
@@ -195,6 +195,8 @@ def readSettings(root, nodeTag, workingDir):
       settingDict[subnode.tag] = {}
       for child in subnode:
         settingDict[subnode.tag][child.tag] = child.text.strip()
+    elif subnode.tag == 'workingDir':
+      settingDict[subnode.tag] = subnode.text.strip()
     else:
       settingDict[subnode.tag] = subnode.text.strip().lower()
   # set working dir

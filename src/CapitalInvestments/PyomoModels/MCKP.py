@@ -21,7 +21,7 @@ import pyomo.environ as pyomo
 
 #Internal Modules------------------------------------------------------------------------------------
 try:
-  from Logos.src.CapitalInvestments.PyomoModels.KnapsackBase import KnapsackBase
+  from LOGOS.src.CapitalInvestments.PyomoModels.KnapsackBase import KnapsackBase
 except ImportError:
   from .KnapsackBase import KnapsackBase
 #Internal Modules End--------------------------------------------------------------------------------

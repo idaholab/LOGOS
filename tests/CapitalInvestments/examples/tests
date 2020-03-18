@@ -1,131 +1,116 @@
 [Tests]
 
   [./logos_examples_p16]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'test_p16.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'test_p16.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_p16_ext]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'test_p16_ext.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'test_p16_ext.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_1a_fy19]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_1a_fy19.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_1a_fy19.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_1b_fy19]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_1b_fy19.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_1b_fy19.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_1c_fy19]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_1c_fy19.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_1c_fy19.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_2a_fy19]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_2a_fy19.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_2a_fy19.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_2a_fy19_consistent_constraint_I]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_2a_fy19_consistent_constraint_I.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_2a_fy19_consistent_constraint_I.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_2a_fy19_consistent_constraint_I_II]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_2a_fy19_consistent_constraint_I_II.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_2a_fy19_consistent_constraint_I_II.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_2a_fy19_no_consistent_constraint]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_2a_fy19_no_consistent_constraint.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_2a_fy19_no_consistent_constraint.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_2b_fy19_consistent_constraint_I]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_2b_fy19_consistent_constraint_I.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_2b_fy19_consistent_constraint_I.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_2b_fy19_consistent_constraint_I_II]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_2b_fy19_consistent_constraint_I_II.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_2b_fy19_consistent_constraint_I_II.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_2b_fy19_no_consistent_constraint]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_2b_fy19_no_consistent_constraint.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_2b_fy19_no_consistent_constraint.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_2c_fy19_consistent_constraint_I_II]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_2c_fy19_consistent_constraint_I_II.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_2c_fy19_consistent_constraint_I_II.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_2d_fy19_consistent_constraint_I_II]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_2d_fy19_consistent_constraint_I_II.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_2d_fy19_consistent_constraint_I_II.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_3a_fy19_consistent_constraint_I_II]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_3a_fy19_consistent_constraint_I_II.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_3a_fy19_consistent_constraint_I_II.csv'
+   skip_if_OS = windows
   [../]
 
   [./logos_examples_use_case_3b_fy19_consistent_constraint_I_II]
-   type  = 'RavenPluginExecutable'
+   type  = 'LogosRun'
    input = 'use_case_3b_fy19_consistent_constraint_I_II.xml'
-   required_executable = 'Logos/logos'
-   parameters = '-i'
    UnorderedCsv = 'use_case_3b_fy19_consistent_constraint_I_II.csv'
+   skip_if_OS = windows
+   heavy = true
   [../]
 
 []
