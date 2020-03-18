@@ -19,46 +19,47 @@ facets and implications.
   maintenance (O\&M) costs. Choosing to perform minimum maintenance versus refurbishing
   a component versus replacing and improving a system can produce “reward” streams over
   years which can be negative or positive depending on the selection. Parameter
-  \xmlNode{net\_present\_values} is used to specify the rewards (See Section~\ref{subsec:Parameters}).
+  \xmlNode{net\_present\_values} is used to specify the rewards (see Section~\ref{subsec:Parameters}).
 
   \item \textbf{Resources and Liabilities}: Critical resources, including: (i) capital costs,
   (ii) O\&M costs, (iii) time and labor-hours during a planned outage, (iv) personnel,
   installation \& maintenance equipment, space, and more. Within these categories, resources
   can be placed in further subcategories, each with its own budget, due to a plant’s organizational
   structure so that there are multiple “colors” of money within capital costs, within O\&M costs,
-  within personnel availability, etc. Set \xmlNode{resources} is used to specify the resources and
-  liabilities (See Section~\ref{subsec:Sets}).
+  within personnel availability, etc. Set \xmlNode{resources} and parameter
+  \xmlNode{available\_capitals} are used to specify the resources and
+  liabilities (see Section~\ref{subsec:Sets} and Section~\ref{subsec:Parameters}).
 
   \item \textbf{Costs}: Selecting a project in year $t$ induces multiple
   cost streams in year $t$ and in subsequent years, where we interpret “cost” broadly to
   include commitment of critical resources. Parameter \xmlNode{costs} is used to specify
-  the costs (See Section~\ref{subsec:Parameters}).
+  the costs (see Section~\ref{subsec:Parameters}).
 
   \item \textbf{Time Periods}: Multiple capital projects can compete for time that would
   limit project selection. Set \xmlNode{time\_periods} is used to provide indices for
-  \textbf{costs} and \textbf{available capitals} (See Section~\ref{subsec:Sets}).
+  \textbf{costs} and \textbf{available capitals} (see Section~\ref{subsec:Sets}).
 
   \item \textbf{Options}: The goal of selecting a project is typically to improve or maintain
   a particular function that the plant performs, and there may be multiple ways to carry out
-  the task. A project may be performed over a three-year period, say, years `$t$,$t+1$, $t+2$`, or the
+  the task. A project may be performed over a three-year period, say, years `$t$, $t+1$, $t+2$', or the
   start of the project could instead be two years hence with project implementation over
-  years `$t+2$, $t+3$, $t+4$`. Alternatively, at increased cost and increased benefit, it may be
-  possible to complete the project in two years, `$t$, $t+1$` or `$t+2$, $t+3$`. When selecting a project
-  to uprate plant capacity, we may have two options that increase capacity by 3% or 6%.
+  years `$t+2$, $t+3$, $t+4$'. Alternatively, at increased cost and increased benefit, it may be
+  possible to complete the project in two years, `$t$, $t+1$' or `$t+2$, $t+3$'. When selecting a project
+  to uprate plant capacity, we may have two options that increase capacity by 3\% or 6\%.
   In all these cases, we can perform the project in at most one way, from a collection of
   multiple options. We represent this by cloning a “project” into multiple project-option pairs,
-  and adding a constraint saying that we can select at most one of from this set of options.
-  Sets \xmlNode{options} is used to provided indices for these multiple project-option pairs
-  (See Section~\ref{subsec:Sets}).
+  and adding a constraint saying that we can select at most one from this set of options.
+  Set \xmlNode{options} is used to provided indices for these multiple project-option pairs
+  (see Section~\ref{subsec:Sets}).
 
   \item \textbf{Capitals}: If we consider a maintenance for multi-units NPP in parallel,
   i.e. it has to be decided whether to accept a particular replacement and in the positive
   case in which unit to conduct the corresponding replacement. In this case, set \xmlNode{capitals}
-  is used to provided indices for these units (See Section~\ref{subsec:Sets}).
+  is used to provided indices for these units (see Section~\ref{subsec:Sets}).
 
   \item \textbf{Available Capitals}: available budgets for resources/units. Parameter
   \xmlNode{available\_capitals} is used to specify the available capitals for different
-  resources/captials at different $t$ (See Section~\ref{subsec:Parameters}).
+  resources/captials at different $t$ (see Section~\ref{subsec:Parameters}).
 
   \item \textbf{Non-Selection}: Not selecting a project also has implications, inducing growth
   in O\&M costs in future years, a decrease in plant production, an increase in forced outages,
@@ -66,7 +67,7 @@ facets and implications.
   one more “option” as to how a larger project is executed, expanding the list just discussed.
   Selection is of the “do nothing” option is reflected in both liability streams and reward
   streams. This can be activated via setting \xmlNode{nonSelection} to \xmlString{True}
-  (See Section~\ref{subsec:Settings}).
+  (see Section~\ref{subsec:Settings}).
 
   \item \textbf{Uncertainty}: One limitation of traditional optimization models for capital
   budgeting is that they do not account for uncertainty in reward and cost streams associated
@@ -77,7 +78,7 @@ facets and implications.
   of schedule and with cost savings. Planned budgets for capital improvements can be cut and key
   personnel may be lost. Or, there may be surprise windfalls in budgets for maintenance activities
   due to decreased costs for “unplanned” maintenance. XML node \xmlNode{Uncertainties} is used
-  to specify the uncertainties (See Section~\ref{subsec:Uncertainties}).
+  to specify the uncertainties (see Section~\ref{subsec:Uncertainties}).
 
   %\item \textbf{Synergies}: Selecting a project may require replacing a structure, system, or
   %component (SSC) during a planned outage of the plant. Depending on the physical location of
@@ -102,7 +103,7 @@ facets and implications.
 LOGOS consists of a collection of modeling entities/components that define different
 aspects of the model, including \xmlNode{Sets}, \xmlNode{Parameters},
 \xmlNode{Uncertainties} and \xmlNode{ExternalConstraints}. In addition, \xmlNode{Setting}
-block specifies how the overall computation should be run.
+block specifies how the overall computation should run.
 
 %
 \subsection{Sets}
@@ -124,7 +125,7 @@ that is typically used to specify the valid indices for an indexed components.
   specifies the indices for time.
   \item \xmlNode{resources}, \xmlDesc{comma/space-separated string, optional},
   specifies indices for the resources and liabilities.
-  \item \xmlNode{options}, \xmlDesc{comma/space-separated string, optional},
+  \item \xmlNode{options}, \xmlDesc{semi-colon separated list of strings, optional},
   specifies the indices for multiple project-option pairs.
   This sub-node accepts the following attribute:
   \begin{itemize}
@@ -175,9 +176,9 @@ This sub-section contains the information regarding the XML nodes used to define
   \begin{itemize}
     \item \xmlAttr{index}, \xmlDesc{comma-separated string, optional},
     specifies the indices of this parameter, keywords should be predefined in \xmlNode{Sets}.
-    Valid keywords are \xmlString{investments} and \xmlString{investments, time\_periods},
+    Valid keywords are \xmlString{investments}, \xmlString{investments, time\_periods},
     \xmlString{options}, \xmlString{options, resources}, \xmlString{options, time\_periods},
-    \xmlString{options, resources, time\_periods}.
+    and \xmlString{options, resources, time\_periods}.
     \default{'investments'}
   \end{itemize}
   \item \xmlNode{available\_capitals}, \xmlDesc{comma/space-separated string, required},
@@ -187,7 +188,7 @@ This sub-section contains the information regarding the XML nodes used to define
     \item \xmlAttr{index}, \xmlDesc{comma-separated string, optional},
     specifies the indices of this parameter, keywords should be predefined in \xmlNode{Sets}.
     Valid keywords are \xmlString{resources}, \xmlString{time\_periods}, \xmlString{capitals},
-    \xmlString{resources, time\_periods}, \xmlString{capitals, time\_periods}
+    \xmlString{resources, time\_periods}, and \xmlString{capitals, time\_periods}
     \default{None}
   \end{itemize}
 \end{itemize}
@@ -289,7 +290,12 @@ This sub-section contains the information regarding the XML nodes used to define
 This node accepts the following sub-node(s):
 \begin{itemize}
   \item \xmlNode{constraint}, \xmlDesc{string, required}, specifies the external python
-  module file name. This external python module contains the user defined additional constraint
+  module file name (file name with its absolute or relative path). This external python
+  module contains the user defined additional constraint.
+  \nb If a relative path is specified, the code first checks relative to the working directory,
+  then it checks with respect to the location of input file. The working directory can be
+  specified in \xmlNode{Settings} (see Section~\ref{subsec:Settings}). In addition, the extension
+  `.py' is optional for the module file name that inputted in this node.
   on the optimization problem. This sub-node also requires the following attribute:
   \begin{itemize}
     \item \xmlAttr{name}, \xmlDesc{string, required}, specifies the name of constraint that will
@@ -301,10 +307,116 @@ Example XML:
 \begin{lstlisting}[style=XML]
 <ExternalConstraints>
   <constraint name="con_I">externalConst</constraint>
-  <constraint name="con_II">externalConstII</constraint>
+  <constraint name="con_II">externalConstII.py</constraint>
 </ExternalConstraints>
 \end{lstlisting}
 
+These constraints are Python modules, with a format that is automatically interpretable by
+LOGOS. For example, users can define their own constraint and the code will be embedded
+and use the constraint as though it were an active part of the code itself.
+In the following, an example of a user-defined external constraint is reported.
+
+Example Python Function:
+\begin{lstlisting}[language=python]
+# External constraint function
+import numpy as np
+import pyomo.environ as pyomo
+
+def initialize():
+  """
+    Optional Method
+    Optimization model parameters values can be updated/modified
+    without directly accessing the optimization model.
+    Value(s) will be updated in-place.
+    @ In, None
+    @ Out, updateDict, dict, {paramName:paramInfoDict},  where
+      paramInfoDict contains {Indices:Values}
+      Indices are parameter indices (either strings or tuples of
+      strings, depending on whether there is one or
+      more than one dimension). Values are the new values being
+      assigned to the parameter at the given indices.
+  """
+  updateDict = {'available_capitals':{'None':16},
+                'costs':{'1':1,'2':3,'3':7,'4':4,'5':8,
+                         '6':9,'7':6,'8':10,'9':2,'10':5}
+               }
+  return updateDict
+
+def constraint(var, sets, params):
+  """
+    Required Method
+    External constraint provided by users that will be added to
+    optimization problem
+    @ In, sets, dict, all "Sets" provided in the Logos input
+      file will be stored and available in this dictionary,
+      i.e. {setName: setObject}
+    @ In, params, dict, all "Parameters" provided in the
+      Logos input file will be stored and
+      available in this dictionary, i.e. {paramName: paramObject}
+    @ In, var, object, the internally used decision variable,
+      the dimensions/indices of this variable depend the type of
+      optimization problems (i.e. "<problem_type>" from Logos
+      input file). Currently, we will accept the following
+      problem types:
+
+      1. "singleknapsack": in this case, "var" will be var[:],
+         where the index will be the element from
+         xml node of "investment" in Logos input file.
+
+      2. "multipleknapsack": in this case, "var" will be var[:,:],
+         where the indices are the combinations element from set
+         "investment" and element from set "capitals" in Logos
+         input file
+
+      3. "mckp": in this case, "var" will be var[:,:], where the
+         indices are the combinations element from set
+         "investment" and element from set "options" in Logos
+         input file
+
+      (Note that all element that is used as index will be
+      converted to string even if a number is provided in
+      the Logos input file).
+
+    @ Out, constraint, tuple, either (constraintRule,)
+      or (constraintRule, indices)
+
+    (Note that any modifications in provided sets and params
+    will only have impact on this local module,
+    i.e. the external constraint. In other words, the Sets
+    and Params used in the internal constraints and
+    objective will be kept unchanged!)
+  """
+  # All sets and parameters can be retrieved from dictionary
+  # "sets" and "params" investments = sets['investments']
+
+  def constraintRule(self, i):
+    """
+      Expression for user provided external constraint
+      @ In, self, object, required to present, but not used
+      @ In, i, str, element for the index set
+      @ Out, constraintRule, function expression, expression
+        to define user provided constraint
+
+      Note that: Constraints can be indexed by lists or sets.
+      When the return of function "constraint" contains
+      lists or sets except the "constraintRule", the elements
+      are iteratively passed to the rule function. If there
+      is more than one, then the cross product is sent.
+      For example, this constraint could be interpreted as
+      placing limit on "ith" decision variable "var".
+      A list of constraints for all "ith" decision variable
+      "var" will be added to the optimization model
+    """
+    return var[i] <= 1
+
+  # A tuple is required for the return, the first element
+  # should be always the "constraintRule",
+  # while the rest of elements are the lists or sets
+  # if the user wants to construct the constraints
+  # iteratively (See the docstring in "constraintRule"),
+  # otherwise, keep it empty
+  return (constraintRule, investments)
+\end{lstlisting}
 
 %
 \subsection{Settings: Options for Optimization}
