@@ -21,7 +21,8 @@
  [./mkp_optimization]
   type  = 'RavenFramework'
   input = 'test_mkp.xml'
-  UnorderedCsv = 'mkp/Print_DS.csv'
+  #UnorderedCsv = 'mkp/Print_DS.csv'
+  output = 'mkp/Print_DS.csv'
  [../]
 
  [./battery_replacement_cashflow]

@@ -22,19 +22,22 @@
   [./logos_mkp_scenarios]
     type  = 'LogosRun'
     input = 'test_mkp_scenarios.xml'
-    UnorderedCsv = 'test_mkp_scenarios.csv'
+    #UnorderedCsv = 'test_mkp_scenarios.csv'
+    output = 'test_mkp_scenarios.csv'
   [../]
 
   [./logos_mkp_t]
     type  = 'LogosRun'
     input = 'test_mkp_t.xml'
-    UnorderedCsv = 'test_mkp_t.csv'
+    #UnorderedCsv = 'test_mkp_t.csv'
+    output = 'test_mkp_t.csv'
   [../]
 
   [./logos_mkp_weing]
    type  = 'LogosRun'
    input = 'test_mkp_weing.xml'
-   UnorderedCsv = 'test_mkp_weing.csv'
+   #UnorderedCsv = 'test_mkp_weing.csv'
+   output = 'test_mkp_weing.csv'
   [../]
 
 []
