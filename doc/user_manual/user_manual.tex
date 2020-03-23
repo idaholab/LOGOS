@@ -17,6 +17,11 @@
 %
 
 \documentclass[pdf,12pt]{INLreport}
+
+\newcommand{\vst}{\vspace*{0.2in}}
+\newcommand{\dst}{\displaystyle}
+\newcommand{\noi}{\noindent}
+
 % pslatex is really old (1994).  It attempts to merge the times and mathptm packages.
 % My opinion is that it produces a really bad looking math font.  So why are we using it?
 % If you just want to change the text font, you should just \usepackage{times}.
@@ -292,6 +297,11 @@ showstringspaces=false            %
     % This is where the body of the report begins; usually with an Introduction
     %
     \input{Introduction.tex}
+    \input{include/ModelingComponents.tex}
+    \input{include/DeterministicCapitalBudgeting.tex}
+    \input{include/StochasticCapitalBudgeting.tex}
+    \input{include/PluginForRavenCode.tex}
+    \input{include/CashflowAndNPVModels.tex}
 
     \section*{Document Version Information}
     This document has been compiled using the following version of the plug-in git repository:
