@@ -3,32 +3,32 @@
 
 One limitation of traditional optimization models for capital budgeting is that
 they do not account for risk/uncertainty in profit and cost streams associated
-with individual projects, they do not account for risk in resource availability
-in future years. Projects can incur cost over-runs, especially when projects are
-large, performed infrequently, and when there is risk regarding technical viability,
+with individual projects, nor do they account for risk in resource availability
+in future years. Projects can incur cost overruns, especially when projects are
+large, performed infrequently, or when there is risk regarding technical viability,
 external contractors, and/or suppliers of requisite parts and materials.
-Occasionally, projects are performed ahead of schedule and with cost savings.
-Planned budgets for capital improvements can be cut and key personnel may be
-lost. Or, there may be surprise windfalls in budgets for maintenance activities
-due to decreased costs for “unplanned” maintenance. In these cases, how should
-we resolve capital budgeting when we have risk forecasts for costs, profits and
+Occasionally, projects are performed ahead of schedule and with savings in cost.
+Planned budgets for capital improvements can be cut, and key personnel may be
+lost. Or, there may be surprise budgetary windfalls for maintenance activities
+due to decreased costs for “unplanned” maintenance. In such cases, how should
+we resolve capital budgeting when we have risk forecasts for costs, profits, and
 budgets? One approach is to re-solve the models described in the previous
-section when refined forecasts for these parameters become available. However,
+section once refined forecasts for these parameters become available. However,
 it is not always practical to fully revise a project portfolio whenever better
 forecasts become available.
 
-In order to prioritize the project selection with risk forecast for these
+In order to prioritize the project selection using a risk forecast for these
 parameters, the two-stage stochastic optimization model~\cite{PrioritizingProjectSelection} is employed to provide
 priority lists to decision-makers to support better risk-informed decisions.
-Its inputs include those described in above sections for different variant of
+Its inputs include those described in above sections for different variants of
 the capital budgeting problem, except that a probabilistic description of the
-uncertain parameters is integrated in the optimization process. The two-stage
-stochastic optimization model forms a priority list as its first- stage decision
-and then forms a corresponding project portfolio for each scenario as its
+uncertain parameters is integrated into the optimization process. The two-stage
+stochastic optimization model forms a priority list as its first-stage decision,
+then forms a corresponding project portfolio for each scenario as its
 second-stage decision. When forming the optimal second-stage project portfolio
 under a specific scenario, the stochastic optimization model ensures that the
-portfolio is consistent with the first-stage prioritization; i.e., a project can
-be selected only if all high-priority projects are also selected. Thus, the
+portfolio is consistent with the first-stage prioritization (i.e., a project can
+be selected only if all high-priority projects are also selected.) Thus, the
 portfolios of projects corresponding to different scenarios are nested.
 
 The notation and formulation of the risk-informed models are as follows:
@@ -36,7 +36,7 @@ The notation and formulation of the risk-informed models are as follows:
 \[
 \begin{array}{ll}
 %%%%%%%%%%%%%% INDICES AND SET %%%%%%%%%%%%%%%%
-\multicolumn{2}{l}{\mbox{\em Indexes and sets:} } \\
+\multicolumn{2}{l}{\mbox{\em Indices and sets:} } \\
 t \in T  & \mbox{time periods (years)} \\
 i,i^{'} \in I  & \mbox{candidate projects} \\
 j \in J_{i}	& \mbox{options for selecting project $i$} \\
@@ -47,8 +47,8 @@ m \in M & \mbox{units of NPP} \\
 \\
 %%%%%%%%%%%%%% DATA %%%%%%%%%%%%%%%%
 \multicolumn{2}{l}{\mbox{\em Data:}} \\
-a_{i}^{\omega} & \mbox{reward of selecting project $i$ under scenario $\omega$}  \\
-a_{ij}^{\omega} & \mbox{reward of selecting project $i$ via option $j$ under scenario $\omega$}  \\
+a_{i}^{\omega} & \mbox{reward for selecting project $i$ under scenario $\omega$}  \\
+a_{ij}^{\omega} & \mbox{reward for selecting project $i$ via option $j$ under scenario $\omega$}  \\
 b^{\omega} & \mbox{available budget under scenario $\omega$}\\
 b_{k}^{\omega} & \mbox{available budget for a resource of type $k$ under scenario $\omega$}\\
 b_{t}^{\omega} & \mbox{available budget in year $t$ under scenario $\omega$}\\
@@ -85,15 +85,15 @@ y_{ii^{'}} & \mbox{1 if project $i$ has no lower priority than project $i^{'}$; 
 & & x_{i}^\omega \geq x_{i'}^\omega + y_{ii'}-1, i\neq i' \label{stoc_conc}
 \end{eqnarray}
 \end{subequations}
-For simplicity, in what follows the variable $y_{ii'}=1$ means that project $i$
-is higher priority than $i'$ even though the variable definition allows for ties,
-i.e., the projects being the same priority.
-Constraint~(\ref{stoc_cona}) requires that we be within budget under each scenarios.
-Constraint~(\ref{stoc_conb}) indicates that either project $i$ is higher priority
-than project $i'$ or vice versa, and further allows both (i.e., a tie).
-Constraint~(\ref{stoc_conc}) indicates that if project $i$ is higher priority than
-project $i'$ ($y_{ii'}=1$), then if we select the lower priority project then we
-must also select the higher priority project; if $y_{ii'}=0$ or if $x_{i'}^\omega$
+For simplicity in what follows, the variable $y_{ii'}=1$ means that project $i$
+is of higher priority than $i'$, even though the variable definition allows for ties
+(i.e., projects of the same priority).
+Constraint~(\ref{stoc_cona}) requires us to be within budget under each scenario.
+Constraint~(\ref{stoc_conb}) indicates that either project $i$ is of higher priority
+than project $i'$, or vice versa, or that both are of equal priority (i.e., a tie).
+Constraint~(\ref{stoc_conc}) indicates that if project $i$ is of higher priority than
+project $i'$ ($y_{ii'}=1$), and we select the lower priority project, then we
+must also select the higher priority project; if $y_{ii'}=0$, or if $x_{i'}^\omega=0$,
 then the constraint is vacuous.
 In order to handle the risk in the capital budgeting problems, the entity
 \xmlNode{Uncertainties} (see section~\ref{subsec:Uncertainties}) is used to specify
@@ -145,13 +145,13 @@ Example LOGOS input XML:
 </Logos>
 \end{lstlisting}
 
-When run this case, LOGOS would generate a CSV (comma separated values) file that
-contains solutions for the optimization problem, i.e. values of decision variables
-and maximum profit (MaxNPV is used to describe the maximum profit). The header of
-this CSV file contains the indices listed under \xmlNode{investments} which are
-used as indices for decision variables, the objective variable \textbf{MaxNPV},
+When running this case, LOGOS would generate a CSV (comma separated values) file
+containing solutions for the optimization problem (i.e. values of decision variables
+and maximum profit [MaxNPV is used to describe the maximum profit]). The header of
+this CSV file contains the indices listed under \xmlNode{investments}
+used as indices for decision variable, the objective variable \textbf{MaxNPV},
 the scenario name and the associated probability weight.
-The data provides the values for both decision variables and objective variable.
+The data provides the values for both decision variables and the objective variable.
 
 Example LOGOS output CSV:
 \begin{lstlisting}[basicstyle=\small,language=python]
@@ -296,19 +296,19 @@ Model formulation:\\
 ~~~~~~~~\sum_{m=1}^{M} x_{im}^\omega \geq \sum_{m=1}^{M} x_{i'm}^\omega + y_{ii'} -1,~ i \neq i^{'}\text{, i, }i^{'} \in I,  \omega  \in  \Omega
 \end{equation}
 
-Constraint~(\ref{rimkp_objb}) indicates that either project $i$  is higher priority
-than project  $i^{'}$  or vice versa, and further allows both (i.e., a tie).
+Constraint~(\ref{rimkp_objb}) indicates that either project $i$  is of higher priority
+than project  $i^{'}$, or vice versa, or that both are of equal priority (i.e., a tie).
 Constraint~(\ref{rimkp_objc}) indicates that if project  $i$  is higher priority than
-project  $i^{'}$ ($y_{ii^{'}}=1$), then if we select the lower priority project
-\textit{for some unit} then we must also select the higher priority project;
-if  $y_{ii^{'}}=0$  or if  $\sum_{m=1}^{M} x_{i'm}^\omega$  then the constraint is vacuous.\par
+project  $i^{'}$ ($y_{ii^{'}}=1$), and we select the lower priority project
+\textit{for some unit}, then we must also select the higher priority project;
+if  $y_{ii^{'}}=0$, or if $\sum_{m=1}^{M} x_{i'm}^\omega=0$  then the constraint is vacuous.\par
 
 \begin{equation}\label{rimkp_objd}
  \sum _{i \in I}^{} c_{i}^{ \omega }x_{im}^{ \omega }~  \leq  b_{m}^{ \omega },~ m \in M,  \omega  \in  \Omega
 \end{equation}
 
 Constraint~(\ref{rimkp_objd}) requires that we be within budget
-for each unit, and under each scenario.
+for each unit under each scenario.
 
 \begin{equation}\label{rimkp_obje}
 \sum_{m\in M} x_{im}^{ \omega } \leq 1,~ i \in I, \omega  \in  \Omega
@@ -400,12 +400,12 @@ Model formulation:\\
 ~~~~~~~~\sum_{j=1}^{J_i} x_{ij}^\omega \geq \sum_{j=1}^{J_i} x_{i'j}^\omega + y_{ii'} -1,~ i \neq i^{'}\text{, i, }i^{'} \in I,  \omega  \in  \Omega
 \end{equation}
 
-Constraint~(\ref{stoc_objb}) indicates that either project $i$  is higher priority
-than project  $i^{'}$  or vice versa, and further allows both (i.e., a tie).
+Constraint~(\ref{stoc_objb}) indicates that either project $i$ is of higher priority
+than project  $i^{'}$, or vice versa, or that both are of equal priority (i.e., a tie).
 Constraint~(\ref{stoc_objc}) indicates that if project  $i$  is higher priority than
-project  $i^{'}$  $y_{ii^{'}}=1$  then if we select the lower priority project
-\textit{under some option} then we must also select the higher priority project;
-if  $y_{ii^{'}}=0$  or if  $\sum_{j=1}^{J_i} x_{i'j}^\omega$  then the constraint is vacuous.\par
+project  $i^{'}$  $y_{ii^{'}}=1$, and we select the lower priority project
+\textit{under some option}, then we must also select the higher priority project;
+if  $y_{ii^{'}}=0$,  or if  $\sum_{j=1}^{J_i} x_{i'j}^\omega=0$,  then the constraint is vacuous.\par
 
 \begin{equation}\label{stoc_objd}
  \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}\text{~ c}_{ijkt}^{ \omega }x_{ij}^{ \omega }~  \leq  b_{kt}^{ \omega },~ k \in K, t \in T,  \omega  \in  \Omega
@@ -419,8 +419,8 @@ for each resource type, and under each scenario.
 \end{equation}
 
 Constraint~(\ref{stoc_obje}) simultaneously ensures that we select project  $i$
-via at most one option. We note that this illustrates the situation in which we
-must include the {\it Do Nothing}  option among the alternatives for optional projects.\par
+via, at most, one option. Note that this illustrates a situation in which we
+must include the {\it DoNothing}  option among the alternatives to optional projects.\par
 
 Example LOGOS input XML:
 \begin{lstlisting}[style=XML]

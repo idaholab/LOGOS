@@ -42,7 +42,7 @@ x_{ij} & \mbox{1 if project $i$ is selected via option $j$; 0 otherwise} \hspace
 \end{subequations}
 
 The decision variables, $x_{ij}$, indicate whether we choose to do project i by means j. Restated,
-if $x_{ij}=1$, then we recommend doing project $i$ via option $j$, and taken together these decision
+if $x_{ij}=1$, then we recommend doing project $i$ via option $j$; taken together, these decision
 variables produce both a portfolio of selected projects and a schedule for performing those projects
 over time.  The set of available options, $j \in J_i$, can explicitly include the “do-nothing” option,
 and the first constraint ensures that we choose exactly one option from the available set for each
@@ -57,44 +57,43 @@ the $0-1$ decision variable, $x_{ij}$.
 % captures piggybacking situations in which option $j^{'}$ for project $i^{'}$ (which may have cheaper
 % costs) may be selected only if project-option pair $(i,j)$ is also selected.
 
-We note that sometimes there are projects that must be done, e.g., for safety and or regulatory
-reasons. This can be handled within the mathematical formulation just given, without introducing
+We note that certain projects must be done (e.g., for safety and or regulatory
+reasons). This can be handled within the mathematical formulation just given, without introducing
 additional constructs. The set $J_i$ typically includes a do-nothing option for each project,
 but when project $i$ must be done, we simply do not include the do-nothing option. Mathematically,
-an alternative is to not include an explicit do-nothing option, to replace the first structural
-constraint with an inequality, and to add an additional set of must-do projects with an equality
+one alternative is to disclude an explicit do-nothing option, replace the first structural
+constraint with an inequality, and add an additional set of must-do projects with an equality
 constraint. Both options are mathematically equivalent and simply represent a choice to be made by
 the analyst. In LOGOS, we use \xmlNode{regulatoryMandated} and \xmlNode{nonSelection} to
 handle these conditions. \xmlNode{regulatoryMandated} is used to specify the must-do projects,
 while \xmlNode{nonSelection} is used to activate the do-nothing option.
 
-\nb If a project is listed under \xmlNode{regulatoryMandated}, do-nothing option is not allowed
-for this project. In addition, handling the do-nothing option implicitly leads to NPV be
+\nb If a project is listed under \xmlNode{regulatoryMandated}, the do-nothing option is not allowed
+for this project. In addition, handling the do-nothing option implicitly leads to the NPV being
 calculated relative to that of the do-nothing option.
 
-The objective of capital budgeting is to find the combination of the binary decisions for
-every investment such that the overall profit is as large as possible. The output is a
-collection of projects to be carried out, and we refer this selected collection of projects
-as a project portfolio. However, as it is frequently the case for capital budgeting with
-NPP applications, in practice several optional constraints, such as resources/liabilities,
-dependencies/synergies, options, time windows for every investment etc., have to be
-fulfilled. This leads to a various variations of the knapsack problem (described above).
-In the following sub-section, we will present several different variants of above
-capital budgeting problem, i.e. different variants of knapsack problem.
+The objective of capital budgeting is to find the right combination of binary decisions for
+every investment so that overall profit is maximized. The output is a
+collection of projects to be carried out, and we refer to this selected collection of projects
+as a ``project portfolio''. However, as is frequently the case for capital budgeting with
+NPP applications, in practice, several optional constraints, such as resources/liabilities,
+dependencies/synergies, options, time windows for every investment, etc., have to be
+fulfilled. This leads to a various variations of the knapsack problem.
+In the following subsection, we will present several different variants of the above
+capital budgeting problem (i.e., variants of the knapsack problem).
 
 \subsection{Single Knapsack Problem Optimization}
 \label{subsec:skp}
 
 \subsubsection{Simple Knapsack Problem}
-The simple Knapsack Problem (KP) for capital budgeting can be defined as follows:
+The simple knapsack problem (KP) for capital budgeting can be defined as follows:
 we are given an instance of the capital budgeting problem with investment set $I$,
-consisting of $I$ investments $i$ with profit $a_i$, e.g. NPV, and cost $c_i$,
-and the available budget $b$. Then the objective is to select a subset of $I$ such
-that the total profit of the selected investments is maximized and total cost does
+consisting of $I$ investments $i$ with profit $a_i$ (e.g. NPV), cost $c_i$,
+and available budget $b$. The objective is to select a subset of $I$ such
+that the total profit of the selected investments is maximized and the total cost does
 not exceed $b$. Alternatively, KP can be formulated as a solution of the following
 linear integer programming formulation:
 
-\vst \noi {\em Formulation:}
 \begin{subequations}\label{simpleKP}
 \begin{eqnarray}
 &\dst \max_{x} &  \dst \sum_{i \in I} a_{i} x_{i} \\
@@ -131,12 +130,12 @@ Example LOGOS input XML:
 </Logos>
 \end{lstlisting}
 
-When run this case, LOGOS would generate a CSV (comma separated values) file that
-contains solutions for the optimization problem, i.e. values of decision variables
-and maximum profit (MaxNPV is used to describe the maximum profit). The header of
-this CSV file contains the indices listed under \xmlNode{investments} which are
-used as indices for decision variables, and the objective variable \textbf{MaxNPV}.
-The data provides the values for both decision variables and objective variable.
+When running this case, LOGOS would generate a CSV (comma separated values) file
+containing solutions for the optimization problem (i.e. values of decision variables
+and maximum profit [MaxNPV is used to describe the maximum profit]). The header of
+this CSV file contains the indices listed under \xmlNode{investments}
+used as indices for decision variables and the objective variable \textbf{MaxNPV}.
+The data provides the values for both decision variables and the objective variable.
 
 Example LOGOS output CSV:
 \begin{lstlisting}[language=python]
@@ -144,22 +143,21 @@ Example LOGOS output CSV:
 1.0,1.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,1.0,106.0
 \end{lstlisting}
 
-In this case, the projects \textbf{1, 2, 4, 9, 10} are selected with maximum
-profit 106.0.
+In this case, projects \textbf{1, 2, 4, 9, and 10} are selected with a maximum
+profit of 106.0.
 
 \subsubsection{Bounded Knapsack Problem}
-In the capital budgeting problem described above it may be the case that not all
-investments/projects are different from each other. In particular, in practice
-there may be given a number $n_i$ of identical pumps/valves to be replaced. In this
-case the number of decision variables is equal to the number of different
-investments instead of the total number of investments. The constraint for
-decision variable becomes:
+In the capital budgeting problem described above, it may be the case that not all
+investments/projects are different from each other. For example, in practice,
+there may be given a number ($n_i$) of identical pumps/valves to be replaced. In this
+case, the number of decision variables is equal to the number of different
+investments, rather than the total number of investments. The constraint for
+decision variables becomes:
 \begin{equation}
 0\leq x_i \leq n_i, i\in N
 \end{equation}
-The resulting problem is called the bounded knapsack problem (BKP) formally defined by
+The resulting problem is called the bounded knapsack problem (BKP) and is formally defined as:
 
-\vst \noi {\em Formulation:}
 \begin{subequations}\label{boundedKP}
 \begin{eqnarray}
 &\dst \max_{x} &  \dst \sum_{i \in I} a_{i} x_{i} \\
@@ -214,15 +212,14 @@ Example LOGOS output CSV:
 \end{lstlisting}
 
 \subsubsection{Multi-Dimensional Knapsack Problem: DKP}
-Moving in a different direction, if we now take into account not only the cost constraint but also
-the limited commitment of critical resources, including: (i) capital cost, (ii) operation
-and maintenance costs, (iii) time and labor-hours during a planned outage, (iv) personnel,
-installation and maintenance equipment, space, and more. Denoting the cost of every
-investment by $c_{ik}$ for each resource $k$ and introduce the corresponding limited resource
-$b_k$ we can formulate the capital budgeting problem as multi-dimensional knapsack problem
+Moving in a different direction, we now take into account not only the cost constraint, but also
+the limited commitment of critical resources, including: (i) capital cost, (ii) O\&M
+costs, (iii) time and labor-hours during a planned outage, and (iv) personnel,
+installation and maintenance equipment, workspaces, etc.. Denoting the cost of every
+investment by $c_{ik}$ for each resource $k$ and introducing the corresponding limited resource
+$b_k$, we can formulate the capital budgeting problem as a multi-dimensional
 or D-dimensional knapsack problem formally defined by:
 
-\vst \noi {\em Formulation:}
 \begin{subequations}\label{boundedKP}
 \begin{eqnarray}
 &\dst \max_{x} &  \dst \sum_{i \in I} a_{i} x_{i} \\
@@ -232,13 +229,12 @@ or D-dimensional knapsack problem formally defined by:
 \end{subequations}
 
 Where the limited resources set is denoted by $K$, consisting of $k$ “colors” of money
-within capital costs, within operation and maintenance costs, within personnel availability, etc.
-Another example is that the plant has multi-year investments. Consider a DKP problem in
+within capital costs, O\&M costs, personnel availability, etc.
+Another example is provided if the plant has multi-year investments. Consider a DKP problem in
 which the costs of each investment and the available capitals vary according to time
 period $t$. By defining $c_{it}$ as the cost of investment $i$ at time period $i$,
 and $b_t$ as the available capital at time period $t$, we get:
 
-\vst \noi {\em Formulation:}
 \begin{subequations}\label{DKP}
 \begin{eqnarray}
 &\dst \max_{x} &  \dst \sum_{i \in I} a_{i} x_{i} \\
@@ -296,19 +292,19 @@ Example LOGOS output CSV:
 \subsection{Multiple Knapsack Problem Optimization}
 \label{subsec:mkp}
 Another interesting variant of the capital budgeting problem arises if we consider
-a maintenance for multi-units NPP in parallel, i.e. it has to be decided whether
-to accept a particular replacement and in the positive case in which unit to conduct
+maintenance for multiple units in a NPP in parallel, i.e. it has to be decided whether
+to accept a particular replacement and, in the positive case, in which unit to conduct
 the corresponding replacement. This can be formulated by
 introducing a binary decision variable for every combination of a maintenance with a unit.
 If there are $I$ investments (investment set $I$) on the list of maintenance requests and $m$
-unit (unit set $M$) available, we use binary variables:
+units (unit set $M$) available, we use binary variables:
 
 \begin{equation}
 x_{im} \in \{0,1\}, i\in I, m\in M
 \end{equation}
-The resulting problem is called the Multiple Knapsack Problem (MKP),
-and the mathematical formulation is given by
-\vst \noi {\em Formulation:}
+The resulting problem is called the multiple knapsack problem (MKP),
+and the mathematical formulation is given by:
+
 \begin{subequations}\label{MKP}
 \begin{eqnarray}
 &\dst \max_{x} &  \dst \sum_{m \in M} \sum_{i \in I} a_{i} x_{im} \\
@@ -361,14 +357,13 @@ Example LOGOS output CSV:
 \subsection{Multiple-Choice Multi-Dimensional Knapsack Problem Optimization}
 \label{subsec:mckp}
 Another quite different variant of the capital budgeting problem appears if there may
-be multiple ways to carry out each investment/project. Each investment $i$ however exists
-in a number of options where the j-th option has cost $c_{ij}$ and profit
-value $a_{ij}$ This problem can be expressed as the Multiple-Choice Knapsack Problem
-(MCKP). Assume $J_i$ is the set of different options of investment $i$. Using the
+be multiple ways to carry out each investment/project. Each investment $i$, however, exists
+in a number of options in which the j-th option has cost $c_{ij}$ and profit
+value $a_{ij}$. This problem can be expressed as the multiple-choice knapsack problem
+(MCKP). Assume $J_i$ is the set of different options for investment $i$. Using the
 decision variables $x_{ij}$ to denote whether option $j$ was chosen from the set $J_i$,
-the mathematical formulation of MCKP is given by
+the mathematical formulation of MCKP is given by:
 
-\vst \noi {\em Formulation:}
 \begin{subequations}\label{MKP}
 \begin{eqnarray}
 &\dst \max_{x} &  \dst \sum_{i \in I, j \in J_{i}} a_{ij} x_{ij} \\
@@ -379,16 +374,15 @@ the mathematical formulation of MCKP is given by
 \end{subequations}
 
 Considering the limited resources and multi-year investments, the MCKP may be extended
-to D-dimensional MCKP problem (D-MCKP). For example, a project may be performed over
-a three-year period, say, years `$t$, $t+1$, $t+2$', or the start of the project could
-instead be two years hence with project implementation over years `$t+2$, $t+3$, $t+4$'.
-Alternatively, at increased cost and increased benefit, it may be possible to complete
-the project in two years, `$t$, $t+1$', or `$t+2$, $t+3$'. When selecting a project to
-uprate plant capacity, we may have two options that increase capacity by 3\% or 6\%.
+to a D-dimensional MCKP problem (D-MCKP). For example, a project may be performed over
+a three-year period--say, years `$t$, $t+1$, $t+2$'--or the start of the project could
+instead be two years hence, changing the equation to `$t+2$, $t+3$, $t+4$'.
+Alternatively, at increased cost and benefit, it may be possible to complete
+the project in two years: `$t$, $t+1$', or `$t+2$, $t+3$'. When selecting a project to
+uprate plant capacity, we may have the options of increasing it by 3\% or 6\%.
 In these cases, the problem can be expressed as the D-MCKP.
-This problem is formally defined as follows
+This problem is formally defined as follows:
 
-\vst \noi {\em Formulation:}
 \begin{subequations}\label{model-deter}
 \begin{eqnarray}
 &\dst \max_{x} &  \dst \sum_{i \in I, j \in J_{i}} a_{ij} x_{ij} \label{obj_deter} \\
@@ -398,10 +392,9 @@ This problem is formally defined as follows
 \end{eqnarray}
 \end{subequations}
 
-or as the same as the problem described at the beginning of this chapter
+or in the same as the problem described at the beginning of this chapter
 (see Section~\ref{sec:DeterministicCapitalBudgeting}):
 
-\vst \noi {\em Formulation:}
 \begin{subequations}\label{model-deter}
 \begin{eqnarray}
 &\dst \max_{x} &  \dst \sum_{i \in I, j \in J_{i}} a_{ij} x_{ij} \label{obj_deter} \\
@@ -494,6 +487,6 @@ Example LOGOS output CSV:
 1.0,1.0,1.0,1.0,0.0,0.0,...,1.0,59.82600000000001
 \end{lstlisting}
 
-In the output file, the name \textbf{``investmentsIndex"\_\_``optionsIndex"} is used to
-specify the decision variable. For example, \textbf{1\_\_1} indicates investment \textbf{1}
-with options \textbf{1} is selected.
+In the output file, the names \textbf{``investmentsIndex"\_\_``optionsIndex"} are used to
+specify the decision variable. For example, \textbf{1\_\_1} indicates that investment \textbf{1}
+with option \textbf{1} is selected.
