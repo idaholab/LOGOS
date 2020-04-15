@@ -21,11 +21,11 @@ before_script:
     - ./build_raven
       # Install plugin branch ...
     - cd scripts
-    - python install_plugins.py -s ../../ -f
+    - python install_plugins.py -s ../../
       # return to project path main dir
     - cd ../..
 
 test:
     script:
       - cd raven
-      - ./run_tests -j4 --re=plugins/Logos # does this return a failed status?
+      - ./run_tests -j4 --re=plugins/LOGOS # does this return a failed status?
