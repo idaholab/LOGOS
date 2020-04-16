@@ -1,0 +1,50 @@
+	t1	t2	t3	 t4	 t5i1.A	13.01   1.31    0        0       0i2.A	9.19    0.93    0        0       0  
+i3.A    0       0       0        10.09   1.11
+i4.A    0       4.51    0.31     0.21    0
+i5.A    0       18.63   0        0       0
+i6.A    0       2.44    0        0       0
+i7.A    1.32    0.14    0        0       0   i8.A    2.35    0       0        0       0 
+i9.A    0.29    0       0        0       0 
+i10.A   0       0       4.58     0.47    0 i11.A   0       19.85   0        0       0 i12.A   5.27    0       0        0       0  i13.A   0       0       18.79    0       0 
+i14.A   5.94    0.61    0        0       0
+i15.A   5.26    0       0        0       0 
+i16.A   3.17    0       0        0       0
+i1.B	0       13.01   1.31     0       0i2.B	0       9.19    0.93     0       0  
+i3.B    0       0       10.09    1.11    0
+i4.B    0       0       4.51     0.31    0.21
+i5.B    0       0       0        0       18.63
+i6.B    0       0       0        2.44    0
+i7.B    0       0       0        1.32    0.14   i8.B    0       0       2.35     0       0 
+i9.B    NA      NA      NA       NA      NA 
+i10.B   0       4.58    0.47     0       0 i11.B   0       0       0        0       19.85 i12.B   NA      NA      NA       NA      NA  i13.B   0       0       0        18.79   0 
+i14.B   NA      NA      NA       NA      NA
+i15.B   0       0       5.26     0       0 
+i16.B   0       0       0        3.17    0
+i1.C	NA      NA      NA       NA      NAi2.C	0       0       0        9.19    0.93  
+i3.C    NA      NA      NA       NA      NA
+i4.C    NA      NA      NA       NA      NA
+i5.C    NA      NA      NA       NA      NA
+i6.C    0       0       0        0       2.44
+i7.C    NA      NA      NA       NA      NA   i8.C    NA      NA      NA       NA      NA
+i9.C    NA      NA      NA       NA      NA 
+i10.C   0       0       0        4.58    0.47 i11.C   NA      NA      NA       NA      NA i12.C   NA      NA      NA       NA      NA  i13.C   NA      NA      NA       NA      NA 
+i14.C   NA      NA      NA       NA      NA
+i15.C   NA      NA      NA       NA      NA
+i16.C   0       0       0        0       3.17
+*
+*i1 HP_feedwater_heater_upgrade
+*i2 Pressurizer_Replacement												
+*i3 Improvement_to_emergency_diesel_generators										
+*i4 Secondary_system_PHM_system												
+*i5 Replacement_of_two_reactor_coolant_pumps										
+*i6 Seismic_modification_requalification_reinforcement_improvement							
+*i7 Fire_protection													
+*i8 Service_water_system_upgrade											
+*i9 Batteries_replacement
+*i10 Replace_CCW_piping_heat_exchangers_valves										
+*i11 Reactor_vessel_internals												
+*i12 Reactor_vessel_upgrade												
+*i13 Replace_LP_turbine													
+*i14 Replace_instrumentation_and_control_cables										
+*i15 Condenser_retubing
+*i16 Replace_moisture_separator_reheater ;
