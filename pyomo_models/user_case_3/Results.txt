@@ -1,0 +1,783 @@
+; Variable;  x
+('HP_feedwater_heater_upgrade', 'PlanA', 'S1') 0.0
+('HP_feedwater_heater_upgrade', 'PlanA', 'S2') 0.0
+('HP_feedwater_heater_upgrade', 'PlanA', 'S3') 0.0
+('HP_feedwater_heater_upgrade', 'PlanA', 'S4') 0.0
+('HP_feedwater_heater_upgrade', 'PlanA', 'S5') 0.0
+('HP_feedwater_heater_upgrade', 'PlanA', 'S6') 0.0
+('HP_feedwater_heater_upgrade', 'PlanA', 'S7') 0.0
+('HP_feedwater_heater_upgrade', 'PlanA', 'S8') 0.0
+('HP_feedwater_heater_upgrade', 'PlanA', 'S9') 0.0
+('HP_feedwater_heater_upgrade', 'PlanA', 'S10') 0.0
+('Presurizer_replacement', 'PlanA', 'S1') 0.0
+('Presurizer_replacement', 'PlanA', 'S2') 0.0
+('Presurizer_replacement', 'PlanA', 'S3') 0.0
+('Presurizer_replacement', 'PlanA', 'S4') 0.0
+('Presurizer_replacement', 'PlanA', 'S5') 0.0
+('Presurizer_replacement', 'PlanA', 'S6') 0.0
+('Presurizer_replacement', 'PlanA', 'S7') 0.0
+('Presurizer_replacement', 'PlanA', 'S8') 0.0
+('Presurizer_replacement', 'PlanA', 'S9') 0.0
+('Presurizer_replacement', 'PlanA', 'S10') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanA', 'S1') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanA', 'S2') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanA', 'S3') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanA', 'S4') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanA', 'S5') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanA', 'S6') 1.0
+('Improvement_to_emergency_diesel_generators', 'PlanA', 'S7') 1.0
+('Improvement_to_emergency_diesel_generators', 'PlanA', 'S8') 1.0
+('Improvement_to_emergency_diesel_generators', 'PlanA', 'S9') 1.0
+('Improvement_to_emergency_diesel_generators', 'PlanA', 'S10') 1.0
+('Secondary_system_PHM_system', 'PlanA', 'S1') 1.0
+('Secondary_system_PHM_system', 'PlanA', 'S2') 1.0
+('Secondary_system_PHM_system', 'PlanA', 'S3') 1.0
+('Secondary_system_PHM_system', 'PlanA', 'S4') 0.0
+('Secondary_system_PHM_system', 'PlanA', 'S5') 1.0
+('Secondary_system_PHM_system', 'PlanA', 'S6') 1.0
+('Secondary_system_PHM_system', 'PlanA', 'S7') 1.0
+('Secondary_system_PHM_system', 'PlanA', 'S8') 1.0
+('Secondary_system_PHM_system', 'PlanA', 'S9') 1.0
+('Secondary_system_PHM_system', 'PlanA', 'S10') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanA', 'S1') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanA', 'S2') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanA', 'S3') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanA', 'S4') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanA', 'S5') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanA', 'S6') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanA', 'S7') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanA', 'S8') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanA', 'S9') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanA', 'S10') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanA', 'S1') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanA', 'S2') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanA', 'S3') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanA', 'S4') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanA', 'S5') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanA', 'S6') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanA', 'S7') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanA', 'S8') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanA', 'S9') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanA', 'S10') 1.0
+('Fire_protection', 'PlanA', 'S1') 1.0
+('Fire_protection', 'PlanA', 'S2') 1.0
+('Fire_protection', 'PlanA', 'S3') 0.0
+('Fire_protection', 'PlanA', 'S4') 0.0
+('Fire_protection', 'PlanA', 'S5') 0.0
+('Fire_protection', 'PlanA', 'S6') 1.0
+('Fire_protection', 'PlanA', 'S7') 1.0
+('Fire_protection', 'PlanA', 'S8') 0.0
+('Fire_protection', 'PlanA', 'S9') 0.0
+('Fire_protection', 'PlanA', 'S10') 0.0
+('Service_water_system_upgrade', 'PlanA', 'S1') 1.0
+('Service_water_system_upgrade', 'PlanA', 'S2') 1.0
+('Service_water_system_upgrade', 'PlanA', 'S3') 0.0
+('Service_water_system_upgrade', 'PlanA', 'S4') 0.0
+('Service_water_system_upgrade', 'PlanA', 'S5') 0.0
+('Service_water_system_upgrade', 'PlanA', 'S6') 1.0
+('Service_water_system_upgrade', 'PlanA', 'S7') 1.0
+('Service_water_system_upgrade', 'PlanA', 'S8') 1.0
+('Service_water_system_upgrade', 'PlanA', 'S9') 1.0
+('Service_water_system_upgrade', 'PlanA', 'S10') 1.0
+('Batteries_replacement', 'PlanA', 'S1') 1.0
+('Batteries_replacement', 'PlanA', 'S2') 1.0
+('Batteries_replacement', 'PlanA', 'S3') 1.0
+('Batteries_replacement', 'PlanA', 'S4') 1.0
+('Batteries_replacement', 'PlanA', 'S5') 1.0
+('Batteries_replacement', 'PlanA', 'S6') 1.0
+('Batteries_replacement', 'PlanA', 'S7') 1.0
+('Batteries_replacement', 'PlanA', 'S8') 1.0
+('Batteries_replacement', 'PlanA', 'S9') 1.0
+('Batteries_replacement', 'PlanA', 'S10') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanA', 'S1') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanA', 'S2') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanA', 'S3') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanA', 'S4') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanA', 'S5') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanA', 'S6') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanA', 'S7') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanA', 'S8') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanA', 'S9') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanA', 'S10') 0.0
+('Reactor_vessel_internals', 'PlanA', 'S1') 0.0
+('Reactor_vessel_internals', 'PlanA', 'S2') 1.0
+('Reactor_vessel_internals', 'PlanA', 'S3') 1.0
+('Reactor_vessel_internals', 'PlanA', 'S4') 1.0
+('Reactor_vessel_internals', 'PlanA', 'S5') 0.0
+('Reactor_vessel_internals', 'PlanA', 'S6') 1.0
+('Reactor_vessel_internals', 'PlanA', 'S7') 1.0
+('Reactor_vessel_internals', 'PlanA', 'S8') 1.0
+('Reactor_vessel_internals', 'PlanA', 'S9') 1.0
+('Reactor_vessel_internals', 'PlanA', 'S10') 1.0
+('Reactor_vessel_upgrade', 'PlanA', 'S1') 1.0
+('Reactor_vessel_upgrade', 'PlanA', 'S2') 1.0
+('Reactor_vessel_upgrade', 'PlanA', 'S3') 1.0
+('Reactor_vessel_upgrade', 'PlanA', 'S4') 1.0
+('Reactor_vessel_upgrade', 'PlanA', 'S5') 1.0
+('Reactor_vessel_upgrade', 'PlanA', 'S6') 1.0
+('Reactor_vessel_upgrade', 'PlanA', 'S7') 1.0
+('Reactor_vessel_upgrade', 'PlanA', 'S8') 1.0
+('Reactor_vessel_upgrade', 'PlanA', 'S9') 1.0
+('Reactor_vessel_upgrade', 'PlanA', 'S10') 1.0
+('Replace_LP_turbine', 'PlanA', 'S1') 0.0
+('Replace_LP_turbine', 'PlanA', 'S2') 0.0
+('Replace_LP_turbine', 'PlanA', 'S3') 0.0
+('Replace_LP_turbine', 'PlanA', 'S4') 0.0
+('Replace_LP_turbine', 'PlanA', 'S5') 0.0
+('Replace_LP_turbine', 'PlanA', 'S6') 1.0
+('Replace_LP_turbine', 'PlanA', 'S7') 1.0
+('Replace_LP_turbine', 'PlanA', 'S8') 1.0
+('Replace_LP_turbine', 'PlanA', 'S9') 1.0
+('Replace_LP_turbine', 'PlanA', 'S10') 1.0
+('Replace_instrumentation_and_control_cables', 'PlanA', 'S1') 1.0
+('Replace_instrumentation_and_control_cables', 'PlanA', 'S2') 1.0
+('Replace_instrumentation_and_control_cables', 'PlanA', 'S3') 1.0
+('Replace_instrumentation_and_control_cables', 'PlanA', 'S4') 1.0
+('Replace_instrumentation_and_control_cables', 'PlanA', 'S5') 1.0
+('Replace_instrumentation_and_control_cables', 'PlanA', 'S6') 1.0
+('Replace_instrumentation_and_control_cables', 'PlanA', 'S7') 1.0
+('Replace_instrumentation_and_control_cables', 'PlanA', 'S8') 1.0
+('Replace_instrumentation_and_control_cables', 'PlanA', 'S9') 1.0
+('Replace_instrumentation_and_control_cables', 'PlanA', 'S10') 1.0
+('Condenser_retubing', 'PlanA', 'S1') 0.0
+('Condenser_retubing', 'PlanA', 'S2') 0.0
+('Condenser_retubing', 'PlanA', 'S3') 1.0
+('Condenser_retubing', 'PlanA', 'S4') 1.0
+('Condenser_retubing', 'PlanA', 'S5') 1.0
+('Condenser_retubing', 'PlanA', 'S6') 1.0
+('Condenser_retubing', 'PlanA', 'S7') 1.0
+('Condenser_retubing', 'PlanA', 'S8') 1.0
+('Condenser_retubing', 'PlanA', 'S9') 1.0
+('Condenser_retubing', 'PlanA', 'S10') 1.0
+('Replace_moisture_separator_reheater', 'PlanA', 'S1') 1.0
+('Replace_moisture_separator_reheater', 'PlanA', 'S2') 1.0
+('Replace_moisture_separator_reheater', 'PlanA', 'S3') 1.0
+('Replace_moisture_separator_reheater', 'PlanA', 'S4') 1.0
+('Replace_moisture_separator_reheater', 'PlanA', 'S5') 1.0
+('Replace_moisture_separator_reheater', 'PlanA', 'S6') 0.0
+('Replace_moisture_separator_reheater', 'PlanA', 'S7') 0.0
+('Replace_moisture_separator_reheater', 'PlanA', 'S8') 1.0
+('Replace_moisture_separator_reheater', 'PlanA', 'S9') 1.0
+('Replace_moisture_separator_reheater', 'PlanA', 'S10') 1.0
+('HP_feedwater_heater_upgrade', 'PlanB', 'S1') 0.0
+('HP_feedwater_heater_upgrade', 'PlanB', 'S2') 0.0
+('HP_feedwater_heater_upgrade', 'PlanB', 'S3') 0.0
+('HP_feedwater_heater_upgrade', 'PlanB', 'S4') 0.0
+('HP_feedwater_heater_upgrade', 'PlanB', 'S5') 0.0
+('HP_feedwater_heater_upgrade', 'PlanB', 'S6') 0.0
+('HP_feedwater_heater_upgrade', 'PlanB', 'S7') 0.0
+('HP_feedwater_heater_upgrade', 'PlanB', 'S8') 0.0
+('HP_feedwater_heater_upgrade', 'PlanB', 'S9') 0.0
+('HP_feedwater_heater_upgrade', 'PlanB', 'S10') 0.0
+('Presurizer_replacement', 'PlanB', 'S1') 1.0
+('Presurizer_replacement', 'PlanB', 'S2') 1.0
+('Presurizer_replacement', 'PlanB', 'S3') 1.0
+('Presurizer_replacement', 'PlanB', 'S4') 1.0
+('Presurizer_replacement', 'PlanB', 'S5') 1.0
+('Presurizer_replacement', 'PlanB', 'S6') 0.0
+('Presurizer_replacement', 'PlanB', 'S7') 0.0
+('Presurizer_replacement', 'PlanB', 'S8') 0.0
+('Presurizer_replacement', 'PlanB', 'S9') 0.0
+('Presurizer_replacement', 'PlanB', 'S10') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanB', 'S1') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanB', 'S2') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanB', 'S3') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanB', 'S4') 1.0
+('Improvement_to_emergency_diesel_generators', 'PlanB', 'S5') 1.0
+('Improvement_to_emergency_diesel_generators', 'PlanB', 'S6') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanB', 'S7') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanB', 'S8') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanB', 'S9') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanB', 'S10') 0.0
+('Secondary_system_PHM_system', 'PlanB', 'S1') 0.0
+('Secondary_system_PHM_system', 'PlanB', 'S2') 0.0
+('Secondary_system_PHM_system', 'PlanB', 'S3') 0.0
+('Secondary_system_PHM_system', 'PlanB', 'S4') 1.0
+('Secondary_system_PHM_system', 'PlanB', 'S5') 0.0
+('Secondary_system_PHM_system', 'PlanB', 'S6') 0.0
+('Secondary_system_PHM_system', 'PlanB', 'S7') 0.0
+('Secondary_system_PHM_system', 'PlanB', 'S8') 0.0
+('Secondary_system_PHM_system', 'PlanB', 'S9') 0.0
+('Secondary_system_PHM_system', 'PlanB', 'S10') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanB', 'S1') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanB', 'S2') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanB', 'S3') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanB', 'S4') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanB', 'S5') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanB', 'S6') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanB', 'S7') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanB', 'S8') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanB', 'S9') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanB', 'S10') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanB', 'S1') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanB', 'S2') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanB', 'S3') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanB', 'S4') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanB', 'S5') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanB', 'S6') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanB', 'S7') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanB', 'S8') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanB', 'S9') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanB', 'S10') 0.0
+('Fire_protection', 'PlanB', 'S1') 0.0
+('Fire_protection', 'PlanB', 'S2') 0.0
+('Fire_protection', 'PlanB', 'S3') 1.0
+('Fire_protection', 'PlanB', 'S4') 1.0
+('Fire_protection', 'PlanB', 'S5') 1.0
+('Fire_protection', 'PlanB', 'S6') 0.0
+('Fire_protection', 'PlanB', 'S7') 0.0
+('Fire_protection', 'PlanB', 'S8') 1.0
+('Fire_protection', 'PlanB', 'S9') 1.0
+('Fire_protection', 'PlanB', 'S10') 1.0
+('Service_water_system_upgrade', 'PlanB', 'S1') 0.0
+('Service_water_system_upgrade', 'PlanB', 'S2') 0.0
+('Service_water_system_upgrade', 'PlanB', 'S3') 1.0
+('Service_water_system_upgrade', 'PlanB', 'S4') 1.0
+('Service_water_system_upgrade', 'PlanB', 'S5') 1.0
+('Service_water_system_upgrade', 'PlanB', 'S6') 0.0
+('Service_water_system_upgrade', 'PlanB', 'S7') 0.0
+('Service_water_system_upgrade', 'PlanB', 'S8') 0.0
+('Service_water_system_upgrade', 'PlanB', 'S9') 0.0
+('Service_water_system_upgrade', 'PlanB', 'S10') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanB', 'S1') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanB', 'S2') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanB', 'S3') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanB', 'S4') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanB', 'S5') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanB', 'S6') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanB', 'S7') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanB', 'S8') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanB', 'S9') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanB', 'S10') 1.0
+('Reactor_vessel_internals', 'PlanB', 'S1') 0.0
+('Reactor_vessel_internals', 'PlanB', 'S2') 0.0
+('Reactor_vessel_internals', 'PlanB', 'S3') 0.0
+('Reactor_vessel_internals', 'PlanB', 'S4') 0.0
+('Reactor_vessel_internals', 'PlanB', 'S5') 1.0
+('Reactor_vessel_internals', 'PlanB', 'S6') 0.0
+('Reactor_vessel_internals', 'PlanB', 'S7') 0.0
+('Reactor_vessel_internals', 'PlanB', 'S8') 0.0
+('Reactor_vessel_internals', 'PlanB', 'S9') 0.0
+('Reactor_vessel_internals', 'PlanB', 'S10') 0.0
+('Replace_LP_turbine', 'PlanB', 'S1') 1.0
+('Replace_LP_turbine', 'PlanB', 'S2') 1.0
+('Replace_LP_turbine', 'PlanB', 'S3') 1.0
+('Replace_LP_turbine', 'PlanB', 'S4') 1.0
+('Replace_LP_turbine', 'PlanB', 'S5') 1.0
+('Replace_LP_turbine', 'PlanB', 'S6') 0.0
+('Replace_LP_turbine', 'PlanB', 'S7') 0.0
+('Replace_LP_turbine', 'PlanB', 'S8') 0.0
+('Replace_LP_turbine', 'PlanB', 'S9') 0.0
+('Replace_LP_turbine', 'PlanB', 'S10') 0.0
+('Condenser_retubing', 'PlanB', 'S1') 1.0
+('Condenser_retubing', 'PlanB', 'S2') 1.0
+('Condenser_retubing', 'PlanB', 'S3') 0.0
+('Condenser_retubing', 'PlanB', 'S4') 0.0
+('Condenser_retubing', 'PlanB', 'S5') 0.0
+('Condenser_retubing', 'PlanB', 'S6') 0.0
+('Condenser_retubing', 'PlanB', 'S7') 0.0
+('Condenser_retubing', 'PlanB', 'S8') 0.0
+('Condenser_retubing', 'PlanB', 'S9') 0.0
+('Condenser_retubing', 'PlanB', 'S10') 0.0
+('Replace_moisture_separator_reheater', 'PlanB', 'S1') 0.0
+('Replace_moisture_separator_reheater', 'PlanB', 'S2') 0.0
+('Replace_moisture_separator_reheater', 'PlanB', 'S3') 0.0
+('Replace_moisture_separator_reheater', 'PlanB', 'S4') 0.0
+('Replace_moisture_separator_reheater', 'PlanB', 'S5') 0.0
+('Replace_moisture_separator_reheater', 'PlanB', 'S6') 1.0
+('Replace_moisture_separator_reheater', 'PlanB', 'S7') 1.0
+('Replace_moisture_separator_reheater', 'PlanB', 'S8') 0.0
+('Replace_moisture_separator_reheater', 'PlanB', 'S9') 0.0
+('Replace_moisture_separator_reheater', 'PlanB', 'S10') 0.0
+('Presurizer_replacement', 'PlanC', 'S1') 0.0
+('Presurizer_replacement', 'PlanC', 'S2') 0.0
+('Presurizer_replacement', 'PlanC', 'S3') 0.0
+('Presurizer_replacement', 'PlanC', 'S4') 0.0
+('Presurizer_replacement', 'PlanC', 'S5') 0.0
+('Presurizer_replacement', 'PlanC', 'S6') 1.0
+('Presurizer_replacement', 'PlanC', 'S7') 1.0
+('Presurizer_replacement', 'PlanC', 'S8') 1.0
+('Presurizer_replacement', 'PlanC', 'S9') 1.0
+('Presurizer_replacement', 'PlanC', 'S10') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanC', 'S1') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanC', 'S2') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanC', 'S3') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanC', 'S4') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanC', 'S5') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanC', 'S6') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanC', 'S7') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanC', 'S8') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanC', 'S9') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanC', 'S10') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanC', 'S1') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanC', 'S2') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanC', 'S3') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanC', 'S4') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanC', 'S5') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanC', 'S6') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanC', 'S7') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanC', 'S8') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanC', 'S9') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanC', 'S10') 0.0
+('Replace_moisture_separator_reheater', 'PlanC', 'S1') 0.0
+('Replace_moisture_separator_reheater', 'PlanC', 'S2') 0.0
+('Replace_moisture_separator_reheater', 'PlanC', 'S3') 0.0
+('Replace_moisture_separator_reheater', 'PlanC', 'S4') 0.0
+('Replace_moisture_separator_reheater', 'PlanC', 'S5') 0.0
+('Replace_moisture_separator_reheater', 'PlanC', 'S6') 0.0
+('Replace_moisture_separator_reheater', 'PlanC', 'S7') 0.0
+('Replace_moisture_separator_reheater', 'PlanC', 'S8') 0.0
+('Replace_moisture_separator_reheater', 'PlanC', 'S9') 0.0
+('Replace_moisture_separator_reheater', 'PlanC', 'S10') 0.0
+; Variable;  y
+('HP_feedwater_heater_upgrade', 'S1') 0.0
+('HP_feedwater_heater_upgrade', 'S2') 0.0
+('HP_feedwater_heater_upgrade', 'S3') 0.0
+('HP_feedwater_heater_upgrade', 'S4') 0.0
+('HP_feedwater_heater_upgrade', 'S5') 0.0
+('HP_feedwater_heater_upgrade', 'S6') 0.0
+('HP_feedwater_heater_upgrade', 'S7') 0.0
+('HP_feedwater_heater_upgrade', 'S8') 0.0
+('HP_feedwater_heater_upgrade', 'S9') 0.0
+('HP_feedwater_heater_upgrade', 'S10') 0.0
+('Presurizer_replacement', 'S1') 1.0
+('Presurizer_replacement', 'S2') 1.0
+('Presurizer_replacement', 'S3') 1.0
+('Presurizer_replacement', 'S4') 1.0
+('Presurizer_replacement', 'S5') 1.0
+('Presurizer_replacement', 'S6') 1.0
+('Presurizer_replacement', 'S7') 1.0
+('Presurizer_replacement', 'S8') 1.0
+('Presurizer_replacement', 'S9') 1.0
+('Presurizer_replacement', 'S10') 1.0
+('Improvement_to_emergency_diesel_generators', 'S1') 0.0
+('Improvement_to_emergency_diesel_generators', 'S2') 0.0
+('Improvement_to_emergency_diesel_generators', 'S3') 0.0
+('Improvement_to_emergency_diesel_generators', 'S4') 1.0
+('Improvement_to_emergency_diesel_generators', 'S5') 1.0
+('Improvement_to_emergency_diesel_generators', 'S6') 1.0
+('Improvement_to_emergency_diesel_generators', 'S7') 1.0
+('Improvement_to_emergency_diesel_generators', 'S8') 1.0
+('Improvement_to_emergency_diesel_generators', 'S9') 1.0
+('Improvement_to_emergency_diesel_generators', 'S10') 1.0
+('Secondary_system_PHM_system', 'S1') 1.0
+('Secondary_system_PHM_system', 'S2') 1.0
+('Secondary_system_PHM_system', 'S3') 1.0
+('Secondary_system_PHM_system', 'S4') 1.0
+('Secondary_system_PHM_system', 'S5') 1.0
+('Secondary_system_PHM_system', 'S6') 1.0
+('Secondary_system_PHM_system', 'S7') 1.0
+('Secondary_system_PHM_system', 'S8') 1.0
+('Secondary_system_PHM_system', 'S9') 1.0
+('Secondary_system_PHM_system', 'S10') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'S1') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'S2') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'S3') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'S4') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'S5') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'S6') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'S7') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'S8') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'S9') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'S10') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'S1') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'S2') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'S3') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'S4') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'S5') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'S6') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'S7') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'S8') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'S9') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'S10') 1.0
+('Fire_protection', 'S1') 1.0
+('Fire_protection', 'S2') 1.0
+('Fire_protection', 'S3') 1.0
+('Fire_protection', 'S4') 1.0
+('Fire_protection', 'S5') 1.0
+('Fire_protection', 'S6') 1.0
+('Fire_protection', 'S7') 1.0
+('Fire_protection', 'S8') 1.0
+('Fire_protection', 'S9') 1.0
+('Fire_protection', 'S10') 1.0
+('Service_water_system_upgrade', 'S1') 1.0
+('Service_water_system_upgrade', 'S2') 1.0
+('Service_water_system_upgrade', 'S3') 1.0
+('Service_water_system_upgrade', 'S4') 1.0
+('Service_water_system_upgrade', 'S5') 1.0
+('Service_water_system_upgrade', 'S6') 1.0
+('Service_water_system_upgrade', 'S7') 1.0
+('Service_water_system_upgrade', 'S8') 1.0
+('Service_water_system_upgrade', 'S9') 1.0
+('Service_water_system_upgrade', 'S10') 1.0
+('Batteries_replacement', 'S1') 1.0
+('Batteries_replacement', 'S2') 1.0
+('Batteries_replacement', 'S3') 1.0
+('Batteries_replacement', 'S4') 1.0
+('Batteries_replacement', 'S5') 1.0
+('Batteries_replacement', 'S6') 1.0
+('Batteries_replacement', 'S7') 1.0
+('Batteries_replacement', 'S8') 1.0
+('Batteries_replacement', 'S9') 1.0
+('Batteries_replacement', 'S10') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'S1') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'S2') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'S3') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'S4') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'S5') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'S6') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'S7') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'S8') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'S9') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'S10') 1.0
+('Reactor_vessel_internals', 'S1') 0.0
+('Reactor_vessel_internals', 'S2') 1.0
+('Reactor_vessel_internals', 'S3') 1.0
+('Reactor_vessel_internals', 'S4') 1.0
+('Reactor_vessel_internals', 'S5') 1.0
+('Reactor_vessel_internals', 'S6') 1.0
+('Reactor_vessel_internals', 'S7') 1.0
+('Reactor_vessel_internals', 'S8') 1.0
+('Reactor_vessel_internals', 'S9') 1.0
+('Reactor_vessel_internals', 'S10') 1.0
+('Reactor_vessel_upgrade', 'S1') 1.0
+('Reactor_vessel_upgrade', 'S2') 1.0
+('Reactor_vessel_upgrade', 'S3') 1.0
+('Reactor_vessel_upgrade', 'S4') 1.0
+('Reactor_vessel_upgrade', 'S5') 1.0
+('Reactor_vessel_upgrade', 'S6') 1.0
+('Reactor_vessel_upgrade', 'S7') 1.0
+('Reactor_vessel_upgrade', 'S8') 1.0
+('Reactor_vessel_upgrade', 'S9') 1.0
+('Reactor_vessel_upgrade', 'S10') 1.0
+('Replace_LP_turbine', 'S1') 1.0
+('Replace_LP_turbine', 'S2') 1.0
+('Replace_LP_turbine', 'S3') 1.0
+('Replace_LP_turbine', 'S4') 1.0
+('Replace_LP_turbine', 'S5') 1.0
+('Replace_LP_turbine', 'S6') 1.0
+('Replace_LP_turbine', 'S7') 1.0
+('Replace_LP_turbine', 'S8') 1.0
+('Replace_LP_turbine', 'S9') 1.0
+('Replace_LP_turbine', 'S10') 1.0
+('Replace_instrumentation_and_control_cables', 'S1') 1.0
+('Replace_instrumentation_and_control_cables', 'S2') 1.0
+('Replace_instrumentation_and_control_cables', 'S3') 1.0
+('Replace_instrumentation_and_control_cables', 'S4') 1.0
+('Replace_instrumentation_and_control_cables', 'S5') 1.0
+('Replace_instrumentation_and_control_cables', 'S6') 1.0
+('Replace_instrumentation_and_control_cables', 'S7') 1.0
+('Replace_instrumentation_and_control_cables', 'S8') 1.0
+('Replace_instrumentation_and_control_cables', 'S9') 1.0
+('Replace_instrumentation_and_control_cables', 'S10') 1.0
+('Condenser_retubing', 'S1') 1.0
+('Condenser_retubing', 'S2') 1.0
+('Condenser_retubing', 'S3') 1.0
+('Condenser_retubing', 'S4') 1.0
+('Condenser_retubing', 'S5') 1.0
+('Condenser_retubing', 'S6') 1.0
+('Condenser_retubing', 'S7') 1.0
+('Condenser_retubing', 'S8') 1.0
+('Condenser_retubing', 'S9') 1.0
+('Condenser_retubing', 'S10') 1.0
+('Replace_moisture_separator_reheater', 'S1') 1.0
+('Replace_moisture_separator_reheater', 'S2') 1.0
+('Replace_moisture_separator_reheater', 'S3') 1.0
+('Replace_moisture_separator_reheater', 'S4') 1.0
+('Replace_moisture_separator_reheater', 'S5') 1.0
+('Replace_moisture_separator_reheater', 'S6') 1.0
+('Replace_moisture_separator_reheater', 'S7') 1.0
+('Replace_moisture_separator_reheater', 'S8') 1.0
+('Replace_moisture_separator_reheater', 'S9') 1.0
+('Replace_moisture_separator_reheater', 'S10') 1.0
+; Variable;  s
+('HP_feedwater_heater_upgrade', 'HP_feedwater_heater_upgrade') 0.0
+('HP_feedwater_heater_upgrade', 'Presurizer_replacement') 0.0
+('HP_feedwater_heater_upgrade', 'Improvement_to_emergency_diesel_generators') 0.0
+('HP_feedwater_heater_upgrade', 'Secondary_system_PHM_system') 0.0
+('HP_feedwater_heater_upgrade', 'Replacement_of_two_reactor_coolant_pumps') 0.0
+('HP_feedwater_heater_upgrade', 'Seismic_modification_requalification_reinforcement_improvement') 0.0
+('HP_feedwater_heater_upgrade', 'Fire_protection') 0.0
+('HP_feedwater_heater_upgrade', 'Service_water_system_upgrade') 0.0
+('HP_feedwater_heater_upgrade', 'Batteries_replacement') 0.0
+('HP_feedwater_heater_upgrade', 'Replace_CCW_piping_heat_exchangers_valves') 0.0
+('HP_feedwater_heater_upgrade', 'Reactor_vessel_internals') 0.0
+('HP_feedwater_heater_upgrade', 'Reactor_vessel_upgrade') 0.0
+('HP_feedwater_heater_upgrade', 'Replace_LP_turbine') 0.0
+('HP_feedwater_heater_upgrade', 'Replace_instrumentation_and_control_cables') 0.0
+('HP_feedwater_heater_upgrade', 'Condenser_retubing') 0.0
+('HP_feedwater_heater_upgrade', 'Replace_moisture_separator_reheater') 0.0
+('Presurizer_replacement', 'HP_feedwater_heater_upgrade') 1.0
+('Presurizer_replacement', 'Presurizer_replacement') 0.0
+('Presurizer_replacement', 'Improvement_to_emergency_diesel_generators') 1.0
+('Presurizer_replacement', 'Secondary_system_PHM_system') 1.0
+('Presurizer_replacement', 'Replacement_of_two_reactor_coolant_pumps') 1.0
+('Presurizer_replacement', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Presurizer_replacement', 'Fire_protection') 1.0
+('Presurizer_replacement', 'Service_water_system_upgrade') 1.0
+('Presurizer_replacement', 'Batteries_replacement') 1.0
+('Presurizer_replacement', 'Replace_CCW_piping_heat_exchangers_valves') 1.0
+('Presurizer_replacement', 'Reactor_vessel_internals') 1.0
+('Presurizer_replacement', 'Reactor_vessel_upgrade') 1.0
+('Presurizer_replacement', 'Replace_LP_turbine') 1.0
+('Presurizer_replacement', 'Replace_instrumentation_and_control_cables') 1.0
+('Presurizer_replacement', 'Condenser_retubing') 1.0
+('Presurizer_replacement', 'Replace_moisture_separator_reheater') 1.0
+('Improvement_to_emergency_diesel_generators', 'HP_feedwater_heater_upgrade') 1.0
+('Improvement_to_emergency_diesel_generators', 'Presurizer_replacement') 0.0
+('Improvement_to_emergency_diesel_generators', 'Improvement_to_emergency_diesel_generators') 0.0
+('Improvement_to_emergency_diesel_generators', 'Secondary_system_PHM_system') 0.0
+('Improvement_to_emergency_diesel_generators', 'Replacement_of_two_reactor_coolant_pumps') 0.0
+('Improvement_to_emergency_diesel_generators', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Improvement_to_emergency_diesel_generators', 'Fire_protection') 0.0
+('Improvement_to_emergency_diesel_generators', 'Service_water_system_upgrade') 0.0
+('Improvement_to_emergency_diesel_generators', 'Batteries_replacement') 0.0
+('Improvement_to_emergency_diesel_generators', 'Replace_CCW_piping_heat_exchangers_valves') 0.0
+('Improvement_to_emergency_diesel_generators', 'Reactor_vessel_internals') 0.0
+('Improvement_to_emergency_diesel_generators', 'Reactor_vessel_upgrade') 0.0
+('Improvement_to_emergency_diesel_generators', 'Replace_LP_turbine') 0.0
+('Improvement_to_emergency_diesel_generators', 'Replace_instrumentation_and_control_cables') 0.0
+('Improvement_to_emergency_diesel_generators', 'Condenser_retubing') 0.0
+('Improvement_to_emergency_diesel_generators', 'Replace_moisture_separator_reheater') 0.0
+('Secondary_system_PHM_system', 'HP_feedwater_heater_upgrade') 1.0
+('Secondary_system_PHM_system', 'Presurizer_replacement') 0.0
+('Secondary_system_PHM_system', 'Improvement_to_emergency_diesel_generators') 1.0
+('Secondary_system_PHM_system', 'Secondary_system_PHM_system') 0.0
+('Secondary_system_PHM_system', 'Replacement_of_two_reactor_coolant_pumps') 0.0
+('Secondary_system_PHM_system', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Secondary_system_PHM_system', 'Fire_protection') 0.0
+('Secondary_system_PHM_system', 'Service_water_system_upgrade') 1.0
+('Secondary_system_PHM_system', 'Batteries_replacement') 1.0
+('Secondary_system_PHM_system', 'Replace_CCW_piping_heat_exchangers_valves') 0.0
+('Secondary_system_PHM_system', 'Reactor_vessel_internals') 1.0
+('Secondary_system_PHM_system', 'Reactor_vessel_upgrade') 0.0
+('Secondary_system_PHM_system', 'Replace_LP_turbine') 0.0
+('Secondary_system_PHM_system', 'Replace_instrumentation_and_control_cables') 0.0
+('Secondary_system_PHM_system', 'Condenser_retubing') 0.0
+('Secondary_system_PHM_system', 'Replace_moisture_separator_reheater') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'HP_feedwater_heater_upgrade') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Presurizer_replacement') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Improvement_to_emergency_diesel_generators') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Secondary_system_PHM_system') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Replacement_of_two_reactor_coolant_pumps') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Fire_protection') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Service_water_system_upgrade') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Batteries_replacement') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Replace_CCW_piping_heat_exchangers_valves') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Reactor_vessel_internals') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Reactor_vessel_upgrade') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Replace_LP_turbine') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Replace_instrumentation_and_control_cables') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Condenser_retubing') 1.0
+('Replacement_of_two_reactor_coolant_pumps', 'Replace_moisture_separator_reheater') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'HP_feedwater_heater_upgrade') 1.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Presurizer_replacement') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Improvement_to_emergency_diesel_generators') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Secondary_system_PHM_system') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Replacement_of_two_reactor_coolant_pumps') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Seismic_modification_requalification_reinforcement_improvement') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Fire_protection') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Service_water_system_upgrade') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Batteries_replacement') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Replace_CCW_piping_heat_exchangers_valves') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Reactor_vessel_internals') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Reactor_vessel_upgrade') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Replace_LP_turbine') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Replace_instrumentation_and_control_cables') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Condenser_retubing') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'Replace_moisture_separator_reheater') 0.0
+('Fire_protection', 'HP_feedwater_heater_upgrade') 1.0
+('Fire_protection', 'Presurizer_replacement') 1.0
+('Fire_protection', 'Improvement_to_emergency_diesel_generators') 1.0
+('Fire_protection', 'Secondary_system_PHM_system') 1.0
+('Fire_protection', 'Replacement_of_two_reactor_coolant_pumps') 1.0
+('Fire_protection', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Fire_protection', 'Fire_protection') 0.0
+('Fire_protection', 'Service_water_system_upgrade') 1.0
+('Fire_protection', 'Batteries_replacement') 1.0
+('Fire_protection', 'Replace_CCW_piping_heat_exchangers_valves') 1.0
+('Fire_protection', 'Reactor_vessel_internals') 1.0
+('Fire_protection', 'Reactor_vessel_upgrade') 1.0
+('Fire_protection', 'Replace_LP_turbine') 1.0
+('Fire_protection', 'Replace_instrumentation_and_control_cables') 1.0
+('Fire_protection', 'Condenser_retubing') 1.0
+('Fire_protection', 'Replace_moisture_separator_reheater') 1.0
+('Service_water_system_upgrade', 'HP_feedwater_heater_upgrade') 1.0
+('Service_water_system_upgrade', 'Presurizer_replacement') 0.0
+('Service_water_system_upgrade', 'Improvement_to_emergency_diesel_generators') 1.0
+('Service_water_system_upgrade', 'Secondary_system_PHM_system') 1.0
+('Service_water_system_upgrade', 'Replacement_of_two_reactor_coolant_pumps') 0.0
+('Service_water_system_upgrade', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Service_water_system_upgrade', 'Fire_protection') 0.0
+('Service_water_system_upgrade', 'Service_water_system_upgrade') 0.0
+('Service_water_system_upgrade', 'Batteries_replacement') 0.0
+('Service_water_system_upgrade', 'Replace_CCW_piping_heat_exchangers_valves') 0.0
+('Service_water_system_upgrade', 'Reactor_vessel_internals') 1.0
+('Service_water_system_upgrade', 'Reactor_vessel_upgrade') 0.0
+('Service_water_system_upgrade', 'Replace_LP_turbine') 1.0
+('Service_water_system_upgrade', 'Replace_instrumentation_and_control_cables') 0.0
+('Service_water_system_upgrade', 'Condenser_retubing') 1.0
+('Service_water_system_upgrade', 'Replace_moisture_separator_reheater') 1.0
+('Batteries_replacement', 'HP_feedwater_heater_upgrade') 1.0
+('Batteries_replacement', 'Presurizer_replacement') 0.0
+('Batteries_replacement', 'Improvement_to_emergency_diesel_generators') 1.0
+('Batteries_replacement', 'Secondary_system_PHM_system') 0.0
+('Batteries_replacement', 'Replacement_of_two_reactor_coolant_pumps') 0.0
+('Batteries_replacement', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Batteries_replacement', 'Fire_protection') 0.0
+('Batteries_replacement', 'Service_water_system_upgrade') 1.0
+('Batteries_replacement', 'Batteries_replacement') 0.0
+('Batteries_replacement', 'Replace_CCW_piping_heat_exchangers_valves') 0.0
+('Batteries_replacement', 'Reactor_vessel_internals') 1.0
+('Batteries_replacement', 'Reactor_vessel_upgrade') 0.0
+('Batteries_replacement', 'Replace_LP_turbine') 1.0
+('Batteries_replacement', 'Replace_instrumentation_and_control_cables') 0.0
+('Batteries_replacement', 'Condenser_retubing') 1.0
+('Batteries_replacement', 'Replace_moisture_separator_reheater') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'HP_feedwater_heater_upgrade') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Presurizer_replacement') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Improvement_to_emergency_diesel_generators') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Secondary_system_PHM_system') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Replacement_of_two_reactor_coolant_pumps') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Fire_protection') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Service_water_system_upgrade') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Batteries_replacement') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Replace_CCW_piping_heat_exchangers_valves') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Reactor_vessel_internals') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Reactor_vessel_upgrade') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Replace_LP_turbine') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Replace_instrumentation_and_control_cables') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Condenser_retubing') 1.0
+('Replace_CCW_piping_heat_exchangers_valves', 'Replace_moisture_separator_reheater') 1.0
+('Reactor_vessel_internals', 'HP_feedwater_heater_upgrade') 1.0
+('Reactor_vessel_internals', 'Presurizer_replacement') 0.0
+('Reactor_vessel_internals', 'Improvement_to_emergency_diesel_generators') 1.0
+('Reactor_vessel_internals', 'Secondary_system_PHM_system') 0.0
+('Reactor_vessel_internals', 'Replacement_of_two_reactor_coolant_pumps') 0.0
+('Reactor_vessel_internals', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Reactor_vessel_internals', 'Fire_protection') 0.0
+('Reactor_vessel_internals', 'Service_water_system_upgrade') 0.0
+('Reactor_vessel_internals', 'Batteries_replacement') 0.0
+('Reactor_vessel_internals', 'Replace_CCW_piping_heat_exchangers_valves') 0.0
+('Reactor_vessel_internals', 'Reactor_vessel_internals') 0.0
+('Reactor_vessel_internals', 'Reactor_vessel_upgrade') 0.0
+('Reactor_vessel_internals', 'Replace_LP_turbine') 0.0
+('Reactor_vessel_internals', 'Replace_instrumentation_and_control_cables') 0.0
+('Reactor_vessel_internals', 'Condenser_retubing') 0.0
+('Reactor_vessel_internals', 'Replace_moisture_separator_reheater') 0.0
+('Reactor_vessel_upgrade', 'HP_feedwater_heater_upgrade') 1.0
+('Reactor_vessel_upgrade', 'Presurizer_replacement') 1.0
+('Reactor_vessel_upgrade', 'Improvement_to_emergency_diesel_generators') 1.0
+('Reactor_vessel_upgrade', 'Secondary_system_PHM_system') 1.0
+('Reactor_vessel_upgrade', 'Replacement_of_two_reactor_coolant_pumps') 1.0
+('Reactor_vessel_upgrade', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Reactor_vessel_upgrade', 'Fire_protection') 1.0
+('Reactor_vessel_upgrade', 'Service_water_system_upgrade') 1.0
+('Reactor_vessel_upgrade', 'Batteries_replacement') 1.0
+('Reactor_vessel_upgrade', 'Replace_CCW_piping_heat_exchangers_valves') 1.0
+('Reactor_vessel_upgrade', 'Reactor_vessel_internals') 1.0
+('Reactor_vessel_upgrade', 'Reactor_vessel_upgrade') 0.0
+('Reactor_vessel_upgrade', 'Replace_LP_turbine') 1.0
+('Reactor_vessel_upgrade', 'Replace_instrumentation_and_control_cables') 1.0
+('Reactor_vessel_upgrade', 'Condenser_retubing') 1.0
+('Reactor_vessel_upgrade', 'Replace_moisture_separator_reheater') 1.0
+('Replace_LP_turbine', 'HP_feedwater_heater_upgrade') 1.0
+('Replace_LP_turbine', 'Presurizer_replacement') 0.0
+('Replace_LP_turbine', 'Improvement_to_emergency_diesel_generators') 1.0
+('Replace_LP_turbine', 'Secondary_system_PHM_system') 1.0
+('Replace_LP_turbine', 'Replacement_of_two_reactor_coolant_pumps') 0.0
+('Replace_LP_turbine', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Replace_LP_turbine', 'Fire_protection') 0.0
+('Replace_LP_turbine', 'Service_water_system_upgrade') 1.0
+('Replace_LP_turbine', 'Batteries_replacement') 1.0
+('Replace_LP_turbine', 'Replace_CCW_piping_heat_exchangers_valves') 0.0
+('Replace_LP_turbine', 'Reactor_vessel_internals') 1.0
+('Replace_LP_turbine', 'Reactor_vessel_upgrade') 0.0
+('Replace_LP_turbine', 'Replace_LP_turbine') 0.0
+('Replace_LP_turbine', 'Replace_instrumentation_and_control_cables') 0.0
+('Replace_LP_turbine', 'Condenser_retubing') 0.0
+('Replace_LP_turbine', 'Replace_moisture_separator_reheater') 1.0
+('Replace_instrumentation_and_control_cables', 'HP_feedwater_heater_upgrade') 1.0
+('Replace_instrumentation_and_control_cables', 'Presurizer_replacement') 1.0
+('Replace_instrumentation_and_control_cables', 'Improvement_to_emergency_diesel_generators') 1.0
+('Replace_instrumentation_and_control_cables', 'Secondary_system_PHM_system') 1.0
+('Replace_instrumentation_and_control_cables', 'Replacement_of_two_reactor_coolant_pumps') 1.0
+('Replace_instrumentation_and_control_cables', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Replace_instrumentation_and_control_cables', 'Fire_protection') 1.0
+('Replace_instrumentation_and_control_cables', 'Service_water_system_upgrade') 1.0
+('Replace_instrumentation_and_control_cables', 'Batteries_replacement') 1.0
+('Replace_instrumentation_and_control_cables', 'Replace_CCW_piping_heat_exchangers_valves') 1.0
+('Replace_instrumentation_and_control_cables', 'Reactor_vessel_internals') 1.0
+('Replace_instrumentation_and_control_cables', 'Reactor_vessel_upgrade') 1.0
+('Replace_instrumentation_and_control_cables', 'Replace_LP_turbine') 1.0
+('Replace_instrumentation_and_control_cables', 'Replace_instrumentation_and_control_cables') 0.0
+('Replace_instrumentation_and_control_cables', 'Condenser_retubing') 1.0
+('Replace_instrumentation_and_control_cables', 'Replace_moisture_separator_reheater') 1.0
+('Condenser_retubing', 'HP_feedwater_heater_upgrade') 1.0
+('Condenser_retubing', 'Presurizer_replacement') 0.0
+('Condenser_retubing', 'Improvement_to_emergency_diesel_generators') 1.0
+('Condenser_retubing', 'Secondary_system_PHM_system') 1.0
+('Condenser_retubing', 'Replacement_of_two_reactor_coolant_pumps') 0.0
+('Condenser_retubing', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Condenser_retubing', 'Fire_protection') 0.0
+('Condenser_retubing', 'Service_water_system_upgrade') 1.0
+('Condenser_retubing', 'Batteries_replacement') 1.0
+('Condenser_retubing', 'Replace_CCW_piping_heat_exchangers_valves') 0.0
+('Condenser_retubing', 'Reactor_vessel_internals') 1.0
+('Condenser_retubing', 'Reactor_vessel_upgrade') 0.0
+('Condenser_retubing', 'Replace_LP_turbine') 1.0
+('Condenser_retubing', 'Replace_instrumentation_and_control_cables') 0.0
+('Condenser_retubing', 'Condenser_retubing') 0.0
+('Condenser_retubing', 'Replace_moisture_separator_reheater') 1.0
+('Replace_moisture_separator_reheater', 'HP_feedwater_heater_upgrade') 1.0
+('Replace_moisture_separator_reheater', 'Presurizer_replacement') 0.0
+('Replace_moisture_separator_reheater', 'Improvement_to_emergency_diesel_generators') 1.0
+('Replace_moisture_separator_reheater', 'Secondary_system_PHM_system') 1.0
+('Replace_moisture_separator_reheater', 'Replacement_of_two_reactor_coolant_pumps') 0.0
+('Replace_moisture_separator_reheater', 'Seismic_modification_requalification_reinforcement_improvement') 1.0
+('Replace_moisture_separator_reheater', 'Fire_protection') 0.0
+('Replace_moisture_separator_reheater', 'Service_water_system_upgrade') 1.0
+('Replace_moisture_separator_reheater', 'Batteries_replacement') 0.0
+('Replace_moisture_separator_reheater', 'Replace_CCW_piping_heat_exchangers_valves') 0.0
+('Replace_moisture_separator_reheater', 'Reactor_vessel_internals') 1.0
+('Replace_moisture_separator_reheater', 'Reactor_vessel_upgrade') 0.0
+('Replace_moisture_separator_reheater', 'Replace_LP_turbine') 1.0
+('Replace_moisture_separator_reheater', 'Replace_instrumentation_and_control_cables') 0.0
+('Replace_moisture_separator_reheater', 'Condenser_retubing') 0.0
+('Replace_moisture_separator_reheater', 'Replace_moisture_separator_reheater') 0.0
+; Variable;  zz
+('HP_feedwater_heater_upgrade', 'PlanA') 0.0
+('Presurizer_replacement', 'PlanA') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanA') 0.0
+('Secondary_system_PHM_system', 'PlanA') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanA') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanA') 0.0
+('Fire_protection', 'PlanA') 0.0
+('Service_water_system_upgrade', 'PlanA') 0.0
+('Batteries_replacement', 'PlanA') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanA') 0.0
+('Reactor_vessel_internals', 'PlanA') 0.0
+('Reactor_vessel_upgrade', 'PlanA') 0.0
+('Replace_LP_turbine', 'PlanA') 0.0
+('Replace_instrumentation_and_control_cables', 'PlanA') 0.0
+('Condenser_retubing', 'PlanA') 0.0
+('Replace_moisture_separator_reheater', 'PlanA') 0.0
+('HP_feedwater_heater_upgrade', 'PlanB') 0.0
+('Presurizer_replacement', 'PlanB') 0.0
+('Improvement_to_emergency_diesel_generators', 'PlanB') 0.0
+('Secondary_system_PHM_system', 'PlanB') 0.0
+('Replacement_of_two_reactor_coolant_pumps', 'PlanB') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanB') 0.0
+('Fire_protection', 'PlanB') 0.0
+('Service_water_system_upgrade', 'PlanB') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanB') 0.0
+('Reactor_vessel_internals', 'PlanB') 0.0
+('Replace_LP_turbine', 'PlanB') 0.0
+('Condenser_retubing', 'PlanB') 0.0
+('Replace_moisture_separator_reheater', 'PlanB') 0.0
+('Presurizer_replacement', 'PlanC') 0.0
+('Seismic_modification_requalification_reinforcement_improvement', 'PlanC') 0.0
+('Replace_CCW_piping_heat_exchangers_valves', 'PlanC') 0.0
+('Replace_moisture_separator_reheater', 'PlanC') 0.0

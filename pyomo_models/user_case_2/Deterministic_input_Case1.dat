@@ -1,0 +1,143 @@
+## Data in AMPL format        
+            
+set T := year1 year2 year3 year4 year5;         
+set I := 
+FeedwaterHeater 
+EmergencySump 
+Transformer 
+TurbineHallCrane 
+ReactorCoolantPumps 
+MitigateBuriedPiping 
+RefurbishTurbineGovernors 
+ServiceCircWaterPumps 
+MaintainRAOC 
+ReplaceCoolantInjectPiping 
+ReplaceChiller 
+VessellHeadWeldRemediate 
+MaintainCondensor 
+ReplaceConrolCables 
+CranePowerFeed 
+MoisterSeparatorReheater 
+;        
+set J := PlanA DoNothing;        
+set K := CapitalFunds;        
+        
+set IJ:=
+FeedwaterHeater PlanA
+EmergencySump PlanA
+Transformer PlanA
+TurbineHallCrane PlanA
+ReactorCoolantPumps PlanA
+MitigateBuriedPiping PlanA
+RefurbishTurbineGovernors PlanA
+ServiceCircWaterPumps PlanA
+MaintainRAOC PlanA
+ReplaceCoolantInjectPiping PlanA
+ReplaceChiller PlanA
+VessellHeadWeldRemediate PlanA
+MaintainCondensor PlanA
+ReplaceConrolCables PlanA
+CranePowerFeed PlanA
+MoisterSeparatorReheater PlanA
+FeedwaterHeater DoNothing
+EmergencySump DoNothing
+Transformer DoNothing
+TurbineHallCrane DoNothing
+ReactorCoolantPumps DoNothing
+MitigateBuriedPiping DoNothing
+RefurbishTurbineGovernors DoNothing
+ServiceCircWaterPumps DoNothing
+MaintainRAOC DoNothing
+
+;
+
+param r:=
+FeedwaterHeater 	DoNothing	-1.101
+EmergencySump 	DoNothing	-0.400
+Transformer	DoNothing	-10.100
+TurbineHallCrane	DoNothing	-30.200
+ReactorCoolantPumps	DoNothing	-0.300
+MitigateBuriedPiping	DoNothing	-2.500
+RefurbishTurbineGovernors	DoNothing	-2.000
+ServiceCircWaterPumps	DoNothing	-0.250
+MaintainRAOC	DoNothing	-0.050
+FeedwaterHeater 	PlanA	2.315
+EmergencySump 	PlanA	0.824
+Transformer	PlanA	22.459
+TurbineHallCrane	PlanA	60.589
+ReactorCoolantPumps	PlanA	0.667
+MitigateBuriedPiping	PlanA	5.173
+RefurbishTurbineGovernors	PlanA	4.003
+ServiceCircWaterPumps	PlanA	0.582
+MaintainRAOC	PlanA	0.122
+ReplaceCoolantInjectPiping	PlanA	-2.870
+ReplaceChiller	PlanA	-0.322
+VessellHeadWeldRemediate	PlanA	-0.279
+MaintainCondensor	PlanA	-3.996
+ReplaceConrolCables	PlanA	-0.102
+CranePowerFeed	PlanA	-0.246
+MoisterSeparatorReheater 	PlanA	-20.155
+
+; 
+        
+            
+param b:=
+CapitalFunds year1 11.000
+CapitalFunds year2 13.0
+CapitalFunds year3 13.0
+CapitalFunds year4 11.4
+CapitalFunds year5 11.5
+;
+
+param c:=            
+FeedwaterHeater 	PlanA	CapitalFunds	year1	0.219
+FeedwaterHeater 	PlanA	CapitalFunds	year2	0.257
+FeedwaterHeater 	PlanA	CapitalFunds	year3	0.085
+EmergencySump 	PlanA	CapitalFunds	year3	0.122
+EmergencySump 	PlanA	CapitalFunds	year4	0.103
+EmergencySump 	PlanA	CapitalFunds	year5	0.013
+Transformer	PlanA	CapitalFunds	year1	5.044
+Transformer	PlanA	CapitalFunds	year2	1.839
+TurbineHallCrane	PlanA	CapitalFunds	year1	6.740
+TurbineHallCrane	PlanA	CapitalFunds	year2	6.134
+TurbineHallCrane	PlanA	CapitalFunds	year3	10.442
+ReactorCoolantPumps	PlanA	CapitalFunds	year1	0.425
+MitigateBuriedPiping	PlanA	CapitalFunds	year1	2.125
+RefurbishTurbineGovernors	PlanA	CapitalFunds	year1	2.387
+RefurbishTurbineGovernors	PlanA	CapitalFunds	year2	0.190
+RefurbishTurbineGovernors	PlanA	CapitalFunds	year3	0.012
+RefurbishTurbineGovernors	PlanA	CapitalFunds	year4	2.383
+RefurbishTurbineGovernors	PlanA	CapitalFunds	year5	0.192
+ServiceCircWaterPumps	PlanA	CapitalFunds	year2	0.950
+MaintainRAOC	PlanA	CapitalFunds	year1	0.030
+MaintainRAOC	PlanA	CapitalFunds	year2	0.030
+MaintainRAOC	PlanA	CapitalFunds	year3	0.688
+ReplaceCoolantInjectPiping	PlanA	CapitalFunds	year2	0.200
+ReplaceCoolantInjectPiping	PlanA	CapitalFunds	year3	0.763
+ReplaceCoolantInjectPiping	PlanA	CapitalFunds	year4	0.739
+ReplaceCoolantInjectPiping	PlanA	CapitalFunds	year5	2.539
+ReplaceChiller	PlanA	CapitalFunds	year1	0.347
+ReplaceChiller	PlanA	CapitalFunds	year2	0.347
+VessellHeadWeldRemediate	PlanA	CapitalFunds	year1	0.300
+VessellHeadWeldRemediate	PlanA	CapitalFunds	year2	0.300
+MaintainCondensor	PlanA	CapitalFunds	year1	4.025
+MaintainCondensor	PlanA	CapitalFunds	year2	0.297
+MaintainCondensor	PlanA	CapitalFunds	year2	4.025
+MaintainCondensor	PlanA	CapitalFunds	year3	0.297
+ReplaceConrolCables	PlanA	CapitalFunds	year1	0.081
+ReplaceConrolCables	PlanA	CapitalFunds	year2	0.032
+ReplaceConrolCables	PlanA	CapitalFunds	year2	0.081
+ReplaceConrolCables	PlanA	CapitalFunds	year3	0.032
+CranePowerFeed	PlanA	CapitalFunds	year1	0.095
+CranePowerFeed	PlanA	CapitalFunds	year2	0.095
+CranePowerFeed	PlanA	CapitalFunds	year3	0.095
+CranePowerFeed	PlanA	CapitalFunds	year2	0.095
+CranePowerFeed	PlanA	CapitalFunds	year3	0.095
+CranePowerFeed	PlanA	CapitalFunds	year4	0.095
+MoisterSeparatorReheater 	PlanA	CapitalFunds	year1	5.488
+MoisterSeparatorReheater 	PlanA	CapitalFunds	year2	5.665
+MoisterSeparatorReheater 	PlanA	CapitalFunds	year3	0.501
+MoisterSeparatorReheater 	PlanA	CapitalFunds	year4	6.803
+MoisterSeparatorReheater 	PlanA	CapitalFunds	year5	6.778
+
+; 
