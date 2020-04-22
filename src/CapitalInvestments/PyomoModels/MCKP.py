@@ -22,8 +22,10 @@ import pyomo.environ as pyomo
 #Internal Modules------------------------------------------------------------------------------------
 try:
   from LOGOS.src.CapitalInvestments.PyomoModels.KnapsackBase import KnapsackBase
+  from LOGOS.src.CapitalInvestments.PyomoModels.PyomoWrapper import PyomoWrapper
 except ImportError:
   from .KnapsackBase import KnapsackBase
+  from .PyomoWrapper import PyomoWrapper
 #Internal Modules End--------------------------------------------------------------------------------
 
 logger = logging.getLogger(__name__)
@@ -106,6 +108,234 @@ class MCKP(KnapsackBase):
     self.scenarios['probabilities'] = dict(('scenario_' + str(i), float(np.product(list(prob)))) for i, prob in enumerate(list(itertools.product(*scenarioProbList)), 1))
     self.scenarios['scenario_data'] = dict(('scenario_' + str(i), dict(zip(paramList, data))) for i, data in enumerate(list(itertools.product(*scenarioList)), 1))
 
+  @staticmethod
+  def optionsOutInit(model, option):
+    """
+      Method to initialize the given option
+      @ In, model, instance, pyomo abstract model instance
+      @ In, option, str, name of given option
+      @ Out, retval, list, list of values for given option
+    """
+    retval = []
+    for (i,j) in model.options:
+      if i == option:
+        retval.append(j)
+    return retval
+
+  @staticmethod
+  def investmentOptionInit(model):
+    """
+      Method to initialize the option of investment
+      @ In, model, instance, pyomo abstract model instance
+      @ Out, investmentOptionInit, tuple, tuple of investment-option pairs
+    """
+    return ((i,j) for i in model.investments for j in model.optionsOut[i])
+
+  @staticmethod
+  def objExpression(model):
+    """
+      Method to compute objective expression
+      @ In, model, instance, pyomo abstract model instance
+      @ Out, objExpression, pyomo.expression, objective expression
+    """
+    return model.firstStageCost + model.secondStageCost
+
+  @staticmethod
+  def computeFirstStageCost(model):
+    """"
+      Method to compute frist stage cost of stochastic programming
+      @ In, model, instance, pyomo abstract model instance
+      @ Out, computeFirstStageCost, float, frist stage cost
+    """
+    return 0.0
+
+  @staticmethod
+  def computeSecondStageCost(model):
+    """
+      Method to compute second stage cost of stochastic programming, i.e. maximum NPVs
+      @ In, model, instance, pyomo abstract model instance
+      @ Out, expr, pyomo.expression, second stage cost
+    """
+    expr = pyomo.summation(model.net_present_values, model.x)
+    return expr
+
+  @staticmethod
+  def constraintCapacity(model, k, t):
+    """
+      Knapsacks capacity constraints
+      This constraint requires that we be within budget in each time period,
+      for each resource type, under each scenario
+      @ In, model, instance, pyomo abstract model instance
+      @ In, k, str, resource index
+      @ In, t, str, time index
+      @ Out, constraintCapacity, pyomo.expression, capacity constraint
+    """
+    expr = sum(sum(model.costs[i,j,k,t]*model.x[i,j] for j in model.optionsOut[i]) for i in model.investments)
+    return expr <= model.available_capitals[k,t]
+
+  @staticmethod
+  def constraintRegulatory(model, i):
+    """
+      Regulatory constraints, always required projects/investments
+      @ In, model, instance, pyomo abstract model instance
+      @ In, i, str, regulatory index
+      @ Out, constraintRegulatory, pyomo.expression, regulatory constraint
+    """
+    # When Non-Selection is included, the following constraint should be used.
+    # return sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,model.optionsOut[i].last()] == 1
+    return sum(model.x[i,j] for j in model.optionsOut[i]) == 1
+
+  @staticmethod
+  def constraintXNonSelection(model,i):
+    """
+      sum of investments over knapsacks should less or equal than bounds
+      constraint to handle 'DoNothing' options --> (1f)
+      @ In, model, instance, pyomo abstract model instance
+      @ In, i, str, investment index
+      @ Out, constraintXNonSelection, pyomo.expression, constraint on variable X
+    """
+    expr = sum(model.x[i,j] for j in model.optionsOut[i])
+    # When Non-Selection is included, the following constraint should be used.
+    return sum(model.x[i,j] for j in model.optionsOut[i]) == 1
+
+  @staticmethod
+  def constraintX(model,i):
+    """
+      sum of investments over knapsacks should less or equal than bounds
+      @ In, model, instance, pyomo abstract model instance
+      @ In, i, str, investment index
+      @ Out, constraintX, pyomo.expression, constraint on variable X
+    """
+    expr = sum(model.x[i,j] for j in model.optionsOut[i])
+    return sum(model.x[i,j] for j in model.optionsOut[i]) <= 1
+
+  @staticmethod
+  def orderConstraintI(model, i, j):
+    """
+      Constraint for variable y if priority project selection is required
+      @ In, model, instance, pyomo abstract model instance
+      @ i, str, investment index
+      @ j, str, investment index
+      @ orderConstraintI, pyomo.expression, expression about orderConstraintI
+    """
+    if i < j:
+      return model.y[i,j] + model.y[j,i] == 1
+    else:
+      return pyomo.Constraint.Skip
+
+  @staticmethod
+  def constraintY(model, i):
+    """
+      Constraint for variable y if priority project selection is required
+      @ In, model, instance, pyomo abstract model instance
+      @ i, str, investment index
+      @ constraintY, pyomo.expression, expression about constraint on variable Y
+    """
+    return model.y[i,i] == 0
+
+  @staticmethod
+  def consistentConstraintINonSelection(model, i, ip):
+    """Constraint for variable y if priority project selection is required"""
+    if i == ip:
+      return model.y[i,ip] == model.y[ip,i]
+    else:
+      # When Non-Selection is included, the following constraint should be used.
+      lastIndexI = model.optionsOut[i].last()
+      lastIndexIP = model.optionsOut[ip].last()
+      try:
+        regulatoryMandated = getattr(model, "regulatoryMandated")
+        if ip in regulatoryMandated:
+          expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) + model.y[i,ip] - 1
+        else:
+          expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) - model.x[ip,lastIndexIP] + model.y[i,ip] - 1
+        if i in regulatoryMandated:
+          expr2 = sum(model.x[i,j] for j in model.optionsOut[i])
+        else:
+          expr2 = sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,lastIndexI]
+      except (AttributeError, KeyError):
+        expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) - model.x[ip,lastIndexIP] + model.y[i,ip] - 1
+        expr2 = sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,lastIndexI]
+      return expr1 <= expr2
+
+  @staticmethod
+  def consistentConstraintI(model, i, ip):
+    """Constraint for variable y if priority project selection is required"""
+    if i == ip:
+      return model.y[i,ip] == model.y[ip,i]
+    else:
+      expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) + model.y[i,ip] - 1
+      expr2 = sum(model.x[i,j] for j in model.optionsOut[i])
+      return expr1 <= expr2
+
+  @staticmethod
+  def constraintNoTie(model, i, ip, idp):
+    """
+      Help to produce a total ordering of the projects rather than allowing ties. This constraint
+      will not change the optimal NPV
+      @ In, model, instance, pyomo abstract model instance
+      @ In, i, str, investment index
+      @ In, ip, str, investment index
+      @ In, idp, str, investment index
+      @ Out, constraintNoTie, pyomo.expression, constraint to remove ties
+    """
+    if i != ip and ip != idp and idp != i:
+      return model.y[i,ip] + model.y[ip,idp] + model.y[idp,i] <= 2
+    else:
+      return pyomo.Constraint.Skip
+
+  @staticmethod
+  def consistentConstraintII(model, i, ip, j):
+    """
+      This constraint is a type of consistency constraint with respect to the notion of options.
+      @ In, model, instance, pyomo abstract model instance
+      @ In, i, str, investment index
+      @ In, ip, str, investment index
+      @ In, j, str, option index
+      @ Out, consistentConstraintII, pyomo.expression, consistent constraintII
+    """
+    if i != ip:
+      expr1 = model.x[ip,j] + model.y[i,ip]-1
+      expr2 = 0
+      # we assume options are in order and their priority are also in order, i.e. from high to low
+      for jp in model.optionsOut[i]:
+        expr2 = expr2 + model.x[i,jp]
+        if jp != j:
+          continue
+        else:
+          break
+      return expr1 <= expr2
+    else:
+      return pyomo.Constraint.Skip
+
+  @staticmethod
+  def consistentConstraintIINonSelection(model, i, ip, j):
+    """
+      This constraint is a type of consistency constraint with respect to the notion of options,
+      including both non-selection and regulatory mandated options
+      # The constraint matters only when project i is higher priority than project ip. In this case,
+      # if we select Plan A for lower priority project then we must select plan A for the higher priority
+      # project. If we select Plan B for the lower priority project then we can select Plan A and Plan B
+      # for the higher priority project. And, if we select Plan C for the lower priority project then we
+      # can select Plan A, B, C for the hight priority project. Inclusion of this constraint is "optional"
+      # and reflects how the decision maker prefers to interpret the notion of priorities.
+    """
+    lastIndexIP = model.optionsOut[ip].last()
+    lastIndexI = model.optionsOut[i].last()
+    try:
+      regulatoryMandated = getattr(model, "regulatoryMandated")
+      if ip in regulatoryMandated:
+        return self.consistentConstraintII(model, i, ip, j)
+      else:
+        if j == lastIndexIP:
+          return pyomo.Constraint.Skip
+        else:
+          return self.consistentConstraintII(model, i, ip, j)
+    except (AttributeError, KeyError):
+      if j == lastIndexIP:
+        return pyomo.Constraint.Skip
+      else:
+        return self.consistentConstraintII(model, i, ip, j)
+
   def multipleKnapsackModel(self):
     """
       This method is used to create pyomo model.
@@ -117,19 +347,10 @@ class MCKP(KnapsackBase):
     model.investments = pyomo.Set(ordered=True)
     model.options = pyomo.Set(dimen=2, ordered=True)
     model.resources = pyomo.Set()
-    def optionsOut_init(model, option):
-      retval = []
-      for (i,j) in model.options:
-        if i == option:
-          retval.append(j)
-      return retval
-    model.optionsOut = pyomo.Set(model.investments, initialize=optionsOut_init, ordered=True)
 
+    model.optionsOut = pyomo.Set(model.investments, initialize=self.optionsOutInit, ordered=True)
     # Set used for constraint (1j)
-    def investmentOption_init(model):
-      return ((i,j) for i in model.investments for j in model.optionsOut[i])
-    model.investmentOption = pyomo.Set(dimen=2, initialize=investmentOption_init, ordered=True)
-
+    model.investmentOption = pyomo.Set(dimen=2, initialize=self.investmentOptionInit, ordered=True)
     model.net_present_values = pyomo.Param(model.options, mutable=True)
     model.available_capitals = pyomo.Param(model.resources, model.time_periods, mutable=True)
     model.costs = pyomo.Param(model.options, model.resources, model.time_periods, mutable=True)
@@ -139,165 +360,46 @@ class MCKP(KnapsackBase):
     # Special handles for required and DoNothing options
     # The options in input file can include DoNothing, but not required to be selected by optimization
     # Only the investment added to regulatoryMandated will be selected.
-
+    model.firstStageCost = pyomo.Expression(rule=self.computeFirstStageCost)
+    model.secondStageCost = pyomo.Expression(rule=self.computeSecondStageCost)
     # objective function (1a)
-    def objExpression(model):
-      """objective expression"""
-      return model.firstStageCost + model.secondStageCost
-    model.obj = pyomo.Objective(rule=objExpression, sense=self.sense)
-
-    def computeFirstStageCost(model):
-      """"Frist stage cost of stochastic programming"""
-      return 0.0
-    model.firstStageCost = pyomo.Expression(rule=computeFirstStageCost)
-
-    def computeSecondStageCost(model):
-      """Second stage cost of stochastic programming, i.e. maximum NPVs"""
-      expr = pyomo.summation(model.net_present_values, model.x)
-      return expr
-    model.secondStageCost = pyomo.Expression(rule=computeSecondStageCost)
-
+    model.obj = pyomo.Objective(rule=self.objExpression, sense=self.sense)
     # constraint (1d)
-    def constraintCapacity(model, k, t):
-      """
-        Knapsacks capacity constraints
-        This constraint requires that we be within budget in each time period,
-        for each resource type, under each scenario
-      """
-      expr = sum(sum(model.costs[i,j,k,t]*model.x[i,j] for j in model.optionsOut[i]) for i in model.investments)
-      return expr <= model.available_capitals[k,t]
-    model.constraintCapacity = pyomo.Constraint(model.resources, model.time_periods, rule=constraintCapacity)
+    model.constraintCapacity = pyomo.Constraint(model.resources, model.time_periods, rule=self.constraintCapacity)
 
     # constraint (1e) and (1f)
     # last option of any project will be denoted as "non-selection" option
     if self.regulatoryMandated is not None:
       model.regulatoryMandated = pyomo.Set()
-      def constraintRegulatory(model, i):
-        """Regulatory constraints, always required projects/investments"""
-        return sum(model.x[i,j] for j in model.optionsOut[i]) == 1
-        # When Non-Selection is included, the following constraint should be used.
-        # return sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,model.optionsOut[i].last()] == 1
-      model.constraintRegulatory = pyomo.Constraint(model.regulatoryMandated, rule=constraintRegulatory)
+      model.constraintRegulatory = pyomo.Constraint(model.regulatoryMandated, rule=self.constraintRegulatory)
 
     # constraint to handle 'DoNothing' options --> (1f)
-    def constraintX(model,i):
-      """ sum of investments over knapsacks should less or equal than bounds """
-      expr = sum(model.x[i,j] for j in model.optionsOut[i])
-      if not self.nonSelection:
-        return sum(model.x[i,j] for j in model.optionsOut[i]) <= 1
-      else:
-        # When Non-Selection is included, the following constraint should be used.
-        return sum(model.x[i,j] for j in model.optionsOut[i]) == 1
-    model.constraintX = pyomo.Constraint(model.investments, rule=constraintX)
+    if self.nonSelection:
+      model.constraintX = pyomo.Constraint(model.investments, rule=self.constraintXNonSelection)
+    else:
+      model.constraintX = pyomo.Constraint(model.investments, rule=self.constraintX)
 
     # constraint for scenario analysis
     if self.uncertainties is not None:
       model.y = pyomo.Var(model.investments, model.investments, domain=self.solutionVariableType)
-
       # constraint (1b) and (1h)
-      def orderConstraintI(model, i, j):
-        """Constraint for variable y if priority project selection is required"""
-        if i < j:
-          return model.y[i,j] + model.y[j,i] == 1
-        else:
-          return pyomo.Constraint.Skip
-      model.orderConstraintI = pyomo.Constraint(model.investments, model.investments, rule=orderConstraintI)
-
+      model.orderConstraintI = pyomo.Constraint(model.investments, model.investments, rule=self.orderConstraintI)
       # constraint (1b) extension
-      def constraintY(model, i):
-        """Constraint for variable y if priority project selection is required"""
-        return model.y[i,i] == 0
-      model.constraintY = pyomo.Constraint(model.investments)
-
-      # constraint (1c) --> optional
-      def consistentConstraintI(model, i, ip):
-        """Constraint for variable y if priority project selection is required"""
-        if i == ip:
-          return model.y[i,ip] == model.y[ip,i]
-        else:
-          if not self.nonSelection:
-            expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) + model.y[i,ip] - 1
-            expr2 = sum(model.x[i,j] for j in model.optionsOut[i])
-          else:
-            # When Non-Selection is included, the following constraint should be used.
-            lastIndexI = model.optionsOut[i].last()
-            lastIndexIP = model.optionsOut[ip].last()
-            if not self.regulatoryMandated:
-              expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) - model.x[ip,lastIndexIP] + model.y[i,ip] - 1
-              expr2 = sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,lastIndexI]
-            else:
-              if ip in model.regulatoryMandated:
-                expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) + model.y[i,ip] - 1
-              else:
-                expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) - model.x[ip,lastIndexIP] + model.y[i,ip] - 1
-              if i in model.regulatoryMandated:
-                expr2 = sum(model.x[i,j] for j in model.optionsOut[i])
-              else:
-                expr2 = sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,lastIndexI]
-          return expr1 <= expr2
-      model.consistentConstraintI = pyomo.Constraint(model.investments, model.investments, rule=consistentConstraintI)
+      model.constraintY = pyomo.Constraint(model.investments, rule=self.constraintY)
+      if self.nonSelection:
+        # constraint (1c) --> optional
+        model.consistentConstraintI = pyomo.Constraint(model.investments, model.investments, rule=self.consistentConstraintINonSelection)
+        # constraint (1j) including both non-selection and regulatory mandated options
+        model.consistentConstraintII = pyomo.Constraint(model.investments, model.investmentOption, rule=self.consistentConstraintIINoSelection)
+      else:
+        # constraint (1c) --> optional
+        model.consistentConstraintI = pyomo.Constraint(model.investments, model.investments, rule=self.consistentConstraintI)
+        # constraint (1j)
+        model.consistentConstraintII = pyomo.Constraint(model.investments, model.investmentOption, rule=self.consistentConstraintII)
 
       # constraint (1i) helps to remove ties
-      def constraintNoTie(model, i, ip, idp):
-        """
-          Help to produce a total ordering of the projects rather than allowing ties. This constraint
-          will not change the optimal NPV
-        """
-        if i != ip and ip != idp and idp != i:
-          return model.y[i,ip] + model.y[ip,idp] + model.y[idp,i] <= 2
-        else:
-          return pyomo.Constraint.Skip
-      model.constraintNoTie = pyomo.Constraint(model.investments, model.investments, model.investments, rule=constraintNoTie)
+      model.constraintNoTie = pyomo.Constraint(model.investments, model.investments, model.investments, rule=self.constraintNoTie)
 
-      # constraint (1j) including both non-selection and regulatory mandated options
-      # The constraint matters only when project i is higher priority than project ip. In this case,
-      # if we select Plan A for lower priority project then we must select plan A for the higher priority
-      # project. If we select Plan B for the lower priority project then we can select Plan A and Plan B
-      # for the higher priority project. And, if we select Plan C for the lower priority project then we
-      # can select Plan A, B, C for the hight priority project. Inclusion of this constraint is "optional"
-      # and reflects how the decision maker prefers to interpret the notion of priorities.
-      def consistentConstraintIIPart(model, i, ip, j):
-        """
-          This constraint is a type of consistency constraint with respect to the notion of options.
-        """
-        if i != ip:
-          expr1 = model.x[ip,j] + model.y[i,ip]-1
-          expr2 = 0
-          # we assume options are in order and their priority are also in order, i.e. from high to low
-          for jp in model.optionsOut[i]:
-            expr2 = expr2 + model.x[i,jp]
-            if jp != j:
-              continue
-            else:
-              break
-          return expr1 <= expr2
-        else:
-          return pyomo.Constraint.Skip
-      def consistentConstraintII(model, i, ip, j):
-        """
-          This constraint is a type of consistency constraint with respect to the notion of options,
-          including both non-selection and regulatory mandated options
-        """
-        if not self.nonSelection:
-          return consistentConstraintIIPart(model, i, ip, j)
-        else:
-          lastIndexIP = model.optionsOut[ip].last()
-          lastIndexI = model.optionsOut[i].last()
-          if not self.regulatoryMandated:
-            # When Non-Selection is included, the following constraint should be used.
-            if j == lastIndexIP:
-              return pyomo.Constraint.Skip
-            else:
-              return consistentConstraintIIPart(model, i, ip, j)
-          else:
-            if ip in model.regulatoryMandated:
-              return consistentConstraintIIPart(model, i, ip, j)
-            else:
-              if j == lastIndexIP:
-                return pyomo.Constraint.Skip
-              else:
-                return consistentConstraintIIPart(model, i, ip, j)
-      model.consistentConstraintII = pyomo.Constraint(model.investments, model.investmentOption, rule=consistentConstraintII)
 
     return model
 
