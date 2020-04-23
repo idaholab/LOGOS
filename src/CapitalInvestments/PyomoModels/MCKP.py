@@ -355,14 +355,22 @@ class MCKP(KnapsackBase):
     model.costs = pyomo.Param(model.options, model.resources, model.time_periods, mutable=True)
     return model
 
+  def addExpressions(self, model):
+    """
+      Add specific expressions for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model.firstStageCost = pyomo.Expression(rule=self.computeFirstStageCost)
+    model.secondStageCost = pyomo.Expression(rule=self.computeSecondStageCost)
+    return model
+
   def addConstraints(self, model):
     """
       Add specific constraints for MCKP problems
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model.firstStageCost = pyomo.Expression(rule=self.computeFirstStageCost)
-    model.secondStageCost = pyomo.Expression(rule=self.computeSecondStageCost)
     # constraint (1d)
     model.constraintCapacity = pyomo.Constraint(model.resources, model.time_periods, rule=self.constraintCapacity)
     # constraint (1e) and (1f)
@@ -370,7 +378,6 @@ class MCKP(KnapsackBase):
     if self.regulatoryMandated is not None:
       model.regulatoryMandated = pyomo.Set()
       model.constraintRegulatory = pyomo.Constraint(model.regulatoryMandated, rule=self.constraintRegulatory)
-
     # Special handles for required and DoNothing options
     # The options in input file can include DoNothing, but not required to be selected by optimization
     # Only the investment added to regulatoryMandated will be selected.
@@ -379,10 +386,8 @@ class MCKP(KnapsackBase):
       model.constraintX = pyomo.Constraint(model.investments, rule=self.constraintXNonSelection)
     else:
       model.constraintX = pyomo.Constraint(model.investments, rule=self.constraintX)
-
     # constraint for scenario analysis
     if self.uncertainties is not None:
-      model.y = pyomo.Var(model.investments, model.investments, domain=self.solutionVariableType)
       # constraint (1b) and (1h)
       model.orderConstraintI = pyomo.Constraint(model.investments, model.investments, rule=self.orderConstraintI)
       # constraint (1b) extension
@@ -399,7 +404,26 @@ class MCKP(KnapsackBase):
         model.consistentConstraintII = pyomo.Constraint(model.investments, model.investmentOption, rule=self.consistentConstraintII)
       # constraint (1i) helps to remove ties
       model.constraintNoTie = pyomo.Constraint(model.investments, model.investments, model.investments, rule=self.constraintNoTie)
+    return model
 
+  def addVariables(self, model):
+    """
+      Add variables for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model.x = pyomo.Var(model.options, domain=pyomo.Binary)
+    if self.uncertainties is not None:
+      model.y = pyomo.Var(model.investments, model.investments, domain=self.solutionVariableType)
+    return model
+
+  def addObjective(self, model):
+    """
+      Add objective for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model.obj = pyomo.Objective(rule=self.objExpression, sense=self.sense)
     return model
 
   def multipleChoiceKnapsackModel(self):
@@ -409,9 +433,10 @@ class MCKP(KnapsackBase):
       @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
     model = self.initializeKnapsackModel()
-    model.x = pyomo.Var(model.options, domain=pyomo.Binary)
+    model = self.addVariables(model)
+    model = self.addExpressions(model)
     # objective function (1a)
-    model.obj = pyomo.Objective(rule=self.objExpression, sense=self.sense)
+    model = self.addObjective(model)
     model = self.addConstraints(model)
     return model
 
