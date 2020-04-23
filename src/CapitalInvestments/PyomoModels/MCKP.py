@@ -336,43 +336,44 @@ class MCKP(KnapsackBase):
       else:
         return self.consistentConstraintII(model, i, ip, j)
 
-  def multipleKnapsackModel(self):
+  def initializeKnapsackModel(self):
     """
-      This method is used to create pyomo model.
+      Initialize the pyomo model parameters for Knapsack problem (MCKP)
       @ In, None
-      @ Out, model, pyomo.AbstractModel, abstract pyomo model
+      @ Out, model, pyomo model instance, pyomo abstract model
     """
     model = pyomo.AbstractModel()
     model.time_periods = pyomo.Set()
     model.investments = pyomo.Set(ordered=True)
     model.options = pyomo.Set(dimen=2, ordered=True)
     model.resources = pyomo.Set()
-
     model.optionsOut = pyomo.Set(model.investments, initialize=self.optionsOutInit, ordered=True)
     # Set used for constraint (1j)
     model.investmentOption = pyomo.Set(dimen=2, initialize=self.investmentOptionInit, ordered=True)
     model.net_present_values = pyomo.Param(model.options, mutable=True)
     model.available_capitals = pyomo.Param(model.resources, model.time_periods, mutable=True)
     model.costs = pyomo.Param(model.options, model.resources, model.time_periods, mutable=True)
+    return model
 
-    model.x = pyomo.Var(model.options, domain=pyomo.Binary)
-
-    # Special handles for required and DoNothing options
-    # The options in input file can include DoNothing, but not required to be selected by optimization
-    # Only the investment added to regulatoryMandated will be selected.
+  def addConstraints(self, model):
+    """
+      Add specific constraints for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
     model.firstStageCost = pyomo.Expression(rule=self.computeFirstStageCost)
     model.secondStageCost = pyomo.Expression(rule=self.computeSecondStageCost)
-    # objective function (1a)
-    model.obj = pyomo.Objective(rule=self.objExpression, sense=self.sense)
     # constraint (1d)
     model.constraintCapacity = pyomo.Constraint(model.resources, model.time_periods, rule=self.constraintCapacity)
-
     # constraint (1e) and (1f)
     # last option of any project will be denoted as "non-selection" option
     if self.regulatoryMandated is not None:
       model.regulatoryMandated = pyomo.Set()
       model.constraintRegulatory = pyomo.Constraint(model.regulatoryMandated, rule=self.constraintRegulatory)
 
+    # Special handles for required and DoNothing options
+    # The options in input file can include DoNothing, but not required to be selected by optimization
+    # Only the investment added to regulatoryMandated will be selected.
     # constraint to handle 'DoNothing' options --> (1f)
     if self.nonSelection:
       model.constraintX = pyomo.Constraint(model.investments, rule=self.constraintXNonSelection)
@@ -396,11 +397,22 @@ class MCKP(KnapsackBase):
         model.consistentConstraintI = pyomo.Constraint(model.investments, model.investments, rule=self.consistentConstraintI)
         # constraint (1j)
         model.consistentConstraintII = pyomo.Constraint(model.investments, model.investmentOption, rule=self.consistentConstraintII)
-
       # constraint (1i) helps to remove ties
       model.constraintNoTie = pyomo.Constraint(model.investments, model.investments, model.investments, rule=self.constraintNoTie)
 
+    return model
 
+  def multipleChoiceKnapsackModel(self):
+    """
+      This method is used to create pyomo model.
+      @ In, None
+      @ Out, model, pyomo.AbstractModel, abstract pyomo model
+    """
+    model = self.initializeKnapsackModel()
+    model.x = pyomo.Var(model.options, domain=pyomo.Binary)
+    # objective function (1a)
+    model.obj = pyomo.Objective(rule=self.objExpression, sense=self.sense)
+    model = self.addConstraints(model)
     return model
 
   def createModel(self):
@@ -409,7 +421,7 @@ class MCKP(KnapsackBase):
       @ In, None
       @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
-    model = self.multipleKnapsackModel()
+    model = self.multipleChoiceKnapsackModel()
     return model
 
   def pysp_scenario_tree_model_callback(self):
