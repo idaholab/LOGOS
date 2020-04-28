@@ -67,7 +67,8 @@ class DROMCKP(MCKP):
       @ In, model, instance, pyomo abstract model instance
       @ Out, expr, float, frist stage cost
     """
-    expr = 0.0
+
+    expr = -model.epsilon * model.gamma + pyomo.summation(model.prob, model.nu)
     return expr
 
   @staticmethod
@@ -77,7 +78,7 @@ class DROMCKP(MCKP):
       @ In, model, instance, pyomo abstract model instance
       @ Out, expr, pyomo.expression, second stage cost
     """
-    expr = -model.epsilon * model.gamma + pyomo.summation(model.prob, model.nu)
+    expr = 0.0
     return expr
 
   @staticmethod
