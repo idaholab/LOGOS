@@ -117,6 +117,7 @@ class KnapsackBase(ModelBase):
 
     ## used for DRO model
     if self.uncertainties is not None:
+      logger.info('Generate additional model inputs for DRO optimization')
       data['sigma'] = {None:list(self.scenarios['probabilities'].keys())}
       data['prob'] = copy.copy(self.scenarios['probabilities'])
       data['epsilon'] = {None:self.epsilon}

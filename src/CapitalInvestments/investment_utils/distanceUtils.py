@@ -21,6 +21,7 @@ def preprocessData(scenarioDict):
       i.e. {'scenario_i':{'paramName':{index/indexTuple:value}}}
     @ Out, data, list, 2-D list with shape (numberScenarios, paramsVariationSize)
   """
+  logger.debug('Pre-process scenario data before compute distance')
   data = []
   for sm, paramDict in scenarioDict.items():
     paramData = []
@@ -39,6 +40,7 @@ def computeDist(distName, scenarioDict, kwargs={}):
     @ In, kwargs, dict, options for the distance metric
     @ Out, distData, numpy.array, 2-D numpy array contains the pairwise distance between scenarios
   """
+  logger.debug('Compute "{}" distance for given scenarios'.format(distName))
   dist = DistanceMetric.get_metric(distName, **kwargs)
   data = preprocessData(scenarioDict)
   distData = dist.pairwise(data)

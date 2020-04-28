@@ -118,9 +118,9 @@
       <threads>1</threads>
       <StochSolver>EF</StochSolver>
       <!-- epsilon radius -->
-      <radius_ambiguity>0.1</radius_ambiguity>
+      <radius_ambiguity>10.E9</radius_ambiguity>
     </solverOptions>
     <sense>maximize</sense>
-    <problem_type>DRO</problem_type>
+    <problem_type>dromckp</problem_type>
   </Settings>
 </Logos>

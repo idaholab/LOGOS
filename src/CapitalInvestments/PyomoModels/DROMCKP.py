@@ -77,7 +77,7 @@ class DROMCKP(MCKP):
       @ In, model, instance, pyomo abstract model instance
       @ Out, expr, pyomo.expression, second stage cost
     """
-    expr = -model.epsilon * model.gamma + pyomo.summation(model.nu, model.prob)
+    expr = -model.epsilon * model.gamma + pyomo.summation(model.prob, model.nu)
     return expr
 
   @staticmethod
@@ -115,10 +115,10 @@ class DROMCKP(MCKP):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model = MCKP.addVariables(model)
+    model = MCKP.addVariables(self, model)
     # variables for robust optimization
     model.gamma = pyomo.Var(within=pyomo.NonNegativeReals)
-    model.nu = pyomo.Var(model.sm, domain=pyomo.NonNegativeReals)
+    model.nu = pyomo.Var(model.sigma, domain=pyomo.NonNegativeReals)
     return model
 
   def addAdditionalConstraints(self, model):
@@ -140,7 +140,7 @@ class DROMCKP(MCKP):
       @ In, None
       @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
-    model = MCKP.multipleChoiceKnapsackModel()
+    model = MCKP.multipleChoiceKnapsackModel(self)
     model = self.addAdditionalConstraints(model)
     return model
 
@@ -157,6 +157,9 @@ class DROMCKP(MCKP):
     # first Stage
     treeModel.StageCost[firstStage] = 'firstStageCost'
     treeModel.StageVariables[firstStage].add('y[*,*]')
+    # # additional variables:
+    # treeModel.StageVariables[firstStage].add('gamma')
+    # treeModel.StageVariables[firstStage].add('nu[*]')
     # second Stage
     treeModel.StageCost[secondStage] = 'secondStageCost'
     treeModel.StageVariables[secondStage].add('x[*,*]')
