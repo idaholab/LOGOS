@@ -107,7 +107,9 @@ class MCKP(KnapsackBase):
     self.scenarios['scenario_name'] = dict(('scenario_' + str(i), name) for i, name in enumerate(list(itertools.product(*scenarioNameList)), 1))
     self.scenarios['probabilities'] = dict(('scenario_' + str(i), float(np.product(list(prob)))) for i, prob in enumerate(list(itertools.product(*scenarioProbList)), 1))
     self.scenarios['scenario_data'] = dict(('scenario_' + str(i), dict(zip(paramList, data))) for i, data in enumerate(list(itertools.product(*scenarioList)), 1))
-
+    print(self.scenarios['scenario_data'])
+    print(list(itertools.product(*scenarioList)))
+    print(scenarioList)
   @staticmethod
   def optionsOutInit(model, option):
     """
@@ -353,6 +355,24 @@ class MCKP(KnapsackBase):
     model.net_present_values = pyomo.Param(model.options, mutable=True)
     model.available_capitals = pyomo.Param(model.resources, model.time_periods, mutable=True)
     model.costs = pyomo.Param(model.options, model.resources, model.time_periods, mutable=True)
+    model = self.addAdditionalSets(model)
+    model = self.addAdditionalParams(model)
+    return model
+
+  def addAdditionalSets(self, model):
+    """
+      Add specific Sets for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    return model
+
+  def addAdditionalParams(self, model):
+    """
+      Add specific Params for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
     return model
 
   def addExpressions(self, model):

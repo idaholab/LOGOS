@@ -87,6 +87,10 @@ class ModelBase:
     self.phRho = 1
     self.executable = None      # specify the path to the solver
     self.stochSolver = 'ef'     # stochastic solver, default runef, can be switched to runph method in pyomo.
+    ## used for distributionally robust optimization
+    self.epsilon = 0.0
+    self.sigma = []
+    self.prob = []
 
   def initialize(self, initDict):
     """
@@ -150,6 +154,9 @@ class ModelBase:
       self.stochSolver = stochSolver.lower().strip()
     self.executable = solverOptions.pop('executable', None)
     self.workingDir = self.settings.pop('workingDir')
+    ## used for DRO
+    # TODO: check provided epsilon is float
+    self.epsilon = float(solverOptions.pop('radius_ambiguity', 0.0))
     self.sopts.update(solverOptions)
     self.tee = self.settings.pop('tee',False)
     self.nonSelection = utils.convertStringToBool(self.settings.pop('nonSelection', 'False'))

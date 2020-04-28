@@ -68,7 +68,7 @@ class DROMCKP(MCKP):
       @ In, model, instance, pyomo abstract model instance
       @ Out, expr, float, frist stage cost
     """
-    expr = self.epsilon * model.gamma
+    expr = 0.0
     return expr
 
   @staticmethod
@@ -78,7 +78,7 @@ class DROMCKP(MCKP):
       @ In, model, instance, pyomo abstract model instance
       @ Out, expr, pyomo.expression, second stage cost
     """
-    expr = model.nu
+    expr = -model.epsilon * model.gamma + pyomo.summation(model.nu, model.prob)
     return expr
 
   @staticmethod
@@ -90,6 +90,26 @@ class DROMCKP(MCKP):
     """
     return model.firstStageCost + model.secondStageCost
 
+  def addAdditionalSets(self, model):
+    """
+      Add specific Sets for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model.sigma = pyomo.Set(ordered=True)
+    return model
+
+  def addAdditionalParams(self, model):
+    """
+      Add specific Params for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model.epsilon = pyomo.Param(within=pyomo.NonNegativeReals, default=0.0, mutable=True)
+    model.prob = pyomo.Param(model.sigma, within=pyomo.UnitInterval, mutable=True)
+    model.dist = pyomo.Param(model.sigma, model.sigma,  mutable=True)
+    return model
+
   def addVariables(self, model):
     """
       Add variables for DROMCKP problems
@@ -98,8 +118,8 @@ class DROMCKP(MCKP):
     """
     model = MCKP.addVariables(model)
     # variables for robust optimization
-    model.gamma = pyomo.Var(within=pyomo.NonNegativeReals, initialize=1.)
-    model.nu = pyomo.Var(within=pyomo.NonNegativeReals, initialize=1.)
+    model.gamma = pyomo.Var(within=pyomo.NonNegativeReals)
+    model.nu = pyomo.Var(model.sm, domain=pyomo.NonNegativeReals)
     return model
 
   def addAdditionalConstraints(self, model):
@@ -109,10 +129,10 @@ class DROMCKP(MCKP):
       @ Out, model, pyomo model instance, pyomo abstract model
     """
     # TODO: define model.sigma, find a way to implement the following constraint, calculate distance
-    def constraintWasserstein(model, i):
+    def constraintWasserstein(model, i, j):
       expr = pyomo.summation(model.net_present_values, model.x)
-      return -model.gamma * dist[i] + model.nu[i] <= expr
-    model.constraintWassersteinDistance = pyomo.Constraint(model.sigma, rule=constraintWasserstein)
+      return -model.gamma * model.dist[i,j] + model.nu[i] <= expr
+    model.constraintWassersteinDistance = pyomo.Constraint(model.sigma, model.sigma, rule=constraintWasserstein)
     return model
 
   def multipleChoiceKnapsackModel(self):
@@ -138,12 +158,12 @@ class DROMCKP(MCKP):
     # first Stage
     treeModel.StageCost[firstStage] = 'firstStageCost'
     treeModel.StageVariables[firstStage].add('y[*,*]')
-    # TODO:
-    treeModel.StageVariables[firstStage].add('gamma')
-    treeModel.StageVariables[firstStage].add('nu[*]')
     # second Stage
     treeModel.StageCost[secondStage] = 'secondStageCost'
     treeModel.StageVariables[secondStage].add('x[*,*]')
+    # additional variables:
+    treeModel.StageVariables[secondStage].add('gamma')
+    treeModel.StageVariables[secondStage].add('nu[*]')
     # treeModel.pprint()
     return treeModel
 

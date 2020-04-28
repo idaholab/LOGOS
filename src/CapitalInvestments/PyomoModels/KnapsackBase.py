@@ -111,6 +111,13 @@ class KnapsackBase(ModelBase):
         raise IOError('Required node ' + paramName + ' is not found in input file, please specify it under node "Parameters"!')
       else:
         data[paramName] = self.setParameters(paramName, options, maxDim, self.params[paramName])
+
+    ## used for DRO model
+    if self.uncertainties is not None:
+      data['sigma'] = {None:list(self.scenarios['probabilities'].keys())}
+      data['prob'] = {None:list(self.scenarios['probabilities'].values())}
+      data['epsilon'] = {None:self.epsilon}
+
     data = {None:data}
     return data
 
