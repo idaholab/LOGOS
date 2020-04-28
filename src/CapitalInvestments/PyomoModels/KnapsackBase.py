@@ -27,10 +27,8 @@ import pyomo.environ as pyomo
 #Internal Modules------------------------------------------------------------------------------------
 try:
   from LOGOS.src.CapitalInvestments.PyomoModels.ModelBase import ModelBase
-  from LOGOS.src.CapitalInvestments.investment_utils import distanceUtils
 except ImportError:
   from .ModelBase import ModelBase
-  from CapitalInvestments.investment_utils import distanceUtils
 #Internal Modules End--------------------------------------------------------------------------------
 
 logger = logging.getLogger(__name__)
@@ -121,10 +119,13 @@ class KnapsackBase(ModelBase):
       data['sigma'] = {None:list(self.scenarios['probabilities'].keys())}
       data['prob'] = copy.copy(self.scenarios['probabilities'])
       data['epsilon'] = {None:self.epsilon}
-      distData = distanceUtils.computeDist('minkowski', self.scenarios['scenario_data'])
+      distData = copy.copy(self.distData[0,:])
       smIndices = list(self.scenarios['probabilities'].keys())
-      indices = list(itertools.product(*[smIndices, smIndices]))
-      data['dist'] = dict(zip(indices,np.ravel(distData)))
+      data['dist'] = dict(zip(smIndices,np.ravel(distData)))
+
+      # The following will not be used
+      # indices = list(itertools.product(*[smIndices, smIndices]))
+      # data['dist'] = dict(zip(indices,np.ravel(distData)))
 
     data = {None:data}
     return data

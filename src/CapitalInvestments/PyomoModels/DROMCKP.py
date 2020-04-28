@@ -106,7 +106,9 @@ class DROMCKP(MCKP):
     """
     model.epsilon = pyomo.Param(within=pyomo.NonNegativeReals, default=0.0, mutable=True)
     model.prob = pyomo.Param(model.sigma, within=pyomo.UnitInterval, mutable=True)
-    model.dist = pyomo.Param(model.sigma, model.sigma,  mutable=True)
+    # model.dist will be changed on the fly via scenario callback functions
+    # model.dist = pyomo.Param(model.sigma, model.sigma,  mutable=True)
+    model.dist = pyomo.Param(model.sigma, mutable=True)
     return model
 
   def addVariables(self, model):
@@ -128,10 +130,16 @@ class DROMCKP(MCKP):
       @ Out, model, pyomo model instance, pyomo abstract model
     """
     # TODO: define model.sigma, find a way to implement the following constraint, calculate distance
-    def constraintWasserstein(model, i, j):
+    # def constraintWasserstein(model, i, j):
+    #   expr = pyomo.summation(model.net_present_values, model.x)
+    #   return -model.gamma * model.dist[i,j] + model.nu[i] <= expr
+    # model.constraintWassersteinDistance = pyomo.Constraint(model.sigma, model.sigma, rule=constraintWasserstein)
+    # return model
+    ## model.dist will be changed on the fly
+    def constraintWasserstein(model, i):
       expr = pyomo.summation(model.net_present_values, model.x)
-      return -model.gamma * model.dist[i,j] + model.nu[i] <= expr
-    model.constraintWassersteinDistance = pyomo.Constraint(model.sigma, model.sigma, rule=constraintWasserstein)
+      return -model.gamma * model.dist[i] + model.nu[i] <= expr
+    model.constraintWassersteinDistance = pyomo.Constraint(model.sigma, rule=constraintWasserstein)
     return model
 
   def multipleChoiceKnapsackModel(self):
@@ -157,15 +165,15 @@ class DROMCKP(MCKP):
     # first Stage
     treeModel.StageCost[firstStage] = 'firstStageCost'
     treeModel.StageVariables[firstStage].add('y[*,*]')
-    # # additional variables:
-    # treeModel.StageVariables[firstStage].add('gamma')
-    # treeModel.StageVariables[firstStage].add('nu[*]')
+    # additional variables:
+    treeModel.StageVariables[firstStage].add('gamma')
+    treeModel.StageVariables[firstStage].add('nu[*]')
     # second Stage
     treeModel.StageCost[secondStage] = 'secondStageCost'
     treeModel.StageVariables[secondStage].add('x[*,*]')
-    # additional variables:
-    treeModel.StageVariables[secondStage].add('gamma')
-    treeModel.StageVariables[secondStage].add('nu[*]')
+    # # additional variables:
+    # treeModel.StageVariables[secondStage].add('gamma')
+    # treeModel.StageVariables[secondStage].add('nu[*]')
     # treeModel.pprint()
     return treeModel
 

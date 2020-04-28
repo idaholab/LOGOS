@@ -44,4 +44,5 @@ def computeDist(distName, scenarioDict, kwargs={}):
   dist = DistanceMetric.get_metric(distName, **kwargs)
   data = preprocessData(scenarioDict)
   distData = dist.pairwise(data)
+  # print("distance: ", distData)
   return distData
