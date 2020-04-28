@@ -308,7 +308,7 @@ class MCKP(KnapsackBase):
       return pyomo.Constraint.Skip
 
   @staticmethod
-  def consistentConstraintIINonSelection(model, i, ip, j):
+  def consistentConstraintIINoSelection(model, i, ip, j):
     """
       This constraint is a type of consistency constraint with respect to the notion of options,
       including both non-selection and regulatory mandated options
@@ -319,22 +319,44 @@ class MCKP(KnapsackBase):
       # can select Plan A, B, C for the hight priority project. Inclusion of this constraint is "optional"
       # and reflects how the decision maker prefers to interpret the notion of priorities.
     """
+    def consistentConstraintIIPart(model, i, ip, j):
+      """
+        This constraint is a type of consistency constraint with respect to the notion of options.
+        @ In, model, instance, pyomo abstract model instance
+        @ In, i, str, investment index
+        @ In, ip, str, investment index
+        @ In, j, str, option index
+        @ Out, consistentConstraintIIPart, pyomo.expression, consistent constraintII
+      """
+      if i != ip:
+        expr1 = model.x[ip,j] + model.y[i,ip]-1
+        expr2 = 0
+        # we assume options are in order and their priority are also in order, i.e. from high to low
+        for jp in model.optionsOut[i]:
+          expr2 = expr2 + model.x[i,jp]
+          if jp != j:
+            continue
+          else:
+            break
+        return expr1 <= expr2
+      else:
+        return pyomo.Constraint.Skip
     lastIndexIP = model.optionsOut[ip].last()
     lastIndexI = model.optionsOut[i].last()
     try:
       regulatoryMandated = getattr(model, "regulatoryMandated")
       if ip in regulatoryMandated:
-        return self.consistentConstraintII(model, i, ip, j)
+        return consistentConstraintIIPart(model, i, ip, j)
       else:
         if j == lastIndexIP:
           return pyomo.Constraint.Skip
         else:
-          return self.consistentConstraintII(model, i, ip, j)
+          return consistentConstraintIIPart(model, i, ip, j)
     except (AttributeError, KeyError):
       if j == lastIndexIP:
         return pyomo.Constraint.Skip
       else:
-        return self.consistentConstraintII(model, i, ip, j)
+        return consistentConstraintIIPart(model, i, ip, j)
 
   def initializeKnapsackModel(self):
     """
