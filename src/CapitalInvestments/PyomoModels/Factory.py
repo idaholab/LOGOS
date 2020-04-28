@@ -16,10 +16,12 @@ try:
   from LOGOS.src.CapitalInvestments.PyomoModels.SingleKnapsack import SingleKnapsack
   from LOGOS.src.CapitalInvestments.PyomoModels.MultipleKnapsack import MultipleKnapsack
   from LOGOS.src.CapitalInvestments.PyomoModels.MCKP import MCKP
+  from LOGOS.src.CapitalInvestments.PyomoModels.DROMCKP import DROMCKP
 except ImportError:
   from .SingleKnapsack import SingleKnapsack
   from .MultipleKnapsack import MultipleKnapsack
   from .MCKP import MCKP
+  from .DROMCKP import DROMCKP
 
 """
  Interface Dictionary (factory) (private)
@@ -29,6 +31,7 @@ __interfaceDict = {}
 __interfaceDict['singleknapsack'           ] = SingleKnapsack
 __interfaceDict['multipleknapsack'         ] = MultipleKnapsack
 __interfaceDict['mckp'                     ] = MCKP
+__interfaceDict['dromckp'                  ] = DROMCKP
 
 
 def knownTypes():

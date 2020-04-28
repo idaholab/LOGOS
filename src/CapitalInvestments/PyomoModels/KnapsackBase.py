@@ -14,6 +14,7 @@ warnings.simplefilter('default',DeprecationWarning)
 
 #External Modules------------------------------------------------------------------------------------
 import abc
+import copy
 import itertools
 import numpy as np
 import logging
@@ -26,8 +27,10 @@ import pyomo.environ as pyomo
 #Internal Modules------------------------------------------------------------------------------------
 try:
   from LOGOS.src.CapitalInvestments.PyomoModels.ModelBase import ModelBase
+  from LOGOS.src.CapitalInvestments.investment_utils import distanceUtils
 except ImportError:
   from .ModelBase import ModelBase
+  from CapitalInvestments.investment_utils import distanceUtils
 #Internal Modules End--------------------------------------------------------------------------------
 
 logger = logging.getLogger(__name__)
@@ -115,8 +118,12 @@ class KnapsackBase(ModelBase):
     ## used for DRO model
     if self.uncertainties is not None:
       data['sigma'] = {None:list(self.scenarios['probabilities'].keys())}
-      data['prob'] = {None:list(self.scenarios['probabilities'].values())}
+      data['prob'] = copy.copy(self.scenarios['probabilities'])
       data['epsilon'] = {None:self.epsilon}
+      distData = distanceUtils.computeDist('minkowski', self.scenarios['scenario_data'])
+      smIndices = list(self.scenarios['probabilities'].keys())
+      indices = list(itertools.product(*[smIndices, smIndices]))
+      data['dist'] = dict(zip(indices,np.ravel(distData)))
 
     data = {None:data}
     return data

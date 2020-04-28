@@ -35,7 +35,6 @@ class DROMCKP(MCKP):
     MCKP.__init__(self)
     self.epsilon = 0.1
 
-
   def initialize(self, initDict):
     """
       Mehod to initialize
