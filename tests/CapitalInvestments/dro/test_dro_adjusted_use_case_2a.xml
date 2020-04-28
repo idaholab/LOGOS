@@ -175,6 +175,8 @@ In this case, we only consider capital budget (O&M is not included)
       <!-- epsilon radius -->
       <radius_ambiguity>10</radius_ambiguity>
     </solverOptions>
+    <consistentConstraintI>True</consistentConstraintI>
+    <consistentConstraintII>True</consistentConstraintII>
     <sense>maximize</sense>
     <problem_type>dromckp</problem_type>
   </Settings>
