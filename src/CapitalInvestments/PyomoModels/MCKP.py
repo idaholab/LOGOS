@@ -446,6 +446,14 @@ class MCKP(KnapsackBase):
       model.constraintNoTie = pyomo.Constraint(model.investments, model.investments, model.investments, rule=self.constraintNoTie)
     return model
 
+  def addAdditionalConstraints(self, model):
+    """
+      Add specific constraints for DROMCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    return model
+
   def addVariables(self, model):
     """
       Add variables for MCKP problems
@@ -478,6 +486,7 @@ class MCKP(KnapsackBase):
     # objective function (1a)
     model = self.addObjective(model)
     model = self.addConstraints(model)
+    model = self.addAdditionalConstraints(model)
     return model
 
   def createModel(self):

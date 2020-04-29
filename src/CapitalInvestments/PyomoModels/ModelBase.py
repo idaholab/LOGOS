@@ -90,10 +90,10 @@ class ModelBase:
     self.executable = None      # specify the path to the solver
     self.stochSolver = 'ef'     # stochastic solver, default runef, can be switched to runph method in pyomo.
     ## used for distributionally robust optimization
-    self.epsilon = 0.0
-    self.sigma = []
-    self.prob = []
-    self.distData = None
+    self.epsilon = 0.0 # specify the radius of radius ambiguity for distributionally robust optimization
+    self.sigma = [] # list of scenario names
+    self.prob = []  # list of probabilities
+    self.distData = None # 2-D distance array, representing the pairwised distance between scenarios
 
   def initialize(self, initDict):
     """

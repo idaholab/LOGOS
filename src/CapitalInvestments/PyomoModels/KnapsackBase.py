@@ -123,10 +123,6 @@ class KnapsackBase(ModelBase):
       smIndices = list(self.scenarios['probabilities'].keys())
       data['dist'] = dict(zip(smIndices,np.ravel(distData)))
 
-      # The following will not be used
-      # indices = list(itertools.product(*[smIndices, smIndices]))
-      # data['dist'] = dict(zip(indices,np.ravel(distData)))
-
     data = {None:data}
     return data
 

@@ -33,7 +33,6 @@ class DROMCKP(MCKP):
       @ Out, None
     """
     MCKP.__init__(self)
-    self.epsilon = 0.1
 
   def initialize(self, initDict):
     """
@@ -67,7 +66,6 @@ class DROMCKP(MCKP):
       @ In, model, instance, pyomo abstract model instance
       @ Out, expr, float, frist stage cost
     """
-
     expr = -model.epsilon * model.gamma + pyomo.summation(model.prob, model.nu)
     return expr
 
@@ -81,21 +79,13 @@ class DROMCKP(MCKP):
     expr = 0.0
     return expr
 
-  @staticmethod
-  def objExpression(model):
-    """
-      Method to compute objective expression
-      @ In, model, instance, pyomo abstract model instance
-      @ Out, objExpression, pyomo.expression, objective expression
-    """
-    return model.firstStageCost + model.secondStageCost
-
   def addAdditionalSets(self, model):
     """
       Add specific Sets for MCKP problems
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
+    model = MCKP.addAdditionalSets(self, model)
     model.sigma = pyomo.Set(ordered=True)
     return model
 
@@ -105,10 +95,10 @@ class DROMCKP(MCKP):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
+    model = MCKP.addAdditionalParams(self, model)
     model.epsilon = pyomo.Param(within=pyomo.NonNegativeReals, default=0.0, mutable=True)
     model.prob = pyomo.Param(model.sigma, within=pyomo.UnitInterval, mutable=True)
     # model.dist will be changed on the fly via scenario callback functions
-    # model.dist = pyomo.Param(model.sigma, model.sigma,  mutable=True)
     model.dist = pyomo.Param(model.sigma, mutable=True)
     return model
 
@@ -130,12 +120,7 @@ class DROMCKP(MCKP):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    # TODO: define model.sigma, find a way to implement the following constraint, calculate distance
-    # def constraintWasserstein(model, i, j):
-    #   expr = pyomo.summation(model.net_present_values, model.x)
-    #   return -model.gamma * model.dist[i,j] + model.nu[i] <= expr
-    # model.constraintWassersteinDistance = pyomo.Constraint(model.sigma, model.sigma, rule=constraintWasserstein)
-    # return model
+    model = MCKP.addAdditionalConstraints(self, model)
     ## model.dist will be changed on the fly
     def constraintWasserstein(model, i):
       expr = pyomo.summation(model.net_present_values, model.x)
@@ -150,7 +135,6 @@ class DROMCKP(MCKP):
       @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
     model = MCKP.multipleChoiceKnapsackModel(self)
-    model = self.addAdditionalConstraints(model)
     return model
 
   def pysp_scenario_tree_model_callback(self):
@@ -158,7 +142,8 @@ class DROMCKP(MCKP):
       scenario tree instance creation callback
       @ In, None
       @ Out, treeModel, Instance, pyomo scenario tree model for two stage stochastic programming,
-        extra variables 'y[*,*]' is used to define the priorities of investments
+        extra variables 'y[*,*]' is used to define the priorities of investments,
+        'gamma' and 'nu[*]' is used for the distributionally robust optimization counter-part.
     """
     treeModel = self.createScenarioTreeModel()
     firstStage = treeModel.Stages.first()
