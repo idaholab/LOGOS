@@ -59,6 +59,14 @@ class SingleKnapsack(KnapsackBase):
     """
     KnapsackBase.initialize(self, initDict)
 
+  def setScenarioData(self):
+    """
+      Method to setup the scenario data for scenario tree construction
+      @ In, None
+      @ Out, None
+    """
+    KnapsackBase.setScenarioData(self)
+
   def multidimensionalKnapsacks(self):
     """
       This method is used to create pyomo model.

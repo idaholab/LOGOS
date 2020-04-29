@@ -212,6 +212,70 @@ class ModelBase:
     """
     pass
 
+  @abc.abstractmethod
+  def initializeModel(self):
+    """
+      Initialize the pyomo model parameters for the problem
+      @ In, None
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+
+  @abc.abstractmethod
+  def addConstraints(self, model):
+    """
+      Add specific constraints for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+
+  @abc.abstractmethod
+  def addVariables(self, model):
+    """
+      Add variables for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+
+  @abc.abstractmethod
+  def addObjective(self, model):
+    """
+      Add objective for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+
+  def addExpressions(self, model):
+    """
+      Add specific expressions for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    return model
+
+  def addAdditionalSets(self, model):
+    """
+      Add specific Sets for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    return model
+
+  def addAdditionalParams(self, model):
+    """
+      Add specific Params for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    return model
+
+  def addAdditionalConstraints(self, model):
+    """
+      Add specific constraints for problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    return model
+
   def addExternalConstraints(self, model):
     """
       This method is used to load user provided external constraints

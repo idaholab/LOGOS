@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class DROMCKP(MCKP):
   """
-    Class model for distributional robust optimization of MCKP problem
+    Class model for distributionally robust optimization of MCKP problem
   """
   def __init__(self):
     """
@@ -96,7 +96,7 @@ class DROMCKP(MCKP):
       @ Out, model, pyomo model instance, pyomo abstract model
     """
     model = MCKP.addAdditionalParams(self, model)
-    model.epsilon = pyomo.Param(within=pyomo.NonNegativeReals, default=0.0, mutable=True)
+    model.epsilon = pyomo.Param(within=pyomo.NonNegativeReals, mutable=True)
     model.prob = pyomo.Param(model.sigma, within=pyomo.UnitInterval, mutable=True)
     # model.dist will be changed on the fly via scenario callback functions
     model.dist = pyomo.Param(model.sigma, mutable=True)
@@ -128,13 +128,13 @@ class DROMCKP(MCKP):
     model.constraintWassersteinDistance = pyomo.Constraint(model.sigma, rule=constraintWasserstein)
     return model
 
-  def multipleChoiceKnapsackModel(self):
+  def knapsackModel(self):
     """
       This method is used to create pyomo model.
       @ In, None
       @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
-    model = MCKP.multipleChoiceKnapsackModel(self)
+    model = MCKP.knapsackModel(self)
     return model
 
   def pysp_scenario_tree_model_callback(self):
@@ -145,17 +145,9 @@ class DROMCKP(MCKP):
         extra variables 'y[*,*]' is used to define the priorities of investments,
         'gamma' and 'nu[*]' is used for the distributionally robust optimization counter-part.
     """
-    treeModel = self.createScenarioTreeModel()
-    firstStage = treeModel.Stages.first()
-    secondStage = treeModel.Stages.last()
-    # first Stage
-    treeModel.StageCost[firstStage] = 'firstStageCost'
-    treeModel.StageVariables[firstStage].add('y[*,*]')
+    treeModel = MCKP.pysp_scenario_tree_model_callback(self)
     # additional variables:
+    firstStage = treeModel.Stages.first()
     treeModel.StageVariables[firstStage].add('gamma')
     treeModel.StageVariables[firstStage].add('nu[*]')
-    # second Stage
-    treeModel.StageCost[secondStage] = 'secondStageCost'
-    treeModel.StageVariables[secondStage].add('x[*,*]')
-    # treeModel.pprint()
     return treeModel

@@ -132,34 +132,6 @@ class MCKP(KnapsackBase):
     return ((i,j) for i in model.investments for j in model.optionsOut[i])
 
   @staticmethod
-  def objExpression(model):
-    """
-      Method to compute objective expression
-      @ In, model, instance, pyomo abstract model instance
-      @ Out, objExpression, pyomo.expression, objective expression
-    """
-    return model.firstStageCost + model.secondStageCost
-
-  @staticmethod
-  def computeFirstStageCost(model):
-    """"
-      Method to compute frist stage cost of stochastic programming
-      @ In, model, instance, pyomo abstract model instance
-      @ Out, computeFirstStageCost, float, frist stage cost
-    """
-    return 0.0
-
-  @staticmethod
-  def computeSecondStageCost(model):
-    """
-      Method to compute second stage cost of stochastic programming, i.e. maximum NPVs
-      @ In, model, instance, pyomo abstract model instance
-      @ Out, expr, pyomo.expression, second stage cost
-    """
-    expr = pyomo.summation(model.net_present_values, model.x)
-    return expr
-
-  @staticmethod
   def constraintCapacity(model, k, t):
     """
       Knapsacks capacity constraints
@@ -210,30 +182,6 @@ class MCKP(KnapsackBase):
     return sum(model.x[i,j] for j in model.optionsOut[i]) <= 1
 
   @staticmethod
-  def orderConstraintI(model, i, j):
-    """
-      Constraint for variable y if priority project selection is required
-      @ In, model, instance, pyomo abstract model instance
-      @ i, str, investment index
-      @ j, str, investment index
-      @ orderConstraintI, pyomo.expression, expression about orderConstraintI
-    """
-    if i < j:
-      return model.y[i,j] + model.y[j,i] == 1
-    else:
-      return pyomo.Constraint.Skip
-
-  @staticmethod
-  def constraintY(model, i):
-    """
-      Constraint for variable y if priority project selection is required
-      @ In, model, instance, pyomo abstract model instance
-      @ i, str, investment index
-      @ constraintY, pyomo.expression, expression about constraint on variable Y
-    """
-    return model.y[i,i] == 0
-
-  @staticmethod
   def consistentConstraintINonSelection(model, i, ip):
     """Constraint for variable y if priority project selection is required"""
     if i == ip:
@@ -267,21 +215,7 @@ class MCKP(KnapsackBase):
       expr2 = sum(model.x[i,j] for j in model.optionsOut[i])
       return expr1 <= expr2
 
-  @staticmethod
-  def constraintNoTie(model, i, ip, idp):
-    """
-      Help to produce a total ordering of the projects rather than allowing ties. This constraint
-      will not change the optimal NPV
-      @ In, model, instance, pyomo abstract model instance
-      @ In, i, str, investment index
-      @ In, ip, str, investment index
-      @ In, idp, str, investment index
-      @ Out, constraintNoTie, pyomo.expression, constraint to remove ties
-    """
-    if i != ip and ip != idp and idp != i:
-      return model.y[i,ip] + model.y[ip,idp] + model.y[idp,i] <= 2
-    else:
-      return pyomo.Constraint.Skip
+
 
   @staticmethod
   def consistentConstraintII(model, i, ip, j):
@@ -358,15 +292,13 @@ class MCKP(KnapsackBase):
       else:
         return consistentConstraintIIPart(model, i, ip, j)
 
-  def initializeKnapsackModel(self):
+  def initializeModel(self):
     """
       Initialize the pyomo model parameters for Knapsack problem (MCKP)
       @ In, None
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model = pyomo.AbstractModel()
-    model.time_periods = pyomo.Set()
-    model.investments = pyomo.Set(ordered=True)
+    model = KnapsackBase.initializeModel(self)
     model.options = pyomo.Set(dimen=2, ordered=True)
     model.resources = pyomo.Set()
     model.optionsOut = pyomo.Set(model.investments, initialize=self.optionsOutInit, ordered=True)
@@ -379,44 +311,18 @@ class MCKP(KnapsackBase):
     model = self.addAdditionalParams(model)
     return model
 
-  def addAdditionalSets(self, model):
-    """
-      Add specific Sets for MCKP problems
-      @ In, model, pyomo model instance, pyomo abstract model
-      @ Out, model, pyomo model instance, pyomo abstract model
-    """
-    return model
-
-  def addAdditionalParams(self, model):
-    """
-      Add specific Params for MCKP problems
-      @ In, model, pyomo model instance, pyomo abstract model
-      @ Out, model, pyomo model instance, pyomo abstract model
-    """
-    return model
-
-  def addExpressions(self, model):
-    """
-      Add specific expressions for MCKP problems
-      @ In, model, pyomo model instance, pyomo abstract model
-      @ Out, model, pyomo model instance, pyomo abstract model
-    """
-    model.firstStageCost = pyomo.Expression(rule=self.computeFirstStageCost)
-    model.secondStageCost = pyomo.Expression(rule=self.computeSecondStageCost)
-    return model
-
   def addConstraints(self, model):
     """
       Add specific constraints for MCKP problems
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
+    KnapsackBase.addConstraints(self, model)
     # constraint (1d)
     model.constraintCapacity = pyomo.Constraint(model.resources, model.time_periods, rule=self.constraintCapacity)
     # constraint (1e) and (1f)
     # last option of any project will be denoted as "non-selection" option
     if self.regulatoryMandated is not None:
-      model.regulatoryMandated = pyomo.Set()
       model.constraintRegulatory = pyomo.Constraint(model.regulatoryMandated, rule=self.constraintRegulatory)
     # Special handles for required and DoNothing options
     # The options in input file can include DoNothing, but not required to be selected by optimization
@@ -428,10 +334,6 @@ class MCKP(KnapsackBase):
       model.constraintX = pyomo.Constraint(model.investments, rule=self.constraintX)
     # constraint for scenario analysis
     if self.uncertainties is not None:
-      # constraint (1b) and (1h)
-      model.orderConstraintI = pyomo.Constraint(model.investments, model.investments, rule=self.orderConstraintI)
-      # constraint (1b) extension
-      model.constraintY = pyomo.Constraint(model.investments, rule=self.constraintY)
       if self.nonSelection:
         # constraint (1c) --> optional
         model.consistentConstraintI = pyomo.Constraint(model.investments, model.investments, rule=self.consistentConstraintINonSelection)
@@ -442,16 +344,6 @@ class MCKP(KnapsackBase):
         model.consistentConstraintI = pyomo.Constraint(model.investments, model.investments, rule=self.consistentConstraintI)
         # constraint (1j)
         model.consistentConstraintII = pyomo.Constraint(model.investments, model.investmentOption, rule=self.consistentConstraintII)
-      # constraint (1i) helps to remove ties
-      model.constraintNoTie = pyomo.Constraint(model.investments, model.investments, model.investments, rule=self.constraintNoTie)
-    return model
-
-  def addAdditionalConstraints(self, model):
-    """
-      Add specific constraints for DROMCKP problems
-      @ In, model, pyomo model instance, pyomo abstract model
-      @ Out, model, pyomo model instance, pyomo abstract model
-    """
     return model
 
   def addVariables(self, model):
@@ -460,33 +352,53 @@ class MCKP(KnapsackBase):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
+    model = KnapsackBase.addVariables(self, model)
     model.x = pyomo.Var(model.options, domain=pyomo.Binary)
-    if self.uncertainties is not None:
-      model.y = pyomo.Var(model.investments, model.investments, domain=self.solutionVariableType)
     return model
 
-  def addObjective(self, model):
+  def addAdditionalSets(self, model):
     """
-      Add objective for MCKP problems
+      Add specific Sets for MCKP problems
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model.obj = pyomo.Objective(rule=self.objExpression, sense=self.sense)
+    model = KnapsackBase.addAdditionalSets(self, model)
     return model
 
-  def multipleChoiceKnapsackModel(self):
+  def addAdditionalParams(self, model):
+    """
+      Add specific Params for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model = KnapsackBase.addAdditionalParams(self, model)
+    return model
+
+  def addExpressions(self, model):
+    """
+      Add specific expressions for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model = KnapsackBase.addExpressions(self, model)
+    return model
+
+  def addAdditionalConstraints(self, model):
+    """
+      Add specific constraints for DROMCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model = KnapsackBase.addAdditionalConstraints(self, model)
+    return model
+
+  def knapsackModel(self):
     """
       This method is used to create pyomo model.
       @ In, None
       @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
-    model = self.initializeKnapsackModel()
-    model = self.addVariables(model)
-    model = self.addExpressions(model)
-    # objective function (1a)
-    model = self.addObjective(model)
-    model = self.addConstraints(model)
-    model = self.addAdditionalConstraints(model)
+    model = KnapsackBase.knapsackModel(self)
     return model
 
   def createModel(self):
@@ -495,7 +407,7 @@ class MCKP(KnapsackBase):
       @ In, None
       @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
-    model = self.multipleChoiceKnapsackModel()
+    model = KnapsackBase.knapsackModel(self)
     return model
 
   def pysp_scenario_tree_model_callback(self):
@@ -505,13 +417,9 @@ class MCKP(KnapsackBase):
       @ Out, treeModel, Instance, pyomo scenario tree model for two stage stochastic programming,
         extra variables 'y[*,*]' is used to define the priorities of investments
     """
-    treeModel = self.createScenarioTreeModel()
-    firstStage = treeModel.Stages.first()
-    secondStage = treeModel.Stages.last()
-    # first Stage
-    treeModel.StageCost[firstStage] = 'firstStageCost'
-    treeModel.StageVariables[firstStage].add('y[*,*]')
+    treeModel = KnapsackBase.pysp_scenario_tree_model_callback(self)
     # second Stage
+    secondStage = treeModel.Stages.last()
     treeModel.StageCost[secondStage] = 'secondStageCost'
     treeModel.StageVariables[secondStage].add('x[*,*]')
     # treeModel.pprint()
