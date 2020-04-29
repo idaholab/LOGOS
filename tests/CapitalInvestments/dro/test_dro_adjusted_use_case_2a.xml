@@ -173,7 +173,7 @@ In this case, we only consider capital budget (O&M is not included)
       <threads>1</threads>
       <StochSolver>EF</StochSolver>
       <!-- epsilon radius -->
-      <radius_ambiguity>10</radius_ambiguity>
+      <radius_ambiguity>0.01</radius_ambiguity>
     </solverOptions>
     <consistentConstraintI>True</consistentConstraintI>
     <consistentConstraintII>True</consistentConstraintII>

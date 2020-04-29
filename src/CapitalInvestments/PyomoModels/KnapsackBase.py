@@ -198,9 +198,14 @@ class KnapsackBase(ModelBase):
     dim = len(self.sets['investments'])
     ysol = pd.DataFrame(np.zeros((dim,dim)), index=self.sets['investments'], columns=self.sets['investments'])
     for var, val in solutionGenerator:
-      # value is stored as y[('i','j')]
-      ind = literal_eval(var[var.index('[') + 1 : var.index(']')])
-      ysol.at[ind] = val
+      # value is stored as y[('i','j')], gamma, nu[]
+      if var == 'gamma':
+        logger.info('Variable "gamma": {}'.format(val))
+      elif var.split('[')[0] == 'nu':
+        logger.info('Variable "nu" at scenario "{}": {}'.format(var, val))
+      else:
+        ind = literal_eval(var[var.index('[') + 1 : var.index(']')])
+        ysol.at[ind] = val
     priorityList = ysol.sum(axis=0) + 1
     priorityList = priorityList.sort_values()
     msg = "Priorities of investments:"
