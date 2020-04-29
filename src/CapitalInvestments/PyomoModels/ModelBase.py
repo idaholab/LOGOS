@@ -116,13 +116,14 @@ class ModelBase:
     self.externalConstraints = initDict.pop('ExternalConstraints')
     if self.uncertainties is not None:
       self.setScenarioData()
-      self.distData = distanceUtils.computeDist('minkowski', self.scenarios['scenario_data'])
-      ## Add distance scenario data into self.scenarios
-      distData = copy.copy(self.distData)
-      smIndices = list(self.scenarios['probabilities'].keys())
-      for sm, paramDict in self.scenarios['scenario_data'].items():
-        i = int(sm.split('_')[-1]) - 1
-        paramDict['dist'] = dict(zip(smIndices, np.ravel(distData[i,:])))
+      if 'DRO' in self.name:
+        self.distData = distanceUtils.computeDist('minkowski', self.scenarios['scenario_data'])
+        ## Add distance scenario data into self.scenarios
+        distData = copy.copy(self.distData)
+        smIndices = list(self.scenarios['probabilities'].keys())
+        for sm, paramDict in self.scenarios['scenario_data'].items():
+          i = int(sm.split('_')[-1]) - 1
+          paramDict['dist'] = dict(zip(smIndices, np.ravel(distData[i,:])))
 
     if self.settings is not None:
       self.setSettings()

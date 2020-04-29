@@ -114,7 +114,7 @@ class KnapsackBase(ModelBase):
         data[paramName] = self.setParameters(paramName, options, maxDim, self.params[paramName])
 
     ## used for DRO model
-    if self.uncertainties is not None:
+    if self.uncertainties is not None and 'DRO' in self.name:
       logger.info('Generate additional model inputs for DRO optimization')
       data['sigma'] = {None:list(self.scenarios['probabilities'].keys())}
       data['prob'] = copy.copy(self.scenarios['probabilities'])
