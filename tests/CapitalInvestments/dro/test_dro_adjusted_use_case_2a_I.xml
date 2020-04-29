@@ -13,8 +13,7 @@ In this case, we only consider capital budget (O&M is not included)
        This test is aimed to check the distributionally robust optimization for
        use case 2 for FY19 In this case, we only consider capital budget
        (OM is not included).
-       In this test, radius_ambiguity = 0.0, and this test is equivalent to
-       the stochastic optimization problem.
+       In this test, radius_ambiguity = 0.01
     </description>
   </TestInfo>
   <Sets>
@@ -177,7 +176,7 @@ In this case, we only consider capital budget (O&M is not included)
       <threads>1</threads>
       <StochSolver>EF</StochSolver>
       <!-- epsilon radius -->
-      <radius_ambiguity>0.0</radius_ambiguity>
+      <radius_ambiguity>0.01</radius_ambiguity>
     </solverOptions>
     <consistentConstraintI>True</consistentConstraintI>
     <consistentConstraintII>True</consistentConstraintII>

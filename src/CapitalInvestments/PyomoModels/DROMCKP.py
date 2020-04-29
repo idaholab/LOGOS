@@ -172,40 +172,5 @@ class DROMCKP(MCKP):
     # second Stage
     treeModel.StageCost[secondStage] = 'secondStageCost'
     treeModel.StageVariables[secondStage].add('x[*,*]')
-    # # additional variables:
-    # treeModel.StageVariables[secondStage].add('gamma')
-    # treeModel.StageVariables[secondStage].add('nu[*]')
     # treeModel.pprint()
     return treeModel
-
-  def printSolution(self, model):
-    """
-      Output optimization solution to screen
-      @ In, model, instance, pyomo optimization model
-      @ Out, outputDict, dict, dictionary stores the outputs
-    """
-    outputDict = KnapsackBase.printSolution(self, model)
-    msg = "Selected investments include:"
-    logger.info(msg)
-    for item in model.investments:
-      for opt in model.optionsOut[item]:
-        outputName = '__'.join([item,opt])
-        numSelected = pyomo.value(model.x[item, opt])
-        outputDict[outputName] = [numSelected]
-        if numSelected == 1:
-          msg = "Investment: " + str(item) + " with option: " + str(opt) + " is selected!"
-          logger.info(msg)
-    logger.info("Maximum NPV: %16.4f" %(model.obj()))
-    outputDict['MaxNPV'] = model.obj()
-    # Accessing Duals
-    # In some cases, a solver plugin will raise an exception if it encounters a Suffix type that it does not handle
-    # One should be careful in verifying that Suffix declarations are being handled as expected when switching
-    # to a different solver or solver interface.
-    if self.solver == 'cbc':
-      logger.info("Duals Information for Constraint Capacity:")
-      print("Resources|Time_Periods      Capacity_Margin")
-      for const in model.component_objects(pyomo.Constraint, active=True):
-        if const.name == 'constraintCapacity':
-          for index in const:
-            print("{0:20s} {1:10.1f}".format(str(index), model.dual[const[index]]))
-    return outputDict
