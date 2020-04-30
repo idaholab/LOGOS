@@ -51,7 +51,7 @@
  [./test_dro_adjusted_use_case_2a_IV]
   type  = 'LogosRun'
   input = 'test_dro_adjusted_use_case_2a_IV.xml'
-  UnorderedCsv = 'test_dro_adjusted_use_case_2a_IV.csv'
+  output = 'test_dro_adjusted_use_case_2a_IV.csv'
   skip_if_OS = windows
   heavy = True
  [../]
@@ -90,6 +90,7 @@
   UnorderedCsv = 'test_dromkp_scenarios_I.csv'
   skip_if_OS = windows
   heavy = True
+  max_time = 1000
  [../]
 
 []
