@@ -1,12 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  For the multi-knapsack with regulatory mandated projects, 10 scenarios from 'available_capitals'.
-  Priority List will be: 1, 10, 11, 12, 13, 14, 15, 16, 2, 8, 5, 9, 4, 6, 3, 7 with
-  expected NPV 2.589. In this case, items 10, 11, 12, 13, 14, 15, 16 are regulatory mandated items
--->
 <Logos>
   <TestInfo>
-    <name>Logos.logos_skp_variation</name>
+    <name>CapitalInvestments/dro.test_droskp_scenario_I</name>
     <author>wangc</author>
     <created>2020-04-30</created>
     <classesTested>DROSKP</classesTested>

@@ -77,4 +77,19 @@
   skip_if_OS = windows
  [../]
 
+ [./test_dromkp_scenarios]
+  type  = 'LogosRun'
+  input = 'test_dromkp_scenarios.xml'
+  UnorderedCsv = 'test_dromkp_scenarios.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./test_dromkp_scenarios_I]
+  type  = 'LogosRun'
+  input = 'test_dromkp_scenarios_I.xml'
+  UnorderedCsv = 'test_dromkp_scenarios_I.csv'
+  skip_if_OS = windows
+  heavy = True
+ [../]
+
 []

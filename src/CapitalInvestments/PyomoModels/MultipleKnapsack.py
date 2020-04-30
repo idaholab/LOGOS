@@ -95,7 +95,7 @@ class MultipleKnapsack(KnapsackBase):
 
   def initializeModel(self):
     """
-      Initialize the pyomo model parameters for Knapsack problem (MCKP)
+      Initialize the pyomo model parameters for Knapsack problem (MultipleKnapsack)
       @ In, None
       @ Out, model, pyomo model instance, pyomo abstract model
     """
@@ -108,7 +108,7 @@ class MultipleKnapsack(KnapsackBase):
 
   def addConstraints(self, model):
     """
-      Add specific constraints for MCKP problems
+      Add specific constraints for MultipleKnapsack problems
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
@@ -142,7 +142,7 @@ class MultipleKnapsack(KnapsackBase):
 
   def addVariables(self, model):
     """
-      Add variables for MCKP problems
+      Add variables for MultipleKnapsack problems
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
@@ -155,7 +155,7 @@ class MultipleKnapsack(KnapsackBase):
 
   def addAdditionalSets(self, model):
     """
-      Add specific Sets for MCKP problems
+      Add specific Sets for MultipleKnapsack problems
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
@@ -164,7 +164,7 @@ class MultipleKnapsack(KnapsackBase):
 
   def addAdditionalParams(self, model):
     """
-      Add specific Params for MCKP problems
+      Add specific Params for MultipleKnapsack problems
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
@@ -173,7 +173,7 @@ class MultipleKnapsack(KnapsackBase):
 
   def addExpressions(self, model):
     """
-      Add specific expressions for MCKP problems
+      Add specific expressions for MultipleKnapsack problems
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
@@ -182,7 +182,7 @@ class MultipleKnapsack(KnapsackBase):
 
   def addAdditionalConstraints(self, model):
     """
-      Add specific constraints for DROMCKP problems
+      Add specific constraints for MultipleKnapsack problems
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """

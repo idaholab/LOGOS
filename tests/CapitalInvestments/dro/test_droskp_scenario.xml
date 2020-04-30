@@ -6,7 +6,7 @@
 -->
 <Logos>
   <TestInfo>
-    <name>Logos.logos_skp_variation</name>
+    <name>CapitalInvestments/dro.test_droskp_scenario</name>
     <author>wangc</author>
     <created>2020-04-30</created>
     <classesTested>DROSKP</classesTested>
