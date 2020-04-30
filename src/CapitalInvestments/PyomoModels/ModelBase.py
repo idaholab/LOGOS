@@ -349,7 +349,7 @@ class ModelBase:
     model = self.createModel()
     if not model.is_constructed():
       model = model.create_instance(data)
-      # model.pprint()
+      model.pprint()
     if self.externalConstraints:
       model = self.addExternalConstraints(model)
     model.dual = pyomo.Suffix(direction=pyomo.Suffix.IMPORT)
@@ -418,6 +418,7 @@ class ModelBase:
     for key, val in self.scenarios['scenario_data'][scenario_name].items():
       # instance.component(key).value = val
       instance.component(key).store_values(val)
+    # instance.pprint()
     return instance
 
   def run(self):
