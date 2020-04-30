@@ -10,14 +10,12 @@
   type  = 'LogosRun'
   input = 'test_dromckp_scenario_I.xml'
   UnorderedCsv = 'test_dromckp_scenario_I.csv'
-  heavy = False
  [../]
 
  [./test_dromckp_scenario_II]
   type  = 'LogosRun'
   input = 'test_dromckp_scenario_II.xml'
   UnorderedCsv = 'test_dromckp_scenario_II.csv'
-  heavy = False
  [../]
 
  [./test_dro_adjusted_use_case_2a]
@@ -25,7 +23,6 @@
   input = 'test_dro_adjusted_use_case_2a.xml'
   UnorderedCsv = 'test_dro_adjusted_use_case_2a.csv'
   skip_if_OS = windows
-  heavy = False
  [../]
 
  [./test_dro_adjusted_use_case_2a_I]
@@ -49,7 +46,6 @@
   input = 'test_dro_adjusted_use_case_2a_III.xml'
   UnorderedCsv = 'test_dro_adjusted_use_case_2a_III.csv'
   skip_if_OS = windows
-  heavy = False
  [../]
 
  [./test_dro_adjusted_use_case_2a_IV]

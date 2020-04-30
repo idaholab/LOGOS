@@ -111,7 +111,10 @@ class DROMCKP(MCKP):
     model = MCKP.addVariables(self, model)
     # variables for robust optimization
     model.gamma = pyomo.Var(within=pyomo.NonNegativeReals)
-    model.nu = pyomo.Var(model.sigma)
+    ## the following two definitions are not equivalent for mckp, not sure why?
+    ## From the definition of dual problem, nu should be non-negative
+    model.nu = pyomo.Var(model.sigma, within=pyomo.NonNegativeReals)
+    # model.nu = pyomo.Var(model.sigma)
     return model
 
   def addAdditionalConstraints(self, model):
