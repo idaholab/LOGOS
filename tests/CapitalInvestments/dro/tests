@@ -15,7 +15,7 @@
  [./test_dromckp_scenario_II]
   type  = 'LogosRun'
   input = 'test_dromckp_scenario_II.xml'
-  UnorderedCsv = 'test_dromckp_scenario_II.csv'
+  output = 'test_dromckp_scenario_II.csv'
  [../]
 
  [./test_dro_adjusted_use_case_2a]
@@ -44,7 +44,7 @@
  [./test_dro_adjusted_use_case_2a_III]
   type  = 'LogosRun'
   input = 'test_dro_adjusted_use_case_2a_III.xml'
-  UnorderedCsv = 'test_dro_adjusted_use_case_2a_III.csv'
+  output = 'test_dro_adjusted_use_case_2a_III.csv'
   skip_if_OS = windows
  [../]
 
