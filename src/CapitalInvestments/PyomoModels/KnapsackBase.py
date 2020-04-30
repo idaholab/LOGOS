@@ -394,28 +394,13 @@ class KnapsackBase(ModelBase):
     model = ModelBase.addAdditionalConstraints(self, model)
     return model
 
-  def knapsackModel(self):
-    """
-      This method is used to create pyomo model.
-      @ In, None
-      @ Out, model, pyomo.AbstractModel, abstract pyomo model
-    """
-    model = self.initializeModel()
-    model = self.addVariables(model)
-    model = self.addExpressions(model)
-    # objective function (1a)
-    model = self.addObjective(model)
-    model = self.addConstraints(model)
-    model = self.addAdditionalConstraints(model)
-    return model
-
   def createModel(self):
     """
       This method is used to create pyomo model.
       @ In, None
       @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
-    model = self.knapsackModel()
+    model = ModelBase.createModel(self)
     return model
 
   def pysp_scenario_tree_model_callback(self):

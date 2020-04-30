@@ -128,13 +128,13 @@ class DROSKP(SingleKnapsack):
     model.constraintWassersteinDistance = pyomo.Constraint(model.sigma, rule=constraintWasserstein)
     return model
 
-  def knapsackModel(self):
+  def createModel(self):
     """
       This method is used to create pyomo model.
       @ In, None
       @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
-    model = SingleKnapsack.knapsackModel(self)
+    model = SingleKnapsack.createModel(self)
     return model
 
   def pysp_scenario_tree_model_callback(self):

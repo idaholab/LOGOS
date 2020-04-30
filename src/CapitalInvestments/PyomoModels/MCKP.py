@@ -215,8 +215,6 @@ class MCKP(KnapsackBase):
       expr2 = sum(model.x[i,j] for j in model.optionsOut[i])
       return expr1 <= expr2
 
-
-
   @staticmethod
   def consistentConstraintII(model, i, ip, j):
     """
@@ -307,8 +305,6 @@ class MCKP(KnapsackBase):
     model.net_present_values = pyomo.Param(model.options, mutable=True)
     model.available_capitals = pyomo.Param(model.resources, model.time_periods, mutable=True)
     model.costs = pyomo.Param(model.options, model.resources, model.time_periods, mutable=True)
-    model = self.addAdditionalSets(model)
-    model = self.addAdditionalParams(model)
     return model
 
   def addConstraints(self, model):
@@ -317,7 +313,7 @@ class MCKP(KnapsackBase):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    KnapsackBase.addConstraints(self, model)
+    model = KnapsackBase.addConstraints(self, model)
     # constraint (1d)
     model.constraintCapacity = pyomo.Constraint(model.resources, model.time_periods, rule=self.constraintCapacity)
     # constraint (1e) and (1f)
@@ -392,22 +388,13 @@ class MCKP(KnapsackBase):
     model = KnapsackBase.addAdditionalConstraints(self, model)
     return model
 
-  def knapsackModel(self):
-    """
-      This method is used to create pyomo model.
-      @ In, None
-      @ Out, model, pyomo.AbstractModel, abstract pyomo model
-    """
-    model = KnapsackBase.knapsackModel(self)
-    return model
-
   def createModel(self):
     """
       This method is used to create pyomo model.
       @ In, None
       @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
-    model = KnapsackBase.knapsackModel(self)
+    model = KnapsackBase.createModel(self)
     return model
 
   def pysp_scenario_tree_model_callback(self):

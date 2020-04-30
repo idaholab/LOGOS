@@ -203,14 +203,21 @@ class ModelBase:
     """
     pass
 
-  @abc.abstractmethod
   def createModel(self):
     """
       This method is used to create pyomo model.
       @ In, None
-      @ Out, model
+      @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
-    pass
+    model = self.initializeModel()
+    model = self.addAdditionalSets(model)
+    model = self.addAdditionalParams(model)
+    model = self.addVariables(model)
+    model = self.addExpressions(model)
+    model = self.addObjective(model)
+    model = self.addConstraints(model)
+    model = self.addAdditionalConstraints(model)
+    return model
 
   @abc.abstractmethod
   def initializeModel(self):
