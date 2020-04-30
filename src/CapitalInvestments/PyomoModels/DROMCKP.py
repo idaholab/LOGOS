@@ -111,7 +111,7 @@ class DROMCKP(MCKP):
     model = MCKP.addVariables(self, model)
     # variables for robust optimization
     model.gamma = pyomo.Var(within=pyomo.NonNegativeReals)
-    model.nu = pyomo.Var(model.sigma, domain=pyomo.NonNegativeReals)
+    model.nu = pyomo.Var(model.sigma)
     return model
 
   def addAdditionalConstraints(self, model):

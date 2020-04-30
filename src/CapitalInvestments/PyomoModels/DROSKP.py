@@ -111,7 +111,7 @@ class DROSKP(SingleKnapsack):
     model = SingleKnapsack.addVariables(self, model)
     # variables for robust optimization
     model.gamma = pyomo.Var(within=pyomo.NonNegativeReals)
-    model.nu = pyomo.Var(model.sigma, domain=pyomo.NonNegativeReals)
+    model.nu = pyomo.Var(model.sigma)
     return model
 
   def addAdditionalConstraints(self, model):
@@ -122,9 +122,9 @@ class DROSKP(SingleKnapsack):
     """
     model = SingleKnapsack.addAdditionalConstraints(self, model)
     ## model.dist will be changed on the fly
-    def constraintWasserstein(model, i):
-      expr = pyomo.summation(model.net_present_values, model.x)
-      return -model.gamma * model.dist[i] + model.nu[i] <= expr
+    def constraintWasserstein(m, i):
+      expr = pyomo.summation(m.net_present_values, m.x)
+      return -m.gamma * m.dist[i] + m.nu[i] <= expr
     model.constraintWassersteinDistance = pyomo.Constraint(model.sigma, rule=constraintWasserstein)
     return model
 
