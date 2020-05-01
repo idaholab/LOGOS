@@ -62,9 +62,9 @@ class DROMKP(MultipleKnapsack):
   @staticmethod
   def computeFirstStageCost(model):
     """"
-      Method to compute frist stage cost of stochastic programming
+      Method to compute first stage cost of stochastic programming
       @ In, model, instance, pyomo abstract model instance
-      @ Out, expr, float, frist stage cost
+      @ Out, expr, float, first stage cost
     """
     expr = -model.epsilon * model.gamma + pyomo.summation(model.prob, model.nu)
     return expr

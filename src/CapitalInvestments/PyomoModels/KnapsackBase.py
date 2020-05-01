@@ -242,9 +242,9 @@ class KnapsackBase(ModelBase):
   @staticmethod
   def computeFirstStageCost(model):
     """"
-      Method to compute frist stage cost of stochastic programming
+      Method to compute first stage cost of stochastic programming
       @ In, model, instance, pyomo abstract model instance
-      @ Out, computeFirstStageCost, float, frist stage cost
+      @ Out, computeFirstStageCost, float, first stage cost
     """
     return 0.0
 

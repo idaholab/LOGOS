@@ -183,7 +183,13 @@ class MCKP(KnapsackBase):
 
   @staticmethod
   def consistentConstraintINonSelection(model, i, ip):
-    """Constraint for variable y if priority project selection is required"""
+    """
+      Constraint for variable y if priority project selection is required
+      @ In, model, instance, pyomo abstract model instance
+      @ In, i, str, investment index
+      @ In, ip, str, investment index
+      @ Out, consistentConstraintINonSelection, pyomo.expression, consistent constraint
+    """
     if i == ip:
       return model.y[i,ip] == model.y[ip,i]
     else:
@@ -207,7 +213,13 @@ class MCKP(KnapsackBase):
 
   @staticmethod
   def consistentConstraintI(model, i, ip):
-    """Constraint for variable y if priority project selection is required"""
+    """
+      Constraint for variable y if priority project selection is required
+      @ In, model, instance, pyomo abstract model instance
+      @ In, i, str, investment index
+      @ In, ip, str, investment index
+      @ Out, consistentConstraintI, pyomo.expression, consistent constraint
+    """
     if i == ip:
       return model.y[i,ip] == model.y[ip,i]
     else:
