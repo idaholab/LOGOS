@@ -14,6 +14,7 @@ warnings.simplefilter('default',DeprecationWarning)
 
 #External Modules------------------------------------------------------------------------------------
 import abc
+import copy
 import itertools
 import numpy as np
 import logging
@@ -83,6 +84,14 @@ class KnapsackBase(ModelBase):
       raise IOError(msg)
     return fullBounds
 
+  def setScenarioData(self):
+    """
+      Method to setup the scenario data for scenario tree construction
+      @ In, None
+      @ Out, None
+    """
+    ModelBase.setScenarioData(self)
+
   def generateModelInputData(self):
     """
       This method is used to generate input data for pyomo model
@@ -111,6 +120,16 @@ class KnapsackBase(ModelBase):
         raise IOError('Required node ' + paramName + ' is not found in input file, please specify it under node "Parameters"!')
       else:
         data[paramName] = self.setParameters(paramName, options, maxDim, self.params[paramName])
+
+    ## used for DRO model
+    if self.uncertainties is not None and 'DRO' in self.name:
+      # logger.info('Generate additional model inputs for DRO optimization')
+      data['sigma'] = {None:list(self.scenarios['probabilities'].keys())}
+      data['prob'] = copy.copy(self.scenarios['probabilities'])
+      data['epsilon'] = {None:self.epsilon}
+      distData = copy.copy(self.distData[0,:])
+      smIndices = list(self.scenarios['probabilities'].keys())
+      data['dist'] = dict(zip(smIndices,np.ravel(distData)))
     data = {None:data}
     return data
 
@@ -182,9 +201,14 @@ class KnapsackBase(ModelBase):
     dim = len(self.sets['investments'])
     ysol = pd.DataFrame(np.zeros((dim,dim)), index=self.sets['investments'], columns=self.sets['investments'])
     for var, val in solutionGenerator:
-      # value is stored as y[('i','j')]
-      ind = literal_eval(var[var.index('[') + 1 : var.index(']')])
-      ysol.at[ind] = val
+      # value is stored as y[('i','j')], gamma, nu[]
+      if var == 'gamma':
+        logger.info('Variable "gamma": {}'.format(val))
+      elif var.split('[')[0] == 'nu':
+        logger.info('Variable "nu" at scenario "{}": {}'.format(var, val))
+      else:
+        ind = literal_eval(var[var.index('[') + 1 : var.index(']')])
+        ysol.at[ind] = val
     priorityList = ysol.sum(axis=0) + 1
     priorityList = priorityList.sort_values()
     msg = "Priorities of investments:"
@@ -214,3 +238,190 @@ class KnapsackBase(ModelBase):
       @ Out, None
     """
     ModelBase.writeOutput(self,filename)
+
+  @staticmethod
+  def computeFirstStageCost(model):
+    """"
+      Method to compute first stage cost of stochastic programming
+      @ In, model, instance, pyomo abstract model instance
+      @ Out, computeFirstStageCost, float, first stage cost
+    """
+    return 0.0
+
+  @staticmethod
+  def computeSecondStageCost(model):
+    """
+      Method to compute second stage cost of stochastic programming, i.e. maximum NPVs
+      @ In, model, instance, pyomo abstract model instance
+      @ Out, expr, pyomo.expression, second stage cost
+    """
+    expr = pyomo.summation(model.net_present_values, model.x)
+    return expr
+
+  @staticmethod
+  def objExpression(model):
+    """
+      Method to compute objective expression
+      @ In, model, instance, pyomo abstract model instance
+      @ Out, objExpression, pyomo.expression, objective expression
+    """
+    return model.firstStageCost + model.secondStageCost
+
+  @staticmethod
+  def orderConstraintI(model, i, j):
+    """
+      Constraint for variable y if priority project selection is required
+      @ In, model, instance, pyomo abstract model instance
+      @ i, str, investment index
+      @ j, str, investment index
+      @ orderConstraintI, pyomo.expression, expression about orderConstraintI
+    """
+    if i < j:
+      return model.y[i,j] + model.y[j,i] == 1
+    else:
+      return pyomo.Constraint.Skip
+
+  @staticmethod
+  def constraintY(model, i):
+    """
+      Constraint for variable y if priority project selection is required
+      @ In, model, instance, pyomo abstract model instance
+      @ i, str, investment index
+      @ constraintY, pyomo.expression, expression about constraint on variable Y
+    """
+    return model.y[i,i] == 0
+
+  @staticmethod
+  def constraintNoTie(model, i, ip, idp):
+    """
+      Help to produce a total ordering of the projects rather than allowing ties. This constraint
+      will not change the optimal NPV
+      @ In, model, instance, pyomo abstract model instance
+      @ In, i, str, investment index
+      @ In, ip, str, investment index
+      @ In, idp, str, investment index
+      @ Out, constraintNoTie, pyomo.expression, constraint to remove ties
+    """
+    if i != ip and ip != idp and idp != i:
+      return model.y[i,ip] + model.y[ip,idp] + model.y[idp,i] <= 2
+    else:
+      return pyomo.Constraint.Skip
+
+  def initializeModel(self):
+    """
+      Initialize the pyomo model parameters for Knapsack problem (MCKP)
+      @ In, None
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model = pyomo.AbstractModel()
+    model.time_periods = pyomo.Set()
+    model.investments = pyomo.Set(ordered=True)
+    if self.regulatoryMandated is not None:
+      model.regulatoryMandated = pyomo.Set()
+    return model
+
+  def addObjective(self, model):
+    """
+      Add objective for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model.obj = pyomo.Objective(rule=self.objExpression, sense=self.sense)
+    return model
+
+  def addVariables(self, model):
+    """
+      Add variables for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    if self.uncertainties is not None:
+      model.y = pyomo.Var(model.investments, model.investments, domain=self.solutionVariableType)
+    return model
+
+  def addConstraints(self, model):
+    """
+      Add specific constraints for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    # constraint for scenario analysis
+    if self.uncertainties is not None:
+      # constraint (1b) and (1h)
+      model.orderConstraintI = pyomo.Constraint(model.investments, model.investments, rule=self.orderConstraintI)
+      # constraint (1b) extension
+      model.constraintY = pyomo.Constraint(model.investments, rule=self.constraintY)
+      # constraint (1i) helps to remove ties
+      model.constraintNoTie = pyomo.Constraint(model.investments, model.investments, model.investments, rule=self.constraintNoTie)
+    return model
+
+  def addAdditionalSets(self, model):
+    """
+      Add specific Sets for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model = ModelBase.addAdditionalSets(self, model)
+    return model
+
+  def addAdditionalParams(self, model):
+    """
+      Add specific Params for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model = ModelBase.addAdditionalParams(self, model)
+    return model
+
+  def addExpressions(self, model):
+    """
+      Add specific expressions for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model = ModelBase.addExpressions(self, model)
+    model.firstStageCost = pyomo.Expression(rule=self.computeFirstStageCost)
+    model.secondStageCost = pyomo.Expression(rule=self.computeSecondStageCost)
+    return model
+
+  def addAdditionalConstraints(self, model):
+    """
+      Add specific constraints for DROMCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model = ModelBase.addAdditionalConstraints(self, model)
+    return model
+
+  def createModel(self):
+    """
+      This method is used to create pyomo model.
+      @ In, None
+      @ Out, model, pyomo.AbstractModel, abstract pyomo model
+    """
+    model = ModelBase.createModel(self)
+    return model
+
+  def pysp_scenario_tree_model_callback(self):
+    """
+      scenario tree instance creation callback
+      @ In, None
+      @ Out, treeModel, Instance, pyomo scenario tree model for two stage stochastic programming,
+        extra variables 'y[*,*]' is used to define the priorities of investments
+    """
+    treeModel = self.createScenarioTreeModel()
+    firstStage = treeModel.Stages.first()
+    # first Stage
+    treeModel.StageCost[firstStage] = 'firstStageCost'
+    treeModel.StageVariables[firstStage].add('y[*,*]')
+    # second Stage added by specific model
+    return treeModel
+
+  def printSolution(self, model):
+    """
+      Output optimization solution to screen
+      @ In, model, instance, pyomo optimization model
+      @ Out, outputDict, dict, dictionary stores the outputs
+    """
+    outputDict = ModelBase.printSolution(self, model)
+    return outputDict

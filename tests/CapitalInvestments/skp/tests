@@ -75,7 +75,8 @@
   input = 'test_EE_41_projects.xml'
   UnorderedCsv = 'test_EE_41_projects.csv'
   skip_if_OS = windows
-  max_time = 500
+  max_time = 1500
+  heavy = True
  [../]
 
 []

@@ -32,9 +32,11 @@ from pyomo.pysp.scenariotree.tree_structure_model import CreateAbstractScenarioT
 try:
   from LOGOS.src.CapitalInvestments.investment_utils import investmentUtils as utils
   from LOGOS.src.CapitalInvestments.PyomoModels.PyomoWrapper import PyomoWrapper
+  from LOGOS.src.CapitalInvestments.investment_utils import distanceUtils
 except ImportError:
   from CapitalInvestments.investment_utils import investmentUtils as utils
   from .PyomoWrapper import PyomoWrapper
+  from CapitalInvestments.investment_utils import distanceUtils
 #Internal Modules End--------------------------------------------------------------------------------
 
 import pyutilib.subprocess.GlobalData
@@ -87,6 +89,11 @@ class ModelBase:
     self.phRho = 1
     self.executable = None      # specify the path to the solver
     self.stochSolver = 'ef'     # stochastic solver, default runef, can be switched to runph method in pyomo.
+    ## used for distributionally robust optimization
+    self.epsilon = 0.0 # specify the radius of radius ambiguity for distributionally robust optimization
+    self.sigma = [] # list of scenario names
+    self.prob = []  # list of probabilities
+    self.distData = None # 2-D distance array, representing the pairwised distance between scenarios
 
   def initialize(self, initDict):
     """
@@ -109,6 +116,15 @@ class ModelBase:
     self.externalConstraints = initDict.pop('ExternalConstraints')
     if self.uncertainties is not None:
       self.setScenarioData()
+      if 'DRO' in self.name:
+        self.distData = distanceUtils.computeDist('minkowski', self.scenarios['scenario_data'])
+        ## Add distance scenario data into self.scenarios
+        distData = copy.copy(self.distData)
+        smIndices = list(self.scenarios['probabilities'].keys())
+        for sm, paramDict in self.scenarios['scenario_data'].items():
+          i = int(sm.split('_')[-1]) - 1
+          paramDict['dist'] = dict(zip(smIndices, np.ravel(distData[i,:])))
+
     if self.settings is not None:
       self.setSettings()
 
@@ -150,6 +166,9 @@ class ModelBase:
       self.stochSolver = stochSolver.lower().strip()
     self.executable = solverOptions.pop('executable', None)
     self.workingDir = self.settings.pop('workingDir')
+    ## used for DRO
+    # TODO: check provided epsilon is float
+    self.epsilon = float(solverOptions.pop('radius_ambiguity', 0.0))
     self.sopts.update(solverOptions)
     self.tee = self.settings.pop('tee',False)
     self.nonSelection = utils.convertStringToBool(self.settings.pop('nonSelection', 'False'))
@@ -184,14 +203,85 @@ class ModelBase:
     """
     pass
 
-  @abc.abstractmethod
   def createModel(self):
     """
       This method is used to create pyomo model.
       @ In, None
-      @ Out, model
+      @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
-    pass
+    model = self.initializeModel()
+    model = self.addAdditionalSets(model)
+    model = self.addAdditionalParams(model)
+    model = self.addVariables(model)
+    model = self.addExpressions(model)
+    model = self.addObjective(model)
+    model = self.addConstraints(model)
+    model = self.addAdditionalConstraints(model)
+    return model
+
+  @abc.abstractmethod
+  def initializeModel(self):
+    """
+      Initialize the pyomo model parameters for the problem
+      @ In, None
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+
+  @abc.abstractmethod
+  def addConstraints(self, model):
+    """
+      Add specific constraints for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+
+  @abc.abstractmethod
+  def addVariables(self, model):
+    """
+      Add variables for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+
+  @abc.abstractmethod
+  def addObjective(self, model):
+    """
+      Add objective for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+
+  def addExpressions(self, model):
+    """
+      Add specific expressions for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    return model
+
+  def addAdditionalSets(self, model):
+    """
+      Add specific Sets for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    return model
+
+  def addAdditionalParams(self, model):
+    """
+      Add specific Params for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    return model
+
+  def addAdditionalConstraints(self, model):
+    """
+      Add specific constraints for problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    return model
 
   def addExternalConstraints(self, model):
     """
@@ -328,6 +418,7 @@ class ModelBase:
     for key, val in self.scenarios['scenario_data'][scenario_name].items():
       # instance.component(key).value = val
       instance.component(key).store_values(val)
+    # instance.pprint()
     return instance
 
   def run(self):

@@ -1,0 +1,96 @@
+[Tests]
+
+ [./test_dromckp_scenario]
+  type  = 'LogosRun'
+  input = 'test_dromckp_scenario.xml'
+  UnorderedCsv = 'test_dromckp_scenario.csv'
+ [../]
+
+ [./test_dromckp_scenario_I]
+  type  = 'LogosRun'
+  input = 'test_dromckp_scenario_I.xml'
+  UnorderedCsv = 'test_dromckp_scenario_I.csv'
+ [../]
+
+ [./test_dromckp_scenario_II]
+  type  = 'LogosRun'
+  input = 'test_dromckp_scenario_II.xml'
+  output = 'test_dromckp_scenario_II.csv'
+ [../]
+
+ [./test_dro_adjusted_use_case_2a]
+  type  = 'LogosRun'
+  input = 'test_dro_adjusted_use_case_2a.xml'
+  UnorderedCsv = 'test_dro_adjusted_use_case_2a.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./test_dro_adjusted_use_case_2a_I]
+  type  = 'LogosRun'
+  input = 'test_dro_adjusted_use_case_2a_I.xml'
+  UnorderedCsv = 'test_dro_adjusted_use_case_2a_I.csv'
+  skip_if_OS = windows
+  heavy = True
+ [../]
+
+ [./test_dro_adjusted_use_case_2a_II]
+  type  = 'LogosRun'
+  input = 'test_dro_adjusted_use_case_2a_II.xml'
+  UnorderedCsv = 'test_dro_adjusted_use_case_2a_II.csv'
+  skip_if_OS = windows
+  heavy = True
+ [../]
+
+ [./test_dro_adjusted_use_case_2a_III]
+  type  = 'LogosRun'
+  input = 'test_dro_adjusted_use_case_2a_III.xml'
+  output = 'test_dro_adjusted_use_case_2a_III.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./test_dro_adjusted_use_case_2a_IV]
+  type  = 'LogosRun'
+  input = 'test_dro_adjusted_use_case_2a_IV.xml'
+  output = 'test_dro_adjusted_use_case_2a_IV.csv'
+  skip_if_OS = windows
+  heavy = True
+ [../]
+
+ [./test_droskp_scenario]
+  type  = 'LogosRun'
+  input = 'test_droskp_scenario.xml'
+  UnorderedCsv = 'test_droskp_scenario.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./test_droskp_scenario_I]
+  type  = 'LogosRun'
+  input = 'test_droskp_scenario_I.xml'
+  UnorderedCsv = 'test_droskp_scenario_I.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./test_droskp_scenario_II]
+  type  = 'LogosRun'
+  input = 'test_droskp_scenario_II.xml'
+  UnorderedCsv = 'test_droskp_scenario_II.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./test_dromkp_scenarios]
+  type  = 'LogosRun'
+  input = 'test_dromkp_scenarios.xml'
+  UnorderedCsv = 'test_dromkp_scenarios.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./test_dromkp_scenarios_I]
+  type  = 'LogosRun'
+  input = 'test_dromkp_scenarios_I.xml'
+  UnorderedCsv = 'test_dromkp_scenarios_I.csv'
+  skip_if_OS = windows
+  heavy = True
+  max_time = 1000
+ [../]
+
+[]
