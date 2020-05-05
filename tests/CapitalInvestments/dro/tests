@@ -80,7 +80,7 @@
  [./test_dromkp_scenarios]
   type  = 'LogosRun'
   input = 'test_dromkp_scenarios.xml'
-  UnorderedCsv = 'test_dromkp_scenarios.csv'
+  output = 'test_dromkp_scenarios.csv'
   skip_if_OS = windows
  [../]
 
