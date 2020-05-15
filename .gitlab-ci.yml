@@ -16,16 +16,17 @@ before_script:
         echo "ERROR Conda not found!";
         exit 404;
       fi
+      # install plugins before establish conda so plugin libraries get installed
+    - cd scripts
+    - python install_plugins.py -s `pwd`/../../
+    - cd ..
       # create libraries or create them
     - ./scripts/establish_conda_env.sh --install --conda-defs $HOME/miniconda2/etc/profile.d/conda.sh
     - ./build_raven
-      # Install plugin branch ...
-    - cd scripts
-    - python install_plugins.py -s ../../
       # return to project path main dir
-    - cd ../..
+    - cd ..
 
 test:
     script:
       - cd raven
-      - ./run_tests -j4 --re=plugins/LOGOS # does this return a failed status?
+      - ./run_tests -j4 --plugins # does this return a failed status?
