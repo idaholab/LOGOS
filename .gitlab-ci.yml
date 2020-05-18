@@ -8,7 +8,6 @@ before_script:
     - git checkout master
     - git clean -xfd
       # check that we have conda
-    - export PATH=$HOME/miniconda2/bin:$PATH
     - if which conda 2> /dev/null; then
         echo "Conda found!";
         conda update conda;
