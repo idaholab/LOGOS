@@ -16,8 +16,10 @@ before_script:
         exit 404;
       fi
       # install plugins before establish conda so plugin libraries get installed
+    - git submodule update --init plugins/CashFlow/
     - cd scripts
     - python install_plugins.py -s `pwd`/../../
+    - python install_plugins.py -s `pwd`/../plugins/CashFlow/
     - cd ..
       # create libraries or create them
     - ./scripts/establish_conda_env.sh --install --conda-defs $HOME/miniconda2/etc/profile.d/conda.sh
