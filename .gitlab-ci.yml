@@ -8,7 +8,6 @@ before_script:
     - git checkout master
     - git clean -xfd
       # check that we have conda
-    - export PATH=$HOME/miniconda2/bin:$PATH
     - if which conda 2> /dev/null; then
         echo "Conda found!";
         conda update conda;
@@ -16,16 +15,19 @@ before_script:
         echo "ERROR Conda not found!";
         exit 404;
       fi
+      # install plugins before establish conda so plugin libraries get installed
+    - git submodule update --init plugins/CashFlow/
+    - cd scripts
+    - python install_plugins.py -s `pwd`/../../
+    - python install_plugins.py -s `pwd`/../plugins/CashFlow/
+    - cd ..
       # create libraries or create them
     - ./scripts/establish_conda_env.sh --install --conda-defs $HOME/miniconda2/etc/profile.d/conda.sh
     - ./build_raven
-      # Install plugin branch ...
-    - cd scripts
-    - python install_plugins.py -s ../../
       # return to project path main dir
-    - cd ../..
+    - cd ..
 
 test:
     script:
       - cd raven
-      - ./run_tests -j4 --re=plugins/LOGOS # does this return a failed status?
+      - ./run_tests -j4 --plugins --re=LOGOS/tests
