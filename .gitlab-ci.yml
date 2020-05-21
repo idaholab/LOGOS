@@ -27,6 +27,18 @@ before_script:
       # return to project path main dir
     - cd ..
 
+    - ls
+    - pwd
+    - cd raven
+    - ls
+    - cd plugins
+    - ls
+    - cd LOGOS
+    - ls
+    - cd doc
+    - ls
+    - cd user_manual
+    - ls
     # user_manual:
     - cd plugins/LOGOS/doc/user_manual/
     - make
