@@ -27,6 +27,16 @@ before_script:
       # return to project path main dir
     - cd ..
 
+    # this requires pdflatex, currently not available
+    # user_manual:
+    # - cd doc/user_manual/
+    # - make
+    # - cd ../../
+    # sqa:
+    # - cd doc/sqa/
+    # - ./make_docs.sh
+    # - cd ../../
+
 test:
     script:
       - cd raven

@@ -12,7 +12,7 @@ software_design_description.pdf : software_design_description.tex software_desig
 	git log -1 --format="%H %an %aD" .. > ../../version.tex
 
 default: *.tex
-	python ../../../../../scripts/TestHarness/testers/RavenUtils.py --manual-list > dependencies.tex
+	python ../../../../../scripts/library_handler.py manual > dependencies.tex
 
 .PHONY: clean
 
