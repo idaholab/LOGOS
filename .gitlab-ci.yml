@@ -28,13 +28,13 @@ before_script:
     - cd ..
 
     # user_manual:
-    - cd raven/plugins/LOGOS/doc/user_manual
+    - cd plugins/LOGOS/doc/user_manual/
     - make
-    - cd ../../../../../
+    - cd ../../../../
     # sqa:
-    - cd raven/plugins/LOGOS/doc/sqa
+    - cd plugins/LOGOS/doc/sqa/
     - ./make_docs.sh
-    - cd ../../../../../
+    - cd ../../../../
 
 test:
     script:
