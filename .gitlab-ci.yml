@@ -27,6 +27,16 @@ before_script:
       # return to project path main dir
     - cd ..
 
+doc:
+    user_manual:
+      - cd raven/plugins/LOGOS/doc/user_manual
+      - make
+      - cd ../../../../../
+    sqa:
+      - cd raven/plugins/LOGOS/doc/sqa
+      - ./make_docs.sh
+      - cd ../../../../../
+
 test:
     script:
       - cd raven
