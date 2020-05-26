@@ -29,11 +29,13 @@ before_script:
 
 
 user_manual:
+  script:
     - cd doc/user_manual/
     - make
     - cd ../../
 
 sqa:
+  script:
     - cd doc/sqa/
     - ./make_docs.sh
     - cd ../../
