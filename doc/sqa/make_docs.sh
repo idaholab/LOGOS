@@ -20,10 +20,21 @@ do
   fi
 done
 
+if test -e ../../../../scripts/establish_conda_env.sh;
+then
+    RAVEN_DIR=../../../../
+else
+    if test -e ../../raven/scripts/establish_conda_env.sh;
+    then
+        RAVEN_DIR=../../raven/
+    fi
+fi
+export RAVEN_DIR=`(cd $RAVEN_DIR; pwd)`
+
 rm -Rvf sqa_built_documents
 mkdir sqa_built_documents
 # load raven libraries
-source ../../../../scripts/establish_conda_env.sh --load --quiet
+source $RAVEN_DIR/scripts/establish_conda_env.sh --load --quiet
 
 # add custom, collective inputs to TEXINPUTS
 #
