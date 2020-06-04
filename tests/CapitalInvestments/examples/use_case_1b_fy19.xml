@@ -139,14 +139,14 @@ Best NPV=263.17
   </Parameters>
 
   <Settings>
-    <regulatoryMandated>
+    <mandatory>
         PresurizerReplacement
         ReplacementTwoReactorCoolantPumps
         FireProtection
         ReplaceCCWPipingHeatExchangersValues
         ReactorVesselUpgrade
         ReplaceInstrumentationAndControlCables
-    </regulatoryMandated>
+    </mandatory>
     <nonSelection>True</nonSelection> <!-- options should include DoNothing except regulartory mandated if True -->
     <solver>cbc</solver>
     <sense>maximize</sense>

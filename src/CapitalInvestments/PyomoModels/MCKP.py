@@ -197,12 +197,12 @@ class MCKP(KnapsackBase):
       lastIndexI = model.optionsOut[i].last()
       lastIndexIP = model.optionsOut[ip].last()
       try:
-        regulatoryMandated = getattr(model, "regulatoryMandated")
-        if ip in regulatoryMandated:
+        mandatory = getattr(model, "mandatory")
+        if ip in mandatory:
           expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) + model.y[i,ip] - 1
         else:
           expr1 = sum(model.x[ip,j] for j in model.optionsOut[ip]) - model.x[ip,lastIndexIP] + model.y[i,ip] - 1
-        if i in regulatoryMandated:
+        if i in mandatory:
           expr2 = sum(model.x[i,j] for j in model.optionsOut[i])
         else:
           expr2 = sum(model.x[i,j] for j in model.optionsOut[i]) - model.x[i,lastIndexI]
@@ -288,8 +288,8 @@ class MCKP(KnapsackBase):
     lastIndexIP = model.optionsOut[ip].last()
     lastIndexI = model.optionsOut[i].last()
     try:
-      regulatoryMandated = getattr(model, "regulatoryMandated")
-      if ip in regulatoryMandated:
+      mandatory = getattr(model, "mandatory")
+      if ip in mandatory:
         return consistentConstraintIIPart(model, i, ip, j)
       else:
         if j == lastIndexIP:
@@ -330,11 +330,11 @@ class MCKP(KnapsackBase):
     model.constraintCapacity = pyomo.Constraint(model.resources, model.time_periods, rule=self.constraintCapacity)
     # constraint (1e) and (1f)
     # last option of any project will be denoted as "non-selection" option
-    if self.regulatoryMandated is not None:
-      model.constraintRegulatory = pyomo.Constraint(model.regulatoryMandated, rule=self.constraintRegulatory)
+    if self.mandatory is not None:
+      model.constraintRegulatory = pyomo.Constraint(model.mandatory, rule=self.constraintRegulatory)
     # Special handles for required and DoNothing options
     # The options in input file can include DoNothing, but not required to be selected by optimization
-    # Only the investment added to regulatoryMandated will be selected.
+    # Only the investment added to mandatory will be selected.
     # constraint to handle 'DoNothing' options --> (1f)
     if self.nonSelection:
       model.constraintX = pyomo.Constraint(model.investments, rule=self.constraintXNonSelection)

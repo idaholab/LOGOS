@@ -109,8 +109,8 @@ class KnapsackBase(ModelBase):
     for indexName in indexList:
       data[indexName] = self.processInputSets(indexName)
     # Generate input regulatory mandated data
-    if self.regulatoryMandated is not None:
-      data['regulatoryMandated'] = {None: self.regulatoryMandated}
+    if self.mandatory is not None:
+      data['mandatory'] = {None: self.mandatory}
 
     # set the Parameters with the extended indices
     for paramName, paramInfo in self.paramsAuxInfo.items():
@@ -316,8 +316,8 @@ class KnapsackBase(ModelBase):
     model = pyomo.AbstractModel()
     model.time_periods = pyomo.Set()
     model.investments = pyomo.Set(ordered=True)
-    if self.regulatoryMandated is not None:
-      model.regulatoryMandated = pyomo.Set()
+    if self.mandatory is not None:
+      model.mandatory = pyomo.Set()
     return model
 
   def addObjective(self, model):

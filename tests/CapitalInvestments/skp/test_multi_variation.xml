@@ -86,7 +86,7 @@
   </Uncertainties>
 
   <Settings>
-    <regulatoryMandated>10,11,12,13,14,15,16</regulatoryMandated>
+    <mandatory>10,11,12,13,14,15,16</mandatory>
     <solver>cbc</solver>
     <sense>maximize</sense>
   </Settings>

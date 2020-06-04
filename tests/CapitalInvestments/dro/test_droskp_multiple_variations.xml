@@ -1,14 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  For the multi-knapsack with regulatory mandated projects, 20 combined scenarios between 'available_capitals' and
+  'net_present_values'. Priority List will be: 1, 10, 11, 12, 13, 14, 15, 16, 2, 8, 5, 9, 4, 6, 3, 7 with
+  expected NPV 2.589. In this case, items 10, 11, 12, 13, 14, 15, 16 are regulatory mandated items
+-->
 <Logos>
   <TestInfo>
-    <name>CapitalInvestments/dro.test_droskp_scenario_II</name>
+    <name>CapitalInvestments/dro.test_droskp_multiple_variations</name>
     <author>wangc</author>
-    <created>2020-04-30</created>
+    <created>2020-06-01</created>
     <classesTested>DROSKP</classesTested>
     <description>
-       This test is aimed to check the distributionally robust optimization for
-       Single Knapsack Problem, we only consider capital budget.
-       In this test, radius_ambiguity = 0.05.
+       This test is aimed to test scenarios of multiple parameters using distributionally
+       robust optimization. In this case, radius_ambiguity = 0.0. In other words, this problem
+       is equivalent to the stochastic single knapsack problem.
     </description>
   </TestInfo>
   <Sets>
@@ -70,15 +75,24 @@
         20, 20, 20, 20, 20
       </scenarios>
     </available_capitals>
+    <net_present_values>
+      <totalScenarios>2</totalScenarios>
+      <probabilities>
+        0.3, 0.7
+      </probabilities>
+      <scenarios>
+        2.315,0.824,22.459,60.589,0.667,5.173,4.003,0.582,0.122,-2.870,-0.102,-0.278,-0.322,-3.996,-0.246,-20.155,
+        2.315,0.824,22.459,60.589,0.667,5.173,4.003,0.582,0.122,-2.870,-0.102,-0.278,-0.322,-3.996,-0.246,-20.155
+      </scenarios>
+    </net_present_values>
   </Uncertainties>
 
   <Settings>
     <mandatory>10,11,12,13,14,15,16</mandatory>
+    <solver>cbc</solver>
     <solverOptions>
-      <!-- <threads>1</threads> -->
       <StochSolver>EF</StochSolver>
-      <!-- epsilon radius -->
-      <radius_ambiguity>0.05</radius_ambiguity>
+      <radius_ambiguity>0.0</radius_ambiguity>
     </solverOptions>
     <sense>maximize</sense>
     <problem_type>droskp</problem_type>

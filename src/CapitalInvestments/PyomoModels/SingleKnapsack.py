@@ -91,11 +91,11 @@ class SingleKnapsack(KnapsackBase):
       return sum(model.costs[i,t]*model.x[i] for i in model.investments) <= model.available_capitals[t]
     model.constraintCapacity = pyomo.Constraint(model.time_periods, rule=constraintCapacity)
 
-    if self.regulatoryMandated is not None:
+    if self.mandatory is not None:
       def constraintRegulatory(model, i):
         """Regulatory constraints, always required projects/investments"""
         return model.x[i] == 1
-      model.constraintRegulatory = pyomo.Constraint(model.regulatoryMandated, rule=constraintRegulatory)
+      model.constraintRegulatory = pyomo.Constraint(model.mandatory, rule=constraintRegulatory)
 
     if self.uncertainties is not None:
       def consistentConstraintI(model, i, j):

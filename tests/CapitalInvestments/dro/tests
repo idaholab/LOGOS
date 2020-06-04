@@ -93,4 +93,25 @@
   max_time = 1000
  [../]
 
+ [./test_droskp_multiple_variations]
+  type  = 'LogosRun'
+  input = 'test_droskp_multiple_variations.xml'
+  UnorderedCsv = 'test_droskp_multiple_variations.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./test_droskp_multiple_variations_I]
+  type  = 'LogosRun'
+  input = 'test_droskp_multiple_variations_I.xml'
+  UnorderedCsv = 'test_droskp_multiple_variations_I.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./test_droskp_multiple_variations_II]
+  type  = 'LogosRun'
+  input = 'test_droskp_multiple_variations_II.xml'
+  UnorderedCsv = 'test_droskp_multiple_variations_II.csv'
+  skip_if_OS = windows
+ [../]
+
 []

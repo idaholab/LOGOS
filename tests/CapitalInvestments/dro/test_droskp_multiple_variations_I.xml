@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Logos>
   <TestInfo>
-    <name>CapitalInvestments/dro.test_droskp_scenario_II</name>
+    <name>CapitalInvestments/dro.test_droskp_multiple_variations_I</name>
     <author>wangc</author>
-    <created>2020-04-30</created>
+    <created>2020-06-01</created>
     <classesTested>DROSKP</classesTested>
     <description>
-       This test is aimed to check the distributionally robust optimization for
-       Single Knapsack Problem, we only consider capital budget.
-       In this test, radius_ambiguity = 0.05.
+       This test is aimed to test scenarios of multiple parameters using distributionally
+       robust optimization. In this case, radius_ambiguity = 0.01. However, we are using
+       the same values for different scenarios of net_present_values. Thus, this problem
+       is equivalent to droskp problem with single parameter variations.
     </description>
   </TestInfo>
   <Sets>
@@ -70,15 +71,24 @@
         20, 20, 20, 20, 20
       </scenarios>
     </available_capitals>
+    <net_present_values>
+      <totalScenarios>2</totalScenarios>
+      <probabilities>
+        0.3, 0.7
+      </probabilities>
+      <scenarios>
+        2.315,0.824,22.459,60.589,0.667,5.173,4.003,0.582,0.122,-2.870,-0.102,-0.278,-0.322,-3.996,-0.246,-20.155,
+        2.315,0.824,22.459,60.589,0.667,5.173,4.003,0.582,0.122,-2.870,-0.102,-0.278,-0.322,-3.996,-0.246,-20.155
+      </scenarios>
+    </net_present_values>
   </Uncertainties>
 
   <Settings>
     <mandatory>10,11,12,13,14,15,16</mandatory>
+    <solver>cbc</solver>
     <solverOptions>
-      <!-- <threads>1</threads> -->
       <StochSolver>EF</StochSolver>
-      <!-- epsilon radius -->
-      <radius_ambiguity>0.05</radius_ambiguity>
+      <radius_ambiguity>0.01</radius_ambiguity>
     </solverOptions>
     <sense>maximize</sense>
     <problem_type>droskp</problem_type>
