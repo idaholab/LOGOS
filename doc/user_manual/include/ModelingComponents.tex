@@ -434,7 +434,7 @@ This subsection contains  information regarding the XML nodes used to define the
   \item \xmlNode{sense}, \xmlDesc{string, optional parameter}, specifies \xmlString{minimize}
   or \xmlString{maximize} for minimization or maximization, respectively.
   \default{minimize}
-  \item \xmlNode{regulatoryMandated}, \xmlDesc{comma/space-separated string, optional parameter},
+  \item \xmlNode{mandatory}, \xmlDesc{comma/space-separated string, optional parameter},
   specifies regulatorily mandated or must-do projects.
   \item \xmlNode{nonSelection}, \xmlDesc{boolean, optional parameter}, indicates whether the
   investments options includes \textit{DoNothing} option.
@@ -463,11 +463,11 @@ This subsection contains  information regarding the XML nodes used to define the
 Example XML:
 \begin{lstlisting}[style=XML]
 <Settings>
-  <regulatoryMandated>
+  <mandatory>
     PresurizerReplacement
     ...
     ReplaceInstrumentationAndControlCables
-  </regulatoryMandated>
+  </mandatory>
   <nonSelection>True</nonSelection>
   <consistentConstraintI>True</consistentConstraintI>
   <consistentConstraintII>True</consistentConstraintII>

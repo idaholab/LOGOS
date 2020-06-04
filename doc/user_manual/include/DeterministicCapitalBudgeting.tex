@@ -64,11 +64,11 @@ but when project $i$ must be done, we simply do not include the do-nothing optio
 one alternative is to disclude an explicit do-nothing option, replace the first structural
 constraint with an inequality, and add an additional set of must-do projects with an equality
 constraint. Both options are mathematically equivalent and simply represent a choice to be made by
-the analyst. In LOGOS, we use \xmlNode{regulatoryMandated} and \xmlNode{nonSelection} to
-handle these conditions. \xmlNode{regulatoryMandated} is used to specify the must-do projects,
+the analyst. In LOGOS, we use \xmlNode{mandatory} and \xmlNode{nonSelection} to
+handle these conditions. \xmlNode{mandatory} is used to specify the must-do projects,
 while \xmlNode{nonSelection} is used to activate the do-nothing option.
 
-\nb If a project is listed under \xmlNode{regulatoryMandated}, the do-nothing option is not allowed
+\nb If a project is listed under \xmlNode{mandatory}, the do-nothing option is not allowed
 for this project. In addition, handling the do-nothing option implicitly leads to the NPV being
 calculated relative to that of the do-nothing option.
 
