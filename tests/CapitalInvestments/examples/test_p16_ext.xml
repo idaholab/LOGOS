@@ -191,7 +191,7 @@ MoisterSeparatorReheater with option: PlanA is selected
   </Parameters>
 
   <Settings>
-    <regulatoryMandated>
+    <mandatory>
       FeedwaterHeater
       EmergencySump
       Transformer
@@ -208,7 +208,7 @@ MoisterSeparatorReheater with option: PlanA is selected
       ReplaceConrolCables
       CranePowerFeed
       MoisterSeparatorReheater
-    </regulatoryMandated>
+    </mandatory>
     <solver>cbc</solver>
     <sense>maximize</sense>
     <problem_type>mckp</problem_type>

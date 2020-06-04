@@ -189,7 +189,7 @@ def readSettings(root, nodeTag, workingDir):
   settings = findRequiredNode(root, nodeTag)
   settingDict = {}
   for subnode in settings:
-    if subnode.tag == 'regulatoryMandated':
+    if subnode.tag == 'mandatory':
       settingDict[subnode.tag] = subnode.text.strip()
     elif subnode.tag == 'solverOptions':
       settingDict[subnode.tag] = {}

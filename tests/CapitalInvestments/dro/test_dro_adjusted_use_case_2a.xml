@@ -163,14 +163,14 @@ In this case, we only consider capital budget (O&M is not included)
   </Uncertainties>
 
   <Settings>
-    <regulatoryMandated>
+    <mandatory>
       P2
       P5
       P7
       P10
       P12
       P14
-    </regulatoryMandated>
+    </mandatory>
     <nonSelection>True</nonSelection> <!-- options should include DoNothing except regulartory mandated if True -->
     <solver>cbc</solver>
     <solverOptions>

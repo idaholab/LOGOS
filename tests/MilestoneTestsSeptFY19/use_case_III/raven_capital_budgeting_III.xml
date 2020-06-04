@@ -384,7 +384,7 @@
           </available_capitals>
         </Parameters>
         <Settings>
-          <regulatoryMandated>
+          <mandatory>
               HPFeedwaterHeaterUpgrade
               PresurizerReplacement
               ImprovementEmergencyDieselGenerators
@@ -401,7 +401,7 @@
               ReplaceInstrumentationAndControlCables
               CondenserRetubing
               ReplaceMoistureSeparatorReheater
-          </regulatoryMandated>
+          </mandatory>
           <solver>cbc</solver>
           <sense>maximize</sense>
           <problem_type>mckp</problem_type>

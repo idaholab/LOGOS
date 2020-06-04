@@ -61,7 +61,7 @@ class ModelBase:
     self.solver = 'cbc'         # type of solver, i.e. glpk, cbc, default cbc solver
     self.lowerBounds = None     # lower bounds of solution decision variables
     self.upperBounds = None     # upper bounds of solution decision variables
-    self.regulatoryMandated = None # regulatory mandated projects
+    self.mandatory = None # regulatory mandated projects
     self.tee = False            # print the output of the solver if True, otherwise not
     self.settings = None        # user provided controls
     self.sets = None            # pyomo required input sets info
@@ -188,11 +188,11 @@ class ModelBase:
     else:
       self.upperBounds = [1]
       logger.info('"upperBounds" is not provided, default: "1"')
-    regulatoryMandated = self.settings.pop('regulatoryMandated',None)
-    if regulatoryMandated is not None:
-      self.regulatoryMandated = utils.convertNodeTextToList(regulatoryMandated)
-      if not set(self.regulatoryMandated).issubset(self.sets['investments']):
-        raise IOError('"regulatoryMandated" list should be a subset of "investments"!')
+    mandatory = self.settings.pop('mandatory',None)
+    if mandatory is not None:
+      self.mandatory = utils.convertNodeTextToList(mandatory)
+      if not set(self.mandatory).issubset(self.sets['investments']):
+        raise IOError('"mandatory" list should be a subset of "investments"!')
 
   @abc.abstractmethod
   def generateModelInputData(self):
