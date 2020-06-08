@@ -11,8 +11,8 @@ requirements_traceability_matrix.pdf : requirements_traceability_matrix.tex requ
 	git log -1 --format="%H %an %aD" .. > ../../version.tex
 
 default: *.tex
-	python ../../../../../scripts/library_handler.py manual > dependencies.tex
-	python ../../../../../developer_tools/createSQAtracebilityMatrix.py -i ../srs/requirements_list.xml -o traceability_matrix.tex
+	python $(RAVEN_DIR)/scripts/library_handler.py manual > dependencies.tex
+	python $(RAVEN_DIR)/developer_tools/createSQAtracebilityMatrix.py -i ../srs/requirements_list.xml -o traceability_matrix.tex
 	git log -1 --format="%H %an %aD" .. > ../../version.tex
 
 .PHONY: clean

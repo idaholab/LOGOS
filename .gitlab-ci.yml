@@ -27,15 +27,24 @@ before_script:
       # return to project path main dir
     - cd ..
 
-    # this requires pdflatex, currently not available
-    # user_manual:
-    # - cd doc/user_manual/
-    # - make
-    # - cd ../../
-    # sqa:
-    # - cd doc/sqa/
-    # - ./make_docs.sh
-    # - cd ../../
+
+user_manual:
+  script:
+    - cd doc/user_manual/
+    - make
+    - cd ../../
+  artifacts:
+    paths:
+    - doc/user_manual/user_manual.pdf
+
+sqa:
+  script:
+    - cd doc/sqa/
+    - ./make_docs.sh
+    - cd ../../
+  artifacts:
+    paths:
+    - doc/sqa/sqa_built_documents/
 
 test:
     script:
