@@ -42,6 +42,14 @@ except ImportError:
 import pyutilib.subprocess.GlobalData
 pyutilib.subprocess.GlobalData.DEFINE_SIGNAL_HANDLERS_DEFAULT = False
 
+# check pyomo version
+import pyomo as pyo
+pyoVersion = False
+version = list(int(val) for val in pyo.__version__.split('.'))
+version = version[0]*10 + version[1]
+if version >= 57:
+  pyoVersion = True
+
 logger = logging.getLogger(__name__)
 
 class ModelBase:
@@ -376,6 +384,8 @@ class ModelBase:
       @ Out, treeModel, Instance, pyomo scenario tree model
     """
     treeModel = CreateAbstractScenarioTreeModel()
+    if pyoVersion:
+      treeModel = treeModel.create_instance()
     treeModel.Stages.add('FirstStage')
     treeModel.Stages.add('SecondStage')
     treeModel.Nodes.add('RootNode')
