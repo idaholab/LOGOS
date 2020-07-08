@@ -80,6 +80,37 @@ class CVaRSKP(SingleKnapsack):
            model._lambda/(1.0-model.alpha)*model.nu
     return expr
 
+  @staticmethod
+  def computeExpectProfit(model):
+    """
+      Method to compute the expect profit of stochastic programming, i.e. maximum NPVs
+      @ In, model, instance, pyomo abstract model instance
+      @ Out, expr, pyomo.expression, second stage cost
+    """
+    expr = pyomo.summation(model.net_present_values, model.x)
+    return expr
+
+  @staticmethod
+  def computeCVAR(model):
+    """
+      Method to compute the conditional value at risk
+      @ In, model, instance, pyomo abstract model instance
+      @ Out, expr, pyomo.expression, second stage cost
+    """
+    expr = model.u + 1./(1.-model.alpha)*model.nu
+    return expr
+
+  def addExpressions(self, model):
+    """
+      Add specific expressions for MCKP problems
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model = SingleKnapsack.addExpressions(self, model)
+    model.expectProfit = pyomo.Expression(rule=self.computeExpectProfit)
+    model.cvar = pyomo.Expression(rule=self.computeCVAR)
+    return model
+
   def addAdditionalSets(self, model):
     """
       Add specific Sets for SingleKnapsack problems
