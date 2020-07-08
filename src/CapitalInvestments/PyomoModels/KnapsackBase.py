@@ -130,6 +130,11 @@ class KnapsackBase(ModelBase):
       distData = copy.copy(self.distData[0,:])
       smIndices = list(self.scenarios['probabilities'].keys())
       data['dist'] = dict(zip(smIndices,np.ravel(distData)))
+    # used for CVaR model
+    if self.uncertainties is not None and 'CVaR' in self.name:
+      # logger.info('Generate additional model inputs for CVaR optimization')
+      data['_lambda'] = {None: self._lambda}
+      data['alpha'] = {None: self.alpha}
     data = {None:data}
     return data
 
@@ -200,13 +205,28 @@ class KnapsackBase(ModelBase):
     """
     dim = len(self.sets['investments'])
     ysol = pd.DataFrame(np.zeros((dim,dim)), index=self.sets['investments'], columns=self.sets['investments'])
-    for var, val in solutionGenerator:
-      # value is stored as y[('i','j')], gamma, nu[]
-      if var == 'gamma':
-        logger.info('Variable "gamma": {}'.format(val))
-      elif var.split('[')[0] == 'nu':
-        logger.info('Variable "nu" at scenario "{}": {}'.format(var, val))
-      else:
+
+    if 'DRO' in self.name:
+      for var, val in solutionGenerator:
+        # value is stored as y[('i','j')], gamma, nu[]
+        if var == 'gamma':
+          logger.info('Variable "gamma": {}'.format(val))
+        elif var.split('[')[0] == 'nu':
+          logger.info('Variable "nu" at scenario "{}": {}'.format(var, val))
+        else:
+          ind = literal_eval(var[var.index('[') + 1 : var.index(']')])
+          ysol.at[ind] = val
+    elif 'CVaR' in self.name:
+       # value is stored as y[('i','j')], u, nu
+       for var, val in solutionGenerator:
+         if var == 'u':
+           logger.info('Variable "u": {}'.format(val))
+         else:
+           ind = literal_eval(var[var.index('[') + 1 : var.index(']')])
+           ysol.at[ind] = val
+    else:
+      for var, val in solutionGenerator:
+        # value is stored as y[('i','j')]
         ind = literal_eval(var[var.index('[') + 1 : var.index(']')])
         ysol.at[ind] = val
     priorityList = ysol.sum(axis=0) + 1

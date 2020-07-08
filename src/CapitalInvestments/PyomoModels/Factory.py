@@ -19,6 +19,8 @@ try:
   from LOGOS.src.CapitalInvestments.PyomoModels.DROMCKP import DROMCKP
   from LOGOS.src.CapitalInvestments.PyomoModels.DROSKP import DROSKP
   from LOGOS.src.CapitalInvestments.PyomoModels.DROMKP import DROMKP
+  # Conditional Value at Risk Optimization
+  from LOGOS.src.CapitalInvestments.PyomoModels.CVaRSKP import CVaRSKP
 except ImportError:
   from .SingleKnapsack import SingleKnapsack
   from .MultipleKnapsack import MultipleKnapsack
@@ -26,6 +28,8 @@ except ImportError:
   from .DROMCKP import DROMCKP
   from .DROSKP import DROSKP
   from .DROMKP import DROMKP
+  # Conditional Value at Risk Optimization
+  from .CVaRSKP import CVaRSKP
 
 """
  Interface Dictionary (factory) (private)
@@ -38,6 +42,7 @@ __interfaceDict['mckp'                     ] = MCKP
 __interfaceDict['dromckp'                  ] = DROMCKP
 __interfaceDict['droskp'                   ] = DROSKP
 __interfaceDict['dromkp'                   ] = DROMKP
+__interfaceDict['cvarskp'                  ] = CVaRSKP
 
 
 def knownTypes():
