@@ -72,7 +72,7 @@ class CVaRSKP(SingleKnapsack):
   @staticmethod
   def computeSecondStageCost(model):
     """
-      Method to compute second stage cost of stochastic programming, i.e. maximum NPVs
+      Method to compute second stage cost of stochastic programming
       @ In, model, instance, pyomo abstract model instance
       @ Out, expr, pyomo.expression, second stage cost
     """
@@ -170,7 +170,9 @@ class CVaRSKP(SingleKnapsack):
       @ In, None
       @ Out, treeModel, Instance, pyomo scenario tree model for two stage stochastic programming,
         extra variables 'y[*,*]' is used to define the priorities of investments,
-        'gamma' and 'nu[*]' is used for the distributionally CVaR optimization counter-part.
+        'u' and 'nu' is used for CVaR optimization counter-part.
+        'cvar' is used to retrieve the calculated CVaR value
+        'expectProfit' is used to retrieve the expect profit under CVaR optimization
     """
     treeModel = SingleKnapsack.pysp_scenario_tree_model_callback(self)
     # additional variables:

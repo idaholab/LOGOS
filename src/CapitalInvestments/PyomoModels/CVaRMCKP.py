@@ -129,7 +129,7 @@ class CVaRMCKP(MCKP):
     ## used to retrieve additional information from the optimization
     def expectProfit(model):
       """
-        Method to compute the expect profit of stochastic programming, i.e. maximum NPVs
+        Method to compute the expect profit of stochastic programming
         @ In, model, instance, pyomo abstract model instance
         @ Out, expr, pyomo.expression, constraint to compute the expect profit
       """
@@ -162,7 +162,9 @@ class CVaRMCKP(MCKP):
       @ In, None
       @ Out, treeModel, Instance, pyomo scenario tree model for two stage stochastic programming,
         extra variables 'y[*,*]' is used to define the priorities of investments,
-        'gamma' and 'nu[*]' is used for the distributionally robust optimization counter-part.
+        'u' and 'nu' is used for CVaR optimization counter-part.
+        'cvar' is used to retrieve the calculated CVaR value
+        'expectProfit' is used to retrieve the expect profit under CVaR optimization
     """
     treeModel = MCKP.pysp_scenario_tree_model_callback(self)
     # additional variables:

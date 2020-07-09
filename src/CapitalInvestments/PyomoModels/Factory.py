@@ -48,7 +48,7 @@ __interfaceDict['droskp'                   ] = DROSKP
 __interfaceDict['dromkp'                   ] = DROMKP
 __interfaceDict['cvarskp'                  ] = CVaRSKP
 __interfaceDict['cvarmkp'                  ] = CVaRMKP
-__interfaceDict['cvarmckp'                  ] = CVaRMCKP
+__interfaceDict['cvarmckp'                 ] = CVaRMCKP
 
 def knownTypes():
   """
