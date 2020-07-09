@@ -19,6 +19,8 @@ try:
   from LOGOS.src.CapitalInvestments.PyomoModels.DROMKP import DROMKP
   # Conditional Value at Risk Optimization
   from LOGOS.src.CapitalInvestments.PyomoModels.CVaRSKP import CVaRSKP
+  from LOGOS.src.CapitalInvestments.PyomoModels.CVaRMKP import CVaRMKP
+  from LOGOS.src.CapitalInvestments.PyomoModels.CVaRMCKP import CVaRMCKP
   # Factory
   from LOGOS.src.CapitalInvestments.PyomoModels.Factory import knownTypes, returnInstance, returnClass
 except ImportError:
@@ -31,6 +33,8 @@ except ImportError:
   from .DROMKP import DROMKP
   # Conditional Value at Risk Optimization
   from .CVaRSKP import CVaRSKP
+  from .CVaRMKP import CVaRMKP
+  from .CVaRMCKP import CVaRMCKP
   # Factory
   from .Factory import knownTypes, returnInstance, returnClass
 
@@ -41,4 +45,6 @@ __all__ = ['SingleKnapsack',
            'DROMCKP',
            'DROSKP',
            'DROMKP',
-           'CVaRSKP']
+           'CVaRSKP',
+           'CVaRMKP',
+           'CVaRMCKP']
