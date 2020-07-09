@@ -294,6 +294,6 @@ S8 0.1
 S9 0.1
 S10 0.1 ;
 
-param _lambda:=0.;
+param _lambda:=1.0;
 
 param _alpha:=0.95;

@@ -154,7 +154,7 @@ print('CVaR:', value(instance.computeCVAR))
 print('Model Obj', instance.z())
 
 
-with open('Results-lambda_0-alpha_95.txt', 'w') as f:
+with open('Results-lambda_100-alpha_95.txt', 'w') as f:
     f.write('MaxNPV: {}\n'.format(value(instance.maxNPV)))
     f.write('CVaR: {}\n'.format(value(instance.computeCVAR)))
     f.write('Model Obj: {} \n'.format(instance.z()))
