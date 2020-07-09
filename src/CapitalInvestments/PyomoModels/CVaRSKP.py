@@ -80,26 +80,6 @@ class CVaRSKP(SingleKnapsack):
            model._lambda/(1.0-model.alpha)*model.nu
     return expr
 
-  @staticmethod
-  def computeExpectProfit(model):
-    """
-      Method to compute the expect profit of stochastic programming, i.e. maximum NPVs
-      @ In, model, instance, pyomo abstract model instance
-      @ Out, expr, pyomo.expression, second stage cost
-    """
-    expr = pyomo.summation(model.net_present_values, model.x)
-    return expr
-
-  @staticmethod
-  def computeCVAR(model):
-    """
-      Method to compute the conditional value at risk
-      @ In, model, instance, pyomo abstract model instance
-      @ Out, expr, pyomo.expression, second stage cost
-    """
-    expr = model.u + 1./(1.-model.alpha)*model.nu
-    return expr
-
   def addExpressions(self, model):
     """
       Add specific expressions for MCKP problems
@@ -107,8 +87,6 @@ class CVaRSKP(SingleKnapsack):
       @ Out, model, pyomo model instance, pyomo abstract model
     """
     model = SingleKnapsack.addExpressions(self, model)
-    model.expectProfit = pyomo.Expression(rule=self.computeExpectProfit)
-    model.cvar = pyomo.Expression(rule=self.computeCVAR)
     return model
 
   def addAdditionalSets(self, model):
@@ -141,6 +119,9 @@ class CVaRSKP(SingleKnapsack):
     # variables for CVaR optimization
     model.nu = pyomo.Var(domain=pyomo.NonNegativeReals)
     model.u = pyomo.Var(domain=pyomo.Reals)
+    # variables to retrieve additional information
+    model.cvar = pyomo.Var(domain=pyomo.Reals)
+    model.expectProfit = pyomo.Var(domain=pyomo.Reals)
     return model
 
   def addAdditionalConstraints(self, model):
@@ -153,6 +134,25 @@ class CVaRSKP(SingleKnapsack):
     def cvarConstraint(model):
       return  model.nu + pyomo.summation(model.net_present_values, model.x) + model.u >= 0
     model.cvarConstraint = pyomo.Constraint(rule=cvarConstraint)
+
+    ## used to retrieve additional information from the optimization
+    def expectProfit(model):
+      """
+        Method to compute the expect profit of stochastic programming, i.e. maximum NPVs
+        @ In, model, instance, pyomo abstract model instance
+        @ Out, expr, pyomo.expression, constraint to compute the expect profit
+      """
+      return model.expectProfit - pyomo.summation(model.net_present_values, model.x) == 0
+    model.computeExpectProfit = pyomo.Constraint(rule=expectProfit)
+
+    def cvar(model):
+      """
+        Method to compute the conditional value at risk
+        @ In, model, instance, pyomo abstract model instance
+        @ Out, expr, pyomo.expression, constraint to compute the CVaR
+      """
+      return model.cvar - model.u + 1./(1.-model.alpha)*model.nu == 0
+    model.computeCVAR = pyomo.Constraint(rule=cvar)
     return model
 
   def createModel(self):
@@ -177,5 +177,7 @@ class CVaRSKP(SingleKnapsack):
     firstStage = treeModel.Stages.first()
     secondStage = treeModel.Stages.last()
     treeModel.StageVariables[firstStage].add('u')
-    treeModel.StageVariables[secondStage].add('nu[*]')
+    treeModel.StageVariables[secondStage].add('nu')
+    treeModel.StageVariables[secondStage].add('cvar')
+    treeModel.StageVariables[secondStage].add('expectProfit')
     return treeModel

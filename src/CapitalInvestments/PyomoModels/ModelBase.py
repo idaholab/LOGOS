@@ -557,9 +557,14 @@ class ModelBase:
               except KeyError:
                 value = None
               if value is not None:
-                if index not in scenarioOutput:
+                if index not in scenarioOutput and index is not None:
                   scenarioOutput[index] = []
-                scenarioOutput[index].append(value)
+                elif index is None and name not in scenarioOutput:
+                  scenarioOutput[name] = []
+                if index:
+                  scenarioOutput[index].append(value)
+                else:
+                  scenarioOutput[name].append(value)
     scenarioOutput['ScenarioName'] = scenarioNameList
     scenarioOutput['ProbabilityWeight'] = probabilityWeight
     # Loop over scenario to get the cost
