@@ -76,8 +76,8 @@ class CVaRMKP(MultipleKnapsack):
       @ In, model, instance, pyomo abstract model instance
       @ Out, expr, pyomo.expression, second stage cost
     """
-    expr = pyomo.summation(model.net_present_values, model.x) * (1.-model._lambda) - \
-           model._lambda/(1.0-model.alpha)*model.nu
+    expr = sum(sum(model.net_present_values[i] * model.x[i,m] for i in model.investments) for m in model.capitals) \
+           * (1.-model._lambda) - model._lambda/(1.0-model.alpha)*model.nu
     return expr
 
   def addAdditionalSets(self, model):
@@ -123,7 +123,7 @@ class CVaRMKP(MultipleKnapsack):
     """
     model = MultipleKnapsack.addAdditionalConstraints(self, model)
     def cvarConstraint(model):
-      return  model.nu + pyomo.summation(model.net_present_values, model.x) + model.u >= 0
+      return  model.nu + sum(sum(model.net_present_values[i] * model.x[i,m] for i in model.investments) for m in model.capitals) + model.u >= 0
     model.cvarConstraint = pyomo.Constraint(rule=cvarConstraint)
 
     ## used to retrieve additional information from the optimization
@@ -133,7 +133,7 @@ class CVaRMKP(MultipleKnapsack):
         @ In, model, instance, pyomo abstract model instance
         @ Out, expr, pyomo.expression, constraint to compute the expect profit
       """
-      return model.expectProfit - pyomo.summation(model.net_present_values, model.x) == 0
+      return model.expectProfit - sum(sum(model.net_present_values[i] * model.x[i,m] for i in model.investments) for m in model.capitals) == 0
     model.computeExpectProfit = pyomo.Constraint(rule=expectProfit)
 
     def cvar(model):
