@@ -58,7 +58,7 @@
  [./test_cvar_skp_scenario_II]
   type  = 'LogosRun'
   input = 'test_cvar_skp_scenario_II.xml'
-  UnorderedCsv = 'test_cvar_skp_scenario_II.csv'
+  output = 'test_cvar_skp_scenario_II.csv'
   skip_if_OS = windows
  [../]
 
