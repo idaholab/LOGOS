@@ -220,7 +220,7 @@ class KnapsackBase(ModelBase):
        # value is stored as y[('i','j')], u, nu
        for var, val in solutionGenerator:
          if var == 'u':
-           logger.info('Variable "u": {}'.format(val))
+           logger.info('Variable "u" or "Value at Risk" for loss: {}'.format(val))
          else:
            ind = literal_eval(var[var.index('[') + 1 : var.index(']')])
            ysol.at[ind] = val
