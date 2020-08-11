@@ -17,15 +17,10 @@ import sys
 from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 #Internal Modules End-----------------------------------------------------------
 
-#CashFlow modules---------------------------------------------------------------
-# sys.path.append(os.path.expanduser('~/projects/raven/plugins/CashFlow/src'))
-# import main
-# import CashFlows
-from CashFlow.src import main
-from CashFlow.src import CashFlows
-# from main import run
-# from CashFlows import GlobalSettings, Component, Capex
-#CashFlow modules End-----------------------------------------------------------
+#TEAL CashFlow modules----------------------------------------------------------
+from TEAL.src import main
+from TEAL.src import CashFlows
+#TEAL CashFlow modules End------------------------------------------------------
 
 class IncrementalNPV(ExternalModelPluginBase):
   ############################################################################
@@ -129,7 +124,7 @@ class IncrementalNPV(ExternalModelPluginBase):
     paramDict['inflation'] = container.inflation
     paramDict['projectTime'] = container.lifetime
     paramDict['Indicator'] = {'name':['NPV'], 'target':None, 'active':projectName}
-    settings.set_params(paramDict)
+    settings.setParams(paramDict)
 
     #Cashflow, using Capex
     cashflow = CashFlows.Recurring(component=componentName, verbosity=verbosity)
@@ -142,8 +137,8 @@ class IncrementalNPV(ExternalModelPluginBase):
     paramDict['reference'] = 1.
     # paramDict['multiply'] = 1.
     paramDict['driver'] = 1.
-    cashflow.set_params(paramDict)
-    cashflow._yearly_cashflow = None # reset using the calculated cashflow
+    cashflow.setParams(paramDict)
+    cashflow._yearlyCashflow = None # reset using the calculated cashflow
 
     #Component
     component = CashFlows.Component(verbosity=verbosity)
@@ -193,9 +188,9 @@ class IncrementalNPV(ExternalModelPluginBase):
         # compute savings
         container.cashflows[i,j] = container.expectedReplacementCost[time] + container.expectedLostRevenue[time]
 
-      cashflow._yearly_cashflow = container.cashflows[i,:]
+      cashflow._yearlyCashflow = container.cashflows[i,:]
       componentParams['cash_flows'] = [cashflow]
-      component.set_params(componentParams)
+      component.setParams(componentParams)
       # variables = {'TotalSaving':container.cashflows}
       # run the calculations, and compute NPV, IRR and PI
       metrics = main.run(settings, [component], {})
