@@ -188,6 +188,9 @@ class IncrementalNPV(ExternalModelPluginBase):
         # compute savings
         container.cashflows[i,j] = container.expectedReplacementCost[time] + container.expectedLostRevenue[time]
 
+      paramDict['alpha'] = np.ones(len(container.cashflows[i,:]))
+      paramDict['driver'] = container.cashflows[i,:]
+      cashflow.setParams(paramDict)
       cashflow._yearlyCashflow = container.cashflows[i,:]
       componentParams['cash_flows'] = [cashflow]
       component.setParams(componentParams)

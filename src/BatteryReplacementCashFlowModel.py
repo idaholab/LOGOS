@@ -210,11 +210,11 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     paramDict['name'] = 'Replacement'
     paramDict['tax'] = container.tax
     paramDict['inflation'] = container.inflation
-    paramDict['alpha'] = 1
     paramDict['X'] = 1.
     paramDict['reference'] = 1.
     # paramDict['multiply'] = 1.
-    paramDict['driver'] = 1.
+    paramDict['alpha'] = np.ones(len(container.cashflows))
+    paramDict['driver'] = container.cashflows
     cashflow.setParams(paramDict)
     cashflow._yearlyCashflow = container.cashflows
 
