@@ -1,4 +1,5 @@
-
+# Copyright 2020, Battelle Energy Alliance, LLC
+# ALL RIGHTS RESERVED
 import os
 from datetime import datetime
 

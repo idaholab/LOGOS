@@ -1,4 +1,5 @@
-
+# Copyright 2020, Battelle Energy Alliance, LLC
+# ALL RIGHTS RESERVED
 """
 Tests by running an executable.
 """
