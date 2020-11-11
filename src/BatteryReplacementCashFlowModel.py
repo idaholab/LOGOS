@@ -1,3 +1,5 @@
+# Copyright 2020, Battelle Energy Alliance, LLC
+# ALL RIGHTS RESERVED
 """
   Author:  C. Wang and D. Mandelli
   Date  :  07/12/2019
