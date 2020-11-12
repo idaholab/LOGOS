@@ -1,3 +1,5 @@
+# Copyright 2020, Battelle Energy Alliance, LLC
+# ALL RIGHTS RESERVED
 """
   Author:  C. Wang and D. Mandelli
   Date  :  07/12/2019
@@ -17,15 +19,10 @@ import sys
 from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 #Internal Modules End-----------------------------------------------------------
 
-#CashFlow modules---------------------------------------------------------------
-# sys.path.append(os.path.expanduser('~/projects/raven/plugins/CashFlow/src'))
-# import main
-# import CashFlows
-from CashFlow.src import main
-from CashFlow.src import CashFlows
-# from main import run
-# from CashFlows import GlobalSettings, Component, Capex
-#CashFlow modules End-----------------------------------------------------------
+#TEAL CashFlow modules----------------------------------------------------------
+from TEAL.src import main
+from TEAL.src import CashFlows
+#TEAL CashFlow modules End------------------------------------------------------
 
 class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
   ############################################################################
@@ -207,7 +204,7 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     paramDict['inflation'] = container.inflation
     paramDict['projectTime'] = container.lifetime
     paramDict['Indicator'] = {'name':['NPV'], 'target':None, 'active':['Battery|Replacement']}
-    settings.set_params(paramDict)
+    settings.setParams(paramDict)
 
     #Cashflow, using Capex
     cashflow = CashFlows.Recurring(component='Battery', verbosity=verbosity)
@@ -215,13 +212,13 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     paramDict['name'] = 'Replacement'
     paramDict['tax'] = container.tax
     paramDict['inflation'] = container.inflation
-    paramDict['alpha'] = 1
     paramDict['X'] = 1.
     paramDict['reference'] = 1.
     # paramDict['multiply'] = 1.
-    paramDict['driver'] = 1.
-    cashflow.set_params(paramDict)
-    cashflow._yearly_cashflow = container.cashflows
+    paramDict['alpha'] = np.ones(len(container.cashflows))
+    paramDict['driver'] = container.cashflows
+    cashflow.setParams(paramDict)
+    cashflow._yearlyCashflow = container.cashflows
 
     #Component
     component = CashFlows.Component(verbosity=verbosity)
@@ -233,7 +230,7 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     paramDict['tax'] = container.tax
     paramDict['inflation'] = container.inflation
     paramDict['cash_flows'] = [cashflow]
-    component.set_params(paramDict)
+    component.setParams(paramDict)
 
     # variables = {'TotalSaving':container.cashflows}
     # run the calculations, and compute NPV, IRR and PI

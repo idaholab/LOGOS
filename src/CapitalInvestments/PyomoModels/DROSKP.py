@@ -1,6 +1,5 @@
-#
-#
-#
+# Copyright 2020, Battelle Energy Alliance, LLC
+# ALL RIGHTS RESERVED
 """
   Created on April. 29, 2020
   @author: wangc, mandd
