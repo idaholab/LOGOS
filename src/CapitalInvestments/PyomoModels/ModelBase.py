@@ -181,7 +181,7 @@ class ModelBase:
     self.epsilon = float(solverOptions.pop('radius_ambiguity', 0.0))
     ## used for CVaR
     self._lambda = float(solverOptions.pop('risk_aversion', 0.0))
-    self.alpah = float(solverOptions.pop('confidence_level', 0.95))
+    self.alpha = float(solverOptions.pop('confidence_level', 0.95))
     self.sopts.update(solverOptions)
     self.tee = self.settings.pop('tee',False)
     self.nonSelection = utils.convertStringToBool(self.settings.pop('nonSelection', 'False'))
