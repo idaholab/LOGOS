@@ -40,9 +40,13 @@ get started with LOGOS. This typically involves the following steps:
     \\ You can download the source code for LOGOS from \url{https://hpcgitlab.hpc.inl.gov/RAVEN_PLUGINS/LOGOS.git}.
   \item \textit{Install LOGOS dependencies}
 	\begin{lstlisting}[language=bash]
-	path/to/LOGOS/build.sh
+	path/to/LOGOS/build.sh --install
 	\end{lstlisting}
-  \item \textit{Run LOGOS}
+  \item \textit{Activate LOGOS Libraries}
+  \begin{lstlisting}[language=bash]
+  source activate LOGOS_libraries
+  \end{lstlisting}
+  \item \textit{Test LOGOS}
 	\begin{lstlisting}[language=bash]
 	./run_tests
 	\end{lstlisting}
@@ -80,7 +84,7 @@ class AClass():
 \item \textbf{\textit{Bash Commands:}}
 \begin{lstlisting}[language=bash]
 cd path/to/LOGOS/
-./build.sh
+./build.sh --install
 cd ../../
 \end{lstlisting}
 \end{itemize}
