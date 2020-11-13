@@ -55,8 +55,16 @@ get started with LOGOS. This typically involves the following steps:
 \begin{lstlisting}[language=bash]
 path/to/LOGOS/logos -i <inputFile.xml> -o <outputFile.csv>
 \end{lstlisting}
-	\item \textit{For use as a RAVEN Plugin}, RAVEN must first be installed
-		\\ Instructions are available from \url{https://github.com/idaholab/raven/wiki}.
+	\item \textit{For use as a RAVEN Plugin}, RAVEN must first be downloaded from
+  \url{https://github.com/idaholab/raven.git}.
+		\\ Detailed instructions are available from \url{https://github.com/idaholab/raven/wiki}.
+    To register a plugin with RAVEN and make its components accessible, run the script:
+    \begin{lstlisting}[language=bash]
+  	raven/scripts/install_plugins.py -s /abs/path/to/LOGOS
+  	\end{lstlisting}
+    After the plugin registration, then following the installation instruction at
+    \url{https://github.com/idaholab/raven/wiki/installationMain} to install the
+    required dependencies.
 \end{itemize}
 
 \subsection{User Manual Formats}
