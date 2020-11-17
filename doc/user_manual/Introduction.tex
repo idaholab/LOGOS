@@ -24,7 +24,12 @@ sampling the provided distributions.
 The developed models are based on different versions of the knapsack optimization problem.
 Two main classes of optimization models were initially developed: deterministic and stochastic.
 Stochastic optimization models evolve deterministic models by explicitly considering data
-uncertainties associated with constraints or item cost and reward.
+uncertainties associated with constraints or item cost and reward. In FY-20, we moved forward
+by implementing two versions of schedule optimization methods. The first one reformulates the
+capital budgeting problem in a distributionally robust form which allows the user to rely on
+data directly rather than proposing a distribution from the data itself. The second version
+reformulates the capital budgeting explicitly using risk measures as variable to maximize or
+minimize.
 
 These models can be employed as stand-alone models or interfaced with the INL-developed RAVEN code
 to propagate data uncertainties and analyze the generated data (i.e., sensitivity analysis).
@@ -140,6 +145,8 @@ This document provides a detailed description of LOGOS. The features included in
   \item Overview of modeling components (see Section~\ref{sec:ModelingComponents})
 	\item Deterministic capital budgeting (see Section~\ref{sec:DeterministicCapitalBudgeting})
 	\item Prioritizing project selection to hedge against uncertainty (see Section~\ref{sec:StochasticCapitalBudgeting})
-	\item Plugin for the RAVEN code (see Section~\ref{sec:RavenPlugin})
+  \item Distributionally robust optimization (see Section~\ref{sec:DROCapitalBudgeting})
+  \item Risk-based stochastic capital budgeting using conditional Value-at-Risk (See Section)
+  \item Plugin for the RAVEN code (see Section~\ref{sec:RavenPlugin})
 	\item SSC cashflow and NPV models (see Section~\ref{sec:SSCNPV})
 \end{itemize}

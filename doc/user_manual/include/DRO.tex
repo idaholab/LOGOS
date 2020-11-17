@@ -1,0 +1,185 @@
+\section{Distributionally Robust Optimization}
+\label{sec:DROCapitalBudgeting}
+
+In this section, we consider another risk-averse decision making approach
+using distributionally robust optimization (DRO). To this end, we begin with
+a nominal stochastic optimization problem:
+
+\begin{equation}
+\max_{s\in S} \sum_{\sigma\in \Sigma} q^\sigma f(s,\xi^\sigma)
+\end{equation}
+
+In our context, the nominal model is a stochastic capital budgeting problem
+in which we maximize expected NPV, and we could have
+$f(s,\xi^\sigma)=NPV(s,\xi^\sigma)$. In this context ``$s\in S$'' simply
+indicates the constraints that a prioritized solution must satisfy, wherein
+we prioritize project selection subject to uncertainty in costs and the NPV
+of each project as well as uncertainty in resource availability. The goal is
+to prioritize so as to maximize expected NPV, assuming that nominal distribution,
+specified by the probability mass function $q^\sigma, \sigma \in \Sigma$.
+
+We suppose that $\xi$ is a discrete random variable with finite sample space $\Omega$,
+so that $\xi^\omega, \omega \in \Omega$, enumerate all possible realizations.
+We further suppose that we only have observations of
+$\xi^\sigma, \sigma \in \Sigma \subset \Omega$,
+i.e., possibly a strict subset, which may arise in a data-driven setting. In such a
+data-driven setting we could have, for example, probability mass $q^\sigma = 1/|\Sigma|$
+for all $\sigma \in \Sigma$.
+A DRO variant of this nominal stochastic optimization model is then given by:
+
+\begin{equation}
+\max_{s\in S} \min_{p\in P} \sum_{\omega\in \Omega} p^\omega f(s,\xi^\omega)
+\end{equation}
+
+Here, we may view this DRO model as playing a ``game'' against nature. First, we select
+$s\in S$, and then knowing $s$, nature selects a worst-case probability distribution,
+$p\in P$, to minimize the expected NPV, which we seek to maximize. We will make precise
+what we mean by the Distributional Uncertainty Set (DUS), denoted by $P$, below, but
+for the moment it is enough to think of the set as representing a neighborhood of
+probability distributions centered on the given probability mass function, $q$,
+with the radius of the neighborhood specified by parameter $\varepsilon$. If
+$\varepsilon = 0$ then the DRO model reduces to the nominal model. If $\varepsilon$ is very
+large then nature will select the single worst-case scenario, e.g., the scenario
+with lowest budgets, highest costs, and lowest NPVs. This is too conservative to be useful
+(i.e. if we are living in this world, it is very likely that the plant would be
+uneconomical no matter what decisions are made). However, with moderate values of
+$\varepsilon$ we obtain solutions that hedge against deviations from $q$ without being
+excessively conservative.
+
+Importantly, we do not view nature as malevolent, despite occasional evidence to the contrary.
+Rather, we use ``$min_{p\in P}$'' to combat over-adapting our solution to a specific assumption
+about the probability distribution. In this sense, DRO plays the role of a ``regularizer'' to
+combat over-fitting that is analogous to regularizers used in high-dimensional statistics
+and statistical machine learning. Our approach to DRO requires further mathematical and
+intuitive development before we can analyze solutions to the DRO problem.
+
+\subsection{Defining a Distributional Uncertainty Set via the Wasserstein Distance}
+\label{WassersteinDistance}
+By the constraints denoted by $p\in P$ we require that nature select a probability
+mass function, $p$, that is ``close'' to the nominal or empirical data-driven distribution
+$q$. We effect this by defining the DUS:
+
+\begin{equation}
+P=\{p: D(p,q)\le \varepsilon, \sum_{\omega\in \Omega} p^\omega = 1, p^\omega \ge 0, \omega \in \Omega \}
+\end{equation}
+
+where $D(p, q)$ is the distance between nature’s choice, $p$, and the nominal data-driven distribution,
+$q$. As indicated above, the radius parameter $\varepsilon$ governs the latitude we give nature,
+which in turn governs the degree of conservatism that we face when selecting decision $s\in S$.
+
+There are multiple ways to measure the ``distance'', $D(p, q)$, between two probability distributions,
+which include the Kolmogorov-Smirnov distance, Kullback-Leibler divergence, chi-squared distances,
+total variation, and more general $\psi$-divergences. The Wasserstein distance, which is based on
+the idea of optimal transport, is a particularly useful way to measure such a distance in the
+context of distributionally robust optimization. For a distribution with known finite support,
+the Wasserstein distance, $D(p, q)$, between a given distribution, $q^\sigma, \sigma \in \Sigma$,
+and a given candidate robust distribution, $p^\omega, \omega \in \Omega$, is provided by the
+optimal value of the transportation problem:
+
+\begin{subequations}\label{WassersteinEq}
+\begin{eqnarray}
+& & D(q, p) = \min_{z} \sum_{\sigma \in \Sigma, \omega \in \Omega} d_{\sigma, \omega} z_{\sigma, \omega} \\
+& & s.t. \sum_{\omega \in \Omega} z_{\sigma, \omega} = q^\sigma, \sigma \in \Sigma \\
+& & \sum_{\sigma \in \Sigma} z_{\sigma, \omega} = p^\omega, \omega \in \Omega \\
+& & z_{\sigma, \omega} \ge 0, \sigma \in \Sigma, \omega \in \Omega
+\end{eqnarray}
+\end{subequations}
+
+The intuition behind this measure concerns the magnitude of probability mass, $q^\sigma$,
+that must be transported distance $d_{\sigma, \omega}$ from vector $\xi^\sigma$ to vector $\xi^\omega$
+via variable $z_{\sigma, \omega}$. At one extreme case, if the two sample spaces and probability
+mass functions coincide, i.e., $\Omega = \Sigma$ and $p^\omega = q^\omega$, and $d_{\omega, \omega} = 0$
+for all $\omega \in \Omega$ then $D(p, q) = 0$.
+
+To fully specify $D(p, q)$ we must define $d_{\sigma, \omega}= dist(\xi^\sigma, \xi^\omega)$.
+To do so we can select $dist(\cdot, \cdot)$, for example, to be the two-norm distance, or a more
+general $\eta$-norm distance, between the vectors, $\xi^\sigma$ and $\xi^\omega$,
+i.e., $dist(\cdot, \cdot) = ||\xi^\sigma - \xi^\omega||_\eta$.
+
+With the Wasserstein distance, if we are given distribution, $q$, we can then define:
+
+\begin{equation}
+P=\{p: D(p,q)\le \varepsilon, \sum_{\omega\in \Omega} p^\omega = 1, p^\omega \ge 0, \omega \in \Omega \}
+\end{equation}
+
+for a given radius $\varepsilon$. Here, we think of $P$ as a ball, or neighborhood, of
+probability distributions centered on $q$, where the neighborhood has radius $\varepsilon$.
+With $\Sigma \subset \Omega$, if $\varepsilon = 0$ then $P$ is the singleton ${q}$, and
+larger values of $\varepsilon$ lead to increasingly large neighborhoods. In the context
+of robust optimization, if $\varepsilon = 0$ then we will simply be solving the nominal
+stochastic optimization model, and as $\varepsilon$ grows large we will consider
+increasingly conservative models.
+
+We can now represent the set $P$ via the following so-called extended-variable set of constraints:
+
+\begin{subequations}\label{WassersteinConstraints}
+\begin{eqnarray}
+& & \sum_{\sigma \in \Sigma, \omega \in \Omega} d_{\sigma, \omega} z_{\sigma, \omega} \le \varepsilon \\
+& & \sum_{\omega \in \Omega} z_{\sigma, \omega} = q^\sigma, \sigma \in \Sigma \\
+& & \sum_{\sigma \in \Sigma} z_{\sigma, \omega} = p^\omega, \omega \in \Omega \\
+& & z_{\sigma, \omega} \ge 0, \sigma \in \Sigma, \omega \in \Omega
+\end{eqnarray}
+\end{subequations}
+
+\subsection{Towards a Computationally Tractable Reformulation}
+\label{TractableReformulation}
+Due to the max min construct in the DRO model, the model is not amenable to direct solution
+via optimization software. So, we reformulate the model to facilitate computation.
+For the moment let $s\in S$ be fixed so that $f(s, \xi^\omega)$ is just a known numerical
+value for each $\omega \in \Omega$. Then, nature’s problem may be written:
+
+\begin{subequations}
+\begin{eqnarray}
+& & \min_{p, z} \sum_{\omega \in \Omega} p^\omega f(s, \xi^\omega) \\
+& & s.t. \sum_{\sigma \in \Sigma, \omega \in \Omega} d_{\sigma, \omega} z_{\sigma, \omega} \le \varepsilon : [-\gamma] \\
+& & \sum_{\omega \in \Omega} z_{\sigma, \omega} = q^\sigma, \sigma \in \Sigma : [\nu^\sigma]\\
+& & \sum_{\sigma \in \Sigma} z_{\sigma, \omega} = p^\omega, \omega \in \Omega : [\beta^\omega]\\
+& & z_{\sigma, \omega} \ge 0, \sigma \in \Sigma, \omega \in \Omega
+\end{eqnarray}
+\end{subequations}
+
+Here, $\gamma, \nu^\sigma, \beta^\omega$ denote dual variables.
+In this model, nature optimizes over $z$ and over $p$ to select a worst-case distribution
+within radius $\varepsilon$ of $q$.
+
+Taking the dual of the linear DRO program, and substituting out the dual variable
+$\beta^\omega= -f(s, \xi^\omega)$, we obtain the following:
+
+\begin{subequations}\label{dualProlem}
+\begin{eqnarray}
+& & \max_{\gamma, \nu} -\gamma \varepsilon + \sum_{\sigma\in \Sigma} \nu^\sigma q^\sigma \\
+& & s.t. -\gamma d_{\sigma, \omega} + \nu^\sigma \le f(s, \xi^\omega), \sigma \in \Sigma, \omega \in \Omega \\
+& & \gamma \ge 0
+\end{eqnarray}
+\end{subequations}
+
+To gain intuition regarding model, consider two extreme cases, $\varepsilon = 0$ and $\varepsilon = \infty$.
+If $\varepsilon = 0$ then there is no penalty in the objective function for allowing $\gamma$
+to grow large. As $gamma$ grows large, the constraint becomes vacuous for all $\sigma \ne \omega$;
+however, for $\sigma = \omega$ we have $d_{\sigma, \sigma} = ||\xi^\sigma - \xi^\omega|| = 0$,
+and hence the constraint reduces to $\nu^\sigma \le f(s, \xi^\omega)$, and coupled with the objective
+function the optimal value reduces to $\sum_\sigma q^\sigma f(s, \xi^\sigma) = \sum_\omega p^\omega f(s, \xi^\omega)$,
+i.e., it reduces to the objective function value of the nominal stochastic optimization model,
+as it must with $\varepsilon = 0$.
+
+In the other extreme, as $\varepsilon$ grows sufficiently large we must have $\gamma = 0$
+to avoid a huge penalty in the objective function. Thus, for each $\sigma \in \Sigma$,
+the constraint reduces to $\nu^\sigma \le f(s, \xi^\omega)$, i.e.,
+the objective function reduces to:
+
+\begin{equation}
+\sum_\sigma \min_\omega f(s, \xi^\omega) q^\sigma = \min_\omega f(s, \xi^\omega) \sum_\sigma q^\sigma = \min_\omega f(s, \xi^\omega)
+\end{equation}
+
+Again, this matches what it must: if $\varepsilon = \infty$ then nature has enough latitude
+to place probability one on the single worst-case scenario.
+
+\begin{subequations}\label{WassersteinEq}
+\begin{eqnarray}
+f
+\end{eqnarray}
+\end{subequations}
+
+\begin{equation}
+1
+\end{equation}
