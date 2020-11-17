@@ -174,12 +174,374 @@ the objective function reduces to:
 Again, this matches what it must: if $\varepsilon = \infty$ then nature has enough latitude
 to place probability one on the single worst-case scenario.
 
-\begin{subequations}\label{WassersteinEq}
+Specializing $s\in S$ to be the constraints for prioritization, and specializing
+$f(s,\xi^\omega)$ to define the NPV under scenario $\omega\in \Omega$, the DRO variant of the
+stochastic capital budgeting problem is as follows:
+
+\begin{subequations}\label{fullDRO}
 \begin{eqnarray}
-f
+& & \max_{x, y, \gamma, \nu} -\gamma \varepsilon + \sum_{\sigma\in \Sigma} \nu^\sigma q^\sigma \\
+& & s.t. -\gamma d_{\sigma, \omega} + \nu^\sigma \le \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}a_{ij}^{ \omega }x_{ij}^{ \omega }, \sigma \in \Sigma, \omega \in \Omega \\
+& & y_{ii^{'}}+y_{i^{'}i} \geq 1,~ i<i^{'}\text{, i, }i^{'} \in I \\
+& & \sum_{j=1}^{J_i} x_{ij}^\omega \geq \sum_{j=1}^{J_i} x_{i'j}^\omega + y_{ii'} -1,~ i \neq i^{'}\text{, i, }i^{'} \in I,  \omega  \in  \Omega \\
+& & \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}\text{~ c}_{ijkt}^{ \omega }x_{ij}^{ \omega }~  \leq  b_{kt}^{ \omega },~ k \in K, t \in T,  \omega  \in  \Omega \\
+& & \sum_{j\in J_i} x_{ij}^{ \omega } \leq 1,~ i \in I, \omega  \in  \Omega \\
+& & \gamma \ge 0
 \end{eqnarray}
 \end{subequations}
 
-\begin{equation}
-1
-\end{equation}
+\subsection{LOGOS Settings for DRO Problems}
+\label{DROSettings}
+DRO approach is an extension for stochastic optimization approach discussed in
+Section~\ref{sec:StochasticCapitalBudgeting}. Both of them share the same input
+structures except the \xmlNode{Settings} block. In both cases, the user need to
+specify a collection of scenarios via \xmlNode{Uncertainties} block. The
+\xmlNode{problem\_type} within \xmlNode{Settings} block is used to select the
+type of DRO problems. The currently available DRO problem types are:
+\xmlString{droskp}, \xmlString{dromkp}, and \xmlString{dromckp}. The user can
+use \xmlNode{radius\_ambiguity} to control the Wasserstein distance for DRO problem.
+
+Example LOGOS input XML for DRO:
+\begin{lstlisting}[style=XML]
+<Settings>
+<Logos>
+  <solver>cbc</solver>
+  <solverOptions>
+    <StochSolver>EF</StochSolver>
+    <!-- epsilon radius -->
+    <radius_ambiguity>0.1</radius_ambiguity>
+  </solverOptions>
+  <sense>maximize</sense>
+  <problem_type>droskp</problem_type>
+</Settings>
+</Logos>
+\end{lstlisting}
+
+\subsection{DRO for Single Knapsack Problem}
+\label{DRO_SKP}
+
+\vst \noi {\em Model Formulation:}
+\begin{subequations}\label{DROSimpleKP}
+\begin{eqnarray}
+& & \max_{x, y} \max_{\gamma, \nu} (-\gamma \varepsilon + \sum_{\sigma \in \Sigma} \nu^\sigma q^\sigma)  \\
+& &  -\gamma d_{\sigma, \omega} + \nu^\sigma \le \sum _{i \in I} a_{i}^{ \omega }x_{i}^{ \omega }, \sigma \in \Sigma, \omega \in \Omega \\
+& & \sum_{i \in I} c_{i}^\omega x_{i}^\omega \leq b^\omega \\
+& & y_{ii'} + y_{i'i} \geq 1, i<i'  \\
+& & x_{i}^\omega \geq x_{i'}^\omega + y_{ii'}-1, i\neq i' \\
+& & x_{i}^\omega, y_{ii'}^\omega \in {0, 1} \\
+& & \gamma \ge 0
+\end{eqnarray}
+\end{subequations}
+
+See next section~\ref{subsec:DRO_DKP} for the example, since multi-dimensional Knapsack problem
+is just a simple extension of single Knapsack problem, and both of them belong to the same
+\xmlNode{problem\_type}: \xmlString{droskp}.
+
+
+\subsection{DRO for Multi-Dimensional Knapsack Problem}
+\label{DRO_DKP}
+
+\vst \noi {\em Model Formulation:}
+\begin{subequations}\label{DROMultiDKP}
+\begin{eqnarray}
+& & \max_{x, y} \max_{\gamma, \nu} (-\gamma \varepsilon + \sum_{\sigma \in \Sigma} \nu^\sigma q^\sigma)  \\
+& &  -\gamma d_{\sigma, \omega} + \nu^\sigma \le \sum _{i \in I} a_{i}^{ \omega }x_{i}^{ \omega }, \sigma \in \Sigma, \omega \in \Omega \\
+& & \sum_{i \in I} c_{it}^\omega x_{i}^\omega \leq b_{t}^\omega, t\in T \\
+& & y_{ii'} + y_{i'i} \geq 1, i<i'  \\
+& & x_{i}^\omega \geq x_{i'}^\omega + y_{ii'}-1, i\neq i' \\
+& & x_{i}^\omega, y_{ii'}^\omega \in {0, 1} \\
+& & \gamma \ge 0
+\end{eqnarray}
+\end{subequations}
+
+Example LOGOS input XML:
+\begin{lstlisting}[style=XML]
+<Logos>
+  <Sets>
+    <investments>
+      1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
+    </investments>
+    <time_periods>
+      1,2,3,4,5
+    </time_periods>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index="investments">
+      2.315,0.824,22.459,60.589,0.667,5.173,4.003,0.582,0.122,
+      -2.870,-0.102,-0.278,-0.322,-3.996,-0.246,-20.155
+    </net_present_values>
+    <costs index="investments, time_periods">
+      0.219,0.257,0.085,0.0,0.0,
+      0.0,0.0,0.122,0.103,0.013,
+      5.044,1.839,0.0,0.0,0.0,
+      6.74,6.134,10.442,0.0,0.0,
+      0.425,0.0,0.0,0.0,0.0,
+      2.125,2.122,0.0,0.0,0.0,
+      2.387,0.19,0.012,2.383,0.192,
+      0.0,0.95,0.0,0.0,0.0,
+      0.03,0.03,0.688,0.0,0.0,
+      0,0.2,0.763,0.739,2.539,
+      0.081,0.032,0,0,0,
+      0.3,0,0,0,0,
+      0.347,0,0,0,0,
+      4.025,0.297,0,0,0,
+      0.095,0.095,0.095,0,0,
+      5.487,5.664,0.5,6.803,6.778
+    </costs>
+    <available_capitals index="time_periods">
+      18,18,18,18,18
+    </available_capitals>
+  </Parameters>
+
+  <Uncertainties>
+    <available_capitals>
+      <totalScenarios>10</totalScenarios>
+      <probabilities>
+        0.012, 0.019, 0.032, 0.052, 0.086, 0.142, 0.235, 0.188, 0.141, 0.093
+      </probabilities>
+      <!--
+        scenarios is ordered by numberScenarios * parametersIndex,
+        the number of scenarios is determined by
+        the number of elements in <probabilities>, for this case:
+        numberScenarios * time_periods = 10 * 5
+      -->
+      <scenarios>
+        11, 11, 11, 11, 11,
+        12, 12, 12, 12, 12,
+        13, 13, 13, 13, 13,
+        14, 14, 14, 14, 14,
+        15, 15, 15, 15, 15,
+        16, 16, 16, 16, 16,
+        17, 17, 17, 17, 17,
+        18, 18, 18, 18, 18,
+        19, 19, 19, 19, 19,
+        20, 20, 20, 20, 20
+      </scenarios>
+    </available_capitals>
+  </Uncertainties>
+
+  <Settings>
+    <mandatory>10,11,12,13,14,15,16</mandatory>
+    <solver>cbc</solver>
+    <solverOptions>
+      <StochSolver>EF</StochSolver>
+      <!-- epsilon radius -->
+      <radius_ambiguity>0.1</radius_ambiguity>
+    </solverOptions>
+    <sense>maximize</sense>
+    <problem_type>droskp</problem_type>
+  </Settings>
+</Logos>
+\end{lstlisting}
+
+
+\subsection{DRO for Multiple Knapsack Problem}
+\label{DRO_MKP}
+
+\vst \noi {\em Model Formulation:}
+\begin{subequations}\label{DROMKP}
+\begin{eqnarray}
+& & \max_{x, y} \max_{\gamma, \nu} (-\gamma \varepsilon + \sum_{\sigma \in \Sigma} \nu^\sigma q^\sigma)  \\
+& &  -\gamma d_{\sigma, \omega} + \nu^\sigma \le \sum _{i \in I} \sum _{m \in M}a_{i}^{ \omega }x_{im}^{ \omega }, \sigma \in \Sigma, \omega \in \Omega \\
+& & \sum _{i \in I}^{} c_{i}^{ \omega }x_{im}^{ \omega }~  \leq  b_{m}^{ \omega },~ m \in M,  \omega  \in  \Omega \\
+& & y_{ii'} + y_{i'i} \geq 1, i<i'  \\
+& & \sum_{m=1}^{M} x_{im}^\omega \geq \sum_{m=1}^{M} x_{i'm}^\omega + y_{ii'} -1,~ i \neq i^{'}\text{, i, }i^{'} \in I,  \omega  \in  \Omega \\
+& & x_{i,m}^\omega, y_{ii'}^\omega \in {0, 1} \\
+& & \gamma \ge 0
+\end{eqnarray}
+\end{subequations}
+
+Example LOGOS input XML:
+\begin{lstlisting}[style=XML]
+<Logos>
+  <Sets>
+    <investments>
+      1,2,3,4,5,6,7,8,9,10
+    </investments>
+    <capitals>
+      unit_1, unit_2
+    </capitals>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index="investments">
+      78, 35, 89, 36, 94, 75, 74, 79, 80, 16
+    </net_present_values>
+    <costs index="investments">
+      18, 9, 23, 20, 59, 61, 70, 75, 76, 30
+    </costs>
+    <available_capitals index="capitals">
+      103, 156
+    </available_capitals>
+  </Parameters>
+
+  <Uncertainties>
+    <available_capitals>
+      <totalScenarios>10</totalScenarios>
+      <probabilities>
+        0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1
+      </probabilities>
+      <scenarios>
+        101, 154,
+        102, 155,
+        103, 156,
+        104, 157,
+        105, 158,
+        106, 159,
+        107, 160,
+        108, 161,
+        109, 162,
+        110, 163
+      </scenarios>
+    </available_capitals>
+  </Uncertainties>
+
+  <Settings>
+    <solver>cbc</solver>
+    <solverOptions>
+      <StochSolver>EF</StochSolver>
+      <!-- epsilon radius -->
+      <radius_ambiguity>0.1</radius_ambiguity>
+    </solverOptions>
+    <sense>maximize</sense>
+    <problem_type>dromkp</problem_type>
+  </Settings>
+</Logos>
+\end{lstlisting}
+
+
+\subsection{DRO for Multiple-Choice Knapsack Problem}
+\label{DRO_MCKP}
+
+\vst \noi {\em Model Formulation:}
+\begin{subequations}\label{DROMCKP}
+\begin{eqnarray}
+& & \max_{x, y} \max_{\gamma, \nu} (-\gamma \varepsilon + \sum_{\sigma \in \Sigma} \nu^\sigma q^\sigma)  \\
+& &  -\gamma d_{\sigma, \omega} + \nu^\sigma \le \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}a_{ij}^{ \omega }x_{ij}^{ \omega }, \sigma \in \Sigma, \omega \in \Omega \\
+& & \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}\text{~ c}_{ijkt}^{ \omega }x_{ij}^{ \omega }~  \leq  b_{kt}^{ \omega },~ k \in K, t \in T,  \omega  \in  \Omega \\
+& & y_{ii'} + y_{i'i} \geq 1, i<i'  \\
+& & \sum_{j=1}^{J_i} x_{ij}^\omega \geq \sum_{j=1}^{J_i} x_{i'j}^\omega + y_{ii'} -1,~ i \neq i^{'}\text{, i, }i^{'} \in I,  \omega  \in  \Omega \\
+& & x_{i,j}^\omega, y_{ii'}^\omega \in {0, 1} \\
+& & \gamma \ge 0
+\end{eqnarray}
+\end{subequations}
+
+Example LOGOS input XML:
+\begin{lstlisting}[style=XML]
+<Logos>
+  <Sets>
+    <investments>
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
+    </investments>
+    <options index='investments'>
+      1;
+      1;
+      1;
+      1,2,3;
+      1,2,3,4;
+      1,2,3,4,5,6,7;
+      1;
+      1;
+      1;
+      1;
+      1;
+      1;
+      1;
+      1;
+      1;
+      1;
+      1
+    </options>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index='options'>
+      2.046
+      2.679
+      2.489
+      2.61
+      2.313
+      1.02
+      3.013
+      2.55
+      3.351
+      3.423
+      3.781
+      2.525
+      2.169
+      2.267
+      2.747
+      4.309
+      6.452
+      2.849
+      7.945
+      2.538
+      1.761
+      3.002
+      3.449
+      2.865
+      3.999
+      2.283
+      0.9
+      8.608
+    </net_present_values>
+    <costs index='options'>
+      36538462
+      83849038
+      4615385
+      2788461538
+      2692307692
+      5480769231
+      1634615385
+      2981730768
+      7211538462
+      9038461538
+      649038462
+      650000000
+      216346154
+      212500000
+      3076923077
+      3942307692
+      1144230769
+      675721154
+      1442307692
+      99711538
+      4807692
+      123076923
+      138461538
+      86538462
+      108653846
+      75092404
+      6413462
+      147932692
+    </costs>
+    <available_capitals>
+      15E9
+    </available_capitals>
+  </Parameters>
+
+  <Uncertainties>
+    <available_capitals>
+      <totalScenarios>3</totalScenarios>
+      <probabilities>
+        0.2,0.6,0.2
+      </probabilities>
+      <scenarios>
+        5E9,10E9,15E9
+      </scenarios>
+    </available_capitals>
+  </Uncertainties>
+
+  <Settings>
+    <solver>glpk</solver>
+    <solverOptions>
+      <StochSolver>EF</StochSolver>
+      <!-- epsilon radius -->
+      <radius_ambiguity>0.1</radius_ambiguity>
+    </solverOptions>
+    <sense>maximize</sense>
+    <problem_type>dromckp</problem_type>
+  </Settings>
+</Logos>
+\end{lstlisting}
