@@ -54,7 +54,7 @@ and statistical machine learning. Our approach to DRO requires further mathemati
 intuitive development before we can analyze solutions to the DRO problem.
 
 \subsection{Defining a Distributional Uncertainty Set via the Wasserstein Distance}
-\label{WassersteinDistance}
+\label{subsec:WassersteinDistance}
 By the constraints denoted by $p\in P$ we require that nature select a probability
 mass function, $p$, that is ``close'' to the nominal or empirical data-driven distribution
 $q$. We effect this by defining the DUS:
@@ -122,7 +122,7 @@ We can now represent the set $P$ via the following so-called extended-variable s
 \end{subequations}
 
 \subsection{Towards a Computationally Tractable Reformulation}
-\label{TractableReformulation}
+\label{subsec:TractableReformulation}
 Due to the max min construct in the DRO model, the model is not amenable to direct solution
 via optimization software. So, we reformulate the model to facilitate computation.
 For the moment let $s\in S$ be fixed so that $f(s, \xi^\omega)$ is just a known numerical
@@ -191,7 +191,7 @@ stochastic capital budgeting problem is as follows:
 \end{subequations}
 
 \subsection{LOGOS Settings for DRO Problems}
-\label{DROSettings}
+\label{subsec:DROSettings}
 DRO approach is an extension for stochastic optimization approach discussed in
 Section~\ref{sec:StochasticCapitalBudgeting}. Both of them share the same input
 structures except the \xmlNode{Settings} block. In both cases, the user need to
@@ -218,7 +218,7 @@ Example LOGOS input XML for DRO:
 \end{lstlisting}
 
 \subsection{DRO for Single Knapsack Problem}
-\label{DRO_SKP}
+\label{subsec:DRO_SKP}
 
 \vst \noi {\em Model Formulation:}
 \begin{subequations}\label{DROSimpleKP}
@@ -239,7 +239,7 @@ is just a simple extension of single Knapsack problem, and both of them belong t
 
 
 \subsection{DRO for Multi-Dimensional Knapsack Problem}
-\label{DRO_DKP}
+\label{subsec:DRO_DKP}
 
 \vst \noi {\em Model Formulation:}
 \begin{subequations}\label{DROMultiDKP}
@@ -337,7 +337,7 @@ Example LOGOS input XML:
 
 
 \subsection{DRO for Multiple Knapsack Problem}
-\label{DRO_MKP}
+\label{subsec:DRO_MKP}
 
 \vst \noi {\em Model Formulation:}
 \begin{subequations}\label{DROMKP}
@@ -412,7 +412,7 @@ Example LOGOS input XML:
 
 
 \subsection{DRO for Multiple-Choice Knapsack Problem}
-\label{DRO_MCKP}
+\label{subsec:DRO_MCKP}
 
 \vst \noi {\em Model Formulation:}
 \begin{subequations}\label{DROMCKP}
