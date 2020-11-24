@@ -104,6 +104,33 @@ is as follows:
 \end{eqnarray}
 \end{subequations}
 
+\subsection{LOGOS Settings for CVaR Problems}
+\label{subsec:CVaRSettings}
+CVaR approach is an extension for stochastic optimization approach discussed in
+Section~\ref{sec:StochasticCapitalBudgeting}. Both of them share the same input
+structures except the \xmlNode{Settings} block. In both cases, the user need to
+specify a collection of scenarios via \xmlNode{Uncertainties} block. The
+\xmlNode{problem\_type} within \xmlNode{Settings} block is used to select the
+type of CVaR problems. The currently available CVaR problem types are:
+\xmlString{cvarskp}, \xmlString{cvarmkp}, and \xmlString{cvarmckp}. The user can
+use \xmlNode{risk\_aversion} (i.e. $\lambda$) and \xmlNode{confidence\_level}
+(i.e., $\alpha$) to control CVaR problem.
+
+Example LOGOS input XML for CVaR:
+\begin{lstlisting}[style=XML]
+<Settings>
+<Logos>
+  <solver>cbc</solver>
+  <solverOptions>
+    <StochSolver>EF</StochSolver>
+    <risk_aversion>0.1</risk_aversion>
+    <confidence_level>0.95</confidence_level>
+  </solverOptions>
+  <sense>maximize</sense>
+  <problem_type>cvarskp</problem_type>
+</Settings>
+</Logos>
+\end{lstlisting}
 
 
 
