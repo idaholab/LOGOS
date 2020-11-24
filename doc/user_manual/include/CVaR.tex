@@ -42,8 +42,22 @@ There are alternative ways to define this measure, which are mathematically equi
 Rockafellar and Uryasev in [Ref] (see also [Ref]) defines CVaR as:
 
 \begin{equation}
-CVaR_\alpha (X) = \min_\nu {\nu + 1/(1-\alpha) E[X-\nu]^+}
+CVaR_\alpha (X) = \min_\mu {\mu + 1/(1-\alpha) E[X-\mu]^+}
 \end{equation}
+
+where $[X-\mu] = \max (X - \mu, 0)$. Here, variable $\mu$ is simply an auxiliary decision
+variable whose optimal value turns out to be $CVaR_\alpha (X)$. The above definition
+is particularly useful for computation in the context of optimization.
+
+Researchers have argued for using CVaR over VaR as a measure of risk. Theoretically,
+CVaR satisfies the assumptions of a so-called coherent risk measure, and VaR does not.
+In simpler terms, minimizing VaR is concerned with the numerical value of the 95-th
+percentile (say) of the loss, but it does not care about the magnitude of larger losses.
+CVaR takes these magnitudes into account.
+
+\subsection{CVaR in Capital Budgeting}
+\label{CVaRCapitalBudgeting}
+
 
 
 \begin{equation}
