@@ -42,10 +42,10 @@ There are alternative ways to define this measure, which are mathematically equi
 Rockafellar and Uryasev in [Ref] (see also [Ref]) defines CVaR as:
 
 \begin{equation}
-CVaR_\alpha (X) = \min_\mu {\mu + 1/(1-\alpha) E[X-\mu]^+}
+CVaR_\alpha (X) = \min_u {u + 1/(1-\alpha) E[X-u]^+}
 \end{equation}
 
-where $[X-\mu] = \max (X - \mu, 0)$. Here, variable $\mu$ is simply an auxiliary decision
+where $[X-u] = \max (X - u, 0)$. Here, variable $u$ is simply an auxiliary decision
 variable whose optimal value turns out to be $CVaR_\alpha (X)$. The above definition
 is particularly useful for computation in the context of optimization.
 
@@ -57,6 +57,54 @@ CVaR takes these magnitudes into account.
 
 \subsection{CVaR in Capital Budgeting}
 \label{CVaRCapitalBudgeting}
+In this section, an explicit risk measure is constructed using a weighted
+combination of expectation and CVaR. This approach allows us to parametrically
+vary the weight on maximizing expected NPV versus penalizing solutions that yield
+low-NPV scenarios, and we denote the weight by $\lambda$ with $0 \le \lambda \le 1$.
+Let $NPV(s,\xi)$ denote the net present value under a prioritization decision
+specified by decision $s$, and under a realization of the budget and profit of
+each project, denoted by $\xi$. Then we seek to solve the following optimization
+model:
+
+\begin{equation}
+\max_{s\in S} (1-\lambda)E[NPV(s, \xi)] - \lambda CVaR_\alpha [-NPV(s, \xi)]
+\end{equation}
+
+When $\lambda = 0$ the model reduces to stochastic optimization model as
+discussed in Section~\ref{sec:StochasticCapitalBudgeting}; i.e., we seek
+a prioritization decision, $s$, to maximize expected NPV, where ``$s \in S$''
+simply indicates the constraints that a prioritized solution must satisfy.
+$CVaR_\alpha [X]$ is typically applied to a random variable, $X$, which
+represents a loss; i.e., we seek to avoid large values of $X$. In this
+context, let $VaR_\alpha [X]$ denote the $\alpha$-level quantile of $X$.
+Thus, if $\alpha = 0.75$ then $VaR_0.75 [X]$ is the value such that $75\%$
+of the realizations of $X$ have lower values of loss. Suppose for simplicity
+that $NPV(s, \xi)$ values are positive. Large values of $NPV(s, \xi)$ are
+good, and hence large values of $-NPV(s, \xi)$ (i.e., those closer to zero)
+are bad. Using the definition of $CVaR_\alpha [X] = E[X|X > VaR_\alpha [X]]$
+we thus have that the conditional value-at-risk is the expected value of loss,
+given that the loss exceeds a certain percentile. So, when $\lambda = 1$ we
+seek to minimize the expected value of NPV given that they fall below a
+threshold. More generally, values of $\lambda$ between 0 and 1 seek a trade-off
+between reward and risk, captured by expected NPV and CVaR, respectively.
+
+The full mathematical optimization model of CVaR for capital budgeting problem
+is as follows:
+
+\begin{subequations}\label{fullDRO}
+\begin{eqnarray}
+& & \max_{s, x, y, \nu, u} (1-\lambda) \sum _{ \omega  \in  \Omega }^{}q^{ \omega } \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}a_{ij}^{ \omega }x_{ij}^{ \omega } - \lambda[u+1/(1-\alpha)\sum_{\omega \in \Omega} q^\omega \nu^\omega] \\
+& & \nu^\omega \ge - \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}a_{ij}^{ \omega }x_{ij}^{ \omega } - u, \omega \in \Omega \\
+& & y_{ii^{'}}+y_{i^{'}i} \geq 1,~ i<i^{'}\text{, i, }i^{'} \in I \\
+& & \sum_{j=1}^{J_i} x_{ij}^\omega \geq \sum_{j=1}^{J_i} x_{i'j}^\omega + y_{ii'} -1,~ i \neq i^{'}\text{, i, }i^{'} \in I,  \omega  \in  \Omega \\
+& & \sum _{i \in I}^{} \sum _{j \in J_{i}}^{}\text{~ c}_{ijkt}^{ \omega }x_{ij}^{ \omega }~  \leq  b_{kt}^{ \omega },~ k \in K, t \in T,  \omega  \in  \Omega \\
+& & \sum_{j\in J_i} x_{ij}^{ \omega } \leq 1,~ i \in I, \omega  \in  \Omega \\
+& & s_{ii'}, x_{ij}^\omega \in {0, 1} \\
+& & \nu^\omega \ge 0, \omega \in \Omega
+\end{eqnarray}
+\end{subequations}
+
+
 
 
 
