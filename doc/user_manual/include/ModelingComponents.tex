@@ -462,6 +462,13 @@ This subsection contains  information regarding the XML nodes used to define the
   \end{lstlisting}
   In addition, if the problem type is distributionally robust optimization, additional option
   \xmlNode{radius\_ambiguity} can be used to control the Wasserstein distance. See Section~\ref{sec:DROCapitalBudgeting}.
+  If the problem type is conditional value at risk (See Section~\ref{sec:CVaR}), additional options are available:
+  \begin{itemize}
+    \item \xmlNode{risk\_aversion}, \xmlDesc{float within $[0,1]$, optional parameter}, indicates the weight on
+    maximizing expected NPV versus penalizing solutions that yield low-NPV scenarios.
+    \item \xmlNode{confidence\_level}, \xmlDesc{float within $[0,1]$, optional parameter},  indicates
+    the confidence level, i.e. the $\alpha$-percentile of the loss.
+  \end{itemize}
 \end{itemize}
 
 Example XML:
