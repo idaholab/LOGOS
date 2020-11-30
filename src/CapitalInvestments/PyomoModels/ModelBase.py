@@ -101,6 +101,9 @@ class ModelBase:
     self.sigma = [] # list of scenario names
     self.prob = []  # list of probabilities
     self.distData = None # 2-D distance array, representing the pairwised distance between scenarios
+    ## used for CVaR optimization
+    self._lambda = 0.0 # risk aversion
+    self.alpha = 0.95 # confidence level
 
   def initialize(self, initDict):
     """
@@ -176,6 +179,9 @@ class ModelBase:
     ## used for DRO
     # TODO: check provided epsilon is float
     self.epsilon = float(solverOptions.pop('radius_ambiguity', 0.0))
+    ## used for CVaR
+    self._lambda = float(solverOptions.pop('risk_aversion', 0.0))
+    self.alpha = float(solverOptions.pop('confidence_level', 0.95))
     self.sopts.update(solverOptions)
     self.tee = self.settings.pop('tee',False)
     self.nonSelection = utils.convertStringToBool(self.settings.pop('nonSelection', 'False'))
@@ -392,7 +398,8 @@ class ModelBase:
       leafNode = 'leaf_' + i
       treeModel.Nodes.add(leafNode)
       treeModel.Scenarios.add(i)
-    treeModel = treeModel.create_instance()
+    if not pyoVersion:
+      treeModel = treeModel.create_instance()
     treeModel.NodeStage['RootNode'] = 'FirstStage'
     treeModel.ConditionalProbability['RootNode'] = 1.0
     for node in treeModel.Nodes:
@@ -549,9 +556,14 @@ class ModelBase:
               except KeyError:
                 value = None
               if value is not None:
-                if index not in scenarioOutput:
+                if index not in scenarioOutput and index is not None:
                   scenarioOutput[index] = []
-                scenarioOutput[index].append(value)
+                elif index is None and name not in scenarioOutput:
+                  scenarioOutput[name] = []
+                if index:
+                  scenarioOutput[index].append(value)
+                else:
+                  scenarioOutput[name].append(value)
     scenarioOutput['ScenarioName'] = scenarioNameList
     scenarioOutput['ProbabilityWeight'] = probabilityWeight
     # Loop over scenario to get the cost
