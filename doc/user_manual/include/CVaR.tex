@@ -5,7 +5,7 @@ Value-at-Risk (VaR) is currently used by finance businesses to indicate the perc
 of loss distributions. For instance, $95\%$-VaR is an upper estimate of losses which
 is exceeded with $5\%$ probability. The popularity of VaR is mostly related to a simple
 and easy to understand representation of high losses. However, VaR may have undesirable
-mathematical characteristics such as a lack of subadditivity and convexity [Ref].
+mathematical characteristics such as a lack of subadditivity and convexity~\cite{ThinkingCoherently,CoherentMeasureRisk} .
 Another alternative percentile risk measure is called Conditional Value-at-Risk (CVaR),
 which has more attractive properties than VaR, such as sub-additive and convex.
 CVaR also called mean excess loss, mean shortfall, or tail VaR, is defined as the
@@ -16,8 +16,8 @@ budgeting problem.
 \subsection{Definitions of VaR and CVaR}
 \label{definitionCVaR}
 Let $X$ be a random variable with a cumulative distribution function
-$F(z) = P{X\le z}$. It will be useful to think of $X$ as a ``loss'' or more generally
-be such that large values are bad. The VaR of $X$ with confidence level
+$F(z) = P{X\le z}$. It can be useful to think of $X$ as a ``loss'' or more generally
+a variable such that large values need to be avoid. The VaR of $X$ with confidence level
 $\alpha$ (e.g., $\alpha = 0.9$ is:
 
 \begin{equation}
@@ -28,7 +28,7 @@ which is equivalent to $VaR_\alpha (X) = F_{X}^{-1}(\alpha)$ if $X$ is a continu
 random variable. By this definition, $VaR_\alpha (X)$ is a (lower) $\alpha$-percentile
 of the random variable $X$. An alternative measure of risk is CVaR. Here, $CVaR_\alpha (X)$
 is the conditional expectation of $X$ given that $X \ge VaR_\alpha (X)$.
-Figure 28 shows the relationship between these two measures of risk.
+Figure~\ref{fig:CVaR} shows the relationship between these two measures of risk.
 
 \begin{figure}
     \centering
@@ -39,7 +39,7 @@ Figure 28 shows the relationship between these two measures of risk.
 
 The typical definition of $CVaR_\alpha (X)$ is $CVaR_\alpha (X) = E{X|X > VaR_\alpha (X)}$.
 There are alternative ways to define this measure, which are mathematically equivalent.
-Rockafellar and Uryasev in [Ref] (see also [Ref]) defines CVaR as:
+Rockafellar and Uryasev in~\cite{OptCVaR} (see also~\cite{RemarksCVaR}) defines CVaR as:
 
 \begin{equation}
 CVaR_\alpha (X) = \min_u {u + 1/(1-\alpha) E[X-u]^+}
