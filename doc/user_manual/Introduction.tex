@@ -24,7 +24,12 @@ sampling the provided distributions.
 The developed models are based on different versions of the knapsack optimization problem.
 Two main classes of optimization models were initially developed: deterministic and stochastic.
 Stochastic optimization models evolve deterministic models by explicitly considering data
-uncertainties associated with constraints or item cost and reward.
+uncertainties associated with constraints or item cost and reward. In FY-20, we moved forward
+by implementing two versions of schedule optimization methods. The first one reformulates the
+capital budgeting problem in a distributionally robust form which allows the user to rely on
+data directly rather than proposing a distribution from the data itself. The second version
+reformulates the capital budgeting explicitly using risk measures as variable to maximize or
+minimize.
 
 These models can be employed as stand-alone models or interfaced with the INL-developed RAVEN code
 to propagate data uncertainties and analyze the generated data (i.e., sensitivity analysis).
@@ -40,9 +45,13 @@ get started with LOGOS. This typically involves the following steps:
     \\ You can download the source code for LOGOS from \url{https://hpcgitlab.hpc.inl.gov/RAVEN_PLUGINS/LOGOS.git}.
   \item \textit{Install LOGOS dependencies}
 	\begin{lstlisting}[language=bash]
-	path/to/LOGOS/build.sh
+	path/to/LOGOS/build.sh --install
 	\end{lstlisting}
-  \item \textit{Run LOGOS}
+  \item \textit{Activate LOGOS Libraries}
+  \begin{lstlisting}[language=bash]
+  source activate LOGOS_libraries
+  \end{lstlisting}
+  \item \textit{Test LOGOS}
 	\begin{lstlisting}[language=bash]
 	./run_tests
 	\end{lstlisting}
@@ -51,8 +60,16 @@ get started with LOGOS. This typically involves the following steps:
 \begin{lstlisting}[language=bash]
 path/to/LOGOS/logos -i <inputFile.xml> -o <outputFile.csv>
 \end{lstlisting}
-	\item \textit{For use as a RAVEN Plugin}, RAVEN must first be installed
-		\\ Instructions are available from \url{https://github.com/idaholab/raven/wiki}.
+	\item \textit{For use as a RAVEN Plugin}, RAVEN must first be downloaded from
+  \url{https://github.com/idaholab/raven.git}.
+		\\ Detailed instructions are available from \url{https://github.com/idaholab/raven/wiki}.
+    To register a plugin with RAVEN and make its components accessible, run the script:
+    \begin{lstlisting}[language=bash]
+  	raven/scripts/install_plugins.py -s /abs/path/to/LOGOS
+  	\end{lstlisting}
+    After the plugin registration, then following the installation instruction at
+    \url{https://github.com/idaholab/raven/wiki/installationMain} to install the
+    required dependencies.
 \end{itemize}
 
 \subsection{User Manual Formats}
@@ -80,7 +97,7 @@ class AClass():
 \item \textbf{\textit{Bash Commands:}}
 \begin{lstlisting}[language=bash]
 cd path/to/LOGOS/
-./build.sh
+./build.sh --install
 cd ../../
 \end{lstlisting}
 \end{itemize}
@@ -128,6 +145,8 @@ This document provides a detailed description of LOGOS. The features included in
   \item Overview of modeling components (see Section~\ref{sec:ModelingComponents})
 	\item Deterministic capital budgeting (see Section~\ref{sec:DeterministicCapitalBudgeting})
 	\item Prioritizing project selection to hedge against uncertainty (see Section~\ref{sec:StochasticCapitalBudgeting})
-	\item Plugin for the RAVEN code (see Section~\ref{sec:RavenPlugin})
+  \item Distributionally robust optimization (see Section~\ref{sec:DROCapitalBudgeting})
+  \item Risk-based stochastic capital budgeting using conditional Value-at-Risk (See Section)
+  \item Plugin for the RAVEN code (see Section~\ref{sec:RavenPlugin})
 	\item SSC cashflow and NPV models (see Section~\ref{sec:SSCNPV})
 \end{itemize}
