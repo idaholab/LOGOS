@@ -2,7 +2,7 @@ LATEX_FLAGS=-interaction=nonstopmode
 
 all: default software_design_description.pdf
 
-software_design_description.pdf : software_design_description.tex software_design_description.bib DesignStakeHoldersAndConcerns.tex Intro.tex ../../version.tex SoftwareDesing.tex ravenDepAndLimitations.tex otherDesignDocs.tex dataInterfaceSystemControl.tex
+software_design_description.pdf : software_design_description.tex software_design_description.bib DesignStakeHoldersAndConcerns.tex Intro.tex ../../version.tex SoftwareDesign.tex ravenDepAndLimitations.tex otherDesignDocs.tex dataInterfaceSystemControl.tex
 	pdflatex $(LATEX_FLAGS) software_design_description.tex
 	bibtex software_design_description
 	pdflatex $(LATEX_FLAGS) software_design_description.tex
