@@ -211,3 +211,24 @@ that are needed to perform an initialization:
 \begin{lstlisting}[language=python]
   def createNewInput(self, container, inputs, samplerType, **Kwargs)
 \end{lstlisting}
+The \textbf{createNewInput} method is implemented to create a new LOGOS input
+with information coming from the RAVEN framework. In this function, the user can
+retrieve the information coming from RAVEN framework, during the employment of
+a calculation flow, and use them to construct a new input that is going to be
+transferred to the ``run'' method.
+This method expects that the new input is returned in a Python dictionary.
+RAVEN communicates, through a set of method attributes, all the information
+that are generally needed to create a new input:
+
+\begin{itemize}
+  \item \texttt{container}, ``self-like'' object, all the outcomes of the LOGOS
+    module will be stored in the ``container'' that can be collected by RAVEN.
+  \item \texttt{inputs}, python list, a list of all the inputs that have been
+    defined in the ``Step'' using this model.
+  \item \texttt{samplerType}, string, the type of Sampler, if a sampling strategy
+    is employed; will be None otherwise.
+  \item \texttt{Kwargs}, dictionary, a dictionary containing several pieces of
+    information (that can change based on the ``Step'' type). If a sampling strategy
+    is employed, this dictionary contains another dictionary identified by the
+    keyword ``SampledVars'', in which the variables perturbed by the sampler are reported.
+\end{itemize}
