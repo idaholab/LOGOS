@@ -63,9 +63,475 @@ itself. Instead, \textit{\textbf{LOGOS}} module is going to be embedded in
 RAVEN at run-time.
 
 \subsection{LOGOS Structure}
+LOGOS is developed to solve capital budgeting problem for a nuclear generation station,
+with possible extension to a larger fleet of plants. Due to limited resources, we can
+only select a subset from a number of candidate investment projects. Our goal is to
+maximize overall net present value (NPV), or a variant of this objective, when we
+incorporate uncertainty into project cost and revenue streams. In doing so, we must
+respect resource limits and capture key structural and stochastic dependencies of
+the system. Example projects include upgrading a steam turbine, refurbishing or replacing
+a set of reactor coolant pumps, and replacing a set of feed-water heaters. Selecting an
+individual project has multiple facets and implications.
 
+\begin{itemize}
+  \item \textbf{Rewards or Net Present Values}: Selecting a project can improve revenue (e.g.,
+  upgrading a steam turbine may lead to an uprate in plant capacity resulting in larger
+  revenue from selling power.) Replacing a key system component can improve reliability,
+  increasing revenue due to a reduction in forced outages as well as operations and
+  maintenance (O\&M) costs. Choosing to perform minimum maintenance versus refurbishing
+  a component or replacing and improving a system can produce reward streams that
+  can be negative or positive depending on the selection. Parameter
+  \xmlNode{net\_present\_values} is used to specify the rewards (see Section~\ref{subsubsec:Parameters}).
 
+  \item \textbf{Resources and Liabilities}: Critical resources, including (i) capital costs,
+  (ii) O\&M costs, (iii) time and labor-hours during a planned outage, and (iv) personnel,
+  installation and maintenance of equipment, workspaces, etc.. Within these categories, resources
+  can further subcategorized, (witch each subcategory having its own budget), according to the plant’s organizational
+  structure to provide multiple “colors” of money within capital costs, O\&M costs,
+  personnel availability, etc.. The set \xmlNode{resources} and parameter
+  \xmlNode{available\_capitals} are used to specify the resources and
+  liabilities (see Section~\ref{subsubsec:Sets} and Section~\ref{subsubsec:Parameters}).
 
+  \item \textbf{Costs}: Selecting a project in year $t$ induces multiple
+  cost streams in year $t$ as well as in subsequent years; we interpret “cost” broadly to
+  include commitment of critical resources. The parameter \xmlNode{costs} is used to specify
+  the costs (see Section~\ref{subsubsec:Parameters}).
+
+  \item \textbf{Time Periods}: Multiple capital projects can compete for same time period,
+  limiting project selection. The set \xmlNode{time\_periods} is used to provide indices for
+  \textbf{costs} and \textbf{available capitals} (see Section~\ref{subsubsec:Sets}).
+
+  \item \textbf{Options}: The goal of selecting a project is typically to improve or maintain
+  a particular function the plant performs, and there may be multiple ways to carry out
+  the task. A project may be performed over a three-year period--say, years `$t$, $t+1$, $t+2$'--or the
+  start of the project could instead be two years hence, changing the equation to
+  `$t+2$, $t+3$, $t+4$'. Alternatively, at increased cost and benefit, it may be
+  possible to complete the project in two years: `$t$, $t+1$' or `$t+2$, $t+3$'. When selecting a project
+  to uprate plant capacity, we may have the options of increasing it by 3\% or 6\%.
+  In all these cases, we can perform the project in, at most, one particular way, out of a collection of
+  options. We represent this by cloning a “project” into multiple project-option pairs,
+  and adding a constraint saying that we can select, at most, one from this set of options.
+  The set \xmlNode{options} is used to provided indices for these multiple project-option pairs
+  (see Section~\ref{subsubsec:Sets}).
+
+  \item \textbf{Capitals}: If we consider maintenance for multiple units in an NPP in parallel,
+  it has to be decided whether to accept a particular replacement and, in the positive
+  case in which unit to conduct the corresponding replacement. In this case, the set \xmlNode{capitals}
+  is used to provided indices for these units (see Section~\ref{subsubsec:Sets}).
+
+  \item \textbf{Available Capitals}: This is available budgets for resources/units. The parameter
+  \xmlNode{available\_capitals} is used to specify the available capitals for different
+  resources/units at different $t$ (see Section~\ref{subsubsec:Parameters}).
+
+  \item \textbf{Non-Selection}: Not selecting a project also has implications, inducing a growth
+  in O\&M costs in future years, a decrease in plant production, an increase in forced outages,
+  and even risking a premature end to plant life. Thus, not selecting a project can be seen as
+  one more “option” for how a larger project is executed, expanding the list discussed earlier.
+  Selection is of the “do nothing” option is reflected in both liability streams and reward
+  streams. This can be activated by setting \xmlNode{nonSelection} to \xmlString{True}
+  (see Section~\ref{subsubsec:Settings}).
+
+  \item \textbf{Uncertainty}: One limitation of traditional optimization models for capital
+  budgeting is that they do not account for uncertainty in reward and cost streams associated
+  with individual projects, nor do they account for uncertainty in resource availability in
+  future years. Projects can incur cost over-runs, especially when projects are large, performed
+  infrequently, or when there is uncertainty regarding technical viability, external contractors,
+  and/or suppliers of requisite parts and materials. Occasionally, projects are performed ahead
+  of schedule and with savings in cost. Planned budgets for capital improvements can be cut, and key
+  personnel may be lost. Or, there may be surprise budgetary windfalls for maintenance activities
+  due to decreased costs for “unplanned” maintenance. The XML node \xmlNode{Uncertainties} is used
+  to specify such uncertainties (see Section~\ref{subsubsec:Uncertainties}).
+\end{itemize}
+
+Based on the above description, LOGOS consists of a collection of modeling
+entities/components that define different aspects of the model, including
+\xmlNode{Sets}, \xmlNode{Parameters}, \xmlNode{Uncertainties}, and
+\xmlNode{ExternalConstraints}. In addition, the \xmlNode{Setting}
+block specifies how the overall computation should run.
+
+\subsubsection{Sets}
+\label{subsubsec:Sets}
+
+This subsection contains information regarding the XML nodes used to define the
+\xmlNode{Sets} of the optimization model being performed through LOGOS.
+\xmlNode{Sets} specifies a collection of data, possibly including
+numeric data (e.g. real or integer values) as well as symbolic data (e.g. strings)
+typically used to specify the valid indices for indexed components.
+\nb Numeric data provided in \xmlNode{Sets} would be treated as strings.
+\xmlNode{Sets} accepts the following additional sub-nodes:
+\begin{itemize}
+  \item \xmlNode{investments}, \xmlDesc{comma/space-separated string, required}, specifies
+  the valid indices for investment projects.
+  \item \xmlNode{capitals}, \xmlDesc{comma/space-separated string, optional},
+  specifies the indices for NPP units.
+  \item \xmlNode{time\_periods}, \xmlDesc{comma/space-separated string, optional},
+  specifies the indices for time.
+  \item \xmlNode{resources}, \xmlDesc{comma/space-separated string, optional},
+  specifies indices for the resources and liabilities.
+  \item \xmlNode{options}, \xmlDesc{semi-colon separated list of strings, optional},
+  specifies the indices for multiple project-option pairs.
+  This sub-node accepts the following attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{string, required}, specifies the index dependence.
+    Valid index is \xmlString{investments}.
+  \end{itemize}
+\end{itemize}
+
+Example XML:
+\begin{lstlisting}[style=XML]
+<Sets>
+  <investments>
+      HPFeedwaterHeaterUpgrade
+      PresurizerReplacement
+      ...
+      ReplaceMoistureSeparatorReheater
+  </investments>
+  <time_periods>year1 year2 year3 year4 year5</time_periods>
+  <resources>CapitalFunds OandMFunds</resources>
+  <options index='investments'>
+    PlanA PlanB DoNothing;
+    PlanA PlanB PlanC;
+    ...
+    PlanA PlanB PlanC DoNothing
+  </options>
+</Sets>
+\end{lstlisting}
+
+%
+\subsubsection{Parameters}
+\label{subsubsec:Parameters}
+This subsection contains information regarding the XML nodes used to define the
+\xmlNode{Parameters} of the optimization model being performed through LOGOS:
+\begin{itemize}
+  \item \xmlNode{net\_present\_values}, \xmlDesc{comma/space-separated string, required},
+  specifies the NPVs for capital projects or project-option pairs. This node accepts the
+  following optional attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{comma-separated string, optional},
+    specifies the indices of this parameter; keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{investments} and \xmlString{options}.
+    \default{investments}
+  \end{itemize}
+  \item \xmlNode{costs}, \xmlDesc{comma/space-separated string, required},
+  specifies the costs for capital projects or project-option pairs. This node accepts the
+  following optional attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{comma-separated string, optional},
+    specifies the indices of this parameter; keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{investments}, \xmlString{investments, time\_periods},
+    \xmlString{options}, \xmlString{options, resources}, \xmlString{options, time\_periods},
+    and \xmlString{options, resources, time\_periods}.
+    \default{`investments'}
+  \end{itemize}
+  \item \xmlNode{available\_capitals}, \xmlDesc{comma/space-separated string, required},
+  specifies the available capitals for capital projects or project-option pairs.
+  This node accepts the following optional attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{comma-separated string, optional},
+    specifies the indices of this parameter; keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{resources}, \xmlString{time\_periods}, \xmlString{capitals},
+    \xmlString{resources, time\_periods}, and \xmlString{capitals, time\_periods}
+    \default{None}
+  \end{itemize}
+\end{itemize}
+
+Example XML:
+\begin{lstlisting}[style=XML]
+<Parameters>
+  <net_present_values index='options'>
+    27.98 27.17 0.
+    -10.07 -9.78 -9.22
+    ...
+    8.26 7.56 7.34 0.
+  </net_present_values>
+  <costs index='options,resources,time_periods'>
+    12.99 1.3 0 0 0
+    ...
+    0.01 0 0 0 0
+  </costs>
+  <available_capitals index="resources,time_periods">
+    22.6 36.7 20.6 23.6 22.7
+    0.08 0.17 0.05 0.15 0.14
+  </available_capitals>
+</Parameters>
+\end{lstlisting}
+
+%
+\subsubsection{Uncertainties}
+\label{subsubsec:Uncertainties}
+This subsection contains information regarding the XML nodes used to define the
+\xmlNode{Uncertainties} of the optimization model being performed through LOGOS:
+\begin{itemize}
+  \item \xmlNode{available\_capitals}, \xmlDesc{optional}, specifies the scenarios
+  associated with available capitals. This node accepts the attribute \xmlAttr{index}, which
+  should be consistent with the \xmlNode{available\_capitals} defined in \xmlNode{Parameters}.
+  This node accepts the following sub-nodes:
+  \begin{itemize}
+    \item \xmlNode{totalScenarios}, \xmlDesc{integer, required}, specifies the total
+    number of scenarios for this parameter.
+    \item \xmlNode{probabilities}, \xmlDesc{comma/space-separated float, required},
+    specifies the probability for each scenario. The length should be equal to the total number of
+    scenarios.
+    \item \xmlNode{scenarios}, \xmlDesc{comma/space-separated float, required},
+    specifies all scenarios for this parameter. The length should be equal to the total number
+    of scenarios multiplied by the length of this parameter, as defined in \xmlNode{Parameters}.
+  \end{itemize}
+
+  \item \xmlNode{net\_present\_values}, \xmlDesc{optional}, specifies the scenarios
+  associated with net\_present\_values. This node accepts the attribute \xmlAttr{index}, which
+  should be consistent with the \xmlNode{net\_present\_values} defined in \xmlNode{Parameters}.
+  \begin{itemize}
+    \item \xmlNode{totalScenarios}, \xmlDesc{integer, required}, specifies the total
+    number of scenarios for this parameter.
+    \item \xmlNode{probabilities}, \xmlDesc{comma/space-separated float, required},
+    specifies the probability for each scenario. The length should be equal to the total number of
+    scenarios.
+    \item \xmlNode{scenarios}, \xmlDesc{comma/space-separated float, required},
+    specifies all scenarios for this parameter. The length should be equal to the total number
+    of scenarios multiplied by the length of this parameter, as defined in \xmlNode{Parameters}.
+  \end{itemize}
+\end{itemize}
+
+The overall number of scenarios is the total number of scenarios for \xmlNode{available\_capitals}
+multiplied by the total number of scenarios for \xmlNode{net\_present\_values}.
+
+Example XML:
+\begin{lstlisting}[style=XML]
+<Uncertainties>
+  <available_capitals index="resources,time_periods">
+    <totalScenarios>10</totalScenarios>
+    <probabilities>
+      0.5, 0.5
+    </probabilities>
+    <scenarios>
+      20.0 34.0 17.0 20.0 18.0 0.08 0.17 0.05 0.15 0.14
+      23.0 38.0 22.0 25.0 24.0 0.08 0.17 0.05 0.15 0.14
+    </scenarios>
+  </available_capitals>
+  <net_present_values index='options'>
+    <totalScenarios>9</totalScenarios>
+    <probabilities>
+      0.3 0.8
+    </probabilities>
+    <scenarios>
+      13.3129 12.0228 0.0 -10.07
+      ...
+    </scenarios>
+  </net_present_values>
+</Uncertainties>
+\end{lstlisting}
+
+%
+\subsubsection{External Constraints}
+\label{subsubsec:ExternalConstraints}
+
+This subsection contains information regarding the XML nodes used to define the
+\xmlNode{ExternalConstraints} of the optimization model being performed through LOGOS.
+This node accepts the following sub-node(s):
+\begin{itemize}
+  \item \xmlNode{constraint}, \xmlDesc{string, required}, specifies the external Python
+  module file name along with its absolute or relative path. This external Python
+  module contains the user-defined additional constraint.
+  \nb If a relative path is specified, the code first checks relative to the working directory,
+  then it checks with respect to the location of the input file. The working directory can be
+  specified in \xmlNode{Settings} (see Section~\ref{subsubsec:Settings}). In addition, the extension
+  `.py' is optional for the module file name that was inputted in this node.
+  This sub-node also requires the following attribute:
+  \begin{itemize}
+    \item \xmlAttr{name}, \xmlDesc{string, required}, specifies the name of the constraint that will
+    be added to the optimization problem.
+  \end{itemize}
+\end{itemize}
+
+Example XML:
+\begin{lstlisting}[style=XML]
+<ExternalConstraints>
+  <constraint name="con_I">externalConst</constraint>
+  <constraint name="con_II">externalConstII.py</constraint>
+</ExternalConstraints>
+\end{lstlisting}
+
+These constraints are Python modules, with a format automatically interpretable by
+LOGOS. For example, users can define their own constraint, and the code will be embedded
+and use the constraint as though it were an active part of the code itself.
+The following provides an example of a user-defined external constraint:
+
+Example Python Function:
+\begin{lstlisting}[language=python]
+# External constraint function
+import numpy as np
+import pyomo.environ as pyomo
+
+def initialize():
+  """
+    Optional Method
+    Optimization model parameters values can be updated/modified
+    without directly accessing the optimization model.
+    Value(s) will be updated in-place.
+    @ In, None
+    @ Out, updateDict, dict, {paramName:paramInfoDict},  where
+      paramInfoDict contains {Indices:Values}
+      Indices are parameter indices (either strings or tuples of
+      strings, depending on whether there is one or
+      more than one dimension). Values are the new values being
+      assigned to the parameter at the given indices.
+  """
+  updateDict = {'available_capitals':{'None':16},
+                'costs':{'1':1,'2':3,'3':7,'4':4,'5':8,
+                         '6':9,'7':6,'8':10,'9':2,'10':5}
+               }
+  return updateDict
+
+def constraint(var, sets, params):
+  """
+    Required Method
+    External constraint provided by users that will be added to
+    optimization problem
+    @ In, sets, dict, all "Sets" provided in the Logos input
+      file will be stored and available in this dictionary,
+      i.e. {setName: setObject}
+    @ In, params, dict, all "Parameters" provided in the
+      Logos input file will be stored and
+      available in this dictionary, i.e. {paramName: paramObject}
+    @ In, var, object, the internally used decision variable,
+      the dimensions/indices of this variable depend the type of
+      optimization problems (i.e. "<problem_type>" from Logos
+      input file). Currently, we will accept the following
+      problem types:
+
+      1. "singleknapsack": in this case, "var" will be var[:],
+         where the index will be the element from
+         xml node of "investment" in Logos input file.
+
+      2. "multipleknapsack": in this case, "var" will be var[:,:],
+         where the indices are the combinations element from set
+         "investment" and element from set "capitals" in Logos
+         input file
+
+      3. "mckp": in this case, "var" will be var[:,:], where the
+         indices are the combinations element from set
+         "investment" and element from set "options" in Logos
+         input file
+
+      (Note that any element that is used as index will be
+      converted to a string even if a number is provided in
+      the Logos input file).
+
+    @ Out, constraint, tuple, either (constraintRule,)
+      or (constraintRule, indices)
+
+    (Note that any modifications in provided sets and params
+    will only have impact on this local module,
+    i.e. the external constraint. In other words, the Sets
+    and Params used in the internal constraints and
+    objective will be kept unchanged!)
+  """
+  # All sets and parameters can be retrieved from dictionary
+  # "sets" and "params" investments = sets['investments']
+
+  def constraintRule(self, i):
+    """
+      Expression for user provided external constraint
+      @ In, self, object, required to present, but not used
+      @ In, i, str, element for the index set
+      @ Out, constraintRule, function expression, expression
+        to define user provided constraint
+
+      Note that: Constraints can be indexed by lists or sets.
+      When the return of function "constraint" contains
+      lists or sets except the "constraintRule", the elements
+      are iteratively passed to the rule function. If there
+      is more than one, then the cross product is sent.
+      For example, this constraint could be interpreted as
+      placing limit on "ith" decision variable "var".
+      A list of constraints for all "ith" decision variable
+      "var" will be added to the optimization model
+    """
+    return var[i] <= 1
+
+  # A tuple is required for the return, the first element
+  # should be always the "constraintRule",
+  # while the rest of elements are the lists or sets
+  # if the user wants to construct the constraints
+  # iteratively (See the docstring in "constraintRule"),
+  # otherwise, keep it empty
+  return (constraintRule, investments)
+\end{lstlisting}
+
+%
+\subsubsection{Settings: Options for Optimization}
+\label{subsubsec:Settings}
+
+This subsection contains  information regarding the XML nodes used to define the
+\xmlNode{Settings} of the optimization model being performed through LOGOS:
+\begin{itemize}
+  \item \xmlNode{problem\_type}, \xmlDesc{string, required parameter}, specifies the type of
+  optimization problem. Available types include \xmlString{SingleKnapsack},
+  \xmlString{MultipleKnapsack}, and \xmlString{MCKP} for risk-informed stochastic optimization.
+  Available types include \xmlString{droskp}, \xmlString{dromkp}, and \xmlString{dromckp}
+  for distributionally robust optimization. Available types include \xmlString{cvarskp},
+  \xmlString{cvarmkp}, and \xmlString{cvarmckp}.
+  \item \xmlNode{solver}, \xmlDesc{string, optional parameter}, represents available solvers including
+  \xmlNode{cbc} from \url{https://github.com/coin-or/Cbc.git} and \xmlNode{glpk} from
+  \url{https://www.gnu.org/software/glpk/}.
+  \item \xmlNode{sense}, \xmlDesc{string, optional parameter}, specifies \xmlString{minimize}
+  or \xmlString{maximize} for minimization or maximization, respectively.
+  \default{minimize}
+  \item \xmlNode{mandatory}, \xmlDesc{comma/space-separated string, optional parameter},
+  specifies regulatorily mandated or must-do projects.
+  \item \xmlNode{nonSelection}, \xmlDesc{boolean, optional parameter}, indicates whether the
+  investments options includes \textit{DoNothing} option.
+  \default{False}
+  \item \xmlNode{lowerBounds}, \xmlDesc{comma/space-separated integers, optional parameter}, specifies the lower bounds
+  for decision variables.
+  \item \xmlNode {upperBounds}, \xmlDesc{comma/space-separated integers, optional parameter}, specifies the upper bounds
+  for decision variables.
+  \item \xmlNode{consistentConstraintI}, \xmlDesc{string, optional parameter}, indicates whether
+  this constraint is enabled.
+  \default{True}
+  \item \xmlNode{consistentConstraintII}, \xmlDesc{string, optional parameter}, indicates whether
+  this constraint is enabled or not.
+  \default{False}
+  \item \xmlNode{solverOptions}, \xmlDesc{optional parameter}, will accept
+  different options for the given solver provided in \xmlNode{solver}. A simple XML node only containing
+  node tags and node texts can be used to provide the options for the solver. For example:
+  \begin{lstlisting}[style=XML]
+    <solverOptions>
+      <threads>1</threads>
+      <StochSolver>EF</StochSolver>
+    </solverOptions>
+  \end{lstlisting}
+  In addition, if the problem type is distributionally robust optimization, additional option
+  \xmlNode{radius\_ambiguity} can be used to control the Wasserstein distance. See Section~\ref{sec:DROCapitalBudgeting}.
+  If the problem type is conditional value at risk (See Section~\ref{sec:CVaR}), additional options are available:
+  \begin{itemize}
+    \item \xmlNode{risk\_aversion}, \xmlDesc{float within $[0,1]$, optional parameter}, indicates the weight on
+    maximizing expected NPV versus penalizing solutions that yield low-NPV scenarios.
+    \item \xmlNode{confidence\_level}, \xmlDesc{float within $[0,1]$, optional parameter},  indicates
+    the confidence level, i.e. the $\alpha$-percentile of the loss.
+  \end{itemize}
+\end{itemize}
+
+Example XML:
+\begin{lstlisting}[style=XML]
+<Settings>
+  <mandatory>
+    PresurizerReplacement
+    ...
+    ReplaceInstrumentationAndControlCables
+  </mandatory>
+  <nonSelection>True</nonSelection>
+  <consistentConstraintI>True</consistentConstraintI>
+  <consistentConstraintII>True</consistentConstraintII>
+  <solver>cbc</solver>
+  <solverOptions>
+    <threads>1</threads>
+    <StochSolver>EF</StochSolver>
+  </solverOptions>
+  <sense>maximize</sense>
+  <problem_type>mckp</problem_type>
+</Settings>
+\end{lstlisting}
 
 \subsection{LOGOS Plug-in Structure}
 The  \textit{\textbf{LOGOS}} plug-in contains the following methods (API from RAVEN):
