@@ -1,14 +1,213 @@
 \section{Software Design}
 \subsection{Introduction}
-The mission is to provide a framework/container of capabilities for
-engineers and scientists to perform probability risk assessment,
-risk-informed asset management and plant health management.
-NuSAR was conceived with two major objectives:
+Industry Equipment Reliability (ER) and Asset Management (AM) Programs are
+essential elements that help ensure the safe and economical operation of
+Nuclear Power Plants (NPPs). The effectiveness of these programs is addressed
+in several industry developed and regulatory programs. However, these programs
+have proven to be labor intensive and expensive. There is an opportunity to
+significantly enhance the collection, analysis, and use of this information to
+provide more cost-effective plant operation. LOGOS is providing computational
+capabilities to optimize plant resources such as maintenance optimization
+(ER application) and optimal component replacement schedule (AM application)
+by using state-of-the-art discrete optimization methods.
+
+\textbf{\textit{LOGOS}} has been coded using the language \textit{Python}.
+The \textit{Python} code provides several different stochastic optimizations
+algorithms for capital budgeting problems. It also provides ``external model''
+in RAVEN(for installation and usage instructions, see~\cite{RAVENuserManual}).
+
+The input of  \textit{\textbf{LOGOS}} is an XML file, which can be read and
+executed by the  \textit{\textbf{LOGOS}}.
+
+\subsection{System Structure (Code)}
+
+\textbf{\textit{LOGOS}} is supported on three separate computing platforms:
+Linux, OSX (Apple Macintosh), and Microsoft Windows. Currently, \textbf{\textit{LOGOS}}
+is downloadable from the LOGOS GitHub repository:
+\url{https://github.com/idaholab/LOGOS.git}. This typically involves the following steps:
+
 \begin{itemize}
-  \item  to be as easy and straightforward to use by scientists and engineers as possible.
-  \item to allow its expansion in a straightforward manner, providing clear and modular APIs  to developers.
+  \item \textit{Download LOGOS}
+    \\ You can download the source code for LOGOS from \url{https://github.com/idaholab/LOGOS.git}.
+  \item \textit{Install LOGOS dependencies}
+	\begin{lstlisting}[language=bash]
+	path/to/LOGOS/build.sh --install
+	\end{lstlisting}
+  \item \textit{Activate LOGOS Libraries}
+  \begin{lstlisting}[language=bash]
+  source activate LOGOS_libraries
+  \end{lstlisting}
+  \item \textit{Test LOGOS}
+	\begin{lstlisting}[language=bash]
+	./run_tests
+	\end{lstlisting}
+  	Alternatively, the \texttt{logos} script
+    contained in the folder ``\texttt{LOGOS}'' can be directly used:
+\begin{lstlisting}[language=bash]
+path/to/LOGOS/logos -i <inputFile.xml> -o <outputFile.csv>
+\end{lstlisting}
+	\item \textit{For use as a RAVEN Plugin}, RAVEN must first be downloaded from
+  \url{https://github.com/idaholab/raven.git}.
+		\\ Detailed instructions are available from \url{https://github.com/idaholab/raven/wiki}.
+    To register a plugin with RAVEN and make its components accessible, run the script:
+    \begin{lstlisting}[language=bash]
+  	raven/scripts/install_plugins.py -s /abs/path/to/LOGOS
+  	\end{lstlisting}
+    After the plugin registration, then following the installation instruction at
+    \url{https://github.com/idaholab/raven/wiki/installationMain} to install the
+    required dependencies.
 \end{itemize}
 
-The \textit{\textbf{LOGOS}} plug-in has been coded using the language \emph{Python}. The \emph{Python}
-code can be used as an ``external mode'' in RAVEN (for installation and usage instructions, see~\cite{RAVENuserManual}).
-The input of  \textit{\textbf{LOGOS}} is an XML file, which can be read and executed by the plug-in and RAVEN.
+The addition of \textit{\textbf{LOGOS}} plugin does not require modifying RAVEN
+itself. Instead, \textit{\textbf{LOGOS}} module is going to be embedded in
+RAVEN at run-time.
+
+\subsection{LOGOS Structure}
+
+
+
+
+\subsection{LOGOS Plug-in Structure}
+The  \textit{\textbf{LOGOS}} plug-in contains the following methods (API from RAVEN):
+
+\begin{lstlisting}[language=python]
+from ExternalModelPluginBase import ExternalModelPluginBase
+
+class CapitalInvestmentModel(ExternalModelPluginBase):
+  def run (self, container, Inputs)
+  def _readMoreXML(self, container, xmlNode)
+  def initialize(self, container, runInfo, inputs)
+  def createNewInput(self, container, inputs, samplerType, **Kwargs)
+\end{lstlisting}
+In the following sub-sections all the methods are explained.
+\subsubsection{Method: \texttt{run}}
+\label{subsubsec:runExternalModelPlugin}
+\begin{lstlisting}[language=python]
+def run (self, container, Inputs)
+\end{lstlisting}
+
+In this function, the LOGOS analysis is coded.
+%
+The only two attributes this method is going to receive are a Python list of inputs
+(the inputs coming from the \texttt{createNewInput} method (see \cite{RAVENuserManual})
+and a ``self-like'' object named ``container''.
+%
+All the outcomes of the LOGOS module will be stored in the above mentioned ``container''
+in order to allow RAVEN to collect them.
+
+\subsubsection{Method: \texttt{\_readMoreXML}}
+\label{subsubsec:externalReadMoreXMLExternalModelPlugin}
+\begin{lstlisting}[language=python]
+def _readMoreXML(self, container, xmlNode)
+\end{lstlisting}
+In this method, the LOGOS input is read and made available to the plug-in and RAVEN.
+%
+The read information are stored in the ``self-like'' object ``container''
+in order to be available to all the other methods, specifically the  \textbf{run}
+and  \textbf{initialize} methods.
+%
+The method receives from RAVEN an attribute of type ``xml.etree.ElementTree'',
+containing all the sub-nodes and attribute of the XML block \xmlNode{ExternalModel}.
+%
+
+Example XML:
+\begin{lstlisting}[style=XML,morekeywords={subType,ModuleToLoad}]
+  <Models>
+    <ExternalModel name="mkp" subType="LOGOS.CapitalInvestmentModel">
+      <variables>available_capitals,i1,i2,i3,i4,i5,i6,i7,i8,
+        i9,i10,MaxNPV</variables>
+      <ModelData>
+        <Sets>
+          <investments>
+            i1,i2,i3,i4,i5,i6,i7,i8,i9,i10
+          </investments>
+          <capitals>
+            unit_1, unit_2
+          </capitals>
+        </Sets>
+
+        <Parameters>
+          <net_present_values index="investments">
+            78, 35, 89, 36, 94, 75, 74, 79, 80, 16
+          </net_present_values>
+          <costs index="investments">
+            18, 9, 23, 20, 59, 61, 70, 75, 76, 30
+          </costs>
+          <available_capitals index="capitals">
+            103, 156
+          </available_capitals>
+        </Parameters>
+
+        <Settings>
+          <solver>glpk</solver>
+          <sense>maximize</sense>
+          <problem_type>MultipleKnapsack</problem_type>
+        </Settings>
+      </ModelData>
+    </ExternalModel>
+  </Models>
+\end{lstlisting}
+
+\subsubsection{Method: \texttt{initialize}}
+\label{subsubsec:externalInitializeExternalModelPlugin}
+\begin{lstlisting}[language=python]
+def initialize(self, container, runInfo, inputs)
+\end{lstlisting}
+
+The \textbf{initialize} method is implemented  to initialize the capital budgeting analysis
+based on the current RAVEN status and LOGOS input file (The XML input file).
+%
+ \\Indeed, RAVEN is going to call this method at the initialization stage of
+ each ``Step'' (see section \cite{RAVENuserManual}).
+%
+RAVEN will communicate, through a set of method attributes, all the information
+that are needed to perform an initialization:
+\begin{itemize}
+  \item runInfo, a dictionary containing information regarding how the
+  calculation is set up (e.g. number of processors, etc.).
+  %
+  It contains the following attributes:
+  \begin{itemize}
+    \item \texttt{DefaultInputFile} -- default input file to use
+    \item \texttt{SimulationFiles} -- the xml input file
+    \item \texttt{ScriptDir} -- the location of the pbs script interfaces
+    \item \texttt{FrameworkDir} -- the directory where the framework is located
+    \item \texttt{WorkingDir} -- the directory where the framework should be
+    running
+    \item \texttt{TempWorkingDir} -- the temporary directory where a simulation
+    step is run
+    \item \texttt{NumMPI} -- the number of mpi process by run
+    \item \texttt{NumThreads} -- number of threads by run
+    \item \texttt{numProcByRun} -- total number of core used by one run (number
+    of threads by number of mpi)
+    \item \texttt{batchSize} -- number of contemporaneous runs
+    \item \texttt{ParallelCommand} -- the command that should be used to submit
+    jobs in parallel (mpi)
+    \item \texttt{numNode} -- number of nodes
+    \item \texttt{procByNode} -- number of processors by node
+    \item \texttt{totalNumCoresUsed} -- total number of cores used by driver
+    \item \texttt{queueingSoftware} -- queueing software name
+    \item \texttt{stepName} -- the name of the step currently running
+    \item \texttt{precommand} -- added to the front of the command that is run
+    \item \texttt{postcommand} -- added after the command that is run
+    \item \texttt{delSucLogFiles} -- if a simulation (code run) has not failed,
+    delete the relative log file (if True)
+    \item \texttt{deleteOutExtension} -- if a simulation (code run) has not
+    failed, delete the relative output files with the listed extension (comma
+    separated list, for example: `e,r,txt')
+    \item \texttt{mode} -- running mode, curently the only mode supported is
+      mpi (but custom modes can be created)
+    \item \textit{expectedTime} -- how long the complete input is expected to
+    run
+    \item \textit{logfileBuffer} -- logfile buffer size in bytes
+  \end{itemize}
+  \item inputs, a list of all the inputs that have been specified in the
+  ``Step'' using this model.
+  %
+\end{itemize}
+
+\subsubsection{Method: \texttt{createNewInput}}
+\label{subsubsec:externalCreateNewInputExternalModelPlugin}
+\begin{lstlisting}[language=python]
+  def createNewInput(self, container, inputs, samplerType, **Kwargs)
+\end{lstlisting}
