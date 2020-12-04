@@ -16,6 +16,7 @@
        In this test, risk_aversion = 0.0, and this test is equivalent to
        the stochastic optimization problem.
     </description>
+    <requirements>L-CVaR-1</requirements>
   </TestInfo>
   <Sets>
     <investments>

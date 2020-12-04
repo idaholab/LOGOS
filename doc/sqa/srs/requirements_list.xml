@@ -31,11 +31,9 @@
     <requirement_group id="Functional Requirements">
       <requirement_set caption="Framework, I/O, Execution Control">
           <requirement id_code="L-F-1">
-              <source>LOGOS User Manual, INL/EXT-20-xxxxx</source>
               <description> The LOGOS plug-in shall allow support for user-defined analysis flow using RAVEN on capital budgeting problems.</description>
           </requirement>
           <requirement id_code="L-F-2">
-              <source>LOGOS User Manual, INL/EXT-20-xxxxx</source>
               <description> The LOGOS shall allow support for stand-alone analysis on capital budgeting problems.</description>
           </requirement>
       </requirement_set>
@@ -52,6 +50,18 @@
           </requirement>
           <requirement id_code="L-DCBO-3">
               <description>LOGOS shall be able to perform Multi-choice Knapsack deterministic capital budgeting optimization</description>
+          </requirement>
+      </requirement_set>
+
+      <requirement_set caption="Stochastic Anlysis of Deterministic Capital Budgeting Optimization">
+          <requirement id_code="L-SDCBO-1">
+              <description>LOGOS plugin shall be able to perform stochastic analysis of Single Knapsack deterministic capital budgeting optimization</description>
+          </requirement>
+          <requirement id_code="L-SDCBO-2">
+              <description>LOGOS plugin shall be able to perform stochastic analysis of Multiple Knapsack deterministic capital budgeting optimization</description>
+          </requirement>
+          <requirement id_code="L-SDCBO-3">
+              <description>LOGOS plugin shall be able to perform stochastic analysis of Multi-choice Knapsack deterministic capital budgeting optimization</description>
           </requirement>
       </requirement_set>
 

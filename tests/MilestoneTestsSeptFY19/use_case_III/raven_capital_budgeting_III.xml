@@ -1,4 +1,18 @@
 <Simulation verbosity="debug">
+  <TestInfo>
+    <name>LOGOS.tests.MilestoneTestsSeptFY19.use_case_III.capital_budgeting_III</name>
+    <author>mandd, wangc</author>
+    <created>2019-12-03</created>
+    <classesTested>Models.ExternalModel.CapitalInvestmentModel</classesTested>
+    <description>
+       This test is aimed to check the capital investment model for FY19 use case analysis
+    </description>
+    <revisions>
+      <revision author="wangc" date="2020-03-12">update tests and import module lists</revision>
+      <revision author="wangc" date="2019-06-04">change regulatorymandated to mandatory</revision>
+    </revisions>
+    <requirements>L-F-1</requirements>
+  </TestInfo>
   <RunInfo>
     <WorkingDir>MC</WorkingDir>
     <Sequence>Run, statistics</Sequence>

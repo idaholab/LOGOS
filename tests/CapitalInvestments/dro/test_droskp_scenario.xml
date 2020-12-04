@@ -16,6 +16,7 @@
        In this test, radius_ambiguity = 0.0, and this test is equivalent to
        the stochastic optimization problem.
     </description>
+    <requirements>L-DRO-1</requirements>
   </TestInfo>
   <Sets>
     <investments>

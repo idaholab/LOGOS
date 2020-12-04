@@ -11,6 +11,7 @@
        In this test, risk_aversion = 0.0, which is equivalent to the stochastic
        programming
     </description>
+    <requirements>L-CVaR-2</requirements>
   </TestInfo>
   <Sets>
     <investments>
