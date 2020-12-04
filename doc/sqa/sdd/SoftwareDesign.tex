@@ -11,18 +11,18 @@ capabilities to optimize plant resources such as maintenance optimization
 (ER application) and optimal component replacement schedule (AM application)
 by using state-of-the-art discrete optimization methods.
 
-\textbf{\textit{LOGOS}} has been coded using the language \textit{Python}.
+\textit{LOGOS} has been coded using the language \textit{Python}.
 The \textit{Python} code provides several different stochastic optimizations
 algorithms for capital budgeting problems. It also provides ``external model''
 in RAVEN(for installation and usage instructions, see~\cite{RAVENuserManual}).
 
-The input of  \textit{\textbf{LOGOS}} is an XML file, which can be read and
-executed by the  \textit{\textbf{LOGOS}}.
+The input of  \textit{LOGOS} is an XML file, which can be read and
+executed by the  \textit{LOGOS}.
 
 \subsection{System Structure (Code)}
 
-\textbf{\textit{LOGOS}} is supported on three separate computing platforms:
-Linux, OSX (Apple Macintosh), and Microsoft Windows. Currently, \textbf{\textit{LOGOS}}
+\textit{LOGOS} is supported on three separate computing platforms:
+Linux, OSX (Apple Macintosh), and Microsoft Windows. Currently, \textit{LOGOS}
 is downloadable from the LOGOS GitHub repository:
 \url{https://github.com/idaholab/LOGOS.git}. This typically involves the following steps:
 
@@ -58,12 +58,12 @@ path/to/LOGOS/logos -i <inputFile.xml> -o <outputFile.csv>
     required dependencies.
 \end{itemize}
 
-The addition of \textit{\textbf{LOGOS}} plugin does not require modifying RAVEN
-itself. Instead, \textit{\textbf{LOGOS}} module is going to be embedded in
+The addition of \textit{LOGOS} plugin does not require modifying RAVEN
+itself. Instead, \textit{LOGOS} module is going to be embedded in
 RAVEN at run-time.
 
 \subsection{LOGOS Structure}
-LOGOS is developed to solve capital budgeting problem for a nuclear generation station,
+LOGOS is developed to solve capital budgeting problems for a nuclear generation station,
 with possible extension to a larger fleet of plants. Due to limited resources, we can
 only select a subset from a number of candidate investment projects. Our goal is to
 maximize overall net present value (NPV), or a variant of this objective, when we
@@ -569,7 +569,7 @@ information about XML, please click on the link:
 \end{itemize}
 
 \subsection{LOGOS Plug-in Structure}
-The  \textit{\textbf{LOGOS}} plug-in contains the following methods (API from RAVEN):
+The  \textit{LOGOS} plug-in contains the following methods (API from RAVEN):
 
 \begin{lstlisting}[language=python]
 from ExternalModelPluginBase import ExternalModelPluginBase
