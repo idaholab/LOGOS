@@ -430,7 +430,9 @@ This subsection contains information regarding the XML nodes used to define the
 \begin{itemize}
   \item \xmlNode{problem\_type}, \xmlDesc{string, required parameter}, specifies the type of
   optimization problem. Available types include \xmlString{SingleKnapsack},
-  \xmlString{MultipleKnapsack}, and \xmlString{MCKP}.
+  \xmlString{MultipleKnapsack}, and \xmlString{MCKP} for risk-informed stochastic optimization.
+  Available types include \xmlString{droskp}, \xmlString{dromkp}, and \xmlString{dromckp}
+  for distributionally robust optimization.
   \item \xmlNode{solver}, \xmlDesc{string, optional parameter}, represents available solvers including
   \xmlNode{cbc} from \url{https://github.com/coin-or/Cbc.git} and \xmlNode{glpk} from
   \url{https://www.gnu.org/software/glpk/}.
@@ -461,6 +463,8 @@ This subsection contains information regarding the XML nodes used to define the
       <StochSolver>EF</StochSolver>
     </solverOptions>
   \end{lstlisting}
+  In addition, if the problem type is distributionally robust optimization, additional option
+  \xmlNode{radius\_ambiguity} can be used to control the Wasserstein distance. See Section~\ref{sec:DROCapitalBudgeting}.
 \end{itemize}
 
 Example XML:
