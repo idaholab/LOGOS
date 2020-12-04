@@ -1,7 +1,7 @@
 \section{Plugin for the RAVEN Code}
 \label{sec:RavenPlugin}
 
-The deterministic model can be repeatedly solved by changing the input values (i.e.
+The deterministic model can be repeatedly solved by changing the input values (i.e.,
 \xmlNode{available\_capitals} [$b_{kt}$] and \xmlNode{net\_present\_values} [$a_{ij}$]).
 This will allow for what-if sensitivity analysis to identify the
 crucial drivers behind the optimal project selection decision. Monte Carlo simulation permits a
@@ -45,7 +45,7 @@ Example RAVEN input \xmlNode{ExternalModel} XML:
 As the name suggests, an external model is an entity that is embedded in the RAVEN
 code at run time. This object allows the user to import the LOGOS module that will
 be treated as a predefined internal RAVEN object. In other words, the
-\textbf{External Model} will be treated by RAVEN as a normal external code.
+\textbf{External Model} will be treated by RAVEN as a normal external model.
 Check the RAVEN user manual for a more detailed description.
 \nb The value for attribute \xmlAttr{subType} should always be \xmlString{LOGOS.CapitalInvestmentModel}.
 
