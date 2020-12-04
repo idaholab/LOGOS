@@ -2,14 +2,17 @@
 \label{sec:ModelingComponents}
 
 We consider a capital budgeting problem for a nuclear generation station, with possible
-extension to a larger fleet of plants. Due to limited resources, we can only select a
-subset from a number of candidate investment projects. Our goal is to maximize overall net
+extension to a larger fleet of plants. 
+Due to limited resources, we can only select a
+subset from a number of candidate investment projects. 
+Our goal is to maximize overall net
 present value (NPV), or a variant of this objective, when we incorporate uncertainty into
-project cost and revenue streams. In doing so, we must respect resource limits
-and capture key structural and stochastic dependencies of the system. Example projects
-include upgrading a steam turbine, refurbishing or replacing a set of reactor coolant pumps,
-and replacing a set of feed-water heaters. Selecting an individual project has multiple
-facets and implications.
+project cost and revenue streams. 
+In doing so, we must respect resource limits
+and capture key structural and stochastic dependencies of the system. 
+Example projects include upgrading a steam turbine, refurbishing or replacing a set of reactor coolant pumps,
+and replacing a set of feed-water heaters. 
+Selecting an individual project has multiple facets and implications.
 
 \begin{itemize}
   \item \textbf{Rewards or Net Present Values}: Selecting a project can improve revenue (e.g.,
@@ -24,7 +27,7 @@ facets and implications.
   \item \textbf{Resources and Liabilities}: Critical resources, including (i) capital costs,
   (ii) O\&M costs, (iii) time and labor-hours during a planned outage, and (iv) personnel,
   installation and maintenance of equipment, workspaces, etc.. Within these categories, resources
-  can further subcategorized, (witch each subcategory having its own budget), according to the plant’s organizational
+  can further sub-categorized, (witch each subcategory having its own budget), according to the plant’s organizational
   structure to provide multiple “colors” of money within capital costs, O\&M costs,
   personnel availability, etc.. The set \xmlNode{resources} and parameter
   \xmlNode{available\_capitals} are used to specify the resources and
@@ -102,8 +105,8 @@ facets and implications.
 
 LOGOS consists of a collection of modeling entities/components that define different
 aspects of the model, including \xmlNode{Sets}, \xmlNode{Parameters},
-\xmlNode{Uncertainties}, and \xmlNode{ExternalConstraints}. In addition, the \xmlNode{Setting}
-block specifies how the overall computation should run.
+\xmlNode{Uncertainties}, and \xmlNode{ExternalConstraints}. 
+In addition, the \xmlNode{Setting} block specifies how the overall computation should run.
 
 %
 \subsection{Sets}
@@ -422,7 +425,7 @@ def constraint(var, sets, params):
 \subsection{Settings: Options for Optimization}
 \label{subsec:Settings}
 
-This subsection contains  information regarding the XML nodes used to define the
+This subsection contains information regarding the XML nodes used to define the
 \xmlNode{Settings} of the optimization model being performed through LOGOS:
 \begin{itemize}
   \item \xmlNode{problem\_type}, \xmlDesc{string, required parameter}, specifies the type of
