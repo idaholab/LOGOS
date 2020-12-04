@@ -11,6 +11,7 @@
       <revision author="wangc" date="2019-05-20">debug</revision>
       <revision author="wangc" date="2019-05-20">fix</revision>
     </revisions>
+    <requirements>L-SDCBO-2</requirements>
   </TestInfo>
 
   <RunInfo>

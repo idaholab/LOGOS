@@ -76,6 +76,7 @@
     <description>
        This test is aimed to check logos_mckp_scenario
     </description>
+    <requirements>L-SCBO-3</requirements>
   </TestInfo>
   <Sets>
     <investments>

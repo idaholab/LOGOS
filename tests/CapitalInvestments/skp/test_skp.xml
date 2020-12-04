@@ -11,6 +11,7 @@
     <description>
        This test is aimed to check logos_skp
     </description>
+    <requirements>L-DCBO-1</requirements>
   </TestInfo>
   <Sets>
     <investments>

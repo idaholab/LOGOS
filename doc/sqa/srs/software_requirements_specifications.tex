@@ -125,7 +125,6 @@ showstringspaces=false            %
 \newcommand\pythoninline[1]{{\pythonstyle\lstinline!#1!}}
 
 % Named Colors for the comments below (Attempted to match git symbol colors)
-\definecolor{AAcolor}{HTML}{8D7F44}  % Andrea
 \definecolor{DMcolor}{HTML}{276605}  % Diego (adjusted for clarity)
 \definecolor{CJWcolor}{HTML}{E28B8D} % Congjian
 
@@ -136,7 +135,6 @@ showstringspaces=false            %
 \else
   \newcommand{\nameLabeler}[3]{}
 \fi
-\newcommand{\alfoa}[1] {\nameLabeler{Andrea}{AAcolor}{#1}}
 \newcommand{\mandd}[1] {\nameLabeler{Diego}{DMcolor}{#1}}
 \newcommand{\maljdan}[1] {\nameLabeler{Congjian}{CJWcolor}{#1}}
 % Commands for making the LaTeX a bit more uniform and cleaner
@@ -236,8 +234,8 @@ showstringspaces=false            %
 %\end{tabular} }
 
 
-\author{Diego Mandelli, Congjian Wang and Andrea Alfonsi}
- 
+\author{Congjian Wang and Diego Mandelli}
+
 
 % There is a "Printed" date on the title page of a SAND report, so
 % the generic \date should [WorkingDir:]generally be empty.
@@ -248,8 +246,8 @@ showstringspaces=false            %
 % Set some things we need for SAND reports. These are mandatory
 %
 \SANDnum{SRS}
-\SANDprintDate{2019}
-\SANDauthor{Diego Mandelli, Congjian and Andrea Alfonsi}
+\SANDprintDate{\today}
+\SANDauthor{Congjian Wang and Diego Mandelli}
 \SANDreleaseType{Revision 0}
 
 % ---------------------------------------------------------------------------- %
@@ -367,7 +365,7 @@ showstringspaces=false            %
 \input{../sdd/ravenDepAndLimitations.tex}
 \input{requirements.tex}
 \input{SystemOperations.tex}
- 
+
 
     % ---------------------------------------------------------------------- %
     % References

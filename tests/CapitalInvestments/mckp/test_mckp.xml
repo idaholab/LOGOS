@@ -75,6 +75,7 @@
     <description>
        This test is aimed to check logos_mckp
     </description>
+    <requirements>L-DCBO-3</requirements>
   </TestInfo>
   <Sets>
     <investments>

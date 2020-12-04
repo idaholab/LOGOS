@@ -13,6 +13,7 @@
       <revision author="wangc" date="2019-05-17">fix import issue for raven plugins</revision>
       <revision author="wangc" date="2019-05-20">Dump PyomoModel's outputs into raven data objects</revision>
     </revisions>
+    <requirements>L-SDCBO-1</requirements>
   </TestInfo>
 
   <RunInfo>
