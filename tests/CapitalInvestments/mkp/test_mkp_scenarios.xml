@@ -12,6 +12,7 @@
     <description>
        This test is aimed to check logos_mkp_scenarios
     </description>
+    <requirements>L-SCBO-2</requirements>
   </TestInfo>
   <Sets>
     <investments>

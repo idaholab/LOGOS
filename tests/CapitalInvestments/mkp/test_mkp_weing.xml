@@ -10,6 +10,7 @@
     <description>
        This test is aimed to check logos_mkp_weing
     </description>
+    <requirements>L-DCBO-2</requirements>
   </TestInfo>
   <Sets>
     <investments>

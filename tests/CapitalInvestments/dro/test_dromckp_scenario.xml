@@ -78,6 +78,7 @@
        In this case, radius_ambiguity is setted to zero, the test is
        equivalent to the sthochastic optimization MCKP test.
     </description>
+    <requirements>L-DRO-3</requirements>
   </TestInfo>
   <Sets>
     <investments>

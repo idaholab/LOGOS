@@ -127,7 +127,6 @@ showstringspaces=false            %
 \newcommand\pythoninline[1]{{\pythonstyle\lstinline!#1!}}
 
 % Named Colors for the comments below (Attempted to match git symbol colors)
-\definecolor{AAcolor}{HTML}{8D7F44}  % Andrea
 \definecolor{DMcolor}{HTML}{276605}  % Diego (adjusted for clarity)
 \definecolor{CJWcolor}{HTML}{E28B8D} % Congjian
 
@@ -138,7 +137,6 @@ showstringspaces=false            %
 \else
   \newcommand{\nameLabeler}[3]{}
 \fi
-\newcommand{\alfoa}[1] {\nameLabeler{Andrea}{AAcolor}{#1}}
 \newcommand{\mandd}[1] {\nameLabeler{Diego}{DMcolor}{#1}}
 \newcommand{\maljdan}[1] {\nameLabeler{Congjian}{CJWcolor}{#1}}
 
@@ -230,7 +228,7 @@ showstringspaces=false            %
 %
 % Set the title, author, and date
 %
-\title{Requirements Traceability Matrix}
+\title{LOGOS Requirements Traceability Matrix}
 %\author{%
 %\begin{tabular}{c} Author 1 \\ University1 \\ Mail1 \\ \\
 %Author 3 \\ University3 \\ Mail3 \end{tabular} \and
@@ -239,8 +237,8 @@ showstringspaces=false            %
 %\end{tabular} }
 
 
-\author{Diego Mandelli, Congjian Wang and Andrea Alfonsi}
- 
+\author{Congjian Wang and Diego Mandelli}
+
 
 % There is a "Printed" date on the title page of a SAND report, so
 % the generic \date should [WorkingDir:]generally be empty.
@@ -251,8 +249,8 @@ showstringspaces=false            %
 % Set some things we need for SAND reports. These are mandatory
 %
 \SANDnum{RTM}
-\SANDprintDate{2019}
-\SANDauthor{Diego Mandelli, Congjian and Andrea Alfonsi}
+\SANDprintDate{\today}
+\SANDauthor{Congjian and Diego Mandelli}
 \SANDreleaseType{Revision 0}
 
 % ---------------------------------------------------------------------------- %
@@ -372,11 +370,11 @@ showstringspaces=false            %
 \section{Pre-test Instructions/Environment/Setup}
 The test of the requirements are performed automatically through
 the CIS (Continuous Integration System) for each CR (Change Request).
-The tests are performed on each supported Operative System (see \cite{RAVENuserManual}).
+The tests are performed on each supported Operative System.
 
 \input{traceability_matrix.tex}
 
- 
+
 
     % ---------------------------------------------------------------------- %
     % References

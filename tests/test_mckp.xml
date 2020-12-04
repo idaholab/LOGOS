@@ -12,6 +12,7 @@
       <revision author="wangc" date="2019-05-20">change variable names, this is because RAVEN External model currently
         can only store variables that follow the python variable rules, I think this should be changed</revision>
     </revisions>
+    <requirements>L-SDCBO-3</requirements>
   </TestInfo>
 
   <RunInfo>

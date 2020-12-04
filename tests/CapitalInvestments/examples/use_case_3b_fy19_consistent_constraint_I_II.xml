@@ -32,6 +32,7 @@ Best NPV=159.5402
     <description>
        This test is aimed to check logos_examples_use_case_3b_fy19_consistent_constraint_I_II
     </description>
+    <requirements>L-F-2</requirements>
   </TestInfo>
   <Sets>
     <investments>

@@ -11,6 +11,7 @@
        In this test, radius_ambiguity = 0.0, which is equivalent to the stochastic
        programming
     </description>
+    <requirements>L-DRO-2</requirements>
   </TestInfo>
   <Sets>
     <investments>

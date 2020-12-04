@@ -78,6 +78,7 @@
        In this test, risk_aversion = 0.0, confidence_level = 0.95, the test is
        equivalent to the sthochastic optimization MCKP test.
     </description>
+    <requirements>L-CVaR-3</requirements>
   </TestInfo>
   <Sets>
     <investments>

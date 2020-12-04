@@ -1,48 +1,106 @@
 <?xml version="1.0" ?>
-<requirements_specification application="NuSAR">
-    
+<requirements_specification application="LOGOS">
+
     <requirement_group id="Minimum Requirements">
-        
+
       <requirement_set caption="Minimum Requirements">
-          <requirement id_code="R-M-1">
+          <requirement id_code="L-M-1">
               <description>Computer: Any POSIX (and POSIX-like) system</description>
-              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continous Integration System</source>
+              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continuous Integration System</source>
           </requirement>
-          <requirement id_code="R-M-2">
+          <requirement id_code="L-M-2">
               <description>RAM: 2 GB per core execution (depending on the type of analysis and data genarated)</description>
-              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continous Integration System</source>
+              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continuous Integration System</source>
           </requirement>
-          <requirement id_code="R-M-3">
+          <requirement id_code="L-M-3">
               <description>Disk: 10 GB (size depending on the type of analysis and data generated)</description>
-              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continous Integration System</source>
+              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continuous Integration System</source>
           </requirement>
-          <requirement id_code="R-M-4">
-              <description>Compilers: GCC, Clang, or Intel</description>
-              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continous Integration System</source>
-          </requirement>
-          <requirement id_code="R-M-5">
+          <requirement id_code="L-M-4">
               <description>Language: Python 3.7</description>
-              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continous Integration System</source>
+              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continuous Integration System</source>
           </requirement>
-          <requirement id_code="R-M-6">
+          <requirement id_code="L-M-5">
               <description>Version Control: Git</description>
-              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continous Integration System</source>
+              <source>``RAVEN User Manual'', INL/EXT-15-34123; Continuous Integration System</source>
           </requirement>
         </requirement_set>
-          
+
     </requirement_group>
 
     <requirement_group id="Functional Requirements">
-        
       <requirement_set caption="Framework, I/O, Execution Control">
-          <requirement id_code="R-F-3">
-              <source>RAVEN User Manual, INL/EXT-15-34123</source>
-              <description>RAVEN shall support a programmatic method for building up and/or downloading the necessary compiled objects/dependencies necessary for a simulation.</description>
+          <requirement id_code="L-F-1">
+              <description> The LOGOS plug-in shall allow support for user-defined analysis flow using RAVEN on capital budgeting problems.</description>
+          </requirement>
+          <requirement id_code="L-F-2">
+              <description> The LOGOS shall allow support for stand-alone analysis on capital budgeting problems.</description>
           </requirement>
       </requirement_set>
-          
     </requirement_group>
-          
+
+    <requirement_group id="Usability Requirements">
+
+      <requirement_set caption="Deterministic Capital Budgeting Optimization">
+          <requirement id_code="L-DCBO-1">
+              <description>LOGOS shall be able to perform Single Knapsack deterministic capital budgeting optimization</description>
+          </requirement>
+          <requirement id_code="L-DCBO-2">
+              <description>LOGOS shall be able to perform Multiple Knapsack deterministic capital budgeting optimization</description>
+          </requirement>
+          <requirement id_code="L-DCBO-3">
+              <description>LOGOS shall be able to perform Multi-choice Knapsack deterministic capital budgeting optimization</description>
+          </requirement>
+      </requirement_set>
+
+      <requirement_set caption="Stochastic Anlysis of Deterministic Capital Budgeting Optimization">
+          <requirement id_code="L-SDCBO-1">
+              <description>LOGOS plugin shall be able to perform stochastic analysis of Single Knapsack deterministic capital budgeting optimization</description>
+          </requirement>
+          <requirement id_code="L-SDCBO-2">
+              <description>LOGOS plugin shall be able to perform stochastic analysis of Multiple Knapsack deterministic capital budgeting optimization</description>
+          </requirement>
+          <requirement id_code="L-SDCBO-3">
+              <description>LOGOS plugin shall be able to perform stochastic analysis of Multi-choice Knapsack deterministic capital budgeting optimization</description>
+          </requirement>
+      </requirement_set>
+
+      <requirement_set caption="Stochastic Capital Budgeting Optimization">
+          <requirement id_code="L-SCBO-1">
+              <description>LOGOS shall be able to perform Single Knapsack Stochastic capital budgeting optimization</description>
+          </requirement>
+          <requirement id_code="L-SCBO-2">
+              <description>LOGOS shall be able to perform Multiple Knapsack Stochastic capital budgeting optimization</description>
+          </requirement>
+          <requirement id_code="L-SCBO-3">
+              <description>LOGOS shall be able to perform Multi-Choice Knapsack Stochastic capital budgeting optimization</description>
+          </requirement>
+      </requirement_set>
+
+      <requirement_set caption="Distributionally Robust Capital Budgeting Optimization">
+          <requirement id_code="L-DRO-1">
+              <description>LOGOS shall be able to perform Single Knapsack Distributionally Robust capital budgeting optimization</description>
+          </requirement>
+          <requirement id_code="L-DRO-2">
+              <description>LOGOS shall be able to perform Multiple Knapsack Distributionally Robust capital budgeting optimization</description>
+          </requirement>
+          <requirement id_code="L-DRO-3">
+              <description>LOGOS shall be able to perform Multi-Choice Knapsack Distributionally Robust capital budgeting optimization</description>
+          </requirement>
+      </requirement_set>
+
+      <requirement_set caption="Stochastic Capital Budgeting Optimization Based Conditional Value-at-Risk">
+          <requirement id_code="L-CVaR-1">
+              <description>LOGOS shall be able to perform Single Knapsack Stochastic capital budgeting optimization based Conditional Value-at-Risk</description>
+          </requirement>
+          <requirement id_code="L-CVaR-2">
+              <description>LOGOS shall be able to perform Multiple Knapsack Stochastic capital budgeting optimization based Conditional Value-at-Risk</description>
+          </requirement>
+          <requirement id_code="L-CVaR-3">
+              <description>LOGOS shall be able to perform Multi-Choice Knapsack Stochastic capital budgeting optimization based Conditional Value-at-Risk</description>
+          </requirement>
+      </requirement_set>
+
+    </requirement_group>
+
 </requirements_specification>
-
-

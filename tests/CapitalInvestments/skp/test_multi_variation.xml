@@ -13,6 +13,7 @@
     <description>
        This test is aimed to check logos_skp_multi_variation
     </description>
+    <requirements>L-SCBO-1</requirements>
   </TestInfo>
   <Sets>
     <investments>
