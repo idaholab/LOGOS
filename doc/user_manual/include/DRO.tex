@@ -19,7 +19,7 @@ to prioritize so as to maximize expected NPV, assuming that nominal distribution
 specified by the probability mass function $q^\sigma, \sigma \in \Sigma$.
 
 We suppose that $\xi$ is a discrete random variable with finite sample space $\Omega$,
-so that $\xi^\omega, \omega \in \Omega$, enumerate all possible realizations.
+so that $\xi^\omega, \omega \in \Omega$ enumerates all possible realizations.
 We further suppose that we only have observations of
 $\xi^\sigma, \sigma \in \Sigma \subset \Omega$,
 i.e., possibly a strict subset, which may arise in a data-driven setting. In such a
@@ -87,7 +87,7 @@ optimal value of the transportation problem:
 
 The intuition behind this measure concerns the magnitude of probability mass, $q^\sigma$,
 that must be transported distance $d_{\sigma, \omega}$ from vector $\xi^\sigma$ to vector $\xi^\omega$
-via variable $z_{\sigma, \omega}$. At one extreme case, if the two sample spaces and probability
+via variable $z_{\sigma, \omega}$. In one extreme case, if the two sample spaces and probability
 mass functions coincide, i.e., $\Omega = \Sigma$ and $p^\omega = q^\omega$, and $d_{\omega, \omega} = 0$
 for all $\omega \in \Omega$ then $D(p, q) = 0$.
 
@@ -138,7 +138,7 @@ value for each $\omega \in \Omega$. Then, nature’s problem may be written:
 \end{eqnarray}
 \end{subequations}
 
-Here, $\gamma, \nu^\sigma, \beta^\omega$ denote dual variables.
+Here, $\gamma, \nu^\sigma$, and $\beta^\omega$ denote dual variables.
 In this model, nature optimizes over $z$ and over $p$ to select a worst-case distribution
 within radius $\varepsilon$ of $q$.
 
@@ -153,7 +153,7 @@ $\beta^\omega= -f(s, \xi^\omega)$, we obtain the following:
 \end{eqnarray}
 \end{subequations}
 
-To gain intuition regarding model, consider two extreme cases, $\varepsilon = 0$ and $\varepsilon = \infty$.
+For a better understanding of the model, consider two extreme cases, $\varepsilon = 0$ and $\varepsilon = \infty$.
 If $\varepsilon = 0$ then there is no penalty in the objective function for allowing $\gamma$
 to grow large. As $gamma$ grows large, the constraint becomes vacuous for all $\sigma \ne \omega$;
 however, for $\sigma = \omega$ we have $d_{\sigma, \sigma} = ||\xi^\sigma - \xi^\omega|| = 0$,
@@ -172,7 +172,7 @@ the objective function reduces to:
 \end{equation}
 
 Again, this matches what it must: if $\varepsilon = \infty$ then nature has enough latitude
-to place probability one on the single worst-case scenario.
+to place a probability of one on the single worst-case scenario.
 
 Specializing $s\in S$ to be the constraints for prioritization, and specializing
 $f(s,\xi^\omega)$ to define the NPV under scenario $\omega\in \Omega$, the DRO variant of the
@@ -199,7 +199,7 @@ specify a collection of scenarios via \xmlNode{Uncertainties} block. The
 \xmlNode{problem\_type} within \xmlNode{Settings} block is used to select the
 type of DRO problems. The currently available DRO problem types are:
 \xmlString{droskp}, \xmlString{dromkp}, and \xmlString{dromckp}. The user can
-use \xmlNode{radius\_ambiguity} to control the Wasserstein distance for DRO problem.
+use \xmlNode{radius\_ambiguity} to control the Wasserstein distance for DRO problems.
 
 Example LOGOS input XML for DRO:
 \begin{lstlisting}[style=XML]
@@ -233,8 +233,8 @@ Example LOGOS input XML for DRO:
 \end{eqnarray}
 \end{subequations}
 
-See next section~\ref{subsec:DRO_DKP} for the example, since multi-dimensional Knapsack problem
-is just a simple extension of single Knapsack problem, and both of them belong to the same
+See next section~\ref{subsec:DRO_DKP} for the example of LOGOS input file, since multi-dimensional Knapsack problem
+is just a simple extension of a single-dimensional Knapsack problem, and both of them belong to the same
 \xmlNode{problem\_type}: \xmlString{droskp}.
 
 
