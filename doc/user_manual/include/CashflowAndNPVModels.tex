@@ -125,7 +125,7 @@ flows will be computed as:\par
 and for the final year as:\par
 
 \begin{equation}\label{npv_5}
-\mbox{Flow Replaced in Year }N= - \left[ C_{P} \left( 1-p \right) ^{N-1} \right] .
+\mbox{Cash Flow Replaced in Year }N= - \left[ C_{P} \left( 1-p \right) ^{N-1} \right] .
 \end{equation}
 
 
@@ -277,7 +277,7 @@ and \xmlNode{alias}, this entity accepts the following sub-nodes:
   \item \xmlNode{D}, \xmlDesc{integer, required parameter}, specifies the number of days
   plant is off-line, if a shutdown occurs.
   \item \xmlNode{fp}, \xmlDesc{float, required parameter}, specifies the probability
-  of item failure for one year.
+  of item failure over one year.
   \item \xmlNode{discountRate}, \xmlDesc{float, required parameter}, specifies the discount rate.
   \item \xmlNode{inflation}, \xmlDesc{float, optional parameter}, specifies the inflation rate.
   \default{0.0}
@@ -307,7 +307,7 @@ and \xmlNode{alias}, this entity accepts the following sub-nodes:
   \end{itemize}
 \end{itemize}
 
-The parameters \textbf{Cp, Cu, fp, Cd, inflation, tax} can be sampled by RAVEN.
+The parameters \textbf{Cp, Cu, fp, Cd, inflation, and tax} can be sampled by RAVEN.
 If the user specifies these parameters in the input XML \xmlNode{ExternalModel},
 the values for these parameters will be replaced by the sampled values from RAVEN.
 

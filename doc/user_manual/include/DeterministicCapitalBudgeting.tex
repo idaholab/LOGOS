@@ -2,14 +2,14 @@
 \label{sec:DeterministicCapitalBudgeting}
 
 We consider a capital budgeting problem for a nuclear generation station, with possible extension to
-a larger fleet of plants. 
+a larger fleet of plants.
 Due to limited resources, we can only select a subset from a list of
-several candidate capital projects. 
+several candidate capital projects.
 Our goal is to maximize overall NPV associated with the
-selected subset. 
+selected subset.
 In doing so, we must respect resource limits and capture key structural and
 stochastic dependencies of the system, although in this section we start with the simpler
-deterministic case, ignoring randomness.  
+deterministic case, ignoring randomness.
 Example projects include upgrading a steam turbine,
 refurbishing or replacing a set of reactor coolant pumps, and replacing a set of feed-water heaters.
 
@@ -25,7 +25,7 @@ k \in K	& \mbox{types of resources} \\%, e.g., capital funds, O\&M funds, labor-
 \\
 %%%%%%%%%%%%%% DATA %%%%%%%%%%%%%%%%
 \multicolumn{2}{l}{\mbox{\em Data:}} \\
-a_{ij} & \mbox{reward (revenue less financial cost) of selecting project $i$ via option $j$}  \\
+a_{ij} & \mbox{reward (revenue minus financial cost) of selecting project $i$ via option $j$}  \\
 b_{kt} & \mbox{available budget for a resource of type $k$ in year $t$}\\
 c_{ijkt}  & \mbox{consumption of resource of type $k$ in year $t$ if project $i$ is performed via option $j$} \\
 \\
@@ -155,7 +155,7 @@ In the capital budgeting problem described above, it may be the case that not al
 investments/projects are different from each other. For example, in practice,
 there may be given a number ($n_i$) of identical pumps/valves to be replaced. In this
 case, the number of decision variables is equal to the number of different
-investments, rather than the total number of investments. The constraint for
+investments, rather than the total number of investments. The constraint for the
 decision variables becomes:
 \begin{equation}
 0\leq x_i \leq n_i, i\in N
@@ -299,7 +299,7 @@ Another interesting variant of the capital budgeting problem arises if we consid
 maintenance for multiple units in a NPP in parallel, i.e. it has to be decided whether
 to accept a particular replacement and, in the positive case, in which unit to conduct
 the corresponding replacement. This can be formulated by
-introducing a binary decision variable for every combination of a maintenance with a unit.
+introducing a binary decision variable for every maintenance-unit combination.
 If there are $I$ investments (investment set $I$) on the list of maintenance requests and $m$
 units (unit set $M$) available, we use binary variables:
 

@@ -25,17 +25,17 @@ code to propagate data uncertainties and analyze the generated data
 - SSC cashflow and NPV models
 
 ## Installation:
-./build.sh
+path/to/LOGOS/build.sh --install
 
 ## How to run:
-- source activate logos_libraries
-- path/to/Logos/.logos -i inputfile.xml -o outputfile.csv
+- source activate LOGOS_libraries
+- path/to/LOGOS/.logos -i inputfile.xml -o outputfile.csv
 
 ## Tests
-./src/tests
+python run_tests.py
 
 ## Docs
-./docs
+path/to/LOGOS/doc
 
 ### Other Software
 Idaho National Laboratory is a cutting edge research facility which is a constantly producing high quality research and software. Feel free to take a look at our other software and scientific offerings at:
