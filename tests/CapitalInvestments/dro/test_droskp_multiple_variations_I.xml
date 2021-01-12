@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Logos>
+  <TestInfo>
+    <name>CapitalInvestments/dro.test_droskp_multiple_variations_I</name>
+    <author>wangc</author>
+    <created>2020-06-01</created>
+    <classesTested>DROSKP</classesTested>
+    <description>
+       This test is aimed to test scenarios of multiple parameters using distributionally
+       robust optimization. In this case, radius_ambiguity = 0.01. However, we are using
+       the same values for different scenarios of net_present_values. Thus, this problem
+       is equivalent to droskp problem with single parameter variations.
+    </description>
+  </TestInfo>
+  <Sets>
+    <investments>
+      1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
+    </investments>
+    <time_periods>
+      1,2,3,4,5
+    </time_periods>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index="investments">
+      2.315,0.824,22.459,60.589,0.667,5.173,4.003,0.582,0.122,-2.870,-0.102,-0.278,-0.322,-3.996,-0.246,-20.155
+    </net_present_values>
+    <costs index="investments, time_periods">
+      0.219,0.257,0.085,0.0,0.0,
+      0.0,0.0,0.122,0.103,0.013,
+      5.044,1.839,0.0,0.0,0.0,
+      6.74,6.134,10.442,0.0,0.0,
+      0.425,0.0,0.0,0.0,0.0,
+      2.125,2.122,0.0,0.0,0.0,
+      2.387,0.19,0.012,2.383,0.192,
+      0.0,0.95,0.0,0.0,0.0,
+      0.03,0.03,0.688,0.0,0.0,
+      0,0.2,0.763,0.739,2.539,
+      0.081,0.032,0,0,0,
+      0.3,0,0,0,0,
+      0.347,0,0,0,0,
+      4.025,0.297,0,0,0,
+      0.095,0.095,0.095,0,0,
+      5.487,5.664,0.5,6.803,6.778
+    </costs>
+    <available_capitals index="time_periods">
+      18,18,18,18,18
+    </available_capitals>
+  </Parameters>
+
+  <Uncertainties>
+    <available_capitals>
+      <totalScenarios>10</totalScenarios>
+      <probabilities>
+        0.012, 0.019, 0.032, 0.052, 0.086, 0.142, 0.235, 0.188, 0.141, 0.093
+      </probabilities>
+      <!--
+        scenarios is ordered by numberScenarios * parametersIndex, the number of scenarios is determined by
+        the number of elements in <probabilities>, for this case: numberScenarios * time_periods = 10 * 5
+      -->
+      <scenarios>
+        11, 11, 11, 11, 11,
+        12, 12, 12, 12, 12,
+        13, 13, 13, 13, 13,
+        14, 14, 14, 14, 14,
+        15, 15, 15, 15, 15,
+        16, 16, 16, 16, 16,
+        17, 17, 17, 17, 17,
+        18, 18, 18, 18, 18,
+        19, 19, 19, 19, 19,
+        20, 20, 20, 20, 20
+      </scenarios>
+    </available_capitals>
+    <net_present_values>
+      <totalScenarios>2</totalScenarios>
+      <probabilities>
+        0.3, 0.7
+      </probabilities>
+      <scenarios>
+        2.315,0.824,22.459,60.589,0.667,5.173,4.003,0.582,0.122,-2.870,-0.102,-0.278,-0.322,-3.996,-0.246,-20.155,
+        2.315,0.824,22.459,60.589,0.667,5.173,4.003,0.582,0.122,-2.870,-0.102,-0.278,-0.322,-3.996,-0.246,-20.155
+      </scenarios>
+    </net_present_values>
+  </Uncertainties>
+
+  <Settings>
+    <mandatory>10,11,12,13,14,15,16</mandatory>
+    <solver>cbc</solver>
+    <solverOptions>
+      <StochSolver>EF</StochSolver>
+      <radius_ambiguity>0.01</radius_ambiguity>
+    </solverOptions>
+    <sense>maximize</sense>
+    <problem_type>droskp</problem_type>
+  </Settings>
+</Logos>

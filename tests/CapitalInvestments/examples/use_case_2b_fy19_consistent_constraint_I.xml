@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Stochastic capital budgeting for use case 2 for FY19
+We rerun the full stochastic optimization model with different uniform budget distributions
+for the five years:
+Y1~[20,23], Y2~[34,38], Y3~[17,22], Y4~[20, 25], Y5~[18,24]
+In this case, we only consider capital budget (O&M is not included but added to the capital budget)
+Only enable the consistent constraint I (1c)
+Best NPV=243.785
+-->
+<Logos>
+  <TestInfo>
+    <name>Logos.logos_examples_use_case_2b_fy19_consistent_constraint_I</name>
+    <author>wangc</author>
+    <created>2019-11-18</created>
+    <classesTested>MCKP</classesTested>
+    <description>
+       This test is aimed to check logos_examples_use_case_2b_fy19_consistent_constraint_I
+    </description>
+  </TestInfo>
+  <Sets>
+    <investments>
+        HPFeedwaterHeaterUpgrade
+        PresurizerReplacement
+        ImprovementEmergencyDieselGenerators
+        SecondarySystemPHMSystem
+        ReplacementTwoReactorCoolantPumps
+        SeismicModificationRequalificationReinforcementImprovement
+        FireProtection
+        ServiceWaterSystemUpgrade
+        BatteriesReplacement
+        ReplaceCCWPipingHeatExchangersValues
+        ReactorVesselInternals
+        ReactorVesselUpgrade
+        ReplaceLPTurbine
+        ReplaceInstrumentationAndControlCables
+        CondenserRetubing
+        ReplaceMoistureSeparatorReheater
+    </investments>
+    <time_periods>year1 year2 year3 year4 year5</time_periods>
+    <options index='investments'>
+      PlanA PlanB DoNothing;
+      PlanA PlanB PlanC;
+      PlanA PlanB DoNothing;
+      PlanA PlanB DoNothing;
+      PlanA PlanB;
+      PlanA PlanB PlanC DoNothing;
+      PlanA PlanB;
+      PlanA PlanB DoNothing;
+      PlanA DoNothing;
+      PlanA PlanB PlanC;
+      PlanA PlanB DoNothing;
+      PlanA;
+      PlanA PlanB DoNothing;
+      PlanA;
+      PlanA PlanB DoNothing;
+      PlanA PlanB PlanC DoNothing
+    </options>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index='options'>
+      27.98 27.17 0.
+      -10.07 -9.78 -9.22
+      20.23 20.84 0.0
+      35 33.98 0.
+      -18.6 -17.02
+      9.48 8.94 8.68 0.
+      -1.44 -1.32
+      5.18 4.88 0.
+      2.1 0.
+      -5.03 -5.18 -4.88
+      41.14 37.65 0.
+      -5.25
+      167.94 163.05 0.
+      -6.52
+      16.72 15.76 0.
+      8.26 7.56 7.34 0.
+    </net_present_values>
+    <costs index='options, time_periods'>
+      13.01 1.31 0 0 0
+      0 13.01 1.31 0 0
+      0 0 0 0 0
+
+      9.19 0.93 0 0 0
+      0 9.19 0.93 0 0
+      0 0 0 9.19 0.93
+
+      0 0 0 10.09 1.11
+      0 0 10.09 1.11 0
+      0 0 0 0 0
+
+      0 4.51 0.31 0.21 0
+      0 0 4.51 0.31 0.21
+      0 0 0 0 0
+
+      0 18.63 0 0 0
+      0 0 0 0 18.63
+
+      0 2.44 0 0 0
+      0 0 0 2.44 0
+      0 0 0 0 2.44
+      0 0 0 0 0
+
+      1.32 0.14 0 0 0
+      0 0 0 1.32 0.14
+
+      2.35 0 0 0 0
+      0 0 2.35 0 0
+      0 0 0 0 0
+
+      0.29 0 0 0 0
+      0 0 0 0 0
+
+      0 0 4.58 0.47 0
+      0 4.58 0.47 0 0
+      0 0 0 4.58 0.47
+
+      0 19.85 0 0 0
+      0 0 0 0 19.85
+      0 0 0 0 0
+
+      5.27 0 0 0 0
+
+      0	0 18.79 0 0
+      0 0 0 18.79 0
+      0 0 0 0 0
+
+      5.94 0.61 0 0 0
+
+      5.26 0 0 0 0
+      0 0 5.26 0 0
+      0 0 0 0 0
+
+      3.17 0 0 0 0
+      0 0 0 3.17 0
+      0 0 0 0 3.17
+      0 0 0 0 0
+    </costs>
+    <available_capitals index="time_periods">
+      22.6 36.7 20.6 23.6 22.7
+    </available_capitals>
+  </Parameters>
+
+  <Uncertainties>
+    <available_capitals index="time_periods">
+      <totalScenarios>10</totalScenarios>
+      <probabilities>
+        0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
+      </probabilities>
+      <scenarios>
+        20.0 34.0 17.0 20.0 18.0
+        20.3333 34.4444 17.5556 20.5556 18.6667
+        20.6667 34.8889 18.1111 21.1111 19.3333
+        21.0 35.3333 18.6667 21.6667 20.0
+        21.3333 35.7778 19.2222 22.2222 20.6667
+        21.6667 36.2222 19.7778 22.7778 21.3333
+        22.0000 36.6667 20.3333 23.3333 22.0000
+        22.3333 37.1111 20.8889 23.8889 22.6667
+        22.6667 37.5556 21.4444 24.4444 23.3333
+        23.0000 38.0000 22.0000 25.0000 24.0000
+      </scenarios>
+    </available_capitals>
+  </Uncertainties>
+
+  <Settings>
+    <mandatory>
+        PresurizerReplacement
+        ReplacementTwoReactorCoolantPumps
+        FireProtection
+        ReplaceCCWPipingHeatExchangersValues
+        ReactorVesselUpgrade
+        ReplaceInstrumentationAndControlCables
+    </mandatory>
+    <nonSelection>True</nonSelection> <!-- options should include DoNothing except regulartory mandated if True -->
+    <consistentConstraintI>True</consistentConstraintI>
+    <consistentConstraintII>False</consistentConstraintII>
+    <solver>cbc</solver>
+    <sense>maximize</sense>
+    <problem_type>mckp</problem_type>
+  </Settings>
+</Logos>

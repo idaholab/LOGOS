@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  For the knapsack, items 10, 9, 4, 2, 1 are selected and their total values is 106.0
+-->
+<Logos>
+  <TestInfo>
+    <name>Logos.logos_skp</name>
+    <author>wangc</author>
+    <created>2019-11-18</created>
+    <classesTested>SingleKnapsack</classesTested>
+    <description>
+       This test is aimed to check logos_skp
+    </description>
+    <requirements>L-DCBO-1</requirements>
+  </TestInfo>
+  <Sets>
+    <investments>
+      1,2,3,4,5,6,7,8,9,10
+    </investments>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index="investments">
+      18,20,17,19,25,21,27,23,25,24
+    </net_present_values>
+    <costs index="investments">
+      1,3,7,4,8,9,6,10,2,5
+    </costs>
+    <available_capitals>
+      15
+    </available_capitals>
+  </Parameters>
+
+  <Settings>
+    <solver>glpk</solver>
+    <sense>maximize</sense>
+  </Settings>
+</Logos>

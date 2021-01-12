@@ -1,0 +1,101 @@
+<Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.bkp_optimization</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-20</created>
+    <classesTested>Models.ExternalModel.CapitalInvestmentModel</classesTested>
+    <description>
+       This test is aimed to check the capital investment model for bounded knapsack problem
+    </description>
+  </TestInfo>
+
+  <RunInfo>
+    <WorkingDir>bkp</WorkingDir>
+    <Sequence>Run</Sequence>
+    <batchSize>1</batchSize>
+  </RunInfo>
+
+  <Models>
+    <ExternalModel name="boundedSingleKnapsack" subType="LOGOS.CapitalInvestmentModel">
+      <variables>available_capitals,i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19, i20, i21, i22,MaxNPV</variables>
+      <ModelData>
+        <Sets>
+          <investments>
+            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19, i20, i21, i22
+          </investments>
+        </Sets>
+
+        <Parameters>
+          <net_present_values index="investments">
+            150,35,200,60,60,45,60,40,30,10,70,30,15,10,40,70,75,80,20,12,50,10
+          </net_present_values>
+          <costs index="investments">
+            9,13,153,50,15,68,27,39,23,52,11,32,24,48,73,42,43,22,7,18,4,30
+          </costs>
+          <available_capitals>
+            400
+          </available_capitals>
+        </Parameters>
+
+        <Settings>
+          <lowerBounds>
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+          </lowerBounds>
+          <upperBounds>
+            1,1,2,2,2,3,3,3,1,3,1,1,2,2,1,1,1,1,1,2,1,2
+          </upperBounds>
+          <solver>glpk</solver>
+          <sense>maximize</sense>
+        </Settings>
+      </ModelData>
+    </ExternalModel>
+  </Models>
+
+  <Distributions>
+    <Uniform name="distrib">
+      <lowerBound>350.0</lowerBound>
+      <upperBound>450.0</upperBound>
+    </Uniform>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="MC_external">
+      <samplerInit>
+        <limit>10</limit>
+      </samplerInit>
+      <variable name="available_capitals">
+        <distribution>distrib</distribution>
+      </variable>
+    </MonteCarlo>
+  </Samplers>
+
+  <Steps>
+    <MultiRun name="Run">
+      <Input   class="DataObjects"  type="PointSet"        >dummy</Input>
+      <Model   class="Models"       type="ExternalModel"   >boundedSingleKnapsack</Model>
+      <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
+      <Output  class="DataObjects"  type="PointSet"        >PS</Output>
+      <Output  class="OutStreams"   type="Print"           >Print_PS</Output>
+    </MultiRun>
+  </Steps>
+
+  <OutStreams>
+    <Print name="Print_PS">
+      <type>csv</type>
+      <source>PS</source>
+      <what>input,output</what>
+    </Print>
+  </OutStreams>
+
+  <DataObjects>
+    <PointSet name="dummy">
+      <Input>available_capitals</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="PS">
+      <Input>available_capitals</Input>
+      <Output>i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19, i20, i21, i22,MaxNPV</Output>
+    </PointSet>
+  </DataObjects>
+
+</Simulation>

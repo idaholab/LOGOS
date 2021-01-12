@@ -1,0 +1,82 @@
+[Tests]
+
+ [./logos_skp]
+  type  = 'LogosRun'
+  input = 'test_skp.xml'
+  UnorderedCsv = 'test_skp.csv'
+ [../]
+
+ [./logos_skp_constraint]
+  type  = 'LogosRun'
+  input = 'test_skp_external_constraint.xml'
+  UnorderedCsv = 'test_skp_external_constraint.csv'
+ [../]
+
+ [./logos_bkp]
+  type  = 'LogosRun'
+  input = 'test_bkp.xml'
+  UnorderedCsv = 'test_bkp.csv'
+ [../]
+
+ [./logos_bkp_scenarios]
+  type  = 'LogosRun'
+  input = 'test_bkp_scenarios.xml'
+  UnorderedCsv = 'test_bkp_scenarios.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./logos_dkp]
+  type  = 'LogosRun'
+  input = 'test_dkp.xml'
+  UnorderedCsv = 'test_dkp.csv'
+ [../]
+
+ [./logos_skp_mandated]
+  type  = 'LogosRun'
+  input = 'test_mandated.xml'
+  UnorderedCsv = 'test_mandated.csv'
+ [../]
+
+ [./logos_skp_multi_variation]
+  type  = 'LogosRun'
+  input = 'test_multi_variation.xml'
+  UnorderedCsv = 'test_multi_variation.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./logos_skp_no_index]
+  type  = 'LogosRun'
+  input = 'test_noIndex.xml'
+  UnorderedCsv = 'test_noIndex.csv'
+ [../]
+
+ [./logos_skp_npv]
+  type  = 'LogosRun'
+  input = 'test_npv.xml'
+  UnorderedCsv = 'test_npv.csv'
+ [../]
+
+ [./logos_skp_scenarios]
+  type  = 'LogosRun'
+  input = 'test_skp_scenarios.xml'
+  UnorderedCsv = 'test_skp_scenarios.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./logos_skp_variation]
+  type  = 'LogosRun'
+  input = 'test_variation.xml'
+  UnorderedCsv = 'test_variation.csv'
+  skip_if_OS = windows
+ [../]
+
+ [./logos_skp_EE_41_projects]
+  type  = 'LogosRun'
+  input = 'test_EE_41_projects.xml'
+  UnorderedCsv = 'test_EE_41_projects.csv'
+  skip_if_OS = windows
+  max_time = 1500
+  heavy = True
+ [../]
+
+[]

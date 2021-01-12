@@ -1,0 +1,38 @@
+<dependencies>
+  <main>
+    <pyomo source="forge" />
+    <coincbc os="mac,linux" skip_check="True" source="forge" />
+    <!-- Windows doesn't have coincbc, so get it through cbcpy? see https://stackoverflow.com/questions/58868054/how-to-install-coincbc-using-conda-->
+    <cbcpy os="windows" source='pip'/>
+    <glpk skip_check="True" source="forge" />
+    <ipopt skip_check="True" source="forge" />
+  </main>
+
+  <alternate name="pip">
+    <coincbc skip_check="True">remove</coincbc>
+    <glpk skip_check="True">remove</glpk>
+    <ipopt skip_check="True">remove</ipopt>
+    <cbcpy source='pip'/>
+  </alternate>
+</dependencies>
+
+<!-- original dependencies.ini
+[forge]
+pyomo
+coincbc
+glpk
+ipopt
+
+[skip-check]
+coincbc
+glpk
+ipopt
+
+[windows-forge]
+coincbc = remove
+
+[pip-install]
+coincbc = remove
+glpk = remove
+ipopt = remove
+-->

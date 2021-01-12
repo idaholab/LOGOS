@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  For the multi-knapsack with the option to compute the NPVs, items, 1, 2, 5, 8 will be selected with NPV 3.5097.
+-->
+<Logos>
+  <TestInfo>
+    <name>Logos.logos_skp_npv</name>
+    <author>wangc</author>
+    <created>2019-11-18</created>
+    <classesTested>SingleKnapsack</classesTested>
+    <description>
+       This test is aimed to check logos_skp_npv
+    </description>
+  </TestInfo>
+  <Sets>
+    <investments>
+      1,2,3,4,5,6,7,8,9
+    </investments>
+    <time_periods>
+      1,2,3,4,5
+    </time_periods>
+  </Sets>
+
+  <Economics>
+    <net_present_values>
+      <DiscountRate>0.08</DiscountRate>
+      <tax>0.2</tax>
+      <inflation>0.0</inflation>
+      <CashFlow index="investments, time_periods">
+        -0.879, 0.8, 0.8, 0.8, 0.8, 0.8,
+        -1.172, 0.5, 0.5, 0.5, 0.5, 0.5,
+        -0.70, 5.8, 5.8, 5.8, 5.8, 5.8,
+        -3.294, 16, 16, 16, 16, 16,
+        -0.132, 0.2, 0.2, 0.2, 0.2, 0.2,
+        -0.816, 1.5, 1.5, 1.5, 1.5, 1.5,
+        -0.788, 1.2, 1.2, 1.2, 1.2, 1.2,
+        -1.016, 0.4, 0.4, 0.4, 0.4, 0.4,
+        -0.677, 0.2, 0.2, 0.2, 0.2, 0.2
+      </CashFlow>
+    </net_present_values>
+  </Economics>
+
+  <Parameters>
+    <net_present_values index="investments">
+      2.315,0.824,22.459,60.589,0.667,5.173,4.003,0.582,0.122
+    </net_present_values>
+    <costs index="investments, time_periods">
+      0.219,0.257,0.085,0.0,0.0,
+      0.0,0.0,0.122,0.103,0.013,
+      5.044,1.839,0.0,0.0,0.0,
+      6.74,6.134,10.442,0.0,0.0,
+      0.425,0.0,0.0,0.0,0.0,
+      2.125,2.122,0.0,0.0,0.0,
+      2.387,0.19,0.012,2.383,0.192,
+      0.0,0.95,0.0,0.0,0.0,
+      0.03,0.03,0.688,0.0,0.0
+    </costs>
+    <available_capitals index="time_periods">
+      0.665,4.712,9.642,3.458,1.683
+    </available_capitals>
+  </Parameters>
+
+  <Settings>
+    <solver>glpk</solver>
+    <sense>maximize</sense>
+  </Settings>
+</Logos>

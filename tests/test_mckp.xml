@@ -1,0 +1,211 @@
+<Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.mckp_optimization</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-20</created>
+    <classesTested>Models.ExternalModel.CapitalInvestmentModel</classesTested>
+    <description>
+       This test is aimed to check the capital investment model for multi-choice knapsack problem
+    </description>
+    <revisions>
+      <revision author="wangc" date="2019-05-20">update test_mckp</revision>
+      <revision author="wangc" date="2019-05-20">change variable names, this is because RAVEN External model currently
+        can only store variables that follow the python variable rules, I think this should be changed</revision>
+    </revisions>
+    <requirements>L-SDCBO-3</requirements>
+  </TestInfo>
+
+  <RunInfo>
+    <WorkingDir>mckp</WorkingDir>
+    <Sequence>Run</Sequence>
+    <batchSize>1</batchSize>
+  </RunInfo>
+
+  <Models>
+    <ExternalModel name="mckp" subType="LOGOS.CapitalInvestmentModel">
+      <variables>
+        available_capitals,
+        i1__1,
+        i2__1,
+        i3__1,
+        i4__1,i4__2,i4__3,
+        i5__1,i5__2,i5__3,i5__4,
+        i6__1,i6__2,i6__3,i6__4,i6__5,i6__6,i6__7,
+        i7__1,
+        i8__1,
+        i9__1,
+        i10__1,
+        i11__1,
+        i12__1,
+        i13__1,
+        i14__1,
+        i15__1,
+        i16__1,
+        i17__1,
+        MaxNPV
+      </variables>
+      <ModelData>
+        <Sets>
+          <investments>
+            i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17
+          </investments>
+          <options index='investments'>
+            1;
+            1;
+            1;
+            1,2,3;
+            1,2,3,4;
+            1,2,3,4,5,6,7;
+            1;
+            1;
+            1;
+            1;
+            1;
+            1;
+            1;
+            1;
+            1;
+            1;
+            1
+          </options>
+        </Sets>
+
+        <Parameters>
+          <net_present_values index='options'>
+            2.046
+            2.679
+            2.489
+            2.61
+            2.313
+            1.02
+            3.013
+            2.55
+            3.351
+            3.423
+            3.781
+            2.525
+            2.169
+            2.267
+            2.747
+            4.309
+            6.452
+            2.849
+            7.945
+            2.538
+            1.761
+            3.002
+            3.449
+            2.865
+            3.999
+            2.283
+            0.9
+            8.608
+          </net_present_values>
+          <costs index='options'>
+            36538462
+            83849038
+            4615385
+            2788461538
+            2692307692
+            5480769231
+            1634615385
+            2981730768
+            7211538462
+            9038461538
+            649038462
+            650000000
+            216346154
+            212500000
+            3076923077
+            3942307692
+            1144230769
+            675721154
+            1442307692
+            99711538
+            4807692
+            123076923
+            138461538
+            86538462
+            108653846
+            75092404
+            6413462
+            147932692
+          </costs>
+          <available_capitals>
+            15E9
+          </available_capitals>
+        </Parameters>
+
+        <Settings>
+          <solver>glpk</solver>
+          <sense>maximize</sense>
+          <problem_type>mckp</problem_type>
+        </Settings>
+      </ModelData>
+    </ExternalModel>
+  </Models>
+
+  <Distributions>
+    <Uniform name="distrib">
+      <lowerBound>10E9</lowerBound>
+      <upperBound>20E9</upperBound>
+    </Uniform>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="MC_external">
+      <samplerInit>
+        <limit>10</limit>
+      </samplerInit>
+      <variable name="available_capitals">
+        <distribution>distrib</distribution>
+      </variable>
+    </MonteCarlo>
+  </Samplers>
+
+  <Steps>
+    <MultiRun name="Run">
+      <Input   class="DataObjects"  type="PointSet"        >dummy</Input>
+      <Model   class="Models"       type="ExternalModel"   >mckp</Model>
+      <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
+      <Output  class="DataObjects"  type="PointSet"        >PS</Output>
+      <Output  class="OutStreams"   type="Print"           >Print_PS</Output>
+    </MultiRun>
+  </Steps>
+
+  <OutStreams>
+    <Print name="Print_PS">
+      <type>csv</type>
+      <source>PS</source>
+      <what>input,output</what>
+    </Print>
+  </OutStreams>
+
+  <DataObjects>
+    <PointSet name="dummy">
+      <Input>available_capitals</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="PS">
+      <Input>available_capitals</Input>
+      <Output>i1__1,
+              i2__1,
+              i3__1,
+              i4__1,i4__2,i4__3,
+              i5__1,i5__2,i5__3,i5__4,
+              i6__1,i6__2,i6__3,i6__4,i6__5,i6__6,i6__7,
+              i7__1,
+              i8__1,
+              i9__1,
+              i10__1,
+              i11__1,
+              i12__1,
+              i13__1,
+              i14__1,
+              i15__1,
+              i16__1,
+              i17__1,MaxNPV</Output>
+    </PointSet>
+  </DataObjects>
+
+</Simulation>

@@ -1,0 +1,52 @@
+before_script:
+      # Print out python version for debugging
+    - python -V
+      # clone raven
+    - git clone https://github.com/idaholab/raven.git
+    - cd raven
+      # we technically still need moose for running the tests, currently
+    - git checkout master
+    - git clean -xfd
+      # check that we have conda
+    - if which conda 2> /dev/null; then
+        echo "Conda found!";
+        conda update conda;
+      else
+        echo "ERROR Conda not found!";
+        exit 404;
+      fi
+      # install plugins before establish conda so plugin libraries get installed
+    - git submodule update --init plugins/TEAL/
+    - cd scripts
+    - python install_plugins.py -s `pwd`/../../
+    - python install_plugins.py -s `pwd`/../plugins/TEAL/
+    - cd ..
+      # create libraries or create them
+    - ./scripts/establish_conda_env.sh --install --conda-defs $HOME/miniconda2/etc/profile.d/conda.sh
+    - ./build_raven
+      # return to project path main dir
+    - cd ..
+
+
+user_manual:
+  script:
+    - cd doc/user_manual/
+    - make
+    - cd ../../
+  artifacts:
+    paths:
+    - doc/user_manual/user_manual.pdf
+
+sqa:
+  script:
+    - cd doc/sqa/
+    - ./make_docs.sh
+    - cd ../../
+  artifacts:
+    paths:
+    - doc/sqa/sqa_built_documents/
+
+test:
+    script:
+      - cd raven
+      - ./run_tests -j4 --plugins --re=LOGOS/tests

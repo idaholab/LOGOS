@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  For the multi-knapsack, optimal solution for knapsack 1: 1,2,5; and for knapsack 2: 3, 4, 7, 8 with maximum npv 350
+-->
+<Logos>
+  <TestInfo>
+    <name>Logos.logos_mkp_glpk</name>
+    <author>wangc</author>
+    <created>2019-11-18</created>
+    <classesTested>MultipleKnapsack</classesTested>
+    <description>
+       This test is aimed to check logos_mkp_glpk
+    </description>
+  </TestInfo>
+  <Sets>
+    <investments>
+      1,2,3,4,5,6,7,8,9
+    </investments>
+    <capitals>
+      unit_1, unit_2
+    </capitals>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index="investments">
+      80, 20, 60, 40, 60, 60, 65, 25, 30
+    </net_present_values>
+    <costs index="investments">
+      40, 10, 40, 30, 50, 52, 55, 25, 40
+    </costs>
+    <available_capitals index="capitals">
+      100, 150
+    </available_capitals>
+  </Parameters>
+
+  <Settings>
+    <solver>glpk</solver>
+    <sense>maximize</sense>
+    <problem_type>MultipleKnapsack</problem_type>
+  </Settings>
+</Logos>

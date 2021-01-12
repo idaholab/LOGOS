@@ -1,0 +1,131 @@
+<Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.mkp_optimization</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-20</created>
+    <classesTested>Models.ExternalModel.CapitalInvestmentModel</classesTested>
+    <description>
+       This test is aimed to check the capital investment model for multiple knapsacks problem
+    </description>
+    <revisions>
+      <revision author="wangc" date="2019-05-20">debug</revision>
+      <revision author="wangc" date="2019-05-20">fix</revision>
+    </revisions>
+    <requirements>L-SDCBO-2</requirements>
+  </TestInfo>
+
+  <RunInfo>
+    <WorkingDir>mkp</WorkingDir>
+    <Sequence>Run</Sequence>
+    <batchSize>1</batchSize>
+  </RunInfo>
+
+  <Models>
+    <ExternalModel name="mkp" subType="LOGOS.CapitalInvestmentModel">
+      <variables>available_capitals,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,MaxNPV</variables>
+      <ModelData>
+        <Sets>
+          <investments>
+            i1,i2,i3,i4,i5,i6,i7,i8,i9,i10
+          </investments>
+          <capitals>
+            unit_1, unit_2
+          </capitals>
+        </Sets>
+
+        <Parameters>
+          <net_present_values index="investments">
+            78, 35, 89, 36, 94, 75, 74, 79, 80, 16
+          </net_present_values>
+          <costs index="investments">
+            18, 9, 23, 20, 59, 61, 70, 75, 76, 30
+          </costs>
+          <available_capitals index="capitals">
+            103, 156
+          </available_capitals>
+        </Parameters>
+
+        <Settings>
+          <solver>glpk</solver>
+          <sense>maximize</sense>
+          <problem_type>MultipleKnapsack</problem_type>
+        </Settings>
+      </ModelData>
+    </ExternalModel>
+    <ExternalModel name="genInput" ModuleToLoad="availableCapitals" subType="">
+      <variables>x, y, capitals, available_capitals</variables>
+    </ExternalModel>
+    <EnsembleModel name="ensemble" subType="">
+      <Model class="Models" type="ExternalModel">genInput
+        <Input class="DataObjects" type="PointSet">dummyI</Input>
+        <TargetEvaluation class="DataObjects" type="DataSet">capital_ds</TargetEvaluation>
+      </Model>
+      <Model class="Models" type="ExternalModel">mkp
+        <Input class="DataObjects" type="PointSet">dummyII</Input>
+        <TargetEvaluation class="DataObjects" type="DataSet">mkp_ds</TargetEvaluation>
+      </Model>
+    </EnsembleModel>
+  </Models>
+
+  <Distributions>
+    <Uniform name="distrib">
+      <lowerBound>-10</lowerBound>
+      <upperBound>10</upperBound>
+    </Uniform>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="MC_external">
+      <samplerInit>
+        <limit>10</limit>
+      </samplerInit>
+      <variable name="x">
+        <distribution>distrib</distribution>
+      </variable>
+      <variable name="y">
+        <distribution>distrib</distribution>
+      </variable>
+    </MonteCarlo>
+  </Samplers>
+
+  <Steps>
+    <MultiRun name="Run">
+      <Input   class="DataObjects"  type="PointSet"        >dummyI</Input>
+      <Model   class="Models"       type="EnsembleModel"   >ensemble</Model>
+      <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
+      <Output  class="DataObjects"  type="DataSet"         >mkp_ds</Output>
+      <Output  class="DataObjects"  type="DataSet"         >capital_ds</Output>
+      <Output  class="OutStreams"   type="Print"           >Print_DS</Output>
+    </MultiRun>
+  </Steps>
+
+  <OutStreams>
+    <Print name="Print_DS">
+      <type>csv</type>
+      <source>mkp_ds</source>
+      <what>input,output</what>
+    </Print>
+  </OutStreams>
+
+  <DataObjects>
+    <PointSet name="dummyI">
+      <Input>x, y</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="dummyII">
+      <Input>available_capitals</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <DataSet name="capital_ds">
+      <Input>x, y</Input>
+      <Output>capitals, available_capitals</Output>
+      <Index var="capitals">available_capitals</Index>
+    </DataSet>
+    <DataSet name="mkp_ds">
+      <Input>capitals, available_capitals</Input>
+      <Output>i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,MaxNPV</Output>
+      <Index var="capitals">i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,available_capitals</Index>
+    </DataSet>
+  </DataObjects>
+
+</Simulation>

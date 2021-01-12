@@ -1,0 +1,29 @@
+*.libs
+*.dylib
+*.la
+*.lo
+*.d
+*.o
+*.a
+*.e
+*.csv
+*.so
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.png
+
+#osx
+.DS_Store
+
+# python
+*.pyc
+*.pyo
+
+# vim
+*~
+*.swp
+
