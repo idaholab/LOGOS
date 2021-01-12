@@ -15,6 +15,12 @@ code to propagate data uncertainties and analyze the generated data
 
 ## Optimization for Capital Investments
 
+### Optimization Approaches
+- Deterministic Optimization
+- Stochastic Optimization
+- Distributionally Robust Optimization
+- Conditional Value-at-Risk Optimization 
+
 ### Problems that can be solved by this package:
 - Deterministic Capital Budgeting
 - Risk-informed stochastic Capital Budgeting
