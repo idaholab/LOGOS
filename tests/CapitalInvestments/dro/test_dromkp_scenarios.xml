@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Logos>
+  <TestInfo>
+    <name>CapitalInvestments/dro.test_dromkp_scenario</name>
+    <author>wangc</author>
+    <created>2020-04-30</created>
+    <classesTested>DROMKP</classesTested>
+    <description>
+       This test is aimed to check the distributionally robust optimization for
+       Multiple Knapsack Problem, we only consider capital budget.
+       In this test, radius_ambiguity = 0.0, which is equivalent to the stochastic
+       programming
+    </description>
+    <requirements>L-DRO-2</requirements>
+  </TestInfo>
+  <Sets>
+    <investments>
+      1,2,3,4,5,6,7,8,9,10
+    </investments>
+    <capitals>
+      unit_1, unit_2
+    </capitals>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index="investments">
+      78, 35, 89, 36, 94, 75, 74, 79, 80, 16
+    </net_present_values>
+    <costs index="investments">
+      18, 9, 23, 20, 59, 61, 70, 75, 76, 30
+    </costs>
+    <available_capitals index="capitals">
+      103, 156
+    </available_capitals>
+  </Parameters>
+
+  <Uncertainties>
+    <available_capitals>
+      <totalScenarios>10</totalScenarios>
+      <probabilities>
+        0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1
+      </probabilities>
+      <scenarios>
+        101, 154,
+        102, 155,
+        103, 156,
+        104, 157,
+        105, 158,
+        106, 159,
+        107, 160,
+        108, 161,
+        109, 162,
+        110, 163
+      </scenarios>
+    </available_capitals>
+  </Uncertainties>
+
+  <Settings>
+    <solver>cbc</solver>
+    <solverOptions>
+      <!-- <threads>1</threads> -->
+      <StochSolver>EF</StochSolver>
+      <!-- epsilon radius -->
+      <radius_ambiguity>0.0</radius_ambiguity>
+    </solverOptions>
+    <sense>maximize</sense>
+    <problem_type>dromkp</problem_type>
+  </Settings>
+</Logos>

@@ -1,0 +1,82 @@
+<Simulation verbosity="silent">
+  <TestInfo>
+    <name>plugins/NuSAR.TestIncrementalNPV</name>
+    <author>wangc</author>
+    <created>2019-07-12</created>
+    <classesTested>Models.ExternalModel</classesTested>
+    <description>
+      This input tests an example of external model: incremental cashflow calculations.
+    </description>
+  </TestInfo>
+
+  <RunInfo>
+    <WorkingDir>IncrementalNPV_options</WorkingDir>
+    <Sequence>run,printTOfile</Sequence>
+  </RunInfo>
+
+  <Models>
+    <ExternalModel name="SSC_replacement_NPV" subType="LOGOS.IncrementalNPV">
+      <variables>fp, npv_a, npv_b, npv_c</variables>
+      <Cp>12.99</Cp>
+      <Cu>25.98</Cu>
+      <fp>0.1</fp>
+      <Cd>1.</Cd>
+      <D>20</D>
+      <options>
+        <Td>0, 1, 19</Td>
+        <output>npv_a, npv_b, npv_c</output>
+      </options>
+      <discountRate>0.03</discountRate>
+      <startTime>2019</startTime>
+      <lifetime>20</lifetime>
+    </ExternalModel>
+  </Models>
+
+  <Distributions>
+    <Uniform name="failProb">
+        <lowerBound>0.05</lowerBound>
+        <upperBound>0.15</upperBound>
+    </Uniform>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="test_MC">
+      <samplerInit>
+        <limit>1</limit>
+      </samplerInit>
+      <constant name="fp">0.1</constant>
+    </MonteCarlo>
+  </Samplers>
+
+  <DataObjects>
+    <PointSet name="dummy">
+      <Input>fp</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="costOutput">
+      <Input>fp</Input>
+      <Output>npv_a, npv_b, npv_c</Output>
+    </PointSet>
+  </DataObjects>
+
+  <Steps>
+    <MultiRun name="run">
+      <Input          class="DataObjects"   type="PointSet">dummy</Input>
+      <Model          class="Models"        type="ExternalModel">SSC_replacement_NPV</Model>
+      <Sampler        class="Samplers"      type="MonteCarlo">test_MC</Sampler>
+      <Output         class="DataObjects"   type="PointSet">costOutput</Output>
+    </MultiRun>
+    <IOStep name="printTOfile">
+     <Input          class="DataObjects"   type="PointSet">costOutput</Input>
+     <Output         class="OutStreams"    type="Print">dumpCostOutput</Output>
+    </IOStep>
+  </Steps>
+
+  <OutStreams>
+    <Print name="dumpCostOutput">
+      <type>csv</type>
+      <source>costOutput</source>
+      <what>input,output</what>
+    </Print>
+  </OutStreams>
+</Simulation>

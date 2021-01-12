@@ -1,0 +1,46 @@
+[Tests]
+
+ [./skp_optimization]
+  type  = 'RavenFramework'
+  input = 'test_skp.xml'
+  UnorderedCsv = 'skp/Print_PS.csv'
+ [../]
+
+ [./bkp_optimization]
+  type  = 'RavenFramework'
+  input = 'test_bkp.xml'
+  UnorderedCsv = 'bkp/Print_PS.csv'
+ [../]
+
+ [./mckp_optimization]
+  type  = 'RavenFramework'
+  input = 'test_mckp.xml'
+  UnorderedCsv = 'mckp/Print_PS.csv'
+ [../]
+
+ [./mkp_optimization]
+  type  = 'RavenFramework'
+  input = 'test_mkp.xml'
+  #UnorderedCsv = 'mkp/Print_DS.csv'
+  output = 'mkp/Print_DS.csv'
+ [../]
+
+ [./battery_replacement_cashflow]
+  type  = 'RavenFramework'
+  input = 'test_battery_replacement_cashflow.xml'
+  UnorderedCsv = 'batteryReplacement/dumpCostOutput.csv'
+ [../]
+
+ [./incremental_npv]
+  type  = 'RavenFramework'
+  input = 'test_incremental_npv.xml'
+  UnorderedCsv = 'IncrementalNPV/dumpCostOutput.csv'
+ [../]
+
+ [./incremental_npv_options]
+  type  = 'RavenFramework'
+  input = 'test_incremental_npv_options.xml'
+  UnorderedCsv = 'IncrementalNPV_options/dumpCostOutput.csv'
+ [../]
+
+[]

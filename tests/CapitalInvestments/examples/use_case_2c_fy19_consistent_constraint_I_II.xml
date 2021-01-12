@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Stochastic capital budgeting for use case 2 for FY19
+Uniform distribution U[19, 40] is used for the annaul budget, we create the following 10 scenarios:
+S1: 19.00, S2: 22.15, S3: 24.25, S4: 26.35, S5: 28.45, S6: 30.55, S7: 32.65, S8: 34.75, S9:3 6.85, S10: 40.00
+and we use the same scenarios for all five years.
+In this case, we consider both capital budget and O&M
+and both consistent constraint are enabled i.e. (1c) and (1j)
+Best NPV=221.486
+-->
+<Logos>
+  <TestInfo>
+    <name>Logos.logos_examples_use_case_2c_fy19_consistent_constraint_I_II</name>
+    <author>wangc</author>
+    <created>2019-11-18</created>
+    <classesTested>MCKP</classesTested>
+    <description>
+       This test is aimed to check logos_examples_use_case_2c_fy19_consistent_constraint_I_II
+    </description>
+  </TestInfo>
+  <Sets>
+    <investments>
+        HPFeedwaterHeaterUpgrade
+        PresurizerReplacement
+        ImprovementEmergencyDieselGenerators
+        SecondarySystemPHMSystem
+        ReplacementTwoReactorCoolantPumps
+        SeismicModificationRequalificationReinforcementImprovement
+        FireProtection
+        ServiceWaterSystemUpgrade
+        BatteriesReplacement
+        ReplaceCCWPipingHeatExchangersValues
+        ReactorVesselInternals
+        ReactorVesselUpgrade
+        ReplaceLPTurbine
+        ReplaceInstrumentationAndControlCables
+        CondenserRetubing
+        ReplaceMoistureSeparatorReheater
+    </investments>
+    <time_periods>year1 year2 year3 year4 year5</time_periods>
+    <resources>CapitalFunds OandMFunds</resources>
+    <options index='investments'>
+      PlanA PlanB DoNothing;
+      PlanA PlanB PlanC;
+      PlanA PlanB DoNothing;
+      PlanA PlanB DoNothing;
+      PlanA PlanB;
+      PlanA PlanB PlanC DoNothing;
+      PlanA PlanB;
+      PlanA PlanB DoNothing;
+      PlanA DoNothing;
+      PlanA PlanB PlanC;
+      PlanA PlanB DoNothing;
+      PlanA;
+      PlanA PlanB DoNothing;
+      PlanA;
+      PlanA PlanB DoNothing;
+      PlanA PlanB PlanC DoNothing
+    </options>
+  </Sets>
+
+  <Parameters>
+    <net_present_values index='options'>
+      27.98 27.17 0.
+      -10.07 -9.78 -9.22
+      20.23 20.84 0.0
+      35 33.98 0.
+      -18.6 -17.02
+      9.48 8.94 8.68 0.
+      -1.44 -1.32
+      5.18 4.88 0.
+      2.1 0.
+      -5.03 -5.18 -4.88
+      41.14 37.65 0.
+      -5.25
+      167.94 163.05 0.
+      -6.52
+      16.72 15.76 0.
+      8.26 7.56 7.34 0.
+    </net_present_values>
+    <costs index='options, resources, time_periods'>
+      12.99 1.3 0 0 0
+      0.02 0.01 0 0 0
+      0 12.99 1.3 0 0
+      0 0.02 0.01 0 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      9.15 0.92 0 0 0
+      0.04 0.01 0 0 0
+      0 9.15 0.92 0 0
+      0 0.04 0.01 0 0
+      0 0 0 9.15 0.92
+      0 0 0 0.04 0.01
+
+      0 0 0 10.08 1.1
+      0 0 0 0.01 0.01
+      0 0 10.08 1.1 0
+      0 0 0.01 0.01 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      0 4.5 0.3 0.2 0
+      0 0.01 0.01 0.01 0
+      0 0 4.5 0.3 0.2
+      0 0 0.01 0.01 0.01
+      0 0 0 0 0
+      0 0 0 0 0
+
+      0 18.6 0 0 0
+      0 0.03 0 0 0
+      0 0 0 0 18.6
+      0 0 0 0 0.03
+
+      0 2.24 0 0 0
+      0 0.2 0 0 0
+      0 0 0 2.24 0
+      0 0 0 0.2 0
+      0 0 0 0 2.24
+      0 0 0 0 0.2
+      0 0 0 0 0
+      0 0 0 0 0
+
+      1.31 0.13 0 0 0
+      0.01 0.01 0 0 0
+      0 0 0 1.31 0.13
+      0 0 0 0.01 0.01
+
+      2.34 0 0 0 0
+      0.01 0 0 0 0
+      0 0 2.34 0 0
+      0 0 0.01 0 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      0.28 0 0 0 0
+      0.01 0 0 0 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      0 0 4.57 0.46 0
+      0 0 0.01 0.01 0
+      0 4.57 0.46 0 0
+      0 0.01 0.01 0 0
+      0 0 0 4.57 0.46
+      0 0 0 0.01 0.01
+
+      0 19.82 0 0 0
+      0 0.03 0 0 0
+      0 0 0 0 19.82
+      0 0 0 0 0.03
+      0 0 0 0 0
+      0 0 0 0 0
+
+      5.25 0 0 0 0
+      0.02 0 0 0 0
+
+      0	0 18.77 0 0
+      0 0 0.02 0 0
+      0 0 0 18.77 0
+      0 0 0 0.02 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      5.92 0.6 0 0 0
+      0.02 0.01 0 0 0
+
+      5.24 0 0 0 0
+      0.02 0 0 0 0
+      0 0 5.24 0 0
+      0 0 0.02 0 0
+      0 0 0 0 0
+      0 0 0 0 0
+
+      3.16 0 0 0 0
+      0.01 0 0 0 0
+      0 0 0 3.16 0
+      0 0 0 0.01 0
+      0 0 0 0 3.16
+      0 0 0 0 0.01
+      0 0 0 0 0
+      0 0 0 0 0
+    </costs>
+    <available_capitals index="resources,time_periods">
+      22.6 36.7 20.6 23.6 22.7
+      0.08 0.17 0.05 0.15 0.14
+    </available_capitals>
+  </Parameters>
+
+  <Uncertainties>
+    <available_capitals index="resources,time_periods">
+      <totalScenarios>10</totalScenarios>
+      <probabilities>
+        0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
+      </probabilities>
+      <scenarios>
+        19.0, 19.0, 19.0, 19.0, 19.0, 0.08, 0.17, 0.05, 0.15, 0.14,
+        22.15,22.15,22.15,22.15,22.15,0.08, 0.17, 0.05, 0.15, 0.14,
+        24.25,24.25,24.25,24.25,24.25,0.08, 0.17, 0.05, 0.15, 0.14,
+        26.35,26.35,26.35,26.35,26.35,0.08, 0.17, 0.05, 0.15, 0.14,
+        28.45,28.45,28.45,28.45,28.45,0.08, 0.17, 0.05, 0.15, 0.14,
+        30.55,30.55,30.55,30.55,30.55,0.08, 0.17, 0.05, 0.15, 0.14,
+        32.65,32.65,32.65,32.65,32.65,0.08, 0.17, 0.05, 0.15, 0.14,
+        34.75,34.75,34.75,34.75,34.75,0.08, 0.17, 0.05, 0.15, 0.14,
+        36.85,36.85,36.85,36.85,36.85,0.08, 0.17, 0.05, 0.15, 0.14,
+        40.00,40.00,40.00,40.00,40.00,0.08, 0.17, 0.05, 0.15, 0.14
+      </scenarios>
+    </available_capitals>
+  </Uncertainties>
+
+  <Settings>
+    <mandatory>
+      PresurizerReplacement
+      ReplacementTwoReactorCoolantPumps
+      FireProtection
+      ReplaceCCWPipingHeatExchangersValues
+      ReactorVesselUpgrade
+      ReplaceInstrumentationAndControlCables
+    </mandatory>
+    <nonSelection>True</nonSelection> <!-- options should include DoNothing except regulartory mandated if True -->
+    <consistentConstraintI>True</consistentConstraintI>
+    <consistentConstraintII>True</consistentConstraintII>
+    <solver>cbc</solver>
+    <sense>maximize</sense>
+    <problem_type>mckp</problem_type>
+  </Settings>
+</Logos>

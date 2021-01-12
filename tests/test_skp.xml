@@ -1,0 +1,100 @@
+<Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.skp_optimization</name>
+    <author>mandd, wangc</author>
+    <created>2019-05-16</created>
+    <classesTested>Models.ExternalModel.CapitalInvestmentModel</classesTested>
+    <description>
+       This test is aimed to check the capital investment model for single knapsack problem
+    </description>
+    <revisions>
+      <revision author="wangc" date="2019-05-17">rename models to PyomoModels and utils to investment_utils</revision>
+      <revision author="wangc" date="2019-05-17">add raven CapitalInvestment external model test</revision>
+      <revision author="wangc" date="2019-05-17">fix import issue for raven plugins</revision>
+      <revision author="wangc" date="2019-05-20">Dump PyomoModel's outputs into raven data objects</revision>
+    </revisions>
+    <requirements>L-SDCBO-1</requirements>
+  </TestInfo>
+
+  <RunInfo>
+    <WorkingDir>skp</WorkingDir>
+    <Sequence>skpRun</Sequence>
+    <batchSize>1</batchSize>
+  </RunInfo>
+
+  <Models>
+    <ExternalModel name="singleKnapsack" subType="LOGOS.CapitalInvestmentModel">
+      <variables>available_capitals,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,MaxNPV</variables>
+      <ModelData>
+        <Sets>
+          <investments>
+            i1,i2,i3,i4,i5,i6,i7,i8,i9,i10
+          </investments>
+        </Sets>
+        <Parameters>
+          <net_present_values index="investments">
+            18,20,17,19,25,21,27,23,25,24
+          </net_present_values>
+          <costs index="investments">
+            1,3,7,4,8,9,6,10,2,5
+          </costs>
+          <available_capitals>
+            15
+          </available_capitals>
+        </Parameters>
+        <Settings>
+          <solver>glpk</solver>
+          <sense>maximize</sense>
+        </Settings>
+      </ModelData>
+    </ExternalModel>
+  </Models>
+
+  <Distributions>
+    <Uniform name="distrib">
+      <lowerBound>11.0</lowerBound>
+      <upperBound>20.0</upperBound>
+    </Uniform>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="MC_external">
+      <samplerInit>
+        <limit>10</limit>
+      </samplerInit>
+      <variable name="available_capitals">
+        <distribution>distrib</distribution>
+      </variable>
+    </MonteCarlo>
+  </Samplers>
+
+  <Steps>
+    <MultiRun name="skpRun">
+      <Input   class="DataObjects"  type="PointSet"        >dummy</Input>
+      <Model   class="Models"       type="ExternalModel"   >singleKnapsack</Model>
+      <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
+      <Output  class="DataObjects"  type="PointSet"        >PS</Output>
+      <Output  class="OutStreams"   type="Print"           >Print_PS</Output>
+    </MultiRun>
+  </Steps>
+
+  <OutStreams>
+    <Print name="Print_PS">
+      <type>csv</type>
+      <source>PS</source>
+      <what>input,output</what>
+    </Print>
+  </OutStreams>
+
+  <DataObjects>
+    <PointSet name="dummy">
+      <Input>available_capitals</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="PS">
+      <Input>available_capitals</Input>
+      <Output>i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,MaxNPV</Output>
+    </PointSet>
+  </DataObjects>
+
+</Simulation>
