@@ -32,6 +32,8 @@ PROCESS DISCLOSED, OR REPRESENTS THAT ITS USE WOULD NOT INFRINGE PRIVATELY
 OWNED RIGHTS.
 
 Authors:
-Diego Mandelli
-Congjian Wang
-
+Diego Mandelli (email: Diego.Mandelli@inl.gov)
+Congjian Wang (email: Congjian.Wang@inl.gov)
+David Morton (email: david.morton@northwestern.edu)
+Ivilina T Popova (email: ip12@txstate.edu)
+Stephen Hess (email: shess@jensenhughes.com)
