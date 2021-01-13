@@ -34,8 +34,6 @@ OWNED RIGHTS.
 Authors:
 Diego Mandelli (email: Diego.Mandelli@inl.gov)
 Congjian Wang (email: Congjian.Wang@inl.gov)
-
-Contributors:
 David Morton (email: david.morton@northwestern.edu)
 Ivilina T Popova (email: ip12@txstate.edu)
 Stephen Hess (email: shess@jensenhughes.com)
