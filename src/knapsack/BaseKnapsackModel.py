@@ -40,10 +40,10 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     """
     ExternalModelPluginBase.__init__(self)
     
-    self.capacity = None
-    self.penaltyFactor = 1.0
-    self.outcome = None
-    self.choiceValue = None
+    self.capacity      = None    # capacity value of the knapsack
+    self.penaltyFactor = 1.0     # penalty factor that is used when the capacity constraint is not satisfied
+    self.outcome       = None    # ID of the variable which indicates is the chosen elements satisfy the capacity constraint
+    self.choiceValue   = None    # ID of the variable which indicates the sum of the values of the chosen project elements
     
   def _readMoreXML(self, container, xmlNode):
     """
@@ -114,8 +114,3 @@ class BaseKnapsackModel(ExternalModelPluginBase):
       container.__dict__[self.outcome] = 1.
       
     container.__dict__[self.choiceValue] = totalValue
-        
-      
-      
-      
-      
