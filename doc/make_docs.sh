@@ -16,4 +16,3 @@ make
 #sqa manual
 cd $SCRIPT_DIR/sqa/
 ./make_docs.sh
-
