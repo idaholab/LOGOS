@@ -23,6 +23,8 @@
                  validity,totalValue</variables>
       <capacity>10</capacity>
       <penaltyFactor>1.</penaltyFactor>
+      <outcome>validity</outcome>
+      <choiceValue>totalValue</choiceValue>
       <map value='element1Val'  cost='element1Cost' >element1Status</map>
       <map value='element2Val'  cost='element2Cost' >element2Status</map>
       <map value='element3Val'  cost='element3Cost' >element3Status</map>

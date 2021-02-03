@@ -42,7 +42,8 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     
     self.capacity = None
     self.penaltyFactor = 1.0
-    
+    self.outcome = None
+    self.choiceValue = None
     
   def _readMoreXML(self, container, xmlNode):
     """
@@ -58,6 +59,10 @@ class BaseKnapsackModel(ExternalModelPluginBase):
         self.capacity = float(child.text.strip())
       elif child.tag == 'penaltyFactor':
         self.penaltyFactor = float(child.text.strip())
+      elif child.tag == 'outcome':
+        self.outcome = child.text.strip()
+      elif child.tag == 'choiceValue':
+        self.choiceValue = child.text.strip()
       elif child.tag == 'map':
         container.mapping[child.text.strip()] = [child.get('value'),child.get('cost')]
       elif child.tag == 'variables':
@@ -79,7 +84,8 @@ class BaseKnapsackModel(ExternalModelPluginBase):
       
   def run(self, container, Inputs):
     """
-      This method provides []
+      This method calculates the sum of the chosen element values and check if the capacity constraint
+      is satisfied
       @ In, container, object, self-like object where all the variables can be stored
       @ In, Inputs, dict, dictionary of inputs from RAVEN
     """   
@@ -103,11 +109,11 @@ class BaseKnapsackModel(ExternalModelPluginBase):
         raise IOError("BaseKnapsackModel: variable " + str(key) + " is not found in the set of input variables.")
       
     if self.capacity>=0:
-      container.__dict__['validity'] =  0.
+      container.__dict__[self.outcome] =  0.
     else:
-      container.__dict__['validity'] = 1.
+      container.__dict__[self.outcome] = 1.
       
-    container.__dict__['totalValue'] = totalValue
+    container.__dict__[self.choiceValue] = totalValue
         
       
       
