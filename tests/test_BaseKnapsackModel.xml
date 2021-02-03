@@ -3,20 +3,20 @@
     <name>[]</name>
     <author>mandd</author>
     <created>2021-02-02</created>
-    <classesTested>Models.ExternalModel.[]</classesTested>
+    <classesTested>Models.ExternalModel.LOGOS.BaseKnapsackModel</classesTested>
     <description>
        This test is aimed to test the BaseKnapsackModel class
     </description>
   </TestInfo>
 
   <RunInfo>
-    <WorkingDir>mkpModel</WorkingDir>
+    <WorkingDir>BaseKnapsack</WorkingDir>
     <Sequence>Run</Sequence>
     <batchSize>1</batchSize>
   </RunInfo>
 
   <Models>
-    <ExternalModel name="genInput" ModuleToLoad="availableCapitals" subType="">
+    <ExternalModel name="knapsack" subType="LOGOS.BaseKnapsackModel">
       <variables>element1Status,element2Status,element3Status,element4Status,element5Status,
                  element1Val,element2Val,element3Val,element4Val,element5Val,
                  element1Cost,element2Cost,element3Cost,element4Cost,element5Cost,
@@ -58,24 +58,24 @@
         <distribution>bernDistrib</distribution>
       </variable>
       
-      <constant name="element1Val"></constant>
-      <constant name="element2Val"></constant>
-      <constant name="element3Val"></constant>
-      <constant name="element4Val"></constant>
-      <constant name="element5Val"></constant>
+      <constant name="element1Val">1</constant>
+      <constant name="element2Val">2</constant>
+      <constant name="element3Val">3</constant>
+      <constant name="element4Val">4</constant>
+      <constant name="element5Val">5</constant>
       
-      <constant name="element1Cost"></constant>
-      <constant name="element2Cost"></constant>
-      <constant name="element3Cost"></constant>
-      <constant name="element4Cost"></constant>
-      <constant name="element5Cost"></constant>
+      <constant name="element1Cost">1</constant>
+      <constant name="element2Cost">1</constant>
+      <constant name="element3Cost">1</constant>
+      <constant name="element4Cost">1</constant>
+      <constant name="element5Cost">1</constant>
     </MonteCarlo>
   </Samplers>
 
   <Steps>
     <MultiRun name="Run">
       <Input    class="DataObjects"  type="PointSet"        >dummyPS</Input>
-      <Model    class="Models"       type="EnsembleModel"   >ensemble</Model>
+      <Model    class="Models"       type="ExternalModel"   >knapsack</Model>
       <Sampler  class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
       <Output   class="DataObjects"  type="PointSet"        >dataPS</Output>
       <Output   class="OutStreams"   type="Print"           >PrintPS</Output>
@@ -83,23 +83,25 @@
   </Steps>
 
   <OutStreams>
-    <Print name="Print_DS">
+    <Print name="PrintPS">
       <type>csv</type>
-      <source>mkp_ds</source>
+      <source>dataPS</source>
       <what>input,output</what>
     </Print>
   </OutStreams>
 
   <DataObjects>
     <PointSet name="dummyPS">
-      <Input>x, y</Input>
+      <Input>element1Status,element2Status,element3Status,element4Status,element5Status,
+             element1Val,element2Val,element3Val,element4Val,element5Val,
+             element1Cost,element2Cost,element3Cost,element4Cost,element5Cost</Input>
       <Output>OutputPlaceHolder</Output>
     </PointSet>
     <PointSet name="dataPS">
       <Input>element1Status,element2Status,element3Status,element4Status,element5Status,
              element1Val,element2Val,element3Val,element4Val,element5Val,
              element1Cost,element2Cost,element3Cost,element4Cost,element5Cost</Input>
-      <Output>validity,totalValue,totalCost</Output>
+      <Output>validity,totalValue</Output>
     </PointSet>
   </DataObjects>
 

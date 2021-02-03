@@ -56,7 +56,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     for child in xmlNode:
       if child.tag == 'capacity':
         self.capacity = float(child.text.strip())
-      if child.tag == 'penaltyFactor':
+      elif child.tag == 'penaltyFactor':
         self.penaltyFactor = float(child.text.strip())
       elif child.tag == 'map':
         container.mapping[child.text.strip()] = [child.get('value'),child.get('cost')]
@@ -83,18 +83,18 @@ class BaseKnapsackModel(ExternalModelPluginBase):
       @ In, container, object, self-like object where all the variables can be stored
       @ In, Inputs, dict, dictionary of inputs from RAVEN
     """   
-    self.planValue = 0.0  
+    totalValue = 0.0  
     
     for key in container.mapping:
       if key in Inputs.keys() and Inputs[key] in [0.0,1.0]:
         if Inputs[key] == 1.0:
-          testValue = self.capacity - container.mapping[key][1]
+          testValue = self.capacity - Inputs[container.mapping[key][1]]
           if testValue > 0:
             self.capacity   = self.capacity   - Inputs[container.mapping[key][1]]
-            self.totalValue = self.totalValue + Inputs[container.mapping[key][0]]
+            totalValue = totalValue + Inputs[container.mapping[key][0]]
           else:
             self.capacity   = self.capacity   - Inputs[container.mapping[key][1]]
-            self.totalValue = self.totalValue - Inputs[container.mapping[key][0]] * self.penaltyFactor
+            totalValue = totalValue - Inputs[container.mapping[key][0]] * self.penaltyFactor
         elif Inputs[key] == 0.0:
           pass
         else:
@@ -103,9 +103,11 @@ class BaseKnapsackModel(ExternalModelPluginBase):
         raise IOError("BaseKnapsackModel: variable " + str(key) + " is not found in the set of input variables.")
       
     if self.capacity>=0:
-      self.validity =  0.
+      container.__dict__['validity'] =  0.
     else:
-      self.validity = 1.
+      container.__dict__['validity'] = 1.
+      
+    container.__dict__['totalValue'] = totalValue
         
       
       
