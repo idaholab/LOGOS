@@ -1,6 +1,6 @@
 <Simulation verbosity="debug">
   <TestInfo>
-    <name>[]</name>
+    <name>framework.BaseKnapsack</name>
     <author>mandd</author>
     <created>2021-02-02</created>
     <classesTested>Models.ExternalModel.LOGOS.BaseKnapsackModel</classesTested>

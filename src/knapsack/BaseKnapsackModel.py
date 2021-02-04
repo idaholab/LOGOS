@@ -1,16 +1,5 @@
-# Copyright 2017 Battelle Energy Alliance, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Copyright 2020, Battelle Energy Alliance, LLC
+# ALL RIGHTS RESERVED
 """
 Created on February 2, 2021
 
@@ -82,26 +71,26 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     pass      
       
       
-  def run(self, container, Inputs):
+  def run(self, container, inputDict):
     """
       This method calculates the sum of the chosen element values and check if the capacity constraint
       is satisfied
       @ In, container, object, self-like object where all the variables can be stored
-      @ In, Inputs, dict, dictionary of inputs from RAVEN
+      @ In, inputDict, dict, dictionary of inputs from RAVEN
     """   
     totalValue = 0.0  
     
     for key in container.mapping:
-      if key in Inputs.keys() and Inputs[key] in [0.0,1.0]:
-        if Inputs[key] == 1.0:
-          testValue = self.capacity - Inputs[container.mapping[key][1]]
-          if testValue > 0:
-            self.capacity   = self.capacity   - Inputs[container.mapping[key][1]]
-            totalValue = totalValue + Inputs[container.mapping[key][0]]
+      if key in inputDict.keys() and inputDict[key] in [0.0,1.0]:
+        if inputDict[key] == 1.0:
+          testValue = self.capacity - inputDict[container.mapping[key][1]]
+          if testValue >= 0:
+            self.capacity   = self.capacity   - inputDict[container.mapping[key][1]]
+            totalValue = totalValue + inputDict[container.mapping[key][0]]
           else:
-            self.capacity   = self.capacity   - Inputs[container.mapping[key][1]]
-            totalValue = totalValue - Inputs[container.mapping[key][0]] * self.penaltyFactor
-        elif Inputs[key] == 0.0:
+            self.capacity   = self.capacity   - inputDict[container.mapping[key][1]]
+            totalValue = totalValue - inputDict[container.mapping[key][0]] * self.penaltyFactor
+        elif inputDict[key] == 0.0:
           pass
         else:
           raise IOError("BaseKnapsackModel: variable " + str(key) + " does not have a 0/1 value.")
