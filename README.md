@@ -1,5 +1,6 @@
 # Logos: Operation Optimization Toolkit
 
+
 LOGOS is a software package which contains a set of discrete optimization models
 that can be employed for capital budgeting optimization problems. More specifically,
 provided a set of items (characterized by cost and reward values) and constraints,
