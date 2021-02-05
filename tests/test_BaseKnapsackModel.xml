@@ -1,0 +1,110 @@
+<Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.BaseKnapsack</name>
+    <author>mandd</author>
+    <created>2021-02-02</created>
+    <classesTested>Models.ExternalModel.LOGOS.BaseKnapsackModel</classesTested>
+    <description>
+       This test is aimed to test the BaseKnapsackModel class
+    </description>
+  </TestInfo>
+
+  <RunInfo>
+    <WorkingDir>BaseKnapsack</WorkingDir>
+    <Sequence>Run</Sequence>
+    <batchSize>1</batchSize>
+  </RunInfo>
+
+  <Models>
+    <ExternalModel name="knapsack" subType="LOGOS.BaseKnapsackModel">
+      <variables>element1Status,element2Status,element3Status,element4Status,element5Status,
+                 element1Val,element2Val,element3Val,element4Val,element5Val,
+                 element1Cost,element2Cost,element3Cost,element4Cost,element5Cost,
+                 validity,totalValue</variables>
+      <capacity>10</capacity>
+      <penaltyFactor>1.</penaltyFactor>
+      <outcome>validity</outcome>
+      <choiceValue>totalValue</choiceValue>
+      <map value='element1Val'  cost='element1Cost' >element1Status</map>
+      <map value='element2Val'  cost='element2Cost' >element2Status</map>
+      <map value='element3Val'  cost='element3Cost' >element3Status</map>
+      <map value='element4Val'  cost='element4Cost' >element4Status</map>
+      <map value='element5Val'  cost='element5Cost' >element5Status</map>
+    </ExternalModel>
+  </Models>
+
+  <Distributions>
+    <Bernoulli name="bernDistrib">
+      <p>0.5</p>
+    </Bernoulli>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="MC_external">
+      <samplerInit>
+        <limit>10</limit>
+      </samplerInit>
+      <variable name="element1Status">
+        <distribution>bernDistrib</distribution>
+      </variable>
+      <variable name="element2Status">
+        <distribution>bernDistrib</distribution>
+      </variable>
+      <variable name="element3Status">
+        <distribution>bernDistrib</distribution>
+      </variable>
+      <variable name="element4Status">
+        <distribution>bernDistrib</distribution>
+      </variable>
+      <variable name="element5Status">
+        <distribution>bernDistrib</distribution>
+      </variable>
+      
+      <constant name="element1Val">1</constant>
+      <constant name="element2Val">2</constant>
+      <constant name="element3Val">3</constant>
+      <constant name="element4Val">4</constant>
+      <constant name="element5Val">5</constant>
+      
+      <constant name="element1Cost">1</constant>
+      <constant name="element2Cost">1</constant>
+      <constant name="element3Cost">1</constant>
+      <constant name="element4Cost">1</constant>
+      <constant name="element5Cost">1</constant>
+    </MonteCarlo>
+  </Samplers>
+
+  <Steps>
+    <MultiRun name="Run">
+      <Input    class="DataObjects"  type="PointSet"        >dummyPS</Input>
+      <Model    class="Models"       type="ExternalModel"   >knapsack</Model>
+      <Sampler  class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
+      <Output   class="DataObjects"  type="PointSet"        >dataPS</Output>
+      <Output   class="OutStreams"   type="Print"           >PrintPS</Output>
+    </MultiRun>
+  </Steps>
+
+  <OutStreams>
+    <Print name="PrintPS">
+      <type>csv</type>
+      <source>dataPS</source>
+      <what>input,output</what>
+    </Print>
+  </OutStreams>
+
+  <DataObjects>
+    <PointSet name="dummyPS">
+      <Input>element1Status,element2Status,element3Status,element4Status,element5Status,
+             element1Val,element2Val,element3Val,element4Val,element5Val,
+             element1Cost,element2Cost,element3Cost,element4Cost,element5Cost</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="dataPS">
+      <Input>element1Status,element2Status,element3Status,element4Status,element5Status,
+             element1Val,element2Val,element3Val,element4Val,element5Val,
+             element1Cost,element2Cost,element3Cost,element4Cost,element5Cost</Input>
+      <Output>validity,totalValue</Output>
+    </PointSet>
+  </DataObjects>
+
+</Simulation>
