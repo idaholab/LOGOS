@@ -64,4 +64,3 @@ This software is licensed under the terms you may find in the file named "LICENS
 By contributing to this software project, you are agreeing to the following terms and conditions for your contributions:
 
 You agree your contributions are submitted under the Apache license. You represent you are authorized to make the contributions and grant the license. If your employer has rights to intellectual property that includes your contributions, you represent that you have received permission to make contributions and grant the required license on behalf of that employer.
-
