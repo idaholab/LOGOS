@@ -1,0 +1,50 @@
+\section{Knapsack Models}
+\label{sec:KnapsackModels}
+
+LOGOS contains a set of Knapsack models that can be used coupled with RAVEN when 
+the desired optimization problem requires the use of specific models to generate
+knapsack required parameters.
+More specifically, all these models would be contained in a RAVEN EnsembleModel 
+and RAVEN optimization methods (e.g., Genetic Algorithms) would be employed to 
+find the optimal solution.
+
+
+\subsection{BaseKnapsackModel}
+\label{subsec:BaseKnapsackModel}
+This model considers the classical Knapsack Model characterized by a set of elements 
+that can be chosen (or not).
+The goal is to maximize the sum of the chosen element values provided that the sum of 
+element cost values satisfy capacity constraint (specified in the \xmlNode{capacity} node).
+
+The ID of the variables that represent cost, value, and choice of each element are 
+indicated in the \xmlNode{map} node.
+The model generates two variables:
+\begin{itemize}
+  \item the validity of the chosen solution (specified in the \xmlNode{outcome} node): either 
+        valid (i.e., 0), or invalid (i.e., 1) if the capacity constraint is not satisfied,
+  \item totalValue (specified in the \xmlNode{choiceValue} node): sum of the values of the 
+        chosen elements
+\end{itemize}
+
+When calculating the \xmlNode{choiceValue} variable, if the \xmlNode{capacity} constraint 
+is not satisfied, then the \xmlNode{choiceValue} variable is penalized by multiplying the 
+project value by -\xmlNode{penaltyFactor}.
+
+Example LOGOS input XML for DRO:
+\begin{lstlisting}[style=XML]
+  <Models>
+    <ExternalModel name="knapsack" subType="LOGOS.BaseKnapsackModel">
+      <variables>element1Status,element2Status,element3Status,
+                 element1Val   ,element2Val   ,element3Val,
+                 element1Cost  ,element2Cost  ,element3Cost,
+                 validity      ,totalValue </variables>
+      <capacity>10</capacity>
+      <penaltyFactor>1.</penaltyFactor>
+      <outcome>validity</outcome>
+      <choiceValue>totalValue</choiceValue>
+      <map value='element1Val'  cost='element1Cost' >element1Status</map>
+      <map value='element2Val'  cost='element2Cost' >element2Status</map>
+      <map value='element3Val'  cost='element3Cost' >element3Status</map>
+    </ExternalModel>
+  </Models>
+\end{lstlisting}
