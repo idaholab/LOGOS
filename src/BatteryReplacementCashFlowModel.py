@@ -16,6 +16,7 @@ import sys
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
+from utils import InputData, InputTypes
 from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 #Internal Modules End-----------------------------------------------------------
 
@@ -28,6 +29,46 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
   ############################################################################
   #### Battery Replacement Cash Flow calculations for Nuclear Power Plant ####
   ############################################################################
+  @classmethod
+  def getInputSpecs(cls):
+    """
+      Collects input specifications for this class.
+      @ In, None
+      @ Out, inputSpecs, InputData, input specifications
+    """
+    inputSpecs = InputData.parameterInputFactory('ExternalModel')
+    inputSpecs.addParam('name', param_type=InputTypes.StringType, required=True)
+    inputSpecs.addParam('subType', param_type=InputTypes.StringType, required=True)
+    inputSpecs.addSub(InputData.parameterInputFactory('variables', contentType=InputTypes.StringListType))
+    inputSpecs.addSub(InputData.parameterInputFactory('plannedReplacementCost', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('unplannedReplacementCost', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('batteryFailureProbability', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('numberBatteries', contentType=InputTypes.IntegerType))
+    inputSpecs.addSub(InputData.parameterInputFactory('weeklyInspectionCost', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('batteryIncurringShutdownProbability', contentType=InputTypes.FloatType))
+    unitsCapacity = InputData.parameterInputFactory('unitsCapacity', contentType=InputTypes.FloatType)
+    unitsCapacity.addParam('unit', param_type=InputTypes.StringType, required=False)
+    inputSpecs.addSub(unitsCapacity)
+    inputSpecs.addSub(InputData.parameterInputFactory('unitsDowntimeCost', contentType=InputTypes.FloatType))
+    electricityMarginalCost = InputData.parameterInputFactory('electricityMarginalCost', contentType=InputTypes.FloatType)
+    electricityMarginalCost.addParam('unit', param_type=InputTypes.StringType, required=False)
+    inputSpecs.addSub(electricityMarginalCost)
+    inputSpecs.addSub(InputData.parameterInputFactory('inflation', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('discountRate', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('tax', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('lifetime', contentType=InputTypes.IntegerType))
+    inputSpecs.addSub(InputData.parameterInputFactory('startTime', contentType=InputTypes.IntegerType))
+    inputSpecs.addSub(InputData.parameterInputFactory('startMaintenanceTime', contentType=InputTypes.IntegerType))
+    inputSpecs.addSub(InputData.parameterInputFactory('endMaintenanceTime', contentType=InputTypes.IntegerType))
+    contributionFactor = InputData.parameterInputFactory('contributionFactor')
+    contributionFactor.addSub(InputData.parameterInputFactory('hardSavings', contentType=InputTypes.FloatType))
+    contributionFactor.addSub(InputData.parameterInputFactory('projectedSavings', contentType=InputTypes.FloatType))
+    contributionFactor.addSub(InputData.parameterInputFactory('reliabilitySavings', contentType=InputTypes.FloatType))
+    contributionFactor.addSub(InputData.parameterInputFactory('efficientSavings', contentType=InputTypes.FloatType))
+    contributionFactor.addSub(InputData.parameterInputFactory('otherSavings', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(contributionFactor)
+    return inputSpecs
+
   def _readMoreXML(self, container, xmlNode):
     """
       Method to read the portion of the XML that belongs to this plugin
@@ -56,49 +97,51 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
                           "weeklyInspectionCost", "batteryIncurringShutdownProbability", "unitsCapacity", "unitsDowntimeCost", \
                           "electricityMarginalCost", "inflation", "tax"]
 
-
-    for child in xmlNode:
-      if child.tag.strip() == "variables":
-        # get verbosity if it exists
-        container.variables = [var.strip() for var in child.text.split(",")]
-      elif child.tag.strip() == "plannedReplacementCost":
-        container.plannedReplacementCost = float(child.text)
-      elif child.tag.strip() == "unplannedReplacementCost":
-        container.unplannedReplacementCost = float(child.text)
-      elif child.tag.strip() == "batteryFailureProbability":
-        container.batteryFailureProbability = float(child.text)
-      elif child.tag.strip() == "numberBatteries":
-        container.numberBatteries = int(child.text)
-      elif child.tag.strip() == "weeklyInspectionCost":
-        container.weeklyInspectionCost = float(child.text)
-      elif child.tag.strip() == "batteryIncurringShutdownProbability":
-        container.batteryIncurringShutdownProbability = float(child.text)
-      elif child.tag.strip() == "unitsCapacity":
-        container.unitsCapacity = float(child.text)
-      elif child.tag.strip() == "unitsDowntimeCost":
-        container.unitsDowntimeCost = float(child.text)
-      elif child.tag.strip() == "electricityMarginalCost":
-        container.electricityMarginalCost = float(child.text)
-      elif child.tag.strip() == "inflation":
-        container.inflation = float(child.text)
-      elif child.tag.strip() == "discountRate":
-        container.discountRate = float(child.text)
-      elif child.tag.strip() == "tax":
-        container.tax = float(child.text)
-      elif child.tag.strip() == "lifetime":
-        container.lifetime = int(child.text)
-      elif child.tag.strip() == "startTime":
-        container.startTime = int(child.text)
-      elif child.tag.strip() == "startMaintenanceTime":
-        container.startMaintenanceTime = int(child.text)
-      elif child.tag.strip() == "endMaintenanceTime":
-        container.endMaintenanceTime = int(child.text)
-      elif child.tag.strip() == "contributionFactor":
-        for subElem in child:
-          if subElem.tag.strip() in container.contributionFactor:
-            container.contributionFactor[subElem.tag.strip()] = float(subElem.text)
+    specs = self.getInputSpecs()()
+    specs.parseNode(xmlNode)
+    for node in specs.subparts:
+      name = node.getName()
+      val = node.value
+      if name == "variables":
+        container.variables = val
+      elif name == "plannedReplacementCost":
+        container.plannedReplacementCost = val
+      elif name == "unplannedReplacementCost":
+        container.unplannedReplacementCost = val
+      elif name == "batteryFailureProbability":
+        container.batteryFailureProbability = val
+      elif name == "numberBatteries":
+        container.numberBatteries = val
+      elif name == "weeklyInspectionCost":
+        container.weeklyInspectionCost = val
+      elif name == "batteryIncurringShutdownProbability":
+        container.batteryIncurringShutdownProbability = val
+      elif name == "unitsCapacity":
+        container.unitsCapacity = val
+      elif name == "unitsDowntimeCost":
+        container.unitsDowntimeCost = val
+      elif name == "electricityMarginalCost":
+        container.electricityMarginalCost = val
+      elif name == "inflation":
+        container.inflation = val
+      elif name == "discountRate":
+        container.discountRate = val
+      elif name == "tax":
+        container.tax = val
+      elif name == "lifetime":
+        container.lifetime = val
+      elif name == "startTime":
+        container.startTime = val
+      elif name == "startMaintenanceTime":
+        container.startMaintenanceTime = val
+      elif name == "endMaintenanceTime":
+        container.endMaintenanceTime = val
+      elif name == "contributionFactor":
+        for subElem in node.subparts:
+          if subElem.getName() in container.contributionFactor:
+            container.contributionFactor[subElem.getName()] = subElem.value
           else:
-            print("Node " + child.tag + " is not valid!")
+            print("Node " + subElem.getName() + " is not valid!")
 
   def initialize(self, container,runInfoDict,inputFiles):
     """
@@ -178,22 +221,6 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
       container.cashflows[i] = container.totalSaving[time]
       container.time = np.asarray(container.time)
 
-    # print("Expected Lost Revenue:")
-    # print(container.expectedLostRevenue)
-    # print("Expeced Downtime Cost:")
-    # print(container.expectedDowntimeCost)
-    #
-    # print("Projected Soft Saving:")
-    # print(container.projectedSoftSaving)
-    # print("Reliability Saving:")
-    # print(container.reliabilitySoftSaving)
-    # print("Total Hard Saving:")
-    # print(container.totalHardSaving)
-    # print("Total Soft Saving:")
-    # print(container.totalSoftSaving)
-    # print("Total Saving:")
-    # print(container.cashflows)
-
     # construct cashflow related objects
     #GlobalSettings
     verbosity = 100
@@ -236,6 +263,4 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     # run the calculations, and compute NPV, IRR and PI
     metrics = main.run(settings, [component], {})
     for k, v in metrics.items():
-      print("name: ", k)
-      print("value: ", v)
       setattr(container, k, v)
