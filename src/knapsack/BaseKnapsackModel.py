@@ -111,6 +111,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     """
     totalValue = 0.0
     capacity = inputDict[self.capacity][0]
+    print(capacity)
 
     for key in container.mapping:
       if key in inputDict.keys() and inputDict[key] in [0.0,1.0]:
@@ -120,6 +121,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
             capacity   = capacity   - inputDict[container.mapping[key][1]]
             totalValue = totalValue + inputDict[container.mapping[key][0]]
           else:
+            print('======')
             capacity   = capacity   - inputDict[container.mapping[key][1]]
             totalValue = totalValue - inputDict[container.mapping[key][0]] * self.penaltyFactor
         elif inputDict[key] == 0.0:

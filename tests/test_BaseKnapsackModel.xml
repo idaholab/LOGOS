@@ -66,11 +66,11 @@
       <constant name="element4Val">4</constant>
       <constant name="element5Val">5</constant>
       
-      <constant name="element1Cost">1</constant>
-      <constant name="element2Cost">1</constant>
-      <constant name="element3Cost">1</constant>
-      <constant name="element4Cost">1</constant>
-      <constant name="element5Cost">1</constant>
+      <constant name="element1Cost">2</constant>
+      <constant name="element2Cost">3</constant>
+      <constant name="element3Cost">3</constant>
+      <constant name="element4Cost">4</constant>
+      <constant name="element5Cost">4</constant>
       
       <constant name="capacityID">10</constant>
     </MonteCarlo>
