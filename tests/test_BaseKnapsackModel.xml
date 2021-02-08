@@ -99,6 +99,7 @@
       <Input>element1Status,element2Status,element3Status,element4Status,element5Status,
              element1Val,element2Val,element3Val,element4Val,element5Val,
              element1Cost,element2Cost,element3Cost,element4Cost,element5Cost,
+             capacityID
              </Input>
       <Output>OutputPlaceHolder</Output>
     </PointSet>

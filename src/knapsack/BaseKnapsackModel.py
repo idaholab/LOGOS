@@ -22,6 +22,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
   """
     This class is designed to create the BaseKnapsack model
   """
+  
   @classmethod
   def getInputSpecs(cls):
     """
@@ -109,18 +110,17 @@ class BaseKnapsackModel(ExternalModelPluginBase):
       @ In, inputDict, dict, dictionary of inputs from RAVEN
     """
     totalValue = 0.0
-
-    self.capacity = inputDict[self.capacityID]
+    capacity = inputDict[self.capacity][0]
 
     for key in container.mapping:
       if key in inputDict.keys() and inputDict[key] in [0.0,1.0]:
         if inputDict[key] == 1.0:
-          testValue = self.capacity - inputDict[container.mapping[key][1]]
+          testValue = capacity - inputDict[container.mapping[key][1]]
           if testValue >= 0:
-            self.capacity   = self.capacity   - inputDict[container.mapping[key][1]]
+            capacity   = capacity   - inputDict[container.mapping[key][1]]
             totalValue = totalValue + inputDict[container.mapping[key][0]]
           else:
-            self.capacity   = self.capacity   - inputDict[container.mapping[key][1]]
+            capacity   = capacity   - inputDict[container.mapping[key][1]]
             totalValue = totalValue - inputDict[container.mapping[key][0]] * self.penaltyFactor
         elif inputDict[key] == 0.0:
           pass
@@ -129,7 +129,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
       else:
         raise IOError("BaseKnapsackModel: variable " + str(key) + " is not found in the set of input variables.")
 
-    if self.capacity>=0:
+    if capacity>=0:
       container.__dict__[self.outcome] =  0.
     else:
       container.__dict__[self.outcome] = 1.

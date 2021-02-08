@@ -33,21 +33,21 @@ project value by -\xmlNode{penaltyFactor}.
 
 Example LOGOS input XML for BaseKnapsack Model:
 \begin{lstlisting}[style=XML]
-  <Models>
     <ExternalModel name="knapsack" subType="LOGOS.BaseKnapsackModel">
-      <variables>element1Status,element2Status,element3Status,
-                 element1Val   ,element2Val   ,element3Val,
-                 element1Cost  ,element2Cost  ,element3Cost,
-                 validity      ,totalValue </variables>
-      <capacity>10</capacity>
+      <variables>element1Status,element2Status,element3Status,element4Status,element5Status,
+                 element1Val   ,element2Val   ,element3Val   ,element4Val   ,element5Val,
+                 element1Cost  ,element2Cost  ,element3Cost  ,element4Cost,element5Cost,
+                 validity,totalValue,capacityID</variables>
+      <capacity>capacityID</capacity>
       <penaltyFactor>1.</penaltyFactor>
       <outcome>validity</outcome>
       <choiceValue>totalValue</choiceValue>
       <map value='element1Val'  cost='element1Cost' >element1Status</map>
       <map value='element2Val'  cost='element2Cost' >element2Status</map>
       <map value='element3Val'  cost='element3Cost' >element3Status</map>
+      <map value='element4Val'  cost='element4Cost' >element4Status</map>
+      <map value='element5Val'  cost='element5Cost' >element5Status</map>
     </ExternalModel>
-  </Models>
 \end{lstlisting}
 
 
