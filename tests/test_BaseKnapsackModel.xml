@@ -18,10 +18,10 @@
   <Models>
     <ExternalModel name="knapsack" subType="LOGOS.BaseKnapsackModel">
       <variables>element1Status,element2Status,element3Status,element4Status,element5Status,
-                 element1Val,element2Val,element3Val,element4Val,element5Val,
-                 element1Cost,element2Cost,element3Cost,element4Cost,element5Cost,
-                 validity,totalValue</variables>
-      <capacity>10</capacity>
+                 element1Val   ,element2Val   ,element3Val   ,element4Val   ,element5Val,
+                 element1Cost  ,element2Cost  ,element3Cost  ,element4Cost,element5Cost,
+                 validity,totalValue,capacityID</variables>
+      <capacity>capacityID</capacity>
       <penaltyFactor>1.</penaltyFactor>
       <outcome>validity</outcome>
       <choiceValue>totalValue</choiceValue>
@@ -71,6 +71,8 @@
       <constant name="element3Cost">1</constant>
       <constant name="element4Cost">1</constant>
       <constant name="element5Cost">1</constant>
+      
+      <constant name="capacityID">10</constant>
     </MonteCarlo>
   </Samplers>
 
@@ -96,13 +98,15 @@
     <PointSet name="dummyPS">
       <Input>element1Status,element2Status,element3Status,element4Status,element5Status,
              element1Val,element2Val,element3Val,element4Val,element5Val,
-             element1Cost,element2Cost,element3Cost,element4Cost,element5Cost</Input>
+             element1Cost,element2Cost,element3Cost,element4Cost,element5Cost,
+             </Input>
       <Output>OutputPlaceHolder</Output>
     </PointSet>
     <PointSet name="dataPS">
       <Input>element1Status,element2Status,element3Status,element4Status,element5Status,
              element1Val,element2Val,element3Val,element4Val,element5Val,
-             element1Cost,element2Cost,element3Cost,element4Cost,element5Cost</Input>
+             element1Cost,element2Cost,element3Cost,element4Cost,element5Cost,
+             capacityID</Input>
       <Output>validity,totalValue</Output>
     </PointSet>
   </DataObjects>

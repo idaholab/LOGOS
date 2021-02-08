@@ -9,12 +9,13 @@ and RAVEN optimization methods (e.g., Genetic Algorithms) would be employed to
 find the optimal solution.
 
 
-\subsection{BaseKnapsackModel}
+\subsection{BaseKnapsack Model}
 \label{subsec:BaseKnapsackModel}
 This model considers the classical Knapsack Model characterized by a set of elements 
 that can be chosen (or not).
 The goal is to maximize the sum of the chosen element values provided that the sum of 
-element cost values satisfy capacity constraint (specified in the \xmlNode{capacity} node).
+element cost values satisfy capacity constraint (specified in the variable defined 
+in the \xmlNode{capacity} node).
 
 The ID of the variables that represent cost, value, and choice of each element are 
 indicated in the \xmlNode{map} node.
@@ -30,7 +31,7 @@ When calculating the \xmlNode{choiceValue} variable, if the \xmlNode{capacity} c
 is not satisfied, then the \xmlNode{choiceValue} variable is penalized by multiplying the 
 project value by -\xmlNode{penaltyFactor}.
 
-Example LOGOS input XML for DRO:
+Example LOGOS input XML for BaseKnapsack Model:
 \begin{lstlisting}[style=XML]
   <Models>
     <ExternalModel name="knapsack" subType="LOGOS.BaseKnapsackModel">
@@ -45,6 +46,54 @@ Example LOGOS input XML for DRO:
       <map value='element1Val'  cost='element1Cost' >element1Status</map>
       <map value='element2Val'  cost='element2Cost' >element2Status</map>
       <map value='element3Val'  cost='element3Cost' >element3Status</map>
+    </ExternalModel>
+  </Models>
+\end{lstlisting}
+
+
+\subsection{MultipleKnapsack Model}
+\label{subsec:MultipleKnapsackModel}
+This model considers the Multiple Knapsack Model characterized by a set of elements 
+that can be chosen (or not) over a set of multiple knapsacks.
+The goal is to maximize the sum of the chosen element values provided that the sum of 
+element cost values satisfy capacity constraints of each knapsack.
+
+The capacity of each knapsack is defined in the \xmlNode{knapsack} node.
+
+The ID of the variables that represent cost, value, and choice of each element are 
+indicated in the \xmlNode{map} node.
+The model generates two variables:
+\begin{itemize}
+  \item the validity of the chosen solution (specified in the \xmlNode{outcome} node): either 
+        valid (i.e., 0), or invalid (i.e., 1) if the capacity constraint is not satisfied,
+  \item totalValue (specified in the \xmlNode{choiceValue} node): sum of the values of the 
+        chosen elements
+\end{itemize}
+
+When calculating the \xmlNode{choiceValue} variable, if the capacity constraints 
+are not satisfied, then the \xmlNode{choiceValue} variable is penalized by multiplying the 
+project value by -\xmlNode{penaltyFactor}.
+
+Example LOGOS input XML for MultipleKnapsack Model:
+\begin{lstlisting}[style=XML]
+  <Models>
+    <ExternalModel name="knapsack" subType="LOGOS.MultipleKnapsackModel">
+      <variables>e1Status,e2Status,e3Status,e4Status,e5Status,
+                 e1Val   ,e2Val   ,e3Val   ,e4Val   ,e5Val,
+                 e1Cost  ,e2Cost  ,e3Cost  ,e4Cost  ,e5Cost,
+                 validity,totalValue,
+                 K1_cap,K2_cap,K3_cap</variables>
+      <knapsack ID='1'>K1_cap</knapsack>
+      <knapsack ID='2'>K2_cap</knapsack>
+      <knapsack ID='3'>K3_cap</knapsack>
+      <penaltyFactor>1.</penaltyFactor>
+      <outcome>validity</outcome>
+      <choiceValue>totalValue</choiceValue>
+      <map value='e1Val'  cost='e1Cost' >e1Status</map>
+      <map value='e2Val'  cost='e2Cost' >e2Status</map>
+      <map value='e3Val'  cost='e3Cost' >e3Status</map>
+      <map value='e4Val'  cost='e4Cost' >e4Status</map>
+      <map value='e5Val'  cost='e5Cost' >e5Status</map>
     </ExternalModel>
   </Models>
 \end{lstlisting}

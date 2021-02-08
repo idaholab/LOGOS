@@ -116,7 +116,7 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
     
     # List of allowed knapsack IDs
     elementAllowedValues = list(map(float, self.knapsackSet.keys()))
-    # Add 0.0 which implies that element has not been assign to any knapsack
+    # Add 0.0 which implies that the element has not been assigned to any knapsack
     elementAllowedValues.append(0.0)
     
     for key in container.mapping:

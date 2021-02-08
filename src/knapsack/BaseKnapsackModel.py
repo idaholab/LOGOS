@@ -45,7 +45,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     
     for child in xmlNode:
       if child.tag == 'capacity':
-        self.capacity = float(child.text.strip())
+        self.capacityID = child.text.strip()
       elif child.tag == 'penaltyFactor':
         self.penaltyFactor = float(child.text.strip())
       elif child.tag == 'outcome':
@@ -79,6 +79,8 @@ class BaseKnapsackModel(ExternalModelPluginBase):
       @ In, inputDict, dict, dictionary of inputs from RAVEN
     """   
     totalValue = 0.0  
+    
+    self.capacity = inputDict[self.capacityID]
     
     for key in container.mapping:
       if key in inputDict.keys() and inputDict[key] in [0.0,1.0]:
