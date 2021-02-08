@@ -22,7 +22,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
   """
     This class is designed to create the BaseKnapsack model
   """
-  
+
   @classmethod
   def getInputSpecs(cls):
     """
