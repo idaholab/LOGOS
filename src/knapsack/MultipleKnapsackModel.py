@@ -14,6 +14,7 @@ import copy
 
 #Internal Modules---------------------------------------------------------------
 from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
+from utils import InputData, InputTypes
 #Internal Modules End-----------------------------------------------------------
 
 
@@ -21,6 +22,33 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
   """
     This class is designed to create the MultipleKnapsack model
   """
+  
+  @classmethod
+  def getInputSpecs(cls):
+    """
+      Collects input specifications for this class.
+      @ In,  None
+      @ Out, inputSpecs, InputData, input specifications
+    """
+    inputSpecs = InputData.parameterInputFactory('ExternalModel')
+    inputSpecs.addParam('name'   , param_type=InputTypes.StringType, required=True)
+    inputSpecs.addParam('subType', param_type=InputTypes.StringType, required=True)
+    
+    inputSpecs.addSub(InputData.parameterInputFactory('penaltyFactor', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('outcome'      , contentType=InputTypes.StringType), required=True)
+    inputSpecs.addSub(InputData.parameterInputFactory('choiceValue'  , contentType=InputTypes.StringType), required=True)
+    
+    knapsack = InputData.parameterInputFactory('knapsack', contentType=InputTypes.StringType)
+    knapsack.addParam('ID', param_type=InputTypes.StringType, required=True)
+    inputSpecs.addSub(knapsack)
+    
+    mapping = InputData.parameterInputFactory('map', contentType=InputTypes.StringType)
+    mapping.addParam('value', param_type=InputTypes.StringType, required=True)
+    mapping.addParam('cost',  param_type=InputTypes.StringType, required=True)
+    inputSpecs.addSub(mapping)
+    
+    return inputSpecs
+    
   def __init__(self):
     """
       Constructor
@@ -80,7 +108,6 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
       @ In, inputDict, dict, dictionary of inputs from RAVEN
     """   
     totalValue = 0.0  
-    print(self.knapsackSet)
     knapsackSetValues={}
     
     # knapsackSetValues is a dictionary in the form {knapsackID: knapsackValue}
@@ -98,22 +125,23 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
           knapsackChosen = str(int(inputDict[key][0]))
           testValue = knapsackSetValues[knapsackChosen] - inputDict[container.mapping[key][1]]
           if testValue >= 0:
-            knapsackSetValues[knapsackChosen] = knapsackSetValues[knapsackChosen] - inputDict[container.mapping[key][1]]
+            knapsackSetValues[knapsackChosen] = knapsackSetValues[knapsackChosen] - inputDict[container.mapping[key][1]][0]
             totalValue = totalValue + inputDict[container.mapping[key][0]]
           else:
-            knapsackSetValues[knapsackChosen] = knapsackSetValues[knapsackChosen] - inputDict[container.mapping[key][1]]
+            knapsackSetValues[knapsackChosen] = knapsackSetValues[knapsackChosen] - inputDict[container.mapping[key][1]][0]
             totalValue = totalValue - inputDict[container.mapping[key][0]] * self.penaltyFactor
       else:
         raise IOError("MultipleKnapsackModel: variable " + str(key) + " is either not found in the set of input variables or its values is not allowed.")
       
     numberUnsatConstraints = 0.0
-    for knapsack in container.mapping.keys():    
-      if knapsackSetValues[knapsackChosen] < 0:
+    for knapsack in knapsackSetValues.keys():    
+      if knapsackSetValues[knapsack] < 0:
         numberUnsatConstraints = numberUnsatConstraints + 1.
     
     if numberUnsatConstraints > 0.0 :
       container.__dict__[self.outcome] = 1.
     else:
       container.__dict__[self.outcome] = 0.       
-      
+
+    print(knapsackSetValues)      
     container.__dict__[self.choiceValue] = totalValue

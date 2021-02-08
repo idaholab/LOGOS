@@ -8,3 +8,4 @@ Created on Nov. 18, 2019
 from LOGOS.src import CapitalInvestmentModel
 from LOGOS.src import BatteryReplacementCashFlowModel
 from LOGOS.src import IncrementalNPV
+from LOGOS.src.knapsack import MultipleKnapsackModel
