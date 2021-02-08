@@ -67,6 +67,11 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     contributionFactor.addSub(InputData.parameterInputFactory('efficientSavings', contentType=InputTypes.FloatType))
     contributionFactor.addSub(InputData.parameterInputFactory('otherSavings', contentType=InputTypes.FloatType))
     inputSpecs.addSub(contributionFactor)
+    alias = InputData.parameterInputFactory('alias', contentType=InputTypes.StringType)
+    alias.addParam('variable', param_type=InputTypes.StringType, required=True)
+    alias.addParam('type', param_type=InputTypes.StringType, required=True)
+    inputSpecs.addSub(alias)
+
     return inputSpecs
 
   def _readMoreXML(self, container, xmlNode):

@@ -56,6 +56,10 @@ class IncrementalNPV(ExternalModelPluginBase):
     options.addSub(InputData.parameterInputFactory('Td', contentType=InputTypes.IntegerListType))
     options.addSub(InputData.parameterInputFactory('output', contentType=InputTypes.StringListType))
     inputSpecs.addSub(options)
+    alias = InputData.parameterInputFactory('alias', contentType=InputTypes.StringType)
+    alias.addParam('variable', param_type=InputTypes.StringType, required=True)
+    alias.addParam('type', param_type=InputTypes.StringType, required=True)
+    inputSpecs.addSub(alias)
 
     return inputSpecs
 

@@ -41,6 +41,11 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     map.addParam('value', param_type=InputTypes.StringType, required=True)
     map.addParam('cost', param_type=InputTypes.StringType, required=True)
     inputSpecs.addSub(map)
+    alias = InputData.parameterInputFactory('alias', contentType=InputTypes.StringType)
+    alias.addParam('variable', param_type=InputTypes.StringType, required=True)
+    alias.addParam('type', param_type=InputTypes.StringType, required=True)
+    inputSpecs.addSub(alias)
+
     return inputSpecs
 
   def __init__(self):
