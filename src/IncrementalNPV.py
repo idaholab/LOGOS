@@ -16,6 +16,7 @@ import sys
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
+from utils import InputData, InputTypes
 from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 #Internal Modules End-----------------------------------------------------------
 
@@ -28,6 +29,40 @@ class IncrementalNPV(ExternalModelPluginBase):
   ############################################################################
   #### Incremental NPV calculations for Nuclear Power Plant ####
   ############################################################################
+  @classmethod
+  def getInputSpecs(cls):
+    """
+      Collects input specifications for this class.
+      @ In, None
+      @ Out, inputSpecs, InputData, input specifications
+    """
+    inputSpecs = InputData.parameterInputFactory('ExternalModel')
+    inputSpecs.addParam('name', param_type=InputTypes.StringType, required=True)
+    inputSpecs.addParam('subType', param_type=InputTypes.StringType, required=True)
+    inputSpecs.addSub(InputData.parameterInputFactory('variables', contentType=InputTypes.StringListType))
+    inputSpecs.addSub(InputData.parameterInputFactory('Cp', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('Cu', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('fp', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('count', contentType=InputTypes.IntegerType))
+    inputSpecs.addSub(InputData.parameterInputFactory('Cd', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('D', contentType=InputTypes.IntegerType))
+    inputSpecs.addSub(InputData.parameterInputFactory('HardSavings', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('inflation', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('discountRate', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('tax', contentType=InputTypes.FloatType))
+    inputSpecs.addSub(InputData.parameterInputFactory('startTime', contentType=InputTypes.IntegerType))
+    inputSpecs.addSub(InputData.parameterInputFactory('lifetime', contentType=InputTypes.IntegerType))
+    options = InputData.parameterInputFactory('options')
+    options.addSub(InputData.parameterInputFactory('Td', contentType=InputTypes.IntegerListType))
+    options.addSub(InputData.parameterInputFactory('output', contentType=InputTypes.StringListType))
+    inputSpecs.addSub(options)
+    alias = InputData.parameterInputFactory('alias', contentType=InputTypes.StringType)
+    alias.addParam('variable', param_type=InputTypes.StringType, required=True)
+    alias.addParam('type', param_type=InputTypes.StringType, required=True)
+    inputSpecs.addSub(alias)
+
+    return inputSpecs
+
   def _readMoreXML(self, container, xmlNode):
     """
       Method to read the portion of the XML that belongs to this plugin
@@ -52,41 +87,45 @@ class IncrementalNPV(ExternalModelPluginBase):
     container.paramList = ["cp", "cu", "fp", "cd", "inflation", "tax"] # list of params that can be perturbed by raven
     # container.contributionFactor = {"hardSavings":1., "projectedSavings":0.9, "reliabilitySavings":0.8, "efficientSavings":0.65, "otherSavings":0.5}
     self.name = xmlNode.attrib['name']
-    for child in xmlNode:
-      if child.tag.strip() == "variables":
-        container.variables = [var.strip() for var in child.text.split(",")]
-      elif child.tag.strip() == "Cp":
-        container.cp = float(child.text)
-      elif child.tag.strip() == "Cu":
-        container.cu = float(child.text)
-      elif child.tag.strip() == "fp":
-        container.fp = float(child.text)
-      elif child.tag.strip() == "count":
-        container.count = int(child.text)
-      elif child.tag.strip() == "Cd":
-        container.cd = float(child.text)
-      elif child.tag.strip() == "D":
-        container.d = int(child.text)
-      elif child.tag.strip() == "HardSavings":
-        container.hardSavings = float(child.text)
-      elif child.tag.strip() == "options":
-        for elem in child:
-          if elem.tag.strip() == "Td":
-            container.td = list(int(val) for val in elem.text.split(','))
-          elif elem.tag.strip() == "output":
-            container.output = list(val.strip() for val in elem.text.split(','))
+    specs = self.getInputSpecs()()
+    specs.parseNode(xmlNode)
+    for node in specs.subparts:
+      name = node.getName()
+      val = node.value
+      if name == "variables":
+        container.variables = val
+      elif name == "Cp":
+        container.cp = val
+      elif name == "Cu":
+        container.cu = val
+      elif name == "fp":
+        container.fp = val
+      elif name == "count":
+        container.count = val
+      elif name == "Cd":
+        container.cd = val
+      elif name == "D":
+        container.d = val
+      elif name == "HardSavings":
+        container.hardSavings = val
+      elif name == "options":
+        for elem in node.subparts:
+          if elem.getName() == "Td":
+            container.td = elem.value
+          elif elem.getName() == "output":
+            container.output = elem.value
           else:
             raise IOError("Unrecognized input " + elem.tag)
-      elif child.tag.strip() == "inflation":
-        container.inflation = float(child.text)
-      elif child.tag.strip() == "discountRate":
-        container.discountRate = float(child.text)
-      elif child.tag.strip() == "tax":
-        container.tax = float(child.text)
-      elif child.tag.strip() == "lifetime":
-        container.lifetime = int(child.text)
-      elif child.tag.strip() == "startTime":
-        container.startTime = int(child.text)
+      elif name == "inflation":
+        container.inflation = val
+      elif name == "discountRate":
+        container.discountRate = val
+      elif name == "tax":
+        container.tax = val
+      elif name == "lifetime":
+        container.lifetime = val
+      elif name == "startTime":
+        container.startTime = val
 
   def initialize(self, container,runInfoDict,inputFiles):
     """
@@ -205,12 +244,5 @@ class IncrementalNPV(ExternalModelPluginBase):
         val = v + container.hardSavings
         print("value: ", val)
         setattr(container, container.output[i], val)
-      # Debug
-      # print("Expeced Lost Revenue:")
-      # print(container.expectedLostRevenue)
-      # print("Expected Replacement Cost:")
-      # print(container.expectedReplacementCost)
-      # print("Cashflow:")
-      # print(container.cashflows)
 
     container.time = np.asarray(container.time)
