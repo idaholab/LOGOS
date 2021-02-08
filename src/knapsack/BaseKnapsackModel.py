@@ -107,11 +107,11 @@ class BaseKnapsackModel(ExternalModelPluginBase):
       is satisfied
       @ In, container, object, self-like object where all the variables can be stored
       @ In, inputDict, dict, dictionary of inputs from RAVEN
-    """   
-    totalValue = 0.0  
-    
+    """
+    totalValue = 0.0
+
     self.capacity = inputDict[self.capacityID]
-    
+
     for key in container.mapping:
       if key in inputDict.keys() and inputDict[key] in [0.0,1.0]:
         if inputDict[key] == 1.0:
