@@ -111,18 +111,14 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     """
     totalValue = 0.0
     capacity = inputDict[self.capacity][0]
-    print(capacity)
 
     for key in container.mapping:
       if key in inputDict.keys() and inputDict[key] in [0.0,1.0]:
         if inputDict[key] == 1.0:
-          testValue = capacity - inputDict[container.mapping[key][1]]
-          if testValue >= 0:
-            capacity   = capacity   - inputDict[container.mapping[key][1]]
+          capacity = capacity - inputDict[container.mapping[key][1]][0]
+          if capacity >= 0:
             totalValue = totalValue + inputDict[container.mapping[key][0]]
           else:
-            print('======')
-            capacity   = capacity   - inputDict[container.mapping[key][1]]
             totalValue = totalValue - inputDict[container.mapping[key][0]] * self.penaltyFactor
         elif inputDict[key] == 0.0:
           pass
@@ -130,7 +126,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
           raise IOError("BaseKnapsackModel: variable " + str(key) + " does not have a 0/1 value.")
       else:
         raise IOError("BaseKnapsackModel: variable " + str(key) + " is not found in the set of input variables.")
-
+      
     if capacity>=0:
       container.__dict__[self.outcome] =  0.
     else:

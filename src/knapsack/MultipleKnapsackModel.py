@@ -35,8 +35,8 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
     inputSpecs.addParam('subType', param_type=InputTypes.StringType, required=True)
 
     inputSpecs.addSub(InputData.parameterInputFactory('penaltyFactor', contentType=InputTypes.FloatType))
-    inputSpecs.addSub(InputData.parameterInputFactory('outcome'      , contentType=InputTypes.StringType), required=True)
-    inputSpecs.addSub(InputData.parameterInputFactory('choiceValue'  , contentType=InputTypes.StringType), required=True)
+    inputSpecs.addSub(InputData.parameterInputFactory('outcome'      , contentType=InputTypes.StringType))
+    inputSpecs.addSub(InputData.parameterInputFactory('choiceValue'  , contentType=InputTypes.StringType))
 
     knapsack = InputData.parameterInputFactory('knapsack', contentType=InputTypes.StringType)
     knapsack.addParam('ID', param_type=InputTypes.StringType, required=True)
@@ -46,6 +46,12 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
     mapping.addParam('value', param_type=InputTypes.StringType, required=True)
     mapping.addParam('cost',  param_type=InputTypes.StringType, required=True)
     inputSpecs.addSub(mapping)
+    
+    inputSpecs.addSub(InputData.parameterInputFactory('variables', contentType=InputTypes.StringListType))
+    map = InputData.parameterInputFactory('map', contentType=InputTypes.StringType)
+    map.addParam('value', param_type=InputTypes.StringType, required=True)
+    map.addParam('cost', param_type=InputTypes.StringType, required=True)
+    inputSpecs.addSub(map)
 
     return inputSpecs
 
@@ -71,21 +77,26 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
     container.mapping = {}
     self.knapsackSet  = {}
 
-    for child in xmlNode:
-      if child.tag == 'penaltyFactor':
-        self.penaltyFactor = float(child.text.strip())
-      elif child.tag == 'outcome':
-        self.outcome = child.text.strip()
-      elif child.tag == 'choiceValue':
-        self.choiceValue = child.text.strip()
-      elif child.tag == 'knapsack':
-        self.knapsackSet[child.get('ID')] = child.text.strip()
-      elif child.tag == 'map':
-        container.mapping[child.text.strip()] = [child.get('value'),child.get('cost')]
-      elif child.tag == 'variables':
-        variables = [str(var.strip()) for var in child.text.split(",")]
+    specs = self.getInputSpecs()()
+    specs.parseNode(xmlNode)
+    
+    for node in specs.subparts:
+      name = node.getName()
+      val = node.value
+      if name == 'penaltyFactor':
+        self.penaltyFactor = val
+      elif name == 'outcome':
+        self.outcome = val
+      elif name == 'choiceValue':
+        self.choiceValue = val
+      elif name == 'knapsack':
+        self.knapsackSet[node.parameterValues['ID']] = val
+      elif name == 'map':
+        container.mapping[val] = [node.parameterValues['value'],node.parameterValues['cost']]
+      elif name == 'variables':
+        variables = val
       else:
-        raise IOError("MultipleKnapsackModel: xml node " + str (child.tag) + " is not allowed")
+        raise IOError("MultipleKnapsackModel: xml node " + str(name) + " is not allowed")
 
 
   def initialize(self, container, runInfoDict, inputFiles):
@@ -111,36 +122,34 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
 
     # knapsackSetValues is a dictionary in the form {knapsackID: knapsackValue}
     for knapsack in self.knapsackSet.keys():
-      knapsackSetValues[knapsack] = inputDict[self.knapsackSet[knapsack]][0]
+      if self.knapsackSet[knapsack] in inputDict.keys():
+        knapsackSetValues[knapsack] = inputDict[self.knapsackSet[knapsack]][0]
+      else:
+        raise IOError("MultipleKnapsackModel: variable " + str(self.knapsackSet[knapsack]) + " has not been found in the input dataObject.")
 
     # List of allowed knapsack IDs
     elementAllowedValues = list(map(float, self.knapsackSet.keys()))
     # Add 0.0 which implies that the element has not been assigned to any knapsack
     elementAllowedValues.append(0.0)
+    
+    numberUnsatConstraints = 0.0
 
     for key in container.mapping:
       if key in inputDict.keys() and inputDict[key] in elementAllowedValues:
         if inputDict[key] > 0.0:
           knapsackChosen = str(int(inputDict[key][0]))
-          testValue = knapsackSetValues[knapsackChosen] - inputDict[container.mapping[key][1]]
-          if testValue >= 0:
-            knapsackSetValues[knapsackChosen] = knapsackSetValues[knapsackChosen] - inputDict[container.mapping[key][1]][0]
+          knapsackSetValues[knapsackChosen] = knapsackSetValues[knapsackChosen] - inputDict[container.mapping[key][1]][0]
+          if knapsackSetValues[knapsackChosen] >= 0:            
             totalValue = totalValue + inputDict[container.mapping[key][0]]
           else:
-            knapsackSetValues[knapsackChosen] = knapsackSetValues[knapsackChosen] - inputDict[container.mapping[key][1]][0]
             totalValue = totalValue - inputDict[container.mapping[key][0]] * self.penaltyFactor
+            numberUnsatConstraints = numberUnsatConstraints + 1.
       else:
         raise IOError("MultipleKnapsackModel: variable " + str(key) + " is either not found in the set of input variables or its values is not allowed.")
-
-    numberUnsatConstraints = 0.0
-    for knapsack in knapsackSetValues.keys():
-      if knapsackSetValues[knapsack] < 0:
-        numberUnsatConstraints = numberUnsatConstraints + 1.
 
     if numberUnsatConstraints > 0.0 :
       container.__dict__[self.outcome] = 1.
     else:
       container.__dict__[self.outcome] = 0.
-
-    print(knapsackSetValues)
+      
     container.__dict__[self.choiceValue] = totalValue
