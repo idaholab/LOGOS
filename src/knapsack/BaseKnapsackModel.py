@@ -33,18 +33,18 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     inputSpecs = InputData.parameterInputFactory('ExternalModel')
     inputSpecs.addParam('name', param_type=InputTypes.StringType, required=True)
     inputSpecs.addParam('subType', param_type=InputTypes.StringType, required=True)
-    
+
     inputSpecs.addSub(InputData.parameterInputFactory('capacity', contentType=InputTypes.StringType))
     inputSpecs.addSub(InputData.parameterInputFactory('penaltyFactor', contentType=InputTypes.FloatType))
     inputSpecs.addSub(InputData.parameterInputFactory('outcome', contentType=InputTypes.StringType))
     inputSpecs.addSub(InputData.parameterInputFactory('choiceValue', contentType=InputTypes.StringType))
     inputSpecs.addSub(InputData.parameterInputFactory('variables', contentType=InputTypes.StringListType))
-    
+
     map = InputData.parameterInputFactory('map', contentType=InputTypes.StringType)
     map.addParam('value', param_type=InputTypes.StringType, required=True)
     map.addParam('cost', param_type=InputTypes.StringType, required=True)
     inputSpecs.addSub(map)
-    
+
     alias = InputData.parameterInputFactory('alias', contentType=InputTypes.StringType)
     alias.addParam('variable', param_type=InputTypes.StringType, required=True)
     alias.addParam('type', param_type=InputTypes.StringType, required=True)
