@@ -126,7 +126,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
           raise IOError("BaseKnapsackModel: variable " + str(key) + " does not have a 0/1 value.")
       else:
         raise IOError("BaseKnapsackModel: variable " + str(key) + " is not found in the set of input variables.")
-      
+
     if capacity>=0:
       container.__dict__[self.outcome] =  0.
     else:

@@ -46,7 +46,7 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
     mapping.addParam('value', param_type=InputTypes.StringType, required=True)
     mapping.addParam('cost',  param_type=InputTypes.StringType, required=True)
     inputSpecs.addSub(mapping)
-    
+
     inputSpecs.addSub(InputData.parameterInputFactory('variables', contentType=InputTypes.StringListType))
     map = InputData.parameterInputFactory('map', contentType=InputTypes.StringType)
     map.addParam('value', param_type=InputTypes.StringType, required=True)
@@ -79,7 +79,7 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
 
     specs = self.getInputSpecs()()
     specs.parseNode(xmlNode)
-    
+
     for node in specs.subparts:
       name = node.getName()
       val = node.value
@@ -131,7 +131,7 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
     elementAllowedValues = list(map(float, self.knapsackSet.keys()))
     # Add 0.0 which implies that the element has not been assigned to any knapsack
     elementAllowedValues.append(0.0)
-    
+
     numberUnsatConstraints = 0.0
 
     for key in container.mapping:
@@ -139,7 +139,7 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
         if inputDict[key] > 0.0:
           knapsackChosen = str(int(inputDict[key][0]))
           knapsackSetValues[knapsackChosen] = knapsackSetValues[knapsackChosen] - inputDict[container.mapping[key][1]][0]
-          if knapsackSetValues[knapsackChosen] >= 0:            
+          if knapsackSetValues[knapsackChosen] >= 0:
             totalValue = totalValue + inputDict[container.mapping[key][0]]
           else:
             totalValue = totalValue - inputDict[container.mapping[key][0]] * self.penaltyFactor
@@ -151,5 +151,5 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
       container.__dict__[self.outcome] = 1.
     else:
       container.__dict__[self.outcome] = 0.
-      
+
     container.__dict__[self.choiceValue] = totalValue
