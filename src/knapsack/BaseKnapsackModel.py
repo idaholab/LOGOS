@@ -52,11 +52,11 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     mapping = InputData.parameterInputFactory('map', contentType=InputTypes.StringType)
     mapping.addParam('value', param_type=InputTypes.StringType, required=True)
     mapping.addParam('cost', param_type=InputTypes.StringType, required=True)
-    
+
     alias = InputData.parameterInputFactory('alias', contentType=InputTypes.StringType)
     alias.addParam('variable', param_type=InputTypes.StringType, required=True)
     alias.addParam('type', param_type=InputTypes.StringType, required=True)
-    
+
     inputSpecs.addSub(mapping)
 
     return inputSpecs
@@ -86,7 +86,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
         container.mapping[val] = [node.parameterValues['value'],node.parameterValues['cost']]
       elif name == 'variables':
         variables = val
-        
+
 
   def initialize(self, container, runInfoDict, inputFiles):
     """
