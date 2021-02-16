@@ -7,7 +7,7 @@ Created on February 2, 2021
 """
 
 #External Modules---------------------------------------------------------------
-
+import abc
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
@@ -20,6 +20,18 @@ class BaseKnapsackModel(ExternalModelPluginBase):
   """
     This class is designed to create the base class for the knapsack models
   """
+  def __init__(self):
+    """
+      Constructor
+      @ In, None
+      @ Out, None
+    """
+    ExternalModelPluginBase.__init__(self)
+
+    self.penaltyFactor = 1.0     # penalty factor that is used when the capacity constraint is not satisfied
+    self.outcome       = None    # ID of the variable which indicates if the chosen elements satisfy the capacity constraint
+    self.choiceValue   = None    # ID of the variable which indicates the sum of the values of the chosen project elements
+
 
   @classmethod
   def getInputSpecs(cls):
@@ -40,21 +52,15 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     mapping = InputData.parameterInputFactory('map', contentType=InputTypes.StringType)
     mapping.addParam('value', param_type=InputTypes.StringType, required=True)
     mapping.addParam('cost', param_type=InputTypes.StringType, required=True)
+    
+    alias = InputData.parameterInputFactory('alias', contentType=InputTypes.StringType)
+    alias.addParam('variable', param_type=InputTypes.StringType, required=True)
+    alias.addParam('type', param_type=InputTypes.StringType, required=True)
+    
     inputSpecs.addSub(mapping)
 
     return inputSpecs
 
-  def __init__(self):
-    """
-      Constructor
-      @ In, None
-      @ Out, None
-    """
-    ExternalModelPluginBase.__init__(self)
-
-    self.penaltyFactor = 1.0     # penalty factor that is used when the capacity constraint is not satisfied
-    self.outcome       = None    # ID of the variable which indicates if the chosen elements satisfy the capacity constraint
-    self.choiceValue   = None    # ID of the variable which indicates the sum of the values of the chosen project elements
 
   def _readMoreXML(self, container, xmlNode):
     """
@@ -63,7 +69,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
       @ In, xmlNode, xml.etree.ElementTree.Element, XML node that needs to be read
       @ Out, None
     """
-    container.mapping    = {}
+    container.mapping = {}
 
     specs = self.getInputSpecs()()
     specs.parseNode(xmlNode)
@@ -80,8 +86,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
         container.mapping[val] = [node.parameterValues['value'],node.parameterValues['cost']]
       elif name == 'variables':
         variables = val
-      else:
-        raise IOError("BaseKnapsackModel: xml node " + name + " is not allowed")
+
 
   def initialize(self, container, runInfoDict, inputFiles):
     """
@@ -93,7 +98,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     """
     pass
 
-
+  @abc.abstractmethod
   def run(self, container, inputDict):
     """
       This method calculates the sum of the chosen element values and check if the capacity constraint

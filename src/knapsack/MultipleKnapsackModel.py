@@ -7,9 +7,7 @@ Created on February 7, 2021
 """
 
 #External Modules---------------------------------------------------------------
-import numpy as np
-import math
-import copy
+
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
@@ -48,11 +46,7 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
     inputSpecs.addSub(mapping)
 
     inputSpecs.addSub(InputData.parameterInputFactory('variables', contentType=InputTypes.StringListType))
-    map = InputData.parameterInputFactory('map', contentType=InputTypes.StringType)
-    map.addParam('value', param_type=InputTypes.StringType, required=True)
-    map.addParam('cost', param_type=InputTypes.StringType, required=True)
-    inputSpecs.addSub(map)
-
+    
     return inputSpecs
 
   def __init__(self):
