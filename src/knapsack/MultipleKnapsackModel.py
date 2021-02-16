@@ -39,10 +39,10 @@ class MultipleKnapsackModel(BaseKnapsackModel):
       @ Out, inputSpecs, InputData, input specifications
     """
     inputSpecs= BaseKnapsackModel.getInputSpecs()
-    
+
     knapsack = InputData.parameterInputFactory('knapsack', contentType=InputTypes.StringType)
     knapsack.addParam('ID', param_type=InputTypes.StringType, required=True)
-    inputSpecs.addSub(knapsack)  
+    inputSpecs.addSub(knapsack)
     return inputSpecs
 
 

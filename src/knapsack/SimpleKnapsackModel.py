@@ -21,7 +21,7 @@ class SimpleKnapsackModel(BaseKnapsackModel):
   """
     This class is designed to create the simple Knapsack model
   """
-  
+
   def __init__(self):
     """
       Constructor
@@ -54,14 +54,14 @@ class SimpleKnapsackModel(BaseKnapsackModel):
     BaseKnapsackModel._readMoreXML(self, container, xmlNode)
     specs = self.getInputSpecs()()
     specs.parseNode(xmlNode)
-    
+
     for node in specs.subparts:
       name = node.getName()
       val = node.value
       if name == 'capacity':
         self.capacity = val
 
- 
+
 
   def run(self, container, inputDict):
     """
