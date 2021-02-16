@@ -16,9 +16,9 @@ from utils import InputData, InputTypes
 #Internal Modules End-----------------------------------------------------------
 
 
-class BaseKnapsackModel(ExternalModelPluginBase):
+class SimpleKnapsackModel(ExternalModelPluginBase):
   """
-    This class is designed to create the base class for the knapsack models
+    This class is designed to create the BaseKnapsack model
   """
 
   @classmethod
@@ -32,15 +32,16 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     inputSpecs.addParam('name', param_type=InputTypes.StringType, required=True)
     inputSpecs.addParam('subType', param_type=InputTypes.StringType, required=True)
 
+    inputSpecs.addSub(InputData.parameterInputFactory('capacity', contentType=InputTypes.StringType))
     inputSpecs.addSub(InputData.parameterInputFactory('penaltyFactor', contentType=InputTypes.FloatType))
     inputSpecs.addSub(InputData.parameterInputFactory('outcome', contentType=InputTypes.StringType))
     inputSpecs.addSub(InputData.parameterInputFactory('choiceValue', contentType=InputTypes.StringType))
     inputSpecs.addSub(InputData.parameterInputFactory('variables', contentType=InputTypes.StringListType))
 
-    mapping = InputData.parameterInputFactory('map', contentType=InputTypes.StringType)
-    mapping.addParam('value', param_type=InputTypes.StringType, required=True)
-    mapping.addParam('cost', param_type=InputTypes.StringType, required=True)
-    inputSpecs.addSub(mapping)
+    map = InputData.parameterInputFactory('map', contentType=InputTypes.StringType)
+    map.addParam('value', param_type=InputTypes.StringType, required=True)
+    map.addParam('cost', param_type=InputTypes.StringType, required=True)
+    inputSpecs.addSub(map)
 
     return inputSpecs
 
@@ -52,6 +53,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     """
     ExternalModelPluginBase.__init__(self)
 
+    self.capacity      = None    # capacity value of the knapsack
     self.penaltyFactor = 1.0     # penalty factor that is used when the capacity constraint is not satisfied
     self.outcome       = None    # ID of the variable which indicates if the chosen elements satisfy the capacity constraint
     self.choiceValue   = None    # ID of the variable which indicates the sum of the values of the chosen project elements
@@ -70,7 +72,9 @@ class BaseKnapsackModel(ExternalModelPluginBase):
     for node in specs.subparts:
       name = node.getName()
       val = node.value
-      if name == 'penaltyFactor':
+      if name == 'capacity':
+        self.capacity = val
+      elif name == 'penaltyFactor':
         self.penaltyFactor = val
       elif name == 'outcome':
         self.outcome = val
@@ -101,4 +105,27 @@ class BaseKnapsackModel(ExternalModelPluginBase):
       @ In, container, object, self-like object where all the variables can be stored
       @ In, inputDict, dict, dictionary of inputs from RAVEN
     """
-    pass
+    totalValue = 0.0
+    capacity = inputDict[self.capacity][0]
+
+    for key in container.mapping:
+      if key in inputDict.keys() and inputDict[key] in [0.0,1.0]:
+        if inputDict[key] == 1.0:
+          capacity = capacity - inputDict[container.mapping[key][1]][0]
+          if capacity >= 0:
+            totalValue = totalValue + inputDict[container.mapping[key][0]]
+          else:
+            totalValue = totalValue - inputDict[container.mapping[key][0]] * self.penaltyFactor
+        elif inputDict[key] == 0.0:
+          pass
+        else:
+          raise IOError("BaseKnapsackModel: variable " + str(key) + " does not have a 0/1 value.")
+      else:
+        raise IOError("BaseKnapsackModel: variable " + str(key) + " is not found in the set of input variables.")
+
+    if capacity>=0:
+      container.__dict__[self.outcome] =  0.
+    else:
+      container.__dict__[self.outcome] = 1.
+
+    container.__dict__[self.choiceValue] = totalValue
