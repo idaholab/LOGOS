@@ -9,8 +9,8 @@ and RAVEN optimization methods (e.g., Genetic Algorithms) would be employed to
 find the optimal solution.
 
 
-\subsection{BaseKnapsack Model}
-\label{subsec:BaseKnapsackModel}
+\subsection{Simple Knapsack Model}
+\label{subsec:SimpleKnapsackModel}
 This model considers the classical Knapsack Model characterized by a set of elements 
 that can be chosen (or not).
 The goal is to maximize the sum of the chosen element values provided that the sum of 
@@ -31,9 +31,9 @@ When calculating the \xmlNode{choiceValue} variable, if the \xmlNode{capacity} c
 is not satisfied, then the \xmlNode{choiceValue} variable is penalized by multiplying the 
 project value by -\xmlNode{penaltyFactor}.
 
-Example LOGOS input XML for BaseKnapsack Model:
+Example LOGOS input XML for SimpleKnapsackModel Model:
 \begin{lstlisting}[style=XML]
-    <ExternalModel name="knapsack" subType="LOGOS.BaseKnapsackModel">
+    <ExternalModel name="knapsack" subType="LOGOS.SimpleKnapsackModel">
       <variables>element1Status,element2Status,element3Status,element4Status,element5Status,
                  element1Val   ,element2Val   ,element3Val   ,element4Val   ,element5Val,
                  element1Cost  ,element2Cost  ,element3Cost  ,element4Cost,element5Cost,
