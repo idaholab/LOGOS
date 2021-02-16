@@ -1,0 +1,122 @@
+<Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.MultipleKnapsack</name>
+    <author>mandd</author>
+    <created>2021-02-02</created>
+    <classesTested>Models.ExternalModel.LOGOS.MultipleKnapsackModel</classesTested>
+    <description>
+       This test is aimed to test the MultipleKnapsackModel class
+    </description>
+  </TestInfo>
+
+  <RunInfo>
+    <WorkingDir>MultipleKnapsack</WorkingDir>
+    <Sequence>Run</Sequence>
+    <batchSize>1</batchSize>
+  </RunInfo>
+
+  <Models>
+    <ExternalModel name="knapsack" subType="LOGOS.MultipleKnapsackModel">
+      <variables>e1Status,e2Status,e3Status,e4Status,e5Status,
+                 e1Val   ,e2Val   ,e3Val   ,e4Val   ,e5Val,
+                 e1Cost  ,e2Cost  ,e3Cost  ,e4Cost  ,e5Cost,
+                 validity,totalValue,
+                 K1_cap,K2_cap,K3_cap</variables>
+      <knapsack ID='1'>K1_cap</knapsack>
+      <knapsack ID='2'>K2_cap</knapsack>
+      <knapsack ID='3'>K3_cap</knapsack>
+      <penaltyFactor>-1.</penaltyFactor>
+      <outcome>validity</outcome>
+      <choiceValue>totalValue</choiceValue>
+      <map value='e1Val'  cost='e1Cost' >e1Status</map>
+      <map value='e2Val'  cost='e2Cost' >e2Status</map>
+      <map value='e3Val'  cost='e3Cost' >e3Status</map>
+      <map value='e4Val'  cost='e4Cost' >e4Status</map>
+      <map value='e5Val'  cost='e5Cost' >e5Status</map>
+    </ExternalModel>
+  </Models>
+
+  <Distributions>
+		<Categorical name='categorical'>
+		  <state outcome="0">0.25</state>
+			<state outcome="1">0.25</state>
+			<state outcome="2">0.25</state>
+			<state outcome="3">0.25</state>
+		</Categorical>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="MC_external">
+      <samplerInit>
+        <limit>10</limit>
+      </samplerInit>
+      <variable name="e1Status">
+        <distribution>categorical</distribution>
+      </variable>
+      <variable name="e2Status">
+        <distribution>categorical</distribution>
+      </variable>
+      <variable name="e3Status">
+        <distribution>categorical</distribution>
+      </variable>
+      <variable name="e4Status">
+        <distribution>categorical</distribution>
+      </variable>
+      <variable name="e5Status">
+        <distribution>categorical</distribution>
+      </variable>
+      
+      <constant name="e1Val">1</constant>
+      <constant name="e2Val">2</constant>
+      <constant name="e3Val">3</constant>
+      <constant name="e4Val">4</constant>
+      <constant name="e5Val">5</constant>
+      
+      <constant name="e1Cost">2</constant>
+      <constant name="e2Cost">3</constant>
+      <constant name="e3Cost">3</constant>
+      <constant name="e4Cost">4</constant>
+      <constant name="e5Cost">4</constant>
+      
+      <constant name="K1_cap"      >5</constant>
+      <constant name="K2_cap"      >5</constant>
+      <constant name="K3_cap"      >5</constant>
+    </MonteCarlo>
+  </Samplers>
+
+  <Steps>
+    <MultiRun name="Run">
+      <Input    class="DataObjects"  type="PointSet"        >dummyPS</Input>
+      <Model    class="Models"       type="ExternalModel"   >knapsack</Model>
+      <Sampler  class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
+      <Output   class="DataObjects"  type="PointSet"        >dataPS</Output>
+      <Output   class="OutStreams"   type="Print"           >PrintPS</Output>
+    </MultiRun>
+  </Steps>
+
+  <OutStreams>
+    <Print name="PrintPS">
+      <type>csv</type>
+      <source>dataPS</source>
+      <what>input,output</what>
+    </Print>
+  </OutStreams>
+
+  <DataObjects>
+    <PointSet name="dummyPS">
+      <Input>e1Status,e2Status,e3Status,e4Status,e5Status,
+             e1Val   ,e2Val   ,e3Val   ,e4Val   ,e5Val,
+             e1Cost  ,e2Cost  ,e3Cost  ,e4Cost  ,e5Cost,
+             K1_cap,K2_cap,K3_cap</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="dataPS">
+      <Input>e1Status,e2Status,e3Status,e4Status,e5Status,
+             e1Val   ,e2Val   ,e3Val   ,e4Val   ,e5Val,
+             e1Cost  ,e2Cost  ,e3Cost  ,e4Cost  ,e5Cost,
+             K1_cap,K2_cap,K3_cap</Input>
+      <Output>validity,totalValue</Output>
+    </PointSet>
+  </DataObjects>
+
+</Simulation>

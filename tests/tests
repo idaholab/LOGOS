@@ -43,10 +43,16 @@
   UnorderedCsv = 'IncrementalNPV_options/dumpCostOutput.csv'
  [../]
 
- [./BaseKnapsack]
+ [./SimpleKnapsack]
   type  = 'RavenFramework'
   input = 'test_BaseKnapsackModel.xml'
   UnorderedCsv = 'BaseKnapsack/PrintPS.csv'
+ [../]
+ 
+ [./MultipleKnapsack]
+  type  = 'RavenFramework'
+  input = 'test_MultipleKnapsackModel.xml'
+  UnorderedCsv = 'MultipleKnapsack/PrintPS.csv'
  [../]
  
 []

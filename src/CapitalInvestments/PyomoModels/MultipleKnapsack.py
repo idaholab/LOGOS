@@ -147,7 +147,7 @@ class MultipleKnapsack(KnapsackBase):
     """
     model = KnapsackBase.addVariables(self, model)
     def boundsExpression(model, i, j):
-      """ set the bounds for soluion variable x using lowerBounds and upperBounds"""
+      """ set the bounds for solution variable x using lowerBounds and upperBounds"""
       return (self.lowerBounds[i], self.upperBounds[i])
     model.x = pyomo.Var(model.investments, model.capitals, domain=pyomo.NonNegativeIntegers, bounds=boundsExpression)
     return model
