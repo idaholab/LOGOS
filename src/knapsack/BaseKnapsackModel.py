@@ -86,7 +86,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
         container.mapping[val] = [node.parameterValues['value'],node.parameterValues['cost']]
       elif name == 'variables':
         variables = val
-
+        
 
   def initialize(self, container, runInfoDict, inputFiles):
     """

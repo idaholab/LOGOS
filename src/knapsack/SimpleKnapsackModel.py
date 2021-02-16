@@ -13,7 +13,7 @@ Created on February 2, 2021
 #Internal Modules---------------------------------------------------------------
 from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 from utils import InputData, InputTypes
-from BaseKnapsackModel import BaseKnapsackModel
+from LOGOS.src.knapsack.BaseKnapsackModel import BaseKnapsackModel
 #Internal Modules End-----------------------------------------------------------
 
 
@@ -29,7 +29,7 @@ class SimpleKnapsackModel(BaseKnapsackModel):
       @ Out, None
     """
     BaseKnapsackModel.__init__(self)
-    self.capacity      = None    # capacity value of the knapsack
+    self.capacity = None  # capacity value of the knapsack
 
 
   @classmethod
@@ -39,10 +39,8 @@ class SimpleKnapsackModel(BaseKnapsackModel):
       @ In, None
       @ Out, inputSpecs, InputData, input specifications
     """
-    BaseKnapsackModel.getInputSpecs(self)
-    inputSpecs = InputData.parameterInputFactory('ExternalModel')
+    inputSpecs= BaseKnapsackModel.getInputSpecs()
     inputSpecs.addSub(InputData.parameterInputFactory('capacity', contentType=InputTypes.StringType))
-
     return inputSpecs
 
 
@@ -54,15 +52,15 @@ class SimpleKnapsackModel(BaseKnapsackModel):
       @ Out, None
     """
     BaseKnapsackModel._readMoreXML(self, container, xmlNode)
-    container.mapping = {}
-
     specs = self.getInputSpecs()()
     specs.parseNode(xmlNode)
+    
     for node in specs.subparts:
       name = node.getName()
       val = node.value
       if name == 'capacity':
         self.capacity = val
+
  
 
   def run(self, container, inputDict):
@@ -86,9 +84,9 @@ class SimpleKnapsackModel(BaseKnapsackModel):
         elif inputDict[key] == 0.0:
           pass
         else:
-          raise IOError("BaseKnapsackModel: variable " + str(key) + " does not have a 0/1 value.")
+          raise IOError("SimpleKnapsackModel: variable " + str(key) + " does not have a 0/1 value.")
       else:
-        raise IOError("BaseKnapsackModel: variable " + str(key) + " is not found in the set of input variables.")
+        raise IOError("SimpleKnapsackModel: variable " + str(key) + " is not found in the set of input variables.")
 
     if capacity>=0:
       container.__dict__[self.outcome] =  0.

@@ -13,13 +13,23 @@ Created on February 7, 2021
 #Internal Modules---------------------------------------------------------------
 from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 from utils import InputData, InputTypes
+from LOGOS.src.knapsack.BaseKnapsackModel import BaseKnapsackModel
 #Internal Modules End-----------------------------------------------------------
 
 
-class MultipleKnapsackModel(ExternalModelPluginBase):
+class MultipleKnapsackModel(BaseKnapsackModel):
   """
     This class is designed to create the MultipleKnapsack model
   """
+
+  def __init__(self):
+    """
+      Constructor
+      @ In, None
+      @ Out, None
+    """
+    BaseKnapsackModel.__init__(self)
+    self.knapsackSet  = {}
 
   @classmethod
   def getInputSpecs(cls):
@@ -28,38 +38,13 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
       @ In,  None
       @ Out, inputSpecs, InputData, input specifications
     """
-    inputSpecs = InputData.parameterInputFactory('ExternalModel')
-    inputSpecs.addParam('name'   , param_type=InputTypes.StringType, required=True)
-    inputSpecs.addParam('subType', param_type=InputTypes.StringType, required=True)
-
-    inputSpecs.addSub(InputData.parameterInputFactory('penaltyFactor', contentType=InputTypes.FloatType))
-    inputSpecs.addSub(InputData.parameterInputFactory('outcome'      , contentType=InputTypes.StringType))
-    inputSpecs.addSub(InputData.parameterInputFactory('choiceValue'  , contentType=InputTypes.StringType))
-
+    inputSpecs= BaseKnapsackModel.getInputSpecs()
+    
     knapsack = InputData.parameterInputFactory('knapsack', contentType=InputTypes.StringType)
     knapsack.addParam('ID', param_type=InputTypes.StringType, required=True)
-    inputSpecs.addSub(knapsack)
-
-    mapping = InputData.parameterInputFactory('map', contentType=InputTypes.StringType)
-    mapping.addParam('value', param_type=InputTypes.StringType, required=True)
-    mapping.addParam('cost',  param_type=InputTypes.StringType, required=True)
-    inputSpecs.addSub(mapping)
-
-    inputSpecs.addSub(InputData.parameterInputFactory('variables', contentType=InputTypes.StringListType))
-    
+    inputSpecs.addSub(knapsack)  
     return inputSpecs
 
-  def __init__(self):
-    """
-      Constructor
-      @ In, None
-      @ Out, None
-    """
-    ExternalModelPluginBase.__init__(self)
-
-    self.penaltyFactor = 1.0     # penalty factor that is used when the capacity constraint is not satisfied
-    self.outcome       = None    # ID of the variable which indicates if the chosen elements satisfy the capacity constraint
-    self.choiceValue   = None    # ID of the variable which indicates the sum of the values of the chosen project elements
 
   def _readMoreXML(self, container, xmlNode):
     """
@@ -68,40 +53,15 @@ class MultipleKnapsackModel(ExternalModelPluginBase):
       @ In, xmlNode, xml.etree.ElementTree.Element, XML node that needs to be read
       @ Out, None
     """
-    container.mapping = {}
-    self.knapsackSet  = {}
-
+    BaseKnapsackModel._readMoreXML(self, container, xmlNode)
     specs = self.getInputSpecs()()
     specs.parseNode(xmlNode)
 
     for node in specs.subparts:
       name = node.getName()
       val = node.value
-      if name == 'penaltyFactor':
-        self.penaltyFactor = val
-      elif name == 'outcome':
-        self.outcome = val
-      elif name == 'choiceValue':
-        self.choiceValue = val
-      elif name == 'knapsack':
+      if name == 'knapsack':
         self.knapsackSet[node.parameterValues['ID']] = val
-      elif name == 'map':
-        container.mapping[val] = [node.parameterValues['value'],node.parameterValues['cost']]
-      elif name == 'variables':
-        variables = val
-      else:
-        raise IOError("MultipleKnapsackModel: xml node " + str(name) + " is not allowed")
-
-
-  def initialize(self, container, runInfoDict, inputFiles):
-    """
-      Method to initialize the MultipleKnapsack model
-      @ In, container, object, self-like object where all the variables can be stored
-      @ In, runInfoDict, dict, dictionary containing all the RunInfo parameters (XML node <RunInfo>)
-      @ In, inputFiles, list, list of input files (if any)
-      @ Out, None
-    """
-    pass
 
 
   def run(self, container, inputDict):
