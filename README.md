@@ -1,3 +1,5 @@
+![LOGOS Logo](.doc/logos/LOGOS.png)
+
 # Logos: Operation Optimization Toolkit
 
 LOGOS is a software package which contains a set of discrete optimization models
@@ -19,7 +21,7 @@ code to propagate data uncertainties and analyze the generated data
 - Deterministic Optimization
 - Stochastic Optimization
 - Distributionally Robust Optimization
-- Conditional Value-at-Risk Optimization 
+- Conditional Value-at-Risk Optimization
 
 ### Problems that can be solved by this package:
 - Deterministic Capital Budgeting
