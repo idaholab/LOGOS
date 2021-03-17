@@ -1,4 +1,4 @@
-![LOGOS Logo](.doc/logos/LOGOS.png)
+![LOGOS Logo](./doc/logos/LOGOS.png)
 
 # Logos: Operation Optimization Toolkit
 
