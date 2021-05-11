@@ -4,9 +4,6 @@
   Author:  C. Wang and D. Mandelli
   Date  :  07/12/2019
 """
-from __future__ import division, print_function , unicode_literals, absolute_import
-import warnings
-warnings.simplefilter('default', DeprecationWarning)
 
 #External Modules---------------------------------------------------------------
 import numpy as np
@@ -17,7 +14,7 @@ import sys
 
 #Internal Modules---------------------------------------------------------------
 from utils import InputData, InputTypes
-from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
+from PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 #Internal Modules End-----------------------------------------------------------
 
 #TEAL CashFlow modules----------------------------------------------------------
