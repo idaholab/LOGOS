@@ -4,11 +4,6 @@
   Created on April. 30, 2019
   @author: wangc, mandd
 """
-#for future compatibility with Python 3--------------------------------------------------------------
-from __future__ import division, print_function, unicode_literals, absolute_import
-import warnings
-warnings.simplefilter('default',DeprecationWarning)
-#End compatibility block for Python 3----------------------------------------------------------------
 
 #External Modules------------------------------------------------------------------------------------
 import os
@@ -25,7 +20,7 @@ from LOGOS.src.CapitalInvestments.investment_utils import inputReader
 #Internal Modules End--------------------------------------------------------------------------------
 
 try:
-  from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
+  from PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 except:
   raise IOError("ERROR (Initialization): RAVEN needs to be installed in order to use this External Model!'")
 

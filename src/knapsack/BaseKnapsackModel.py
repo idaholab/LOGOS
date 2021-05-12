@@ -11,7 +11,7 @@ import abc
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
-from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
+from PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 from utils import InputData, InputTypes
 #Internal Modules End-----------------------------------------------------------
 

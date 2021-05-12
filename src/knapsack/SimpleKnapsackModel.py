@@ -11,7 +11,7 @@ Created on February 2, 2021
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
-from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
+from PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 from utils import InputData, InputTypes
 from LOGOS.src.knapsack.BaseKnapsackModel import BaseKnapsackModel
 #Internal Modules End-----------------------------------------------------------
