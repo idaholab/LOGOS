@@ -16,7 +16,12 @@ import sys
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
+<<<<<<< Updated upstream
 from PluginsBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
+=======
+from utils import InputData, InputTypes
+from PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
+>>>>>>> Stashed changes
 #Internal Modules End-----------------------------------------------------------
 
 #TEAL CashFlow modules----------------------------------------------------------
