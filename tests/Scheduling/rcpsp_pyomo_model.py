@@ -3,7 +3,7 @@ from pyomo.core import *
 from pyomo.environ import *
 from pyomo.opt import SolverFactory
 # opt = SolverFactory("glpk")
-opt = SolverFactory("cbc")
+opt = SolverFactory("glpk")
 # model = ConcreteModel()
 model = AbstractModel()
 
@@ -44,7 +44,7 @@ def resourcesConstraint(model, r, t):
 model.resourcesConstraint = Constraint(model.Rm, model.T, rule=resourcesConstraint)
 
 # Create a model instance and optimize
-instance = model.create_instance('inputData_J60.dat')
+instance = model.create_instance('inputData_J10.dat')
 instance.pprint()
 results = opt.solve(instance, tee=True)
 
