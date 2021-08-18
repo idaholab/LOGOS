@@ -25,14 +25,16 @@ import pyomo.environ as pyomo
 
 #Internal Modules------------------------------------------------------------------------------------
 try:
-  from LOGOS.src.CapitalInvestments.PyomoModels.ModelBase import ModelBase
+  from LOGOS.src.CapitalInvestments.PyomoModels.PySPBase import PySPBase
+  from LOGOS.src.CapitalInvestments.investment_utils import investmentUtils as utils
 except ImportError:
-  from .ModelBase import ModelBase
+  from .PySPBase import PySPBase
+  from CapitalInvestments.investment_utils import investmentUtils as utils
 #Internal Modules End--------------------------------------------------------------------------------
 
 logger = logging.getLogger(__name__)
 
-class KnapsackBase(ModelBase):
+class KnapsackBase(PySPBase):
   """
     Base class for methods used to solving knapsack problem
   """
@@ -42,7 +44,9 @@ class KnapsackBase(ModelBase):
       @ In, None
       @ Out, None
     """
-    ModelBase.__init__(self)
+    super().__init__()
+    self.mandatory = None # regulatory mandated projects
+    self.nonSelection = False   # options DoNothing should be included for each projects if True, otherwise should not be included
 
   def initialize(self, initDict):
     """
@@ -57,7 +61,7 @@ class KnapsackBase(ModelBase):
         }
       @ Out, None
     """
-    ModelBase.initialize(self, initDict)
+    super().initialize(initDict)
     ## update lower and upper bounds for variables
     indices = list(self.sets['investments'])
     self.lowerBounds = self.setBounds(self.lowerBounds, indices, 'lowerBounds')
@@ -89,7 +93,21 @@ class KnapsackBase(ModelBase):
       @ In, None
       @ Out, None
     """
-    ModelBase.setScenarioData(self)
+    super().setScenarioData()
+
+  def setSettings(self):
+    """
+      Method to process the settings of pyomo solver
+      @ In, None
+      @ Out, None
+    """
+    super().setSettings()
+    self.nonSelection = utils.convertStringToBool(self.settings.pop('nonSelection', 'False'))
+    mandatory = self.settings.pop('mandatory',None)
+    if mandatory is not None:
+      self.mandatory = utils.convertNodeTextToList(mandatory)
+      if not set(self.mandatory).issubset(self.sets['investments']):
+        raise IOError('"mandatory" list should be a subset of "investments"!')
 
   def generateModelInputData(self):
     """
@@ -245,7 +263,7 @@ class KnapsackBase(ModelBase):
       @ In, stsolver, instance, pyomo stochastic programming solver instance
       @ Out, None
     """
-    ModelBase.printScenarioSolution(self, stsolver)
+    super().printScenarioSolution(stsolver)
     self.collectPriorityOutputs(stsolver.root_Var_solution())
     obj = stsolver.root_E_obj()
     logger.info("Expecatation of NPV take over scenarios = %16.4f" %(obj))
@@ -256,7 +274,7 @@ class KnapsackBase(ModelBase):
       @ In, filename, string, filename of output file
       @ Out, None
     """
-    ModelBase.writeOutput(self,filename)
+    super().writeOutput(filename)
 
   @staticmethod
   def computeFirstStageCost(model):
@@ -380,7 +398,7 @@ class KnapsackBase(ModelBase):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model = ModelBase.addAdditionalSets(self, model)
+    model = super().addAdditionalSets(model)
     return model
 
   def addAdditionalParams(self, model):
@@ -389,7 +407,7 @@ class KnapsackBase(ModelBase):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model = ModelBase.addAdditionalParams(self, model)
+    model = super().addAdditionalParams(model)
     return model
 
   def addExpressions(self, model):
@@ -398,7 +416,7 @@ class KnapsackBase(ModelBase):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model = ModelBase.addExpressions(self, model)
+    model = super().addExpressions(model)
     model.firstStageCost = pyomo.Expression(rule=self.computeFirstStageCost)
     model.secondStageCost = pyomo.Expression(rule=self.computeSecondStageCost)
     return model
@@ -409,7 +427,7 @@ class KnapsackBase(ModelBase):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model = ModelBase.addAdditionalConstraints(self, model)
+    model = super().addAdditionalConstraints(model)
     return model
 
   def createModel(self):
@@ -418,7 +436,7 @@ class KnapsackBase(ModelBase):
       @ In, None
       @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
-    model = ModelBase.createModel(self)
+    model = super().createModel()
     return model
 
   def pysp_scenario_tree_model_callback(self):
@@ -442,5 +460,5 @@ class KnapsackBase(ModelBase):
       @ In, model, instance, pyomo optimization model
       @ Out, outputDict, dict, dictionary stores the outputs
     """
-    outputDict = ModelBase.printSolution(self, model)
+    outputDict = super().printSolution(model)
     return outputDict
