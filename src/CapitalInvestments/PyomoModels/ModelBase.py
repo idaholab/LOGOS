@@ -5,12 +5,6 @@
   @author: wangc, mandd
 """
 
-#for future compatibility with Python 3--------------------------------------------------------------
-from __future__ import division, print_function, unicode_literals, absolute_import
-import warnings
-warnings.simplefilter('default',DeprecationWarning)
-#End compatibility block for Python 3----------------------------------------------------------------
-
 #External Modules------------------------------------------------------------------------------------
 import abc
 import itertools
@@ -168,7 +162,7 @@ class ModelBase:
       @ Out, None
     """
     logger.info('Initialize Settings of Optimization Instance: %s', self.name)
-    self.sense = pyomo.maximize if self.settings.pop('sense', 'minimize') == 'maximize' else pyomo.maximize
+    self.sense = pyomo.maximize if self.settings.pop('sense', 'minimize') == 'maximize' else pyomo.minimize
     self.solver = self.settings.pop('solver', 'cbc')
     solverOptions = self.settings.pop('solverOptions', {})
     stochSolver = solverOptions.pop('StochSolver', None)
