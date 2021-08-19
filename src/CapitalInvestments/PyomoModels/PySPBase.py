@@ -88,7 +88,6 @@ class PySPBase(ModelBase):
       @ Out, None
     """
     super().initialize(initDict)
-    self.meta = initDict.pop('Meta', None)
     self.uncertainties = initDict.pop('Uncertainties', None)
     if self.uncertainties is not None:
       self.setScenarioData()

@@ -77,6 +77,7 @@ class ModelBase:
     self.sets = initDict.pop('Sets', None)
     self.params = initDict.pop('Parameters', None)
     self.externalConstraints = initDict.pop('ExternalConstraints')
+    self.meta = initDict.pop('Meta', None)
     if self.settings is not None:
       self.setSettings()
 
@@ -112,13 +113,16 @@ class ModelBase:
     """
     pass
 
-  def processInputSets(self, indexName):
+  def processInputSets(self, indexName, required = False):
     """
       Method to generate Set input for pyomo model
       @ In, indexName, str, name of index
+      @ In, required, bool, if True, the indexName is required to be provided through XML input
       @ Out, dict, {None:[indexValue]}
     """
     if indexName not in self.sets.keys():
+      if required:
+        raise IOError('Required node ' + indexName + ' is not found in input file, please specify it under node "Sets"!')
       return {None:['None']}
     else:
       return {None:self.sets[indexName]}

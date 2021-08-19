@@ -36,6 +36,11 @@ class RCPSP(ModelBase):
       @ Out, None
     """
     super().__init__()
+    self.paramsAuxInfo['available_resources'] = {'maxDim':1, 'options':[['None'], ['resources']]}
+    self.paramsAuxInfo['task_resource_consumption'] = {'maxDim':2, 'options':[['tasks', 'resources']]}
+    self.paramsAuxInfo['task_duration'] = {'maxDim':1, 'options':[['tasks']]}
+    self.paramsAuxInfo['task_successors'] = {'maxDim':1, 'options':[['successors']]}
+    self.paramsAuxInfo['makespan_upperbound'] = {'maxDim':1, 'options':[['None']]}
 
   def initialize(self, initDict):
     """
@@ -51,6 +56,13 @@ class RCPSP(ModelBase):
     """
     super().initialize(initDict)
 
+  def setSettings(self):
+    """
+      Method to process the settings of pyomo solver
+      @ In, None
+      @ Out, None
+    """
+    super().setSettings()
 
   def generateModelInputData(self):
     """
@@ -60,17 +72,9 @@ class RCPSP(ModelBase):
     """
     data = {}
     # Generate input set data
-    indexName = 'investments'
-    if indexName not in self.sets.keys():
-      raise IOError('Required node ' + indexName + ' is not found in input file, please specify it under node "Sets"!')
-    else:
-      data[indexName] = {None:self.sets[indexName]}
-    indexList = ['time_periods','capitals','options','resources']
+    indexList = ['tasks', 'resources', 'predecessors', 'successors']
     for indexName in indexList:
-      data[indexName] = self.processInputSets(indexName)
-    # Generate input regulatory mandated data
-    if self.mandatory is not None:
-      data['mandatory'] = {None: self.mandatory}
+      data[indexName] = self.processInputSets(indexName, required=True)
 
     # set the Parameters with the extended indices
     for paramName, paramInfo in self.paramsAuxInfo.items():
@@ -80,11 +84,8 @@ class RCPSP(ModelBase):
         raise IOError('Required node ' + paramName + ' is not found in input file, please specify it under node "Parameters"!')
       else:
         data[paramName] = self.setParameters(paramName, options, maxDim, self.params[paramName])
-
-
     data = {None:data}
     return data
-
 
   def setParameters(self, paramName, options, maxDim, initParamDict):
     """
@@ -101,6 +102,8 @@ class RCPSP(ModelBase):
       indexList = list(self.meta['Parameters'][paramName].keys())
       if len(indexList) == 1 and indexList in options:
         paramDict = initParamDict
+      else:
+        raise IOError(f'Index {indexList} is not valid for parameter {paramName}, available indices are {options}!')
     elif maxDim == 2:
       indexList = list(self.meta['Parameters'][paramName].keys())
       if len(indexList) == 1 and indexList in options:
@@ -110,20 +113,8 @@ class RCPSP(ModelBase):
         paramDict = dict(zip(indices,initParamDict.values()))
       elif len(indexList) == 2 and indexList in options:
         paramDict = initParamDict
-    elif maxDim == 3:
-      indexList = list(self.meta['Parameters'][paramName].keys())
-      if len(indexList) == 1 and indexList in options:
-        indices = [list(initParamDict.keys()), ['None'], ['None']]
-        indices = list(itertools.product(*indices))
-        paramDict = dict(zip(indices,initParamDict.values()))
-      elif len(indexList) == 2 and indexList in options:
-        paramDict = collections.OrderedDict()
-        pos = options.index(indexList)
-        for key, val in initParamDict.items():
-          newKey = key + ('None',) if pos == 1 else (key[0],'None',key[1])
-          paramDict[newKey] = val
-      elif len(indexList) == 3 and indexList in options:
-        paramDict = initParamDict
+      else:
+        raise IOError(f'Index {indexList} is not valid for parameter {paramName}, available indices are {options}!')
     else:
       raise IOError('Not implemented for parameters with indices more than three!')
     if paramDict is None:
@@ -142,7 +133,34 @@ class RCPSP(ModelBase):
     """
     super().writeOutput(filename)
 
+  def initializeModel(self):
+    """
+      Initialize the pyomo model parameters
+      @ In, None
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model = pyomo.AbstractModel()
+    ### Sets
+    model.tasks = pyomo.Set()
+    model.resources = pyomo.Set()
+    model.predecessors = pyomo.Set()
+    model.successors = pyomo.Set(dimen=2)
+    ### Params
+    model.makespan_upperbound = pyomo.Param(within=NonNegativeIntegers)
+    model.available_resources = pyomo.Param(model.resources)
+    model.task_resource_consumption = pyomo.Param(model.tasks, model.resources)
+    model.task_duration = pyomo.Param(model.tasks)
+    model.task_successors = pyomo.Param(model.successors)
+    model.time_periods = pyomo.RangeSet(1, model.makespan_upperbound)
+    return model
 
+  def addVariables(self, model):
+    """
+      Add variables for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
+    model.x = pyomo.Var(model.tasks,model.time_periods, domain=NonNegativeIntegers, bounds=(0,1))
 
   @staticmethod
   def objExpression(model):
@@ -151,20 +169,7 @@ class RCPSP(ModelBase):
       @ In, model, instance, pyomo abstract model instance
       @ Out, objExpression, pyomo.expression, objective expression
     """
-    return
-
-
-
-  def initializeModel(self):
-    """
-      Initialize the pyomo model parameters
-      @ In, None
-      @ Out, model, pyomo model instance, pyomo abstract model
-    """
-    model = pyomo.AbstractModel()
-    model.time_periods = pyomo.Set()
-    model.tasks = pyomo.Set(ordered=True)
-    return model
+    return sum((t-1)*model.x[model.tasks.last(),t] for t in model.time_periods)
 
   def addObjective(self, model):
     """
@@ -175,6 +180,12 @@ class RCPSP(ModelBase):
     model.obj = pyomo.Objective(rule=self.objExpression, sense=self.sense)
     return model
 
+  def addConstraints(self, model):
+    """
+      Add specific constraints for the problem
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ Out, model, pyomo model instance, pyomo abstract model
+    """
 
 
   def addAdditionalSets(self, model):
@@ -221,7 +232,6 @@ class RCPSP(ModelBase):
     """
     model = super().createModel()
     return model
-
 
   def printSolution(self, model):
     """

@@ -123,13 +123,15 @@ def readParameters(root, nodeTag, setsDict):
       if len(contents) == 1:
         paramsDict[paramName] = {'None':contents[0]}
         metaDict[paramName] = {None:1}
-      elif len(contents) == len(setsDict['investments']) and paramName != 'available_capitals':
-        paramsDict[paramName] = collections.OrderedDict(zip(setsDict['investments'], contents))
-        metaDict[paramName] = {'investments':len(setsDict['investments'])}
-      elif 'capitals' in setsDict.keys() and len(contents) == len(setsDict['capitals']):
-        if paramName == 'available_capitals':
-          paramsDict[paramName] = collections.OrderedDict(zip(setsDict['capitals'], contents))
-          metaDict[paramName] = {'capitals':len(setsDict['capitals'])}
+      ## TODO: make the index be required
+      if 'investments' in setsDict:
+        if len(contents) == len(setsDict['investments']) and paramName != 'available_capitals':
+          paramsDict[paramName] = collections.OrderedDict(zip(setsDict['investments'], contents))
+          metaDict[paramName] = {'investments':len(setsDict['investments'])}
+        elif 'capitals' in setsDict.keys() and len(contents) == len(setsDict['capitals']):
+          if paramName == 'available_capitals':
+            paramsDict[paramName] = collections.OrderedDict(zip(setsDict['capitals'], contents))
+            metaDict[paramName] = {'capitals':len(setsDict['capitals'])}
       else:
         raise IOError('Index is not provided, the text in node ' + tag + ' should be scalar!')
   return paramsDict, metaDict
