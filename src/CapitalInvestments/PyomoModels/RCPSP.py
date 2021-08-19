@@ -180,13 +180,34 @@ class RCPSP(ModelBase):
     model.obj = pyomo.Objective(rule=self.objExpression, sense=self.sense)
     return model
 
+  ########### start constraint functions
+  @staticmethod
+  def constraintX(model, j):
+    return sum(model.x[j, t]  for t in model.time_periods) - 1 == 0
+
+  # Constraint on predecessors
+  @staticmethod
+  def predecessorsConstraint(model, jp, p, t):
+    return sum(model.x[model.successors[(jp,p)], tprime] for tprime in model.time_periods if tprime <= t) <= sum(model.x[jp, tprime] for tprime in model.time_periods if tprime <= t - model.task_duration[model.successors[(jp,p)]])
+
+  #Constraint on resources
+  @staticmethod
+  def resourcesConstraint(model, r, t):
+    return (0, sum(sum(model.task_resource_consumption[j, r] * model.x[j, tprime] for tprime in model.time_periods if tprime >= t and tprime <= t + model.task_duration[j]-1) for j in model.tasks), model.available_resources[r])
+
+  ########### end constraint functions
+
+
   def addConstraints(self, model):
     """
       Add specific constraints for the problem
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-
+    model.constraintX = pyomo.Constraint(model.tasks, rule=constraintX)
+    model.resourcesConstraint = pyomo.Constraint(model.resources, model.time_periods, rule=resourcesConstraint)
+    model.predecessorsConstraint = pyomo.Constraint(model.successors, model.time_periods, rule=predecessorsConstraint)
+    return model
 
   def addAdditionalSets(self, model):
     """
