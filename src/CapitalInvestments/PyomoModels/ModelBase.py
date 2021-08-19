@@ -110,17 +110,6 @@ class ModelBase:
     """
     pass
 
-  def processInputSets(self, indexName):
-    """
-      Method to generate Set input for pyomo model
-      @ In, indexName, str, name of index
-      @ Out, dict, {None:[indexValue]}
-    """
-    if indexName not in self.sets.keys():
-      return {None:['None']}
-    else:
-      return {None:self.sets[indexName]}
-
   def createModel(self):
     """
       This method is used to create pyomo model.
