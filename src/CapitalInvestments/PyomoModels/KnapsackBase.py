@@ -149,17 +149,6 @@ class KnapsackBase(PySPBase):
     data = {None:data}
     return data
 
-  def processInputSets(self, indexName):
-    """
-      Method to generate Set input for pyomo model
-      @ In, indexName, str, name of index
-      @ Out, dict, {None:[indexValue]}
-    """
-    if indexName not in self.sets.keys():
-      return {None:['None']}
-    else:
-      return {None:self.sets[indexName]}
-
   def setParameters(self, paramName, options, maxDim, initParamDict):
     """
       Method to generate Parameter input for pyomo model

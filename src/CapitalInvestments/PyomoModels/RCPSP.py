@@ -1,7 +1,7 @@
 # Copyright 2020, Battelle Energy Alliance, LLC
 # ALL RIGHTS RESERVED
 """
-  Created on March. 19, 2019
+  Created on August 18, 2021
   @author: wangc, mandd
 """
 
@@ -11,7 +11,6 @@ import copy
 import itertools
 import numpy as np
 import logging
-import pandas as pd
 import collections
 from ast import literal_eval
 import pyomo.environ as pyomo
@@ -36,7 +35,7 @@ class RCPSP(ModelBase):
       @ In, None
       @ Out, None
     """
-    ModelBase.__init__(self)
+    super().__init__()
 
   def initialize(self, initDict):
     """
@@ -50,11 +49,7 @@ class RCPSP(ModelBase):
         }
       @ Out, None
     """
-    ModelBase.initialize(self, initDict)
-    # ## update lower and upper bounds for variables
-    # indices = list(self.sets['investments'])
-    # self.lowerBounds = self.setBounds(self.lowerBounds, indices, 'lowerBounds')
-    # self.upperBounds = self.setBounds(self.upperBounds, indices, 'upperBounds')
+    super().initialize(initDict)
 
 
   def generateModelInputData(self):
@@ -86,33 +81,10 @@ class RCPSP(ModelBase):
       else:
         data[paramName] = self.setParameters(paramName, options, maxDim, self.params[paramName])
 
-    ## used for DRO model
-    if self.uncertainties is not None and 'DRO' in self.name:
-      # logger.info('Generate additional model inputs for DRO optimization')
-      data['sigma'] = {None:list(self.scenarios['probabilities'].keys())}
-      data['prob'] = copy.copy(self.scenarios['probabilities'])
-      data['epsilon'] = {None:self.epsilon}
-      distData = copy.copy(self.distData[0,:])
-      smIndices = list(self.scenarios['probabilities'].keys())
-      data['dist'] = dict(zip(smIndices,np.ravel(distData)))
-    # used for CVaR model
-    if self.uncertainties is not None and 'CVaR' in self.name:
-      # logger.info('Generate additional model inputs for CVaR optimization')
-      data['_lambda'] = {None: self._lambda}
-      data['alpha'] = {None: self.alpha}
+
     data = {None:data}
     return data
 
-  def processInputSets(self, indexName):
-    """
-      Method to generate Set input for pyomo model
-      @ In, indexName, str, name of index
-      @ Out, dict, {None:[indexValue]}
-    """
-    if indexName not in self.sets.keys():
-      return {None:['None']}
-    else:
-      return {None:self.sets[indexName]}
 
   def setParameters(self, paramName, options, maxDim, initParamDict):
     """
@@ -168,7 +140,7 @@ class RCPSP(ModelBase):
       @ In, filename, string, filename of output file
       @ Out, None
     """
-    ModelBase.writeOutput(self,filename)
+    super().writeOutput(filename)
 
 
 
@@ -211,7 +183,7 @@ class RCPSP(ModelBase):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model = ModelBase.addAdditionalSets(self, model)
+    model = super().addAdditionalSets(model)
     return model
 
   def addAdditionalParams(self, model):
@@ -220,7 +192,7 @@ class RCPSP(ModelBase):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model = ModelBase.addAdditionalParams(self, model)
+    model = super().addAdditionalParams(model)
     return model
 
   def addExpressions(self, model):
@@ -229,7 +201,7 @@ class RCPSP(ModelBase):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model = ModelBase.addExpressions(self, model)
+    model = super().addExpressions(model)
     return model
 
   def addAdditionalConstraints(self, model):
@@ -238,7 +210,7 @@ class RCPSP(ModelBase):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model = ModelBase.addAdditionalConstraints(self, model)
+    model = super().addAdditionalConstraints(model)
     return model
 
   def createModel(self):
@@ -247,7 +219,7 @@ class RCPSP(ModelBase):
       @ In, None
       @ Out, model, pyomo.AbstractModel, abstract pyomo model
     """
-    model = ModelBase.createModel(self)
+    model = super().createModel()
     return model
 
 
@@ -257,5 +229,5 @@ class RCPSP(ModelBase):
       @ In, model, instance, pyomo optimization model
       @ Out, outputDict, dict, dictionary stores the outputs
     """
-    outputDict = ModelBase.printSolution(self, model)
+    outputDict = super().printSolution(model)
     return outputDict

@@ -17,6 +17,8 @@ try:
   from LOGOS.src.CapitalInvestments.PyomoModels.CVaRSKP import CVaRSKP
   from LOGOS.src.CapitalInvestments.PyomoModels.CVaRMKP import CVaRMKP
   from LOGOS.src.CapitalInvestments.PyomoModels.CVaRMCKP import CVaRMCKP
+  # Job scheduling
+  from LOGOS.src.CapitalInvestments.PyomoModels.RCPSP import RCPSP
 except ImportError:
   from .SingleKnapsack import SingleKnapsack
   from .MultipleKnapsack import MultipleKnapsack
@@ -28,6 +30,8 @@ except ImportError:
   from .CVaRSKP import CVaRSKP
   from .CVaRMKP import CVaRMKP
   from .CVaRMCKP import CVaRMCKP
+  # Job scheduling
+  from .RCPSP import RCPSP
 
 """
  Interface Dictionary (factory) (private)
@@ -43,6 +47,7 @@ __interfaceDict['dromkp'                   ] = DROMKP
 __interfaceDict['cvarskp'                  ] = CVaRSKP
 __interfaceDict['cvarmkp'                  ] = CVaRMKP
 __interfaceDict['cvarmckp'                 ] = CVaRMCKP
+__interfaceDict['rcpsp'                    ] = RCPSP
 
 def knownTypes():
   """

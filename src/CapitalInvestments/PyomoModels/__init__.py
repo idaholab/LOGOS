@@ -17,6 +17,9 @@ try:
   from LOGOS.src.CapitalInvestments.PyomoModels.CVaRSKP import CVaRSKP
   from LOGOS.src.CapitalInvestments.PyomoModels.CVaRMKP import CVaRMKP
   from LOGOS.src.CapitalInvestments.PyomoModels.CVaRMCKP import CVaRMCKP
+  # Job scheduling
+  from LOGOS.src.CapitalInvestments.PyomoModels.RCPSP import RCPSP
+
   # Factory
   from LOGOS.src.CapitalInvestments.PyomoModels.Factory import knownTypes, returnInstance, returnClass
 except ImportError:
@@ -31,6 +34,8 @@ except ImportError:
   from .CVaRSKP import CVaRSKP
   from .CVaRMKP import CVaRMKP
   from .CVaRMCKP import CVaRMCKP
+  # Job scheduling
+  from .RCPSP import RCPSP
   # Factory
   from .Factory import knownTypes, returnInstance, returnClass
 
@@ -43,4 +48,5 @@ __all__ = ['SingleKnapsack',
            'DROMKP',
            'CVaRSKP',
            'CVaRMKP',
-           'CVaRMCKP']
+           'CVaRMCKP',
+           'RCPSP']
