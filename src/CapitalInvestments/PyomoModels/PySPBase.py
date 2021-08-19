@@ -100,8 +100,6 @@ class PySPBase(ModelBase):
         for sm, paramDict in self.scenarios['scenario_data'].items():
           i = int(sm.split('_')[-1]) - 1
           paramDict['dist'] = dict(zip(smIndices, np.ravel(distData[i,:])))
-    if self.settings is not None:
-      self.setSettings()
 
   def setScenarioData(self):
     """

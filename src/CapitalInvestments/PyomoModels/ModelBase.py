@@ -77,6 +77,8 @@ class ModelBase:
     self.sets = initDict.pop('Sets', None)
     self.params = initDict.pop('Parameters', None)
     self.externalConstraints = initDict.pop('ExternalConstraints')
+    if self.settings is not None:
+      self.setSettings()
 
   def setSettings(self):
     """
@@ -109,6 +111,17 @@ class ModelBase:
       @ Out, data, dict, input data for pyomo model
     """
     pass
+
+  def processInputSets(self, indexName):
+    """
+      Method to generate Set input for pyomo model
+      @ In, indexName, str, name of index
+      @ Out, dict, {None:[indexValue]}
+    """
+    if indexName not in self.sets.keys():
+      return {None:['None']}
+    else:
+      return {None:self.sets[indexName]}
 
   def createModel(self):
     """
