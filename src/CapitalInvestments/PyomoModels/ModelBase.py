@@ -77,6 +77,8 @@ class ModelBase:
     self.sets = initDict.pop('Sets', None)
     self.params = initDict.pop('Parameters', None)
     self.externalConstraints = initDict.pop('ExternalConstraints')
+    if self.settings is not None:
+      self.setSettings()
 
   def setSettings(self):
     """
