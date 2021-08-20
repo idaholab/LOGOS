@@ -1,0 +1,9 @@
+[Tests]
+
+ [./logos_rcpsp]
+  type  = 'LogosRun'
+  input = 'test_scheduling.xml'
+  UnorderedCsv = 'test_scheduling.csv'
+ [../]
+
+[]
