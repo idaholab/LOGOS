@@ -194,9 +194,7 @@ class RCPSP(ModelBase):
   @staticmethod
   def resourcesConstraint(model, r, t):
     return (0, sum(sum(model.task_resource_consumption[j, r] * model.x[j, tprime] for tprime in model.time_periods if tprime >= t and tprime <= t + model.task_duration[j]-1) for j in model.tasks), model.available_resources[r])
-
   ########### end constraint functions
-
 
   def addConstraints(self, model):
     """
@@ -261,4 +259,13 @@ class RCPSP(ModelBase):
       @ Out, outputDict, dict, dictionary stores the outputs
     """
     outputDict = super().printSolution(model)
+    for var in model.component_objects(pyomo.Var, active=True):
+      for index in var:
+        val = pyomo.value(var[index])
+        outputDict[str(index)] = val
+        if val == 1:
+          msg = "(Task, Scheduled Complete Time): {}".format(index)
+          logger.info(msg)
+    outputDict['MinCompleteTime'] = model.obj()
+    logger.info("Minimum complete time: {}".format(model.obj()))
     return outputDict
