@@ -58,7 +58,6 @@ class PySPBase(ModelBase):
     self.uncertainties = None   # uncertainty info provided by users
     self.scenarios = {}         # dictionary contains scenarios information generated from self.uncertainties
     self.optionalConstraints = {} # dictionary of optional constraints that users can turn on or off, i.e. {consistentConstraintI:True}
-    self.sopts = {} # options for solvers, i.e. self.sopts['threads'] = 4
     self.phopts = {} # options for progressive hedging method
     self.phopts['--output-solver-log'] = None
     self.phopts['--max-iterations'] = 3

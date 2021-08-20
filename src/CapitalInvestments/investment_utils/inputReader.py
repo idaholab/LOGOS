@@ -78,7 +78,7 @@ def readSets(root, nodeTag):
     indices = computeIndices(indexNameList, setsDict)
     if len(indices) != len(setsDict[setName]):
       msg = 'Provided data for node ' + setName + ' with length ' + str(len(setsDict[setName])) \
-      + ' is not consistent with index ' + indexAttribName + ' with length ' + str(len(indices))
+      + ' is not consistent with index ' + str(indexNameList) + ' with length ' + str(len(indices))
       raise IOError(msg)
     requiredIndex = []
     for i, subIndex in enumerate(setsDict[setName]):
@@ -108,7 +108,13 @@ def readParameters(root, nodeTag, setsDict):
   for subnode in params:
     paramName = subnode.tag
     indexAttribName = subnode.get('index')
-    contents = utils.convertNodeTextToFloatList(subnode.text)
+    indexType = subnode.get('type')
+    if indexType == 'str':
+      contents = utils.convertNodeTextToList(subnode.text)
+    elif indexType == 'int':
+      contents = utils.convertNodeTextToIntList(subnode.text)
+    else:
+      contents = utils.convertNodeTextToFloatList(subnode.text)
     if indexAttribName is not None:
       indexNameList = utils.convertNodeTextToList(indexAttribName)
       indexDimList = list(len(setsDict[indexName]) for indexName in indexNameList)
@@ -123,17 +129,18 @@ def readParameters(root, nodeTag, setsDict):
       if len(contents) == 1:
         paramsDict[paramName] = {'None':contents[0]}
         metaDict[paramName] = {None:1}
-      ## TODO: make the index be required
-      if 'investments' in setsDict:
-        if len(contents) == len(setsDict['investments']) and paramName != 'available_capitals':
-          paramsDict[paramName] = collections.OrderedDict(zip(setsDict['investments'], contents))
-          metaDict[paramName] = {'investments':len(setsDict['investments'])}
-        elif 'capitals' in setsDict.keys() and len(contents) == len(setsDict['capitals']):
-          if paramName == 'available_capitals':
-            paramsDict[paramName] = collections.OrderedDict(zip(setsDict['capitals'], contents))
-            metaDict[paramName] = {'capitals':len(setsDict['capitals'])}
       else:
-        raise IOError('Index is not provided, the text in node ' + tag + ' should be scalar!')
+        ## TODO: make the index be required
+        if 'investments' in setsDict:
+          if len(contents) == len(setsDict['investments']) and paramName != 'available_capitals':
+            paramsDict[paramName] = collections.OrderedDict(zip(setsDict['investments'], contents))
+            metaDict[paramName] = {'investments':len(setsDict['investments'])}
+          elif 'capitals' in setsDict.keys() and len(contents) == len(setsDict['capitals']):
+            if paramName == 'available_capitals':
+              paramsDict[paramName] = collections.OrderedDict(zip(setsDict['capitals'], contents))
+              metaDict[paramName] = {'capitals':len(setsDict['capitals'])}
+        else:
+          raise IOError('Index is not provided, the text in node ' + tag + ' should be scalar!')
   return paramsDict, metaDict
 
 def readUncertainties(root, nodeTag, paramsDict):

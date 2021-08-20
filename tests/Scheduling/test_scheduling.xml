@@ -41,12 +41,11 @@
       s1;
       s1;
       s1;
-      s1;
+      s1
     </successors>
   </Sets>
 
   <Parameters>
-    <makespan_upperbound>65</makespan_upperbound>
     <available_resources index='resources'>
       13 13 13 12
     </available_resources>
@@ -62,7 +61,7 @@
       0	0	0	8
       0	6	0	0
       0	0	0	5
-      0	0	0	0 ;
+      0	0	0	0
     </task_resource_consumption>
 
     <task_duration index="tasks">
@@ -80,7 +79,7 @@
       0
     </task_duration>
 
-    <task_successors index='successors'>
+    <task_successors index='successors' type='str'>
       2 3 4
       5
       7
@@ -96,6 +95,7 @@
   </Parameters>
 
   <Settings>
+    <makespan_upperbound>65</makespan_upperbound>
     <solver>cbc</solver>
     <sense>minimize</sense>
     <problem_type>rcpsp</problem_type>

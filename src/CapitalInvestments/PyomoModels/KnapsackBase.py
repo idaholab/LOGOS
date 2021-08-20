@@ -445,3 +445,14 @@ class KnapsackBase(PySPBase):
     """
     outputDict = super().printSolution(model)
     return outputDict
+
+  def writeOutput(self, filename):
+    """
+      Method used to output the optimization results
+      @ In, filename, string, filename of output file
+      @ Out, None
+    """
+    super().writeOutput(filename)
+    df = pd.DataFrame(self.output)
+    df = df.sort_values(by=["MaxNPV"])
+    df.to_csv(filename, index=False)

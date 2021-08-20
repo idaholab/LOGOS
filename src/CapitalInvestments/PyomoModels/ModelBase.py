@@ -9,7 +9,6 @@
 import abc
 import logging
 import copy
-import pandas as pd
 import pyomo.environ as pyomo
 from pyomo.opt import SolverFactory, TerminationCondition
 #External Modules End--------------------------------------------------------------------------------
@@ -47,6 +46,7 @@ class ModelBase:
     self.lowerBounds = None     # lower bounds of solution decision variables
     self.upperBounds = None     # upper bounds of solution decision variables
     self.tee = False            # print the output of the solver if True, otherwise not
+    self.sopts = {} # options for solvers, i.e. self.sopts['threads'] = 4
     self.settings = None        # user provided controls
     self.sets = None            # pyomo required input sets info
     self.params = None          # pyomo required params info
@@ -315,6 +315,4 @@ class ModelBase:
       @ In, filename, string, filename of output file
       @ Out, None
     """
-    df = pd.DataFrame(self.output)
-    df = df.sort_values(by=["MaxNPV"])
-    df.to_csv(filename, index=False)
+    pass

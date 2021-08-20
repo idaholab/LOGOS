@@ -10,6 +10,7 @@ import abc
 import copy
 import itertools
 import numpy as np
+import pandas as pd
 import logging
 import collections
 from ast import literal_eval
@@ -36,11 +37,10 @@ class RCPSP(ModelBase):
       @ Out, None
     """
     super().__init__()
-    self.paramsAuxInfo['available_resources'] = {'maxDim':1, 'options':[['None'], ['resources']]}
+    self.paramsAuxInfo['available_resources'] = {'maxDim':1, 'options':[[None], ['resources']]}
     self.paramsAuxInfo['task_resource_consumption'] = {'maxDim':2, 'options':[['tasks', 'resources']]}
     self.paramsAuxInfo['task_duration'] = {'maxDim':1, 'options':[['tasks']]}
     self.paramsAuxInfo['task_successors'] = {'maxDim':1, 'options':[['successors']]}
-    self.paramsAuxInfo['makespan_upperbound'] = {'maxDim':1, 'options':[['None']]}
 
   def initialize(self, initDict):
     """
@@ -63,6 +63,14 @@ class RCPSP(ModelBase):
       @ Out, None
     """
     super().setSettings()
+    self.makespanUpperbound = self.settings.pop('makespan_upperbound', None)
+    if self.makespanUpperbound is None:
+      raise IOError('makespan_upperbound is required, but it is not provided in <Settings>')
+    else:
+      self.makespanUpperbound = int(self.makespanUpperbound)
+    solverOptions = self.settings.pop('solverOptions', {})
+    self.executable = solverOptions.pop('executable', None)
+    self.sopts.update(solverOptions)
 
   def generateModelInputData(self):
     """
@@ -76,6 +84,7 @@ class RCPSP(ModelBase):
     for indexName in indexList:
       data[indexName] = self.processInputSets(indexName, required=True)
 
+    data['makespan_upperbound'] = {None: self.makespanUpperbound}
     # set the Parameters with the extended indices
     for paramName, paramInfo in self.paramsAuxInfo.items():
       options = paramInfo['options']
@@ -146,7 +155,7 @@ class RCPSP(ModelBase):
     model.predecessors = pyomo.Set()
     model.successors = pyomo.Set(dimen=2)
     ### Params
-    model.makespan_upperbound = pyomo.Param(within=NonNegativeIntegers)
+    model.makespan_upperbound = pyomo.Param(within=pyomo.NonNegativeIntegers)
     model.available_resources = pyomo.Param(model.resources)
     model.task_resource_consumption = pyomo.Param(model.tasks, model.resources)
     model.task_duration = pyomo.Param(model.tasks)
@@ -160,7 +169,8 @@ class RCPSP(ModelBase):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model.x = pyomo.Var(model.tasks,model.time_periods, domain=NonNegativeIntegers, bounds=(0,1))
+    model.x = pyomo.Var(model.tasks,model.time_periods, domain=pyomo.NonNegativeIntegers, bounds=(0,1))
+    return model
 
   @staticmethod
   def objExpression(model):
@@ -188,7 +198,7 @@ class RCPSP(ModelBase):
   # Constraint on predecessors
   @staticmethod
   def predecessorsConstraint(model, jp, p, t):
-    return sum(model.x[model.successors[(jp,p)], tprime] for tprime in model.time_periods if tprime <= t) <= sum(model.x[jp, tprime] for tprime in model.time_periods if tprime <= t - model.task_duration[model.successors[(jp,p)]])
+    return sum(model.x[model.task_successors[(jp,p)], tprime] for tprime in model.time_periods if tprime <= t) <= sum(model.x[jp, tprime] for tprime in model.time_periods if tprime <= t - model.task_duration[model.task_successors[(jp,p)]])
 
   #Constraint on resources
   @staticmethod
@@ -202,9 +212,9 @@ class RCPSP(ModelBase):
       @ In, model, pyomo model instance, pyomo abstract model
       @ Out, model, pyomo model instance, pyomo abstract model
     """
-    model.constraintX = pyomo.Constraint(model.tasks, rule=constraintX)
-    model.resourcesConstraint = pyomo.Constraint(model.resources, model.time_periods, rule=resourcesConstraint)
-    model.predecessorsConstraint = pyomo.Constraint(model.successors, model.time_periods, rule=predecessorsConstraint)
+    model.constraintX = pyomo.Constraint(model.tasks, rule=self.constraintX)
+    model.resourcesConstraint = pyomo.Constraint(model.resources, model.time_periods, rule=self.resourcesConstraint)
+    model.predecessorsConstraint = pyomo.Constraint(model.successors, model.time_periods, rule=self.predecessorsConstraint)
     return model
 
   def addAdditionalSets(self, model):
@@ -269,3 +279,13 @@ class RCPSP(ModelBase):
     outputDict['MinCompleteTime'] = model.obj()
     logger.info("Minimum complete time: {}".format(model.obj()))
     return outputDict
+
+  def writeOutput(self, filename):
+    """
+      Method used to output the optimization results
+      @ In, filename, string, filename of output file
+      @ Out, None
+    """
+    super().writeOutput(filename)
+    df = pd.DataFrame(self.output, index=['index'])
+    df.to_csv(filename, index=False)

@@ -37,6 +37,22 @@ def convertNodeTextToList(nodeText, sep=None):
     listData = list(elem.strip() for elem in nodeText.split(sep))
   return listData
 
+def convertNodeTextToIntList(nodeText, sep=None):
+  """
+    Convert space or comma separated string to list of integers
+    @ In, nodeText, str, string from xml node text
+    @ Out, listData, list, list of integers
+  """
+  listData = None
+  if sep is None:
+    if ',' in nodeText:
+      listData = list(int(elem) for elem in nodeText.split(','))
+    else:
+      listData = list(int(elem) for elem in nodeText.split())
+  else:
+    listData = list(int(elem.strip()) for elem in nodeText.split(sep))
+  return listData
+
 def convertNodeTextToFloatList(nodeText, sep=None):
   """
     Convert space or comma separated string to list of float
@@ -50,7 +66,7 @@ def convertNodeTextToFloatList(nodeText, sep=None):
     else:
       listData = list(float(elem) for elem in nodeText.split())
   else:
-    listData = list(elem.strip() for elem in nodeText.split(sep))
+    listData = list(float(elem.strip()) for elem in nodeText.split(sep))
   return listData
 
 def convertStringToFloat(xmlNode):
