@@ -119,101 +119,128 @@ Example XML:
 \subsection{Parameters}
 \label{subsec:rcpsp_params}
 
-This
+This subsection contains information regarding the XML nodes used to define the
+\xmlNode{Parameters} of the RCPSP optimization model being performed through LOGOS:
+\begin{itemize}
+  \item \xmlNode{available\_resources}, \xmlDesc{comma/space-separated string, required},
+  specifies the available renewable resources. This node accepts the
+  following attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{string, required},
+    specifies the indices of this parameter; keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{resources}.
+  \end{itemize}
+  \item \xmlNode{task\_resource\_consumption}, \xmlDesc{comma/space-separated string, required},
+  specifies the resource consumption for each task. This node accepts the
+  following attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{comma-separated string, required},
+    specifies the indices of this parameter; keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{tasks, resources}.
+  \end{itemize}
+  \item \xmlNode{task\_duration}, \xmlDesc{comma/space-separated string, required},
+  specifies the duration for each task.
+  This node accepts the following attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{string, required},
+    specifies the indices of this parameter; keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{tasks}.
+  \end{itemize}
+  \item \xmlNode{task\_successors}, \xmlDesc{comma/space-separated string, required},
+  specifies the successors for each predecessor.
+  This node accepts the following attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{string, required},
+    specifies the indices of this parameter; keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{successors}.
+    \item \xmlAttr{type}, \xmlDesc{string, optional},
+    specifies the text type of the provided node, i.e., integer, float or string.
+    Valid keywords are \xmlString{int}, \xmlString{float}, or \xmlString{str}.
+    \default{float}
+  \end{itemize}
+\end{itemize}
+
+Example XML:
+\begin{lstlisting}[style=XML]
+<Parameters>
+  <available_resources index='resources'>
+    13 13 13 12
+  </available_resources>
+  <task_resource_consumption index='tasks, resources'>
+    0	0	0	0
+    10	0	0	0
+    0	7	0	0
+    0	9	0	0
+    0	4	0	0
+    0	0	0	6
+    10	0	0	0
+    0	0	6	0
+    0	0	0	8
+    0	6	0	0
+    0	0	0	5
+    0	0	0	0
+  </task_resource_consumption>
+
+  <task_duration index="tasks">
+    0
+    8
+    1
+    10
+    6
+    5
+    8
+    9
+    1
+    9
+    8
+    0
+  </task_duration>
+
+  <task_successors index='successors' type='str'>
+    2 3 4 9
+    5
+    7
+    8
+    6
+    10
+    11
+    10
+    12
+    9
+    12
+  </task_successors>
+</Parameters>
+\end{lstlisting}
 
 \subsection{Settings}
 \label{subsec:rcpsp_settings}
 
-This
-
-
+This subsection contains information regarding the XML nodes used to define the
+\xmlNode{Settings} of the RCPSP optimization model being performed through LOGOS:
+\begin{itemize}
+  \item \xmlNode{problem\_type}, \xmlDesc{string, required parameter}, specifies the type of
+  optimization problem. Currently available type only include \xmlString{rcpsp}.
+  \item \xmlNode{solver}, \xmlDesc{string, optional parameter}, represents available solvers including
+  \xmlNode{cbc} from \url{https://github.com/coin-or/Cbc.git} and \xmlNode{glpk} from
+  \url{https://www.gnu.org/software/glpk/}.
+  \item \xmlNode{sense}, \xmlDesc{string, optional parameter}, specifies \xmlString{minimize}
+  or \xmlString{maximize} for minimization or maximization, respectively.
+  \default{minimize}
+  \item \xmlNode{makespan\_upperbound}, \xmlDesc{integer, required parameter},
+  specifies upper bound of the makespan.
+\end{itemize}
 
 Example LOGOS input XML for RCPSP Model:
 \begin{lstlisting}[style=XML]
 <?xml version="1.0" encoding="UTF-8"?>
 <Logos>
-  <Sets>
-    <tasks>
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
-    </tasks>
-
-    <resources>
-      r1 r2 r3 r4
-    </resources>
-
-    <predecessors>
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
-    </predecessors>
-
-    <successors index='predecessors'>
-      s1 s2 s3 s4;
-      s1;
-      s1;
-      s1;
-      s1;
-      s1;
-      s1;
-      s1;
-      s1;
-      s1;
-      s1
-    </successors>
-  </Sets>
-
-  <Parameters>
-    <available_resources index='resources'>
-      13 13 13 12
-    </available_resources>
-    <task_resource_consumption index='tasks, resources'>
-      0	0	0	0
-      10	0	0	0
-      0	7	0	0
-      0	9	0	0
-      0	4	0	0
-      0	0	0	6
-      10	0	0	0
-      0	0	6	0
-      0	0	0	8
-      0	6	0	0
-      0	0	0	5
-      0	0	0	0
-    </task_resource_consumption>
-
-    <task_duration index="tasks">
-      0
-      8
-      1
-      10
-      6
-      5
-      8
-      9
-      1
-      9
-      8
-      0
-    </task_duration>
-
-    <task_successors index='successors' type='str'>
-      2 3 4 9
-      5
-      7
-      8
-      6
-      10
-      11
-      10
-      12
-      9
-      12
-    </task_successors>
-  </Parameters>
-
+  ...
   <Settings>
     <makespan_upperbound>65</makespan_upperbound>
     <solver>cbc</solver>
     <sense>minimize</sense>
     <problem_type>rcpsp</problem_type>
   </Settings>
+  ...
 </Logos>
 \end{lstlisting}
