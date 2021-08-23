@@ -54,6 +54,80 @@ x_{jt} & \mbox{1 if job $j$ completes in period $t$; 0 otherwise} \hspace*{4.0in
 \end{eqnarray}
 \end{subequations}
 
+The RCPSP model must consists the following modeling components: \xmlNode{Sets},
+\xmlNode{Parameters}, and \xmlNode{Settings}. Each of these components is illustrated
+in the following sections.
+
+\subsection{Sets}
+\label{subsec:rcpsp_sets}
+
+This subsection contains information regarding the XML nodes used to define the
+\xmlNode{Sets} of the RCPSP model being performed through LOGOS.
+\xmlNode{Sets} specifies a collection of data, possibly including
+numeric data (e.g. real or integer values) as well as symbolic data (e.g. strings)
+typically used to specify the valid indices for indexed components.
+\nb Numeric data provided in \xmlNode{Sets} would be treated as strings.
+\xmlNode{Sets} accepts the following additional sub-nodes:
+\begin{itemize}
+  \item \xmlNode{tasks}, \xmlDesc{comma/space-separated string, required}, specifies
+  the valid indices for tasks.
+  \item \xmlNode{resources}, \xmlDesc{comma/space-separated string, required},
+  specifies the indices for renewable resources.
+  \item \xmlNode{predecessors}, \xmlDesc{comma/space-separated string, required},
+  specifies the indices for preceding tasks.
+  \item \xmlNode{successors}, \xmlDesc{comma/space-separated string, required},
+  specifies indices for successors.
+  This sub-node accepts the following attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{string, required}, specifies the index dependence.
+    Valid index is \xmlString{predecessors}.
+  \end{itemize}
+\end{itemize}
+
+Example XML:
+\begin{lstlisting}[style=XML]
+<Sets>
+  <tasks>
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+  </tasks>
+
+  <resources>
+    r1 r2 r3 r4
+  </resources>
+
+  <predecessors>
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+  </predecessors>
+
+  <successors index='predecessors'>
+    s1 s2 s3 s4;
+    s1;
+    s1;
+    s1;
+    s1;
+    s1;
+    s1;
+    s1;
+    s1;
+    s1;
+    s1
+  </successors>
+</Sets>
+\end{lstlisting}
+
+
+\subsection{Parameters}
+\label{subsec:rcpsp_params}
+
+This
+
+\subsection{Settings}
+\label{subsec:rcpsp_settings}
+
+This
+
+
+
 Example LOGOS input XML for RCPSP Model:
 \begin{lstlisting}[style=XML]
 <?xml version="1.0" encoding="UTF-8"?>
