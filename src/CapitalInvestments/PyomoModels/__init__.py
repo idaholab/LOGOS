@@ -5,8 +5,6 @@ Created on March. 19, 2019
 @author: wangc, mandd
 """
 
-from __future__ import absolute_import
-
 try:
   from LOGOS.src.CapitalInvestments.PyomoModels.SingleKnapsack import SingleKnapsack
   from LOGOS.src.CapitalInvestments.PyomoModels.MultipleKnapsack import MultipleKnapsack
