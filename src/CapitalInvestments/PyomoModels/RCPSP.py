@@ -193,16 +193,34 @@ class RCPSP(ModelBase):
   ########### start constraint functions
   @staticmethod
   def constraintX(model, j):
+    """
+      Constraint for binary decision variable x
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ In, j, str, job/task index
+    """
     return sum(model.x[j, t]  for t in model.time_periods) - 1 == 0
 
   # Constraint on predecessors
   @staticmethod
   def predecessorsConstraint(model, jp, p, t):
+    """
+      Constraint for predecessors
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ In, jp, str, predecessors job/task index
+      @ In, p, str, successors job/task index
+      @ In, t, str, time index
+    """
     return sum(model.x[model.task_successors[(jp,p)], tprime] for tprime in model.time_periods if tprime <= t) <= sum(model.x[jp, tprime] for tprime in model.time_periods if tprime <= t - model.task_duration[model.task_successors[(jp,p)]])
 
   #Constraint on resources
   @staticmethod
   def resourcesConstraint(model, r, t):
+    """
+      Constraint on resources
+      @ In, model, pyomo model instance, pyomo abstract model
+      @ In, r, str, resource index
+      @ In, t, str, time index
+    """
     return (0, sum(sum(model.task_resource_consumption[j, r] * model.x[j, tprime] for tprime in model.time_periods if tprime >= t and tprime <= t + model.task_duration[j]-1) for j in model.tasks), model.available_resources[r])
   ########### end constraint functions
 
