@@ -1,0 +1,246 @@
+\section{Resource-Constrained Project Scheduling Problem (RCPSP)}
+\label{sec:RCPSP}
+
+In this section, we consider the resource-constrained project scheduling problem (RCPSP).
+In RCPSP, the activities of a project have to be scheduled such that the makespan of the
+project is minimized. Thereby, technological precedence constraints have to be observed
+as well as limited capacities of the renewable resources that are required to accomplish
+the activities. The RCPSP for the scheduling of maintenance and surveillance activities
+of nuclear power plant can be summarized as follows:
+
+We consider a project that consists of a set of $J$ jobs (or tasks). Due to technological
+requirements, precedence relations among some of the jobs enforce that job $j=2,3,\cdots,J$
+may not be started before all its predecessors, denoted by $P_j$, are finished. Here,
+$j=1$ indexes an artificial job with zero duration, which precedes all jobs that can
+start at time zero, and  $j=J$ indexes an artificial final job, again with zero duration,
+which represents the end of the project. Executing job $j$ takes $d_j$ time periods and
+is supported by a set, $R$, of renewable resources. Consider a horizon with an upper
+bound, $T$, on the project's makespan, i.e., the time at which the final job
+is completed. We assume $K_{r}^{p}$ units of renewable resource $r\in R$, are available
+in time period $t=1,2,\cdots,T$. Job $j$ requires $k_{jr}^{p}$  units of the renewable
+resource, $r\in R$, for each period of the job’s duration, i.e., for time periods
+when the job is in process.
+
+The objective is to find a schedule which minimizes the project’s makespan while
+respecting the constraints imposed by the precedence relations and the limited
+resource availability.
+
+\[
+\begin{array}{ll}
+%%%%%%%%%%%%%% INDICES AND Parameters %%%%%%%%%%%%%%%%
+\multicolumn{2}{l}{\mbox{\em Indexes and parameters:} } \\
+t = 1, 2, \cdots, T & \mbox{time periods, where $T$ is an upper bound on the projects's makespan} \\
+j = 1, 2, \cdots, J & \mbox{jobs, with $j=1$ and $j=J$ denoting artificial jobs} \\
+r\in R & \mbox{set of renewable resources} \\
+d_j & \mbox{duration of job $j$} \\
+K_{r}^{p} & \mbox{number of units of renewable resource $r$ available in period $t$} \\
+k_{jr}^{p} & \mbox{number of units of renewable resource $r$ consumed by job $j$ while in process} \\
+P_j & \mbox{set of immediate predecessors of job j} \\
+\\
+%%%%%%%%%%%%%% Decision Variables %%%%%%%%%%%%%%%%
+\multicolumn{2}{l}{\mbox{\em Decision variables:}} \\
+x_{jt} & \mbox{1 if job $j$ completes in period $t$; 0 otherwise} \hspace*{4.0in}\\
+\end{array}
+\]
+
+\vst \noi {\em Formulation:}
+\begin{subequations}\label{rcpsp_eq}
+\begin{eqnarray}
+&\dst \min &  \dst \sum_{t=1}^{T} (t-1) x_{Jt}  \\
+& s. t.  & \sum_{t=1}^{T} x_{jt} = 1,   j=1, \cdots, J \\
+& & \sum_{t' \le t} x_{jt'} \le \sum_{t' \le t - d_j} x_{it'}, j = 2, \cdots, J; t = 1, \cdots, T; i\in P_j \\
+& & \sum_{j=1}^{J} \sum_{t'=t}^{t+d_j-1} k_{jr}^{p} x_{jt'} \le K_{r}^{p}, r \in R; t=1, \cdots, T \\
+& & x_{jt} \in \{0,1\}, j=1, \cdots, J, t = 1, \cdots, T
+\end{eqnarray}
+\end{subequations}
+
+The RCPSP model must consists the following modeling components: \xmlNode{Sets},
+\xmlNode{Parameters}, and \xmlNode{Settings}. Each of these components is illustrated
+in the following sections.
+
+\subsection{Sets}
+\label{subsec:rcpsp_sets}
+
+This subsection contains information regarding the XML nodes used to define the
+\xmlNode{Sets} of the RCPSP model being performed through LOGOS.
+\xmlNode{Sets} specifies a collection of data, possibly including
+numeric data (e.g. real or integer values) as well as symbolic data (e.g. strings)
+typically used to specify the valid indices for indexed components.
+\nb Numeric data provided in \xmlNode{Sets} would be treated as strings.
+\xmlNode{Sets} accepts the following additional sub-nodes:
+\begin{itemize}
+  \item \xmlNode{tasks}, \xmlDesc{comma/space-separated string, required}, specifies
+  the valid indices for tasks.
+  \item \xmlNode{resources}, \xmlDesc{comma/space-separated string, required},
+  specifies the indices for renewable resources.
+  \item \xmlNode{predecessors}, \xmlDesc{comma/space-separated string, required},
+  specifies the indices for preceding tasks.
+  \item \xmlNode{successors}, \xmlDesc{comma/space-separated string, required},
+  specifies indices for successors.
+  This sub-node accepts the following attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{string, required}, specifies the index dependence.
+    Valid index is \xmlString{predecessors}.
+  \end{itemize}
+\end{itemize}
+
+Example XML:
+\begin{lstlisting}[style=XML]
+<Sets>
+  <tasks>
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+  </tasks>
+
+  <resources>
+    r1 r2 r3 r4
+  </resources>
+
+  <predecessors>
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+  </predecessors>
+
+  <successors index='predecessors'>
+    s1 s2 s3 s4;
+    s1;
+    s1;
+    s1;
+    s1;
+    s1;
+    s1;
+    s1;
+    s1;
+    s1;
+    s1
+  </successors>
+</Sets>
+\end{lstlisting}
+
+
+\subsection{Parameters}
+\label{subsec:rcpsp_params}
+
+This subsection contains information regarding the XML nodes used to define the
+\xmlNode{Parameters} of the RCPSP optimization model being performed through LOGOS:
+\begin{itemize}
+  \item \xmlNode{available\_resources}, \xmlDesc{comma/space-separated string, required},
+  specifies the available renewable resources. This node accepts the
+  following attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{string, required},
+    specifies the indices of this parameter; keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{resources}.
+  \end{itemize}
+  \item \xmlNode{task\_resource\_consumption}, \xmlDesc{comma/space-separated string, required},
+  specifies the resource consumption for each task. This node accepts the
+  following attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{comma-separated string, required},
+    specifies the indices of this parameter; keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{tasks, resources}.
+  \end{itemize}
+  \item \xmlNode{task\_duration}, \xmlDesc{comma/space-separated string, required},
+  specifies the duration for each task.
+  This node accepts the following attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{string, required},
+    specifies the indices of this parameter; keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{tasks}.
+  \end{itemize}
+  \item \xmlNode{task\_successors}, \xmlDesc{comma/space-separated string, required},
+  specifies the successors for each predecessor.
+  This node accepts the following attribute:
+  \begin{itemize}
+    \item \xmlAttr{index}, \xmlDesc{string, required},
+    specifies the indices of this parameter; keywords should be predefined in \xmlNode{Sets}.
+    Valid keywords are \xmlString{successors}.
+    \item \xmlAttr{type}, \xmlDesc{string, optional},
+    specifies the text type of the provided node, i.e., integer, float or string.
+    Valid keywords are \xmlString{int}, \xmlString{float}, or \xmlString{str}.
+    \default{float}
+  \end{itemize}
+\end{itemize}
+
+Example XML:
+\begin{lstlisting}[style=XML]
+<Parameters>
+  <available_resources index='resources'>
+    13 13 13 12
+  </available_resources>
+  <task_resource_consumption index='tasks, resources'>
+    0	0	0	0
+    10	0	0	0
+    0	7	0	0
+    0	9	0	0
+    0	4	0	0
+    0	0	0	6
+    10	0	0	0
+    0	0	6	0
+    0	0	0	8
+    0	6	0	0
+    0	0	0	5
+    0	0	0	0
+  </task_resource_consumption>
+
+  <task_duration index="tasks">
+    0
+    8
+    1
+    10
+    6
+    5
+    8
+    9
+    1
+    9
+    8
+    0
+  </task_duration>
+
+  <task_successors index='successors' type='str'>
+    2 3 4 9
+    5
+    7
+    8
+    6
+    10
+    11
+    10
+    12
+    9
+    12
+  </task_successors>
+</Parameters>
+\end{lstlisting}
+
+\subsection{Settings}
+\label{subsec:rcpsp_settings}
+
+This subsection contains information regarding the XML nodes used to define the
+\xmlNode{Settings} of the RCPSP optimization model being performed through LOGOS:
+\begin{itemize}
+  \item \xmlNode{problem\_type}, \xmlDesc{string, required parameter}, specifies the type of
+  optimization problem. Currently available type only include \xmlString{rcpsp}.
+  \item \xmlNode{solver}, \xmlDesc{string, optional parameter}, represents available solvers including
+  \xmlNode{cbc} from \url{https://github.com/coin-or/Cbc.git} and \xmlNode{glpk} from
+  \url{https://www.gnu.org/software/glpk/}.
+  \item \xmlNode{sense}, \xmlDesc{string, optional parameter}, specifies \xmlString{minimize}
+  or \xmlString{maximize} for minimization or maximization, respectively.
+  \default{minimize}
+  \item \xmlNode{makespan\_upperbound}, \xmlDesc{integer, required parameter},
+  specifies upper bound of the makespan.
+\end{itemize}
+
+Example LOGOS input XML for RCPSP Model:
+\begin{lstlisting}[style=XML]
+<?xml version="1.0" encoding="UTF-8"?>
+<Logos>
+  ...
+  <Settings>
+    <makespan_upperbound>65</makespan_upperbound>
+    <solver>cbc</solver>
+    <sense>minimize</sense>
+    <problem_type>rcpsp</problem_type>
+  </Settings>
+  ...
+</Logos>
+\end{lstlisting}

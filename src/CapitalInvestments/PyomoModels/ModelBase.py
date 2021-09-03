@@ -9,7 +9,6 @@
 import abc
 import logging
 import copy
-import pandas as pd
 import pyomo.environ as pyomo
 from pyomo.opt import SolverFactory, TerminationCondition
 #External Modules End--------------------------------------------------------------------------------
@@ -47,6 +46,7 @@ class ModelBase:
     self.lowerBounds = None     # lower bounds of solution decision variables
     self.upperBounds = None     # upper bounds of solution decision variables
     self.tee = False            # print the output of the solver if True, otherwise not
+    self.sopts = {} # options for solvers, i.e. self.sopts['threads'] = 4
     self.settings = None        # user provided controls
     self.sets = None            # pyomo required input sets info
     self.params = None          # pyomo required params info
@@ -77,6 +77,7 @@ class ModelBase:
     self.sets = initDict.pop('Sets', None)
     self.params = initDict.pop('Parameters', None)
     self.externalConstraints = initDict.pop('ExternalConstraints')
+    self.meta = initDict.pop('Meta', None)
     if self.settings is not None:
       self.setSettings()
 
@@ -87,7 +88,7 @@ class ModelBase:
       @ Out, None
     """
     logger.info('Initialize Settings of Optimization Instance: %s', self.name)
-    self.sense = pyomo.maximize if self.settings.pop('sense', 'minimize') == 'maximize' else pyomo.maximize
+    self.sense = pyomo.maximize if self.settings.pop('sense', 'minimize') == 'maximize' else pyomo.minimize
     self.solver = self.settings.pop('solver', 'cbc')
     self.workingDir = self.settings.pop('workingDir')
     self.tee = self.settings.pop('tee',False)
@@ -112,13 +113,16 @@ class ModelBase:
     """
     pass
 
-  def processInputSets(self, indexName):
+  def processInputSets(self, indexName, required = False):
     """
       Method to generate Set input for pyomo model
       @ In, indexName, str, name of index
+      @ In, required, bool, if True, the indexName is required to be provided through XML input
       @ Out, dict, {None:[indexValue]}
     """
     if indexName not in self.sets.keys():
+      if required:
+        raise IOError('Required node ' + indexName + ' is not found in input file, please specify it under node "Sets"!')
       return {None:['None']}
     else:
       return {None:self.sets[indexName]}
@@ -311,6 +315,4 @@ class ModelBase:
       @ In, filename, string, filename of output file
       @ Out, None
     """
-    df = pd.DataFrame(self.output)
-    df = df.sort_values(by=["MaxNPV"])
-    df.to_csv(filename, index=False)
+    pass
