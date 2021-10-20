@@ -265,4 +265,6 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     # run the calculations, and compute NPV, IRR and PI
     metrics = main.run(settings, [component], {})
     for k, v in metrics.items():
+      if k == 'outputType':
+        continue
       setattr(container, k, v)
