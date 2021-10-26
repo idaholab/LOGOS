@@ -234,7 +234,12 @@ class IncrementalNPV(ExternalModelPluginBase):
       # variables = {'TotalSaving':container.cashflows}
       # run the calculations, and compute NPV, IRR and PI
       metrics = main.run(settings, [component], {})
+      indicators = settings.getIndicators()
+      if len(indicators) !=1 and indicators[0] != 'NPV':
+        raise IOError("Indicator should be set to {}, but got {}".format('NPV', indicators))
       for k, v in metrics.items():
+        if k not in indicators:
+          continue
         print("name: ", k)
         # ToDo: now only add hard saving to npvs
         val = v + container.hardSavings
