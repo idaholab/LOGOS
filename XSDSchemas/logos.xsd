@@ -6,6 +6,7 @@
     <xsd:include schemaLocation="TestInfo.xsd"/>
     <xsd:include schemaLocation="Parameters.xsd"/>
     <xsd:include schemaLocation="ExternalConstraints.xsd"/>
+    <xsd:include schemaLocation="Economics.xsd"/>
 
     <xsd:element name="Logos">
         <xsd:complexType>
@@ -16,6 +17,7 @@
                 <xsd:element name="Uncertainties"         type="UncertaintiesData"        minOccurs="0"/>
                 <xsd:element name="ExternalConstraints"   type="ExternalConstraintsData"  minOccurs="0"/>
                 <xsd:element name="Settings"              type="SettingsData"             minOccurs="1"/>
+                <xsd:element name="Economics"             type="EconomicsData"  minOccurs="0"/>
             </xsd:all>
         </xsd:complexType>
     </xsd:element>

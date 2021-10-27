@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<xsd:schema version="1.0" xmlns:xsd="http://www.w3.org/2001/XMLSchema"  elementFormDefault="qualified">
+
+    <xsd:complexType name="EconomicsData">
+        <xsd:all>
+            <xsd:element name="net_present_values" type="npvEconomicsType"   minOccurs="0"/>
+        </xsd:all>
+    </xsd:complexType>
+
+    <xsd:complexType name="npvEconomicsType">
+      <xsd:all>
+          <xsd:element name="DiscountRate" type="xsd:float"   minOccurs="0"/>
+          <xsd:element name="tax" type="xsd:float"   minOccurs="0"/>
+          <xsd:element name="inflation" type="xsd:float"   minOccurs="0"/>
+          <xsd:element name="CashFlow" type="cashflowType"   minOccurs="0"/>
+      </xsd:all>
+    </xsd:complexType>
+
+    <xsd:complexType name="cashflowType">
+        <xsd:simpleContent>
+            <xsd:extension base="xsd:string">
+                <xsd:attribute name="index" type="cashflowIndexType"/>
+            </xsd:extension>
+        </xsd:simpleContent>
+    </xsd:complexType>
+
+    <xsd:simpleType name="cashflowIndexType">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="investments, time_periods"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+</xsd:schema>
