@@ -60,7 +60,7 @@ def validateTests():
       #collect output
       out, err = proc.communicate()
       result = proc.returncode
-      
+
       if result == 0: #success
         res[1] += 1
         endmsg = 'validated'
