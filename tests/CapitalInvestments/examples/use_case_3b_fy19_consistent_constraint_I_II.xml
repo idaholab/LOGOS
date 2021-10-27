@@ -197,14 +197,14 @@ Best NPV=159.5402
       0 0 0 0 0
       0 0 0 0 0
     </costs>
-    <available_capitals index="resources,time_periods">
+    <available_capitals index="resources, time_periods">
       22.6 36.7 20.6 23.6 22.7
       0.08 0.17 0.05 0.15 0.14
     </available_capitals>
   </Parameters>
 
   <Uncertainties>
-    <available_capitals index="resources,time_periods">
+    <available_capitals index="resources, time_periods">
       <totalScenarios>10</totalScenarios>
       <probabilities>
         0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1

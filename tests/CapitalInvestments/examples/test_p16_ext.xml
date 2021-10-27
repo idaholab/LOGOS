@@ -184,7 +184,7 @@ MoisterSeparatorReheater with option: PlanA is selected
       5.488	5.665	0.501	6.803	6.778
       0 0 0 0 0
     </costs>
-    <available_capitals index="resources,time_periods">
+    <available_capitals index="resources, time_periods">
       11.000 10.974 8.083 8.080 9.817
       0.000 2.026 4.917 3.320 1.683
     </available_capitals>
