@@ -3,7 +3,7 @@
 
     <xsd:complexType name="ExternalConstraintsData">
         <xsd:sequence>
-            <xsd:element name="constraint" type="constraintType"   minOccurs="1"/>
+            <xsd:element name="constraint" type="constraintType"   minOccurs="0" maxOccurs="unbounded"/>
         </xsd:sequence>
     </xsd:complexType>
 

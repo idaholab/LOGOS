@@ -6,6 +6,7 @@
             <xsd:element name="investments" type="xsd:string"   minOccurs="0"/>
             <xsd:element name="time_periods" type="xsd:string"  minOccurs="0"/>
             <xsd:element name="resources" type="xsd:string"     minOccurs="0"/>
+            <xsd:element name="capitals" type="xsd:string"     minOccurs="0"/>
             <xsd:element name="options" type="optionsType"   minOccurs="0"/>
         </xsd:all>
     </xsd:complexType>

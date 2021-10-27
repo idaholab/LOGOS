@@ -8,10 +8,12 @@
             <xsd:element name="consistentConstraintI" type="LogosBool"     minOccurs="0"/>
             <xsd:element name="consistentConstraintII" type="LogosBool"   minOccurs="0"/>
             <xsd:element name="solver" type="xsd:string"   minOccurs="0"/>
+            <xsd:element name="workingDir" type="xsd:string"   minOccurs="0"/>
+            <xsd:element name="tee" type="LogosBool"   minOccurs="0"/>
             <xsd:element name="sense" type="senseType"   minOccurs="0"/>
             <xsd:element name="problem_type" type="problemType"   minOccurs="0"/>
             <xsd:element name="solverOptions" type="solverOptionsType"   minOccurs="0"/>
-            <xsd:element name="lowerBound" type="xsd:string"   minOccurs="0"/>
+            <xsd:element name="lowerBounds" type="xsd:string"   minOccurs="0"/>
             <xsd:element name="upperBounds" type="xsd:string"   minOccurs="0"/>
         </xsd:all>
     </xsd:complexType>
@@ -28,6 +30,9 @@
             <xsd:enumeration value="singleknapsack"/>
             <xsd:enumeration value="multipleknapsack"/>
             <xsd:enumeration value="mckp"/>
+            <xsd:enumeration value="SingleKnapsack"/>
+            <xsd:enumeration value="MultipleKnapsack"/>
+            <xsd:enumeration value="MCKP"/>
             <xsd:enumeration value="droskp"/>
             <xsd:enumeration value="dromkp"/>
             <xsd:enumeration value="dromckp"/>
