@@ -17,14 +17,12 @@
         </xsd:simpleContent>
     </xsd:complexType>
 
-    <xsd:complexType name="npvIndexType">
-        <xsd:simpleType>
-            <xsd:restriction base="xsd:string">
-                <xsd:enumeration value="investments"/>
-                <xsd:enumeration value="options"/>
-            </xsd:restriction>
-        </xsd:simpleType>
-    </xsd:complexType>
+    <xsd:simpleType name="npvIndexType">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="investments"/>
+            <xsd:enumeration value="options"/>
+        </xsd:restriction>
+    </xsd:simpleType>
 
     <xsd:complexType name="costsType">
         <xsd:simpleContent>
@@ -34,19 +32,17 @@
         </xsd:simpleContent>
     </xsd:complexType>
 
-    <xsd:complexType name="costsIndexType">
-        <xsd:simpleType>
-            <xsd:restriction base="xsd:string">
-                <xsd:whiteSpace value="collapse"/>
-                <xsd:enumeration value="investments"/>
-                <xsd:enumeration value="investments, time_periods"/>
-                <xsd:enumeration value="options"/>
-                <xsd:enumeration value="options, resources"/>
-                <xsd:enumeration value="options, time_periods"/>
-                <xsd:enumeration value="options, resources, time_periods"/>
-            </xsd:restriction>
-        </xsd:simpleType>
-    </xsd:complexType>
+    <xsd:simpleType name="costsIndexType">
+        <xsd:restriction base="xsd:string">
+            <xsd:whiteSpace value="collapse"/>
+            <xsd:enumeration value="investments"/>
+            <xsd:enumeration value="investments, time_periods"/>
+            <xsd:enumeration value="options"/>
+            <xsd:enumeration value="options, resources"/>
+            <xsd:enumeration value="options, time_periods"/>
+            <xsd:enumeration value="options, resources, time_periods"/>
+        </xsd:restriction>
+    </xsd:simpleType>
 
     <xsd:complexType name="availCapType">
         <xsd:simpleContent>
@@ -56,18 +52,16 @@
         </xsd:simpleContent>
     </xsd:complexType>
 
-    <xsd:complexType name="availCapIndexType">
-        <xsd:simpleType>
-            <xsd:restriction base="xsd:string">
-              <xsd:whiteSpace value="collapse"/>
-              <xsd:enumeration value="resources"/>
-              <xsd:enumeration value="time_periods"/>
-              <xsd:enumeration value="capitals"/>
-              <xsd:enumeration value="resources, time_periods"/>
-              <xsd:enumeration value="capitals, time_periods"/>
-            </xsd:restriction>
-        </xsd:simpleType>
-    </xsd:complexType>
+    <xsd:simpleType name="availCapIndexType">
+        <xsd:restriction base="xsd:string">
+          <xsd:whiteSpace value="collapse"/>
+          <xsd:enumeration value="resources"/>
+          <xsd:enumeration value="time_periods"/>
+          <xsd:enumeration value="capitals"/>
+          <xsd:enumeration value="resources, time_periods"/>
+          <xsd:enumeration value="capitals, time_periods"/>
+        </xsd:restriction>
+    </xsd:simpleType>
 
     <xsd:complexType name="UncertaintiesData">
         <xsd:all>
