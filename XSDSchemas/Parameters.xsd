@@ -1,0 +1,91 @@
+<?xml version="1.0"?>
+<xsd:schema version="1.0" xmlns:xsd="http://www.w3.org/2001/XMLSchema"  elementFormDefault="qualified">
+
+    <xsd:complexType name="ParametersData">
+        <xsd:all>
+            <xsd:element name="net_present_values" type="npvType"   minOccurs="0"/>
+            <xsd:element name="costs" type="costsType"  minOccurs="0"/>
+            <xsd:element name="available_capitals" type="availCapType"     minOccurs="0"/>
+        </xsd:all>
+    </xsd:complexType>
+
+    <xsd:complexType name="npvType">
+        <xsd:simpleContent>
+            <xsd:extension base="xsd:string">
+                <xsd:attribute name="index" type="npvIndexType"/>
+            </xsd:extension>
+        </xsd:simpleContent>
+    </xsd:complexType>
+
+    <xsd:simpleType name="npvIndexType">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="investments"/>
+            <xsd:enumeration value="options"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <xsd:complexType name="costsType">
+        <xsd:simpleContent>
+            <xsd:extension base="xsd:string">
+                <xsd:attribute name="index" type="costsIndexType"/>
+            </xsd:extension>
+        </xsd:simpleContent>
+    </xsd:complexType>
+
+    <xsd:simpleType name="costsIndexType">
+        <xsd:restriction base="xsd:string">
+            <xsd:whiteSpace value="collapse"/>
+            <xsd:enumeration value="investments"/>
+            <xsd:enumeration value="investments, time_periods"/>
+            <xsd:enumeration value="options"/>
+            <xsd:enumeration value="options, resources"/>
+            <xsd:enumeration value="options, time_periods"/>
+            <xsd:enumeration value="options, resources, time_periods"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <xsd:complexType name="availCapType">
+        <xsd:simpleContent>
+            <xsd:extension base="xsd:string">
+                <xsd:attribute name="index" type="availCapIndexType"/>
+            </xsd:extension>
+        </xsd:simpleContent>
+    </xsd:complexType>
+
+    <xsd:simpleType name="availCapIndexType">
+        <xsd:restriction base="xsd:string">
+          <xsd:whiteSpace value="collapse"/>
+          <xsd:enumeration value="resources"/>
+          <xsd:enumeration value="time_periods"/>
+          <xsd:enumeration value="capitals"/>
+          <xsd:enumeration value="resources, time_periods"/>
+          <xsd:enumeration value="capitals, time_periods"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <xsd:complexType name="UncertaintiesData">
+        <xsd:all>
+            <xsd:element name="net_present_values" type="npvUType"   minOccurs="0"/>
+            <xsd:element name="available_capitals" type="availUCapType"     minOccurs="0"/>
+        </xsd:all>
+    </xsd:complexType>
+
+    <xsd:complexType name="npvUType">
+        <xsd:all>
+            <xsd:element name="totalScenarios"   type="xsd:integer"  minOccurs="1"/>
+            <xsd:element name="probabilities"  type="xsd:string"  minOccurs="1"/>
+            <xsd:element name="scenarios"   type="xsd:string"   minOccurs="1"/>
+        </xsd:all>
+        <xsd:attribute name="index"         type="npvIndexType"/>
+    </xsd:complexType>
+
+    <xsd:complexType name="availUCapType">
+        <xsd:all>
+            <xsd:element name="totalScenarios"   type="xsd:integer"  minOccurs="1"/>
+            <xsd:element name="probabilities"  type="xsd:string"  minOccurs="1"/>
+            <xsd:element name="scenarios"   type="xsd:string"   minOccurs="1"/>
+        </xsd:all>
+        <xsd:attribute name="index"         type="availCapIndexType"/>
+    </xsd:complexType>
+
+</xsd:schema>

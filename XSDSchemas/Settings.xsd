@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<xsd:schema version="1.0" xmlns:xsd="http://www.w3.org/2001/XMLSchema"  elementFormDefault="qualified">
+
+    <xsd:complexType name="SettingsData">
+        <xsd:all>
+            <xsd:element name="mandatory" type="xsd:string"   minOccurs="0"/>
+            <xsd:element name="nonSelection" type="LogosBool"  minOccurs="0"/>
+            <xsd:element name="consistentConstraintI" type="LogosBool"     minOccurs="0"/>
+            <xsd:element name="consistentConstraintII" type="LogosBool"   minOccurs="0"/>
+            <xsd:element name="solver" type="xsd:string"   minOccurs="0"/>
+            <xsd:element name="workingDir" type="xsd:string"   minOccurs="0"/>
+            <xsd:element name="tee" type="LogosBool"   minOccurs="0"/>
+            <xsd:element name="sense" type="senseType"   minOccurs="0"/>
+            <xsd:element name="problem_type" type="problemType"   minOccurs="0"/>
+            <xsd:element name="solverOptions" type="solverOptionsType"   minOccurs="0"/>
+            <xsd:element name="lowerBounds" type="xsd:string"   minOccurs="0"/>
+            <xsd:element name="upperBounds" type="xsd:string"   minOccurs="0"/>
+        </xsd:all>
+    </xsd:complexType>
+
+    <xsd:simpleType  name="senseType">
+        <xsd:restriction   base="xsd:string">
+            <xsd:enumeration value="maximize"/>
+            <xsd:enumeration value="minimize"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <xsd:simpleType  name="problemType">
+        <xsd:restriction   base="xsd:string">
+            <xsd:enumeration value="singleknapsack"/>
+            <xsd:enumeration value="multipleknapsack"/>
+            <xsd:enumeration value="mckp"/>
+            <xsd:enumeration value="SingleKnapsack"/>
+            <xsd:enumeration value="MultipleKnapsack"/>
+            <xsd:enumeration value="MCKP"/>
+            <xsd:enumeration value="droskp"/>
+            <xsd:enumeration value="dromkp"/>
+            <xsd:enumeration value="dromckp"/>
+            <xsd:enumeration value="cvarskp"/>
+            <xsd:enumeration value="cvarmkp"/>
+            <xsd:enumeration value="cvarmckp"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <xsd:complexType name="solverOptionsType">
+        <xsd:all>
+            <xsd:element name="threads" type="xsd:integer"   minOccurs="0"/>
+            <xsd:element name="StochSolver" type="xsd:string"  minOccurs="0"/>
+            <xsd:element name="radius_ambiguity" type="xsd:float"     minOccurs="0"/>
+            <xsd:element name="risk_aversion" type="percentFloat"   minOccurs="0"/>
+            <xsd:element name="confidence_level" type="percentFloat"   minOccurs="0"/>
+        </xsd:all>
+    </xsd:complexType>
+
+</xsd:schema>

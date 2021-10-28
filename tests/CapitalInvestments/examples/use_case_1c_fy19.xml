@@ -176,7 +176,7 @@ Best NPV=253.53
       0 0 0 0 0
       0 0 0 0 0
     </costs>
-    <available_capitals index="resources,time_periods">
+    <available_capitals index="resources, time_periods">
       22.6 36.7 20.6 23.6 22.7
       0.08 0.17 0.05 0.15 0.14
     </available_capitals>
