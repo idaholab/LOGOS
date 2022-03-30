@@ -3,7 +3,7 @@
     <!-- fix the version of pyomo, this is because, in the version after 5.7.3, PySP package is moved to a independent
     lib. See https://pyomo.readthedocs.io/en/latest/modeling_extensions/stochastic_programming.html
     We need to update LOGOS to use either PySP or mpi-sppy, using 5.7 which will consistent with HERON-->
-    <pyomo source="forge">5.7.0</pyomo>
+    <pyomo source="forge"/>
     <coincbc os="mac,linux" skip_check="True" source="forge" />
     <!-- Windows doesn't have coincbc, so get it through cbcpy? see https://stackoverflow.com/questions/58868054/how-to-install-coincbc-using-conda-->
     <cbcpy os="windows" source='pip'/>
