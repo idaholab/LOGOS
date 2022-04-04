@@ -11,8 +11,8 @@ Created on February 7, 2021
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
-from PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
-from utils import InputData, InputTypes
+from ravenframework.PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
+from ravenframework.utils import InputData, InputTypes
 from LOGOS.src.knapsack.BaseKnapsackModel import BaseKnapsackModel
 #Internal Modules End-----------------------------------------------------------
 

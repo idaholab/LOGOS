@@ -20,7 +20,7 @@ from LOGOS.src.CapitalInvestments.investment_utils import inputReader
 #Internal Modules End--------------------------------------------------------------------------------
 
 try:
-  from PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
+  from ravenframework.PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 except:
   raise IOError("ERROR (Initialization): RAVEN needs to be installed in order to use this External Model!'")
 

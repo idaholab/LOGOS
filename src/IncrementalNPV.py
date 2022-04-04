@@ -12,8 +12,8 @@ import sys
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
-from utils import InputData, InputTypes
-from PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
+from ravenframework.utils import InputData, InputTypes
+from ravenframework.PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 #Internal Modules End-----------------------------------------------------------
 
 #TEAL CashFlow modules----------------------------------------------------------
