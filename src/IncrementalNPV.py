@@ -158,7 +158,10 @@ class IncrementalNPV(ExternalModelPluginBase):
     paramDict = {}
     paramDict['DiscountRate'] = container.discountRate
     paramDict['tax'] = container.tax
-    paramDict['inflation'] = container.inflation
+    if container.inflation >= 0.:
+      paramDict['inflation'] = True
+    else:
+      paramDict['inflation'] = False
     paramDict['projectTime'] = container.lifetime
     paramDict['Indicator'] = {'name':['NPV'], 'target':None, 'active':projectName}
     settings.setParams(paramDict)

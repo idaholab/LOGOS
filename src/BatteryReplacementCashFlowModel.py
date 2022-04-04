@@ -240,7 +240,10 @@ class BatteryReplacementCashFlowModel(ExternalModelPluginBase):
     paramDict = {}
     paramDict['name'] = 'Replacement'
     paramDict['tax'] = container.tax
-    paramDict['inflation'] = container.inflation
+    if container.inflation >= 0.:
+      paramDict['inflation'] = True
+    else:
+      paramDict['inflation'] = False
     paramDict['X'] = 1.
     paramDict['reference'] = 1.
     # paramDict['multiply'] = 1.
