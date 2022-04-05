@@ -7,7 +7,6 @@ import os
 import sys
 
 LOGOS_LOC = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')) # LOGOS Plugin Folder
-print(LOGOS_LOC)
 sys.path.append(LOGOS_LOC)
 import LOGOS.src._utils as logos_utils
 
