@@ -11,8 +11,8 @@ import abc
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
-from PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
-from utils import InputData, InputTypes
+from ravenframework.PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
+from ravenframework.utils import InputData, InputTypes
 #Internal Modules End-----------------------------------------------------------
 
 

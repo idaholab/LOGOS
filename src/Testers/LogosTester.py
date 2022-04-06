@@ -6,18 +6,15 @@ Tests by running an executable.
 import os
 import sys
 
-LOGOS_LOC = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+LOGOS_LOC = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')) # LOGOS Plugin Folder
 sys.path.append(LOGOS_LOC)
-import _utils as logos_utils
-sys.path.pop()
+import LOGOS.src._utils as logos_utils
 
 # get RAVEN base testers
 RAVEN_FRAMEWORK_LOC = logos_utils.get_raven_loc()
 TESTER_LOC = os.path.join(RAVEN_FRAMEWORK_LOC, '..', 'scripts', 'TestHarness', 'testers')
 sys.path.append(TESTER_LOC)
 from RavenFramework import RavenFramework as RavenTester
-sys.path.pop()
-
 
 class LogosRun(RavenTester):
   """
@@ -44,7 +41,7 @@ class LogosRun(RavenTester):
       @ Out, None
     """
     RavenTester.__init__(self, name, param)
-    self.logos_driver = os.path.join(LOGOS_LOC, 'logos_main.py')
+    self.logos_driver = os.path.join(LOGOS_LOC, 'LOGOS', 'src', 'logos_main.py')
 
   def get_command(self):
     """

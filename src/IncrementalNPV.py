@@ -12,10 +12,12 @@ import sys
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
-from utils import InputData, InputTypes
-from PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
+from ravenframework.utils import InputData, InputTypes
+from ravenframework.PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 #Internal Modules End-----------------------------------------------------------
-
+from LOGOS.src._utils import get_raven_loc
+ravenFrameworkPath = get_raven_loc()
+sys.path.append(os.path.join(ravenFrameworkPath, '..', 'plugins'))
 #TEAL CashFlow modules----------------------------------------------------------
 from TEAL.src import main
 from TEAL.src import CashFlows
@@ -158,7 +160,10 @@ class IncrementalNPV(ExternalModelPluginBase):
     paramDict = {}
     paramDict['DiscountRate'] = container.discountRate
     paramDict['tax'] = container.tax
-    paramDict['inflation'] = container.inflation
+    if container.inflation >= 0.:
+      paramDict['inflation'] = True
+    else:
+      paramDict['inflation'] = False
     paramDict['projectTime'] = container.lifetime
     paramDict['Indicator'] = {'name':['NPV'], 'target':None, 'active':projectName}
     settings.setParams(paramDict)
