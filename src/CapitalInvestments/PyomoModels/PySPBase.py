@@ -16,19 +16,24 @@ import six
 from six import iterkeys, iteritems, itervalues
 import pyomo.environ as pyomo
 from pyomo.opt import SolverFactory, TerminationCondition
-import pyomo.pysp.util.rapper as rapper
-from pyomo.pysp.scenariotree.tree_structure_model import CreateAbstractScenarioTreeModel
+
+try:
+  import pyomo.pysp.util.rapper as rapper
+  from pyomo.pysp.scenariotree.tree_structure_model import CreateAbstractScenarioTreeModel
+except ImportError:
+  import pysp.util.rapper as rapper
+  from pysp.scenariotree.tree_structure_model import CreateAbstractScenarioTreeModel
 #External Modules End--------------------------------------------------------------------------------
 
 #Internal Modules------------------------------------------------------------------------------------
 try:
-  from LOGOS.src.CapitalInvestments.investment_utils import investmentUtils as utils
-  from LOGOS.src.CapitalInvestments.investment_utils import distanceUtils
-  from LOGOS.src.CapitalInvestments.PyomoModels.ModelBase import ModelBase
-except ImportError:
   from CapitalInvestments.investment_utils import investmentUtils as utils
   from CapitalInvestments.investment_utils import distanceUtils
   from .ModelBase import ModelBase
+except ImportError:
+  from LOGOS.src.CapitalInvestments.investment_utils import investmentUtils as utils
+  from LOGOS.src.CapitalInvestments.investment_utils import distanceUtils
+  from LOGOS.src.CapitalInvestments.PyomoModels.ModelBase import ModelBase
 #Internal Modules End--------------------------------------------------------------------------------
 
 # check pyomo version

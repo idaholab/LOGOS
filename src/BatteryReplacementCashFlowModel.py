@@ -16,8 +16,8 @@ import sys
 from ravenframework.utils import InputData, InputTypes
 from ravenframework.PluginBaseClasses.ExternalModelPluginBase import ExternalModelPluginBase
 #Internal Modules End-----------------------------------------------------------
-from LOGOS.src._utils import get_raven_loc
-ravenFrameworkPath = get_raven_loc()
+from LOGOS.src._utils import getRavenLoc
+ravenFrameworkPath = getRavenLoc()
 sys.path.append(os.path.join(ravenFrameworkPath, '..', 'plugins'))
 #TEAL CashFlow modules----------------------------------------------------------
 from TEAL.src import main

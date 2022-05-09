@@ -11,7 +11,7 @@ sys.path.append(LOGOS_LOC)
 import LOGOS.src._utils as logos_utils
 
 # get RAVEN base testers
-RAVEN_FRAMEWORK_LOC = logos_utils.get_raven_loc()
+RAVEN_FRAMEWORK_LOC = logos_utils.getRavenLoc()
 TESTER_LOC = os.path.join(RAVEN_FRAMEWORK_LOC, '..', 'scripts', 'TestHarness', 'testers')
 sys.path.append(TESTER_LOC)
 from RavenFramework import RavenFramework as RavenTester
