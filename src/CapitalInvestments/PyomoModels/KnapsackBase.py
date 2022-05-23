@@ -214,7 +214,7 @@ class KnapsackBase(PySPBase):
         elif var.split('[')[0] == 'nu':
           logger.info('Variable "nu" at scenario "{}": {}'.format(var, val))
         else:
-          ind = literal_eval(var[var.index('[') + 1 : var.index(']')])
+          ind = self.getSolutionGeneratorIndex(var)
           ysol.at[ind] = val
     elif 'CVaR' in self.name:
        # value is stored as y[('i','j')], u, nu
@@ -222,12 +222,12 @@ class KnapsackBase(PySPBase):
          if var == 'u':
            logger.info('Variable "u" or "Value at Risk" for loss: {}'.format(val))
          else:
-           ind = literal_eval(var[var.index('[') + 1 : var.index(']')])
+           ind = self.getSolutionGeneratorIndex(var)
            ysol.at[ind] = val
     else:
       for var, val in solutionGenerator:
         # value is stored as y[('i','j')]
-        ind = literal_eval(var[var.index('[') + 1 : var.index(']')])
+        ind = self.getSolutionGeneratorIndex(var)
         ysol.at[ind] = val
     priorityList = ysol.sum(axis=0) + 1
     priorityList = priorityList.sort_values()
@@ -239,6 +239,20 @@ class KnapsackBase(PySPBase):
         priorityLevel += 1
       msg = 'Investment ' + str(ind).ljust(4) + ' is assigned priority level: ' + str(priorityLevel)
       logger.info(msg)
+
+  @staticmethod
+  def getSolutionGeneratorIndex(var):
+    """
+      Get the solution index from variables in solution generator
+      @ In, var, str, either "varname[index]" or "varname[tuple(index)]"
+      @ Out, ind, tuple, tuple of index
+    """
+    if '[' in var and '(' in var:
+      ind = literal_eval(var[var.index('[') + 1 : var.index(']')])
+    elif '[' in var and '(' not in var:
+      ind = var[var.index('[') + 1 : var.index(']')]
+      ind = tuple(i for i in ind.split(','))
+    return ind
 
   def printScenarioSolution(self, stsolver):
     """

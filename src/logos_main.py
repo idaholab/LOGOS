@@ -12,7 +12,15 @@ import logging
 import argparse
 #External Modules End--------------------------------------------------------------------------------
 
+
 #Internal Modules------------------------------------------------------------------------------------
+# Add contrib to the sys path
+from _utils import getPluginLoc
+pluginLoc = getPluginLoc(plugin='LOGOS')
+if any(os.path.normcase(sp) == os.path.join(pluginLoc, 'src', 'contrib') for sp in sys.path):
+  print(f'WARNING: "{os.path.join(pluginLoc, "src", "contrib")}" already in system path. Skipping setup')
+else:
+  sys.path.append(os.path.join(pluginLoc, 'src', 'contrib'))
 #import PyomoModels
 from CapitalInvestments import PyomoModels
 from CapitalInvestments.investment_utils import inputReader

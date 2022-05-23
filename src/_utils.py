@@ -8,7 +8,7 @@ import sys
 import importlib
 import xml.etree.ElementTree as ET
 
-def get_raven_loc():
+def getRavenLoc():
   """
     Return RAVEN location: read from LOGOS/.ravenconfig.xml
     @ In, None
@@ -21,26 +21,27 @@ def get_raven_loc():
   loc = ET.parse(config).getroot().find('FrameworkLocation').text
   return loc
 
-def get_cashflow_loc(raven_path=None):
+def getPluginLoc(ravenPath=None, plugin='LOGOS'):
   """
     Get CashFlow location in installed RAVEN
-    @ In, raven_path, string, optional, if given then start with this path
-    @ Out, cf_loc, string, location of CashFlow
+    @ In, ravenPath, string, optional, if given then start with this path
+    @ In, plugin, string, optional, the name of plugin for the request
+    @ Out, pluginLoc, string, location of plugin
   """
-  if raven_path is None:
-    raven_path = get_raven_loc()
-  plugin_handler_dir = os.path.join(raven_path, '..', 'scripts')
-  sys.path.append(plugin_handler_dir)
-  plugin_handler = importlib.import_module('plugin_handler')
+  if ravenPath is None:
+    ravenPath = getRavenLoc()
+  phDir = os.path.join(ravenPath, '..', 'scripts')
+  sys.path.append(phDir)
+  ph = importlib.import_module('plugin_handler')
   sys.path.pop()
-  cf_loc = plugin_handler.getPluginLocation('CashFlow')
-  return cf_loc
+  pluginLoc = ph.getPluginLocation(plugin)
+  return pluginLoc
 
 if __name__ == '__main__':
   action = sys.argv[1]
-  if action == 'get_raven_loc':
-    print(get_raven_loc())
-  elif action == 'get_cashflow_loc':
-    print(get_cashflow_loc())
+  if action == 'getRavenLoc':
+    print(getRavenLoc())
+  elif action == 'getPluginLoc':
+    print(getPluginLoc(plugin='LOGOS'))
   else:
     raise IOError('Unrecognized action: "{}"'.format(action))

@@ -15,6 +15,13 @@ import xml.etree.ElementTree as ET
 #External Modules End--------------------------------------------------------------------------------
 
 #Internal Modules------------------------------------------------------------------------------------
+# Add contrib to the sys path
+from LOGOS.src._utils import getPluginLoc
+pluginLoc = getPluginLoc(plugin='LOGOS')
+if any(os.path.normcase(sp) == os.path.join(pluginLoc, 'src', 'contrib') for sp in sys.path):
+  print(f'WARNING: "{os.path.join(pluginLoc, "src", "contrib")}" already in system path. Skipping setup')
+else:
+  sys.path.append(os.path.join(pluginLoc, 'src', 'contrib'))
 from LOGOS.src.CapitalInvestments import PyomoModels
 from LOGOS.src.CapitalInvestments.investment_utils import inputReader
 #Internal Modules End--------------------------------------------------------------------------------
