@@ -4,6 +4,7 @@
   type  = 'LogosRun'
   input = 'test_scheduling.xml'
   UnorderedCsv = 'test_scheduling.csv'
+  skip_if_OS = 'windows'
  [../]
 
 []
