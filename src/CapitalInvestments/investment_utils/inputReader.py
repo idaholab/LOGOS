@@ -14,6 +14,7 @@ warnings.simplefilter('default',DeprecationWarning)
 import xml.etree.ElementTree as ET
 import itertools
 import numpy as np
+import numpy_financial as npf
 import collections
 import logging
 import os
@@ -312,7 +313,7 @@ def computeNPVs(economicsDict):
     for ind, column in enumerate(cashFlow.columns):
       cashFlow[column] = cashFlow[column] * (1-tax) * (1+inflation)**(-ind)
     ## compute NPV
-    npv = [np.npv(discounted, cashFlow.loc[ind]) for ind in cashFlow.index]
+    npv = [npf.npv(discounted, cashFlow.loc[ind]) for ind in cashFlow.index]
     optionalParamDict[paramName] = collections.OrderedDict(zip(list(cashFlow.index), npv))
     logger.debug('Computed npv for param %s: %s' %(paramName, str(npv)))
 

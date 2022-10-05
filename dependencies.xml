@@ -8,13 +8,15 @@
     <!-- Windows doesn't have coincbc, so get it through cbcpy? cbcpy doesn't exist in python newer than 3.7, so this is not a good solution. The suggestion to use cbcpy was in https://stackoverflow.com/questions/58868054/how-to-install-coincbc-using-conda-->
     <glpk skip_check="True" source="forge" />
     <ipopt skip_check="True" source="forge" />
+    <pyutilib source='forge'/>
+    <numpy-financial source='forge'/>
   </main>
 
   <alternate name="pip">
     <coincbc skip_check="True">remove</coincbc>
     <glpk skip_check="True">remove</glpk>
     <ipopt skip_check="True">remove</ipopt>
-    <cbcpy source='pip'/>
+    <!-- <cbcpy source='pip'/> -->
   </alternate>
 </dependencies>
 
