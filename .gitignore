@@ -27,3 +27,19 @@
 *~
 *.swp
 
+.ravenconfig.xml
+tests/BaseKnapsack/
+tests/IncrementalNPV/
+tests/IncrementalNPV_options/
+tests/MilestoneTestsSeptFY19/use_case_II/MC/.ravenStatus
+tests/MilestoneTestsSeptFY19/use_case_II/MC/print_main.xml
+tests/MilestoneTestsSeptFY19/use_case_III/MC/.ravenStatus
+tests/MilestoneTestsSeptFY19/use_case_III/MC/print_basicStat.xml
+tests/MilestoneTestsSeptFY19/use_case_III/MC/print_main.xml
+tests/MultipleKnapsack/
+tests/batteryReplacement/
+tests/bkp/
+tests/mckp/
+tests/mkp/.ravenStatus
+tests/mkp/Print_DS.xml
+tests/skp/
