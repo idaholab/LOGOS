@@ -30,6 +30,8 @@ function establish_OS ()
 
 function find_conda_defs ()
 {
+	echo ... Conda definitions not defined by --conda-defs option.
+  echo ... Search the default place for conda definitions
   # default location of conda definitions, windows is unsurprisingly an exception
   if [[ "$OSOPTION" = "--windows" ]];
   then
@@ -45,8 +47,7 @@ function find_conda_defs ()
 function activate_env()
 {
   if [[ $ECE_VERBOSE == 0 ]]; then echo ... Activating environment ...; fi
-  COMMAND=`source activate ${LOGOS_LIBS_NAME}`
-  ${COMMAND}
+  conda activate ${LOGOS_LIBS_NAME}
 }
 
 function install_libraries()
@@ -122,6 +123,7 @@ INSTALL_OPTIONAL="" # --optional if installing optional, otherwise blank
 ECE_VERBOSE=0 # 0 for printing, anything else for no printing
 ECE_CLEAN=0 # 0 for yes (remove LOGOS libs env before installing), 1 for don't remove it
 LOGOS_LIBS_NAME=LOGOS_libraries
+CONDA_DEFS=""
 
 # parse command-line arguments
 while test $# -gt 0
@@ -169,8 +171,8 @@ establish_OS
 if [[ $ECE_VERBOSE == 0 ]]; then echo ... Detected OS as ${OSOPTION} ...; fi
 if [[ $ECE_VERBOSE == 0 ]]; then echo ... \>\> LOGOS conda environment is named \"${LOGOS_LIBS_NAME}\"; fi
 
-# establish conda function definitions (conda 4.4+ ONLY, 4.3 and before not supported)
-find_conda_defs
+if [[ "$CONDA_DEFS" = "" ]]; then find_conda_defs; fi
+
 if test -e ${CONDA_DEFS};
 then
 	if [[ $ECE_VERBOSE == 0 ]]; then echo ... Found conda definitions at ${CONDA_DEFS}; fi
