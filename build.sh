@@ -60,9 +60,9 @@ function install_libraries()
   if [[ $ECE_VERBOSE == 0 ]]; then echo ... Installing libraries from conda-forge ...; fi
   if [[ "$OSOPTION" = "--windows" ]];
   then
-    local COMMAND=`echo conda install -c conda-forge pyomo ipopt glpk`
+    local COMMAND=`echo conda install -c conda-forge pyomo ipopt glpk pyutilib numpy-financial`
   else
-    local COMMAND=`echo conda install -c conda-forge pyomo ipopt coincbc glpk`
+    local COMMAND=`echo conda install -c conda-forge pyomo ipopt coincbc glpk pyutilib numpy-financial`
   fi
   if [[ $ECE_VERBOSE == 0 ]]; then echo ... conda-forge command: ${COMMAND}; fi
   ${COMMAND}
@@ -79,9 +79,9 @@ function create_libraries()
   if [[ $ECE_VERBOSE == 0 ]]; then echo ... Installing libraries from conda-forge ...; fi
   if [[ "$OSOPTION" = "--windows" ]];
   then
-    local COMMAND=`echo conda install -n ${LOGOS_LIBS_NAME} -c conda-forge pyomo ipopt glpk`
+    local COMMAND=`echo conda install -n ${LOGOS_LIBS_NAME} -c conda-forge pyomo ipopt glpk pyutilib numpy-financial`
   else
-    local COMMAND=`echo conda install -n ${LOGOS_LIBS_NAME} -c conda-forge pyomo ipopt coincbc glpk`
+    local COMMAND=`echo conda install -n ${LOGOS_LIBS_NAME} -c conda-forge pyomo ipopt coincbc glpk pyutilib numpy-financial`
   fi
   if [[ $ECE_VERBOSE == 0 ]]; then echo ... conda-forge command: ${COMMAND}; fi
   ${COMMAND}
