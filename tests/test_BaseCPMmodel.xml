@@ -1,0 +1,124 @@
+<Simulation verbosity="debug">
+
+  <RunInfo>
+    <WorkingDir>CPMmodel</WorkingDir>
+    <Sequence>simRun</Sequence>
+    <batchSize>1</batchSize>
+  </RunInfo>
+
+  <Files>
+    <Input name="test_graph_model" type="graph_model">graphModel.py</Input>
+  </Files>
+
+  <Models>
+    <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
+      <variables>A,B,C,D,E,F,G,H,end_time</variables>
+      <CPtime>end_time</CPtime>
+      <map var='A'>start</map>
+      <map var='B'>b</map>
+      <map var='C'>c</map>
+      <map var='D'>d</map>
+      <map var='E'>end</map>
+      <map var='F'>f</map>
+      <map var='G'>g</map>
+      <map var='H'>h</map>
+    </ExternalModel>
+  </Models>
+
+  <Distributions>
+    <Uniform name="dist_A">
+      <lowerBound>8</lowerBound>
+      <upperBound>12</upperBound>
+    </Uniform>
+    <Uniform name="dist_B">
+      <lowerBound>15</lowerBound>
+      <upperBound>25</upperBound>
+    </Uniform>
+    <Uniform name="dist_C">
+      <lowerBound>4</lowerBound>
+      <upperBound>8</upperBound>
+    </Uniform>
+    <Uniform name="dist_D">
+      <lowerBound>8</lowerBound>
+      <upperBound>12</upperBound>
+    </Uniform>
+    <Uniform name="dist_E">
+      <lowerBound>19</lowerBound>
+      <upperBound>25</upperBound>
+    </Uniform>
+    <Uniform name="dist_F">
+      <lowerBound>12</lowerBound>
+      <upperBound>20</upperBound>
+    </Uniform>
+    <Uniform name="dist_G">
+      <lowerBound>4</lowerBound>
+      <upperBound>12</upperBound>
+    </Uniform>
+    <Uniform name="dist_H">
+      <lowerBound>12</lowerBound>
+      <upperBound>21</upperBound>
+    </Uniform>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="MC_external">
+      <samplerInit>
+        <limit>10</limit>
+      </samplerInit>
+      <variable name="A">
+        <distribution>dist_A</distribution>
+      </variable>
+      <variable name="B">
+        <distribution>dist_B</distribution>
+      </variable>
+      <variable name="C">
+        <distribution>dist_C</distribution>
+      </variable>
+      <variable name="D">
+        <distribution>dist_D</distribution>
+      </variable>
+      <variable name="E">
+        <distribution>dist_E</distribution>
+      </variable>
+      <variable name="F">
+        <distribution>dist_F</distribution>
+      </variable>
+      <variable name="G">
+        <distribution>dist_G</distribution>
+      </variable>
+      <variable name="H">
+        <distribution>dist_H</distribution>
+      </variable>
+    </MonteCarlo>
+  </Samplers>
+
+  <Steps>
+    <MultiRun name="simRun">
+      <Input   class="Files"        type="graph_model"     >test_graph_model</Input>
+      <Model   class="Models"       type="ExternalModel"   >CPMmodel</Model>
+      <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
+      <Output  class="DataObjects"  type="PointSet"        >sim_PS</Output>
+      <Output  class="OutStreams"   type="Print"           >Print_sim_PS</Output>
+    </MultiRun>
+  </Steps>
+
+  <OutStreams>
+    <Print name="Print_sim_PS">
+      <type>csv</type>
+      <source>sim_PS</source>
+      <what>input,output</what>
+    </Print>
+  </OutStreams>
+
+  <DataObjects>
+    <PointSet name="inputPlaceHolder">
+      <Input>A,B,C,D,E,F,G,H</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="sim_PS">
+      <Input>A,B,C,D,E,F,G,H</Input>
+      <Output>end_time</Output>
+    </PointSet>
+  </DataObjects>
+
+</Simulation>
