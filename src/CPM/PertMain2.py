@@ -214,25 +214,25 @@ class Pert:
       self.infoDict[activity]["slack"] = self.infoDict[activity]["lf"] - self.infoDict[activity]["ef"]
 
   # add activity to the pert
-  def addActivity(self, activity, in_connections=[], out_connections=[]):
+  def addActivity(self, activity, inConnections=[], outConnections=[]):
     """
       Method designed to add a new activity to an exisiting schedule
       @ In, activity, activity, activitiy to be added
-      @ In, in_connections, list, list of activities arriving into new activity
-      @ In, out_connections, list, list of activities departing from new activity
+      @ In, inConnections, list, list of activities arriving into new activity
+      @ In, outConnections, list, list of activities departing from new activity
       @ Out, None
     """
     if activity in self.forwardDict:
       return
-    self.forwardDict[activity] = out_connections
-    self.backwardDict[activity] = in_connections
-    if in_connections != []:
-      for node in in_connections:
+    self.forwardDict[activity] = outConnections
+    self.backwardDict[activity] = inConnections
+    if inConnections != []:
+      for node in inConnections:
         if self.forwardDict[node] is None:
           self.forwardDict[node] = []
         self.forwardDict[node] += [activity]
-    if out_connections != []:
-      for node in out_connections:
+    if outConnections != []:
+      for node in outConnections:
         if self.backwardDict[node] is None:
           self.backwardDict[node] = []
         self.backwardDict[node] += [activity]
@@ -326,13 +326,13 @@ class Pert:
       @ In, None
       @ Out, CPdict, dict, dictionary of activities included in the CP alonf with their corresponding duration
     """
-    critical_path = self.getCriticalPath()
-    maxDecreaseToActivities = {activity: activity.duration - 1 for activity in critical_path}
-    for i in range(0,  len(critical_path), 1):
-      for j in range(2, len(critical_path) - i, 1):
-        for path in self.getAllAlternativePaths(critical_path[i], critical_path[i + j]):
-          for activity in critical_path[i + 1 : i + j : 1]:
-            if path[1] not in critical_path and maxDecreaseToActivities[activity] >= self.infoDict[path[1]]["slack"]:
+    criticalPath = self.getCriticalPath()
+    maxDecreaseToActivities = {activity: activity.duration - 1 for activity in criticalPath}
+    for i in range(0,  len(criticalPath), 1):
+      for j in range(2, len(criticalPath) - i, 1):
+        for path in self.getAllAlternativePaths(criticalPath[i], criticalPath[i + j]):
+          for activity in criticalPath[i + 1 : i + j : 1]:
+            if path[1] not in criticalPath and maxDecreaseToActivities[activity] >= self.infoDict[path[1]]["slack"]:
               maxDecreaseToActivities[activity] = self.infoDict[path[1]]["slack"] - 1
     return maxDecreaseToActivities
 

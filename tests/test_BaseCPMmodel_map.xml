@@ -6,7 +6,7 @@
     <classesTested>Models.ExternalModel.LOGOS.BaseCPMmodel</classesTested>
     <description>
        This test is is designed to check the functionality of the CPM model when
-       project schedule is defined from file
+       project schedule is defined from XML nodes
     </description>
   </TestInfo>
 
@@ -16,15 +16,19 @@
     <batchSize>1</batchSize>
   </RunInfo>
 
-  <Files>
-    <Input name="test_graph_model" type="graph_model">graphModel.py</Input>
-  </Files>
-
   <Models>
     <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
       <variables>start,b,c,d,end,f,g,h,end_time,CP</variables>
       <CPtime>end_time</CPtime>
       <CPid>CP</CPid>
+      <map act='start' dur='10'>f,b,h</map>
+      <map act='b'     dur='20'>c</map>
+      <map act='c'     dur='5' >g,d</map>
+      <map act='d'     dur='10'>end</map>
+      <map act='f'     dur='15'>g</map>
+      <map act='g'     dur='5' >end</map>
+      <map act='h'     dur='15'>end</map>
+      <map act='end'   dur='20'></map>
     </ExternalModel>
   </Models>
 
@@ -97,18 +101,18 @@
 
   <Steps>
     <MultiRun name="simRun">
-      <Input   class="Files"        type="graph_model"     >test_graph_model</Input>
+      <Input   class="DataObjects"  type="PointSet"        >inputPlaceHolder</Input>
       <Model   class="Models"       type="ExternalModel"   >CPMmodel</Model>
       <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
-      <Output  class="DataObjects"  type="PointSet"        >sim_PS</Output>
-      <Output  class="OutStreams"   type="Print"           >Print_sim_PS</Output>
+      <Output  class="DataObjects"  type="PointSet"        >sim_PS_map</Output>
+      <Output  class="OutStreams"   type="Print"           >Print_sim_PS_map</Output>
     </MultiRun>
   </Steps>
 
   <OutStreams>
-    <Print name="Print_sim_PS">
+    <Print name="Print_sim_PS_map">
       <type>csv</type>
-      <source>sim_PS</source>
+      <source>sim_PS_map</source>
       <what>input,output</what>
     </Print>
   </OutStreams>
@@ -118,7 +122,7 @@
       <Input>start,b,c,d,end,f,g,h</Input>
       <Output>OutputPlaceHolder</Output>
     </PointSet>
-    <PointSet name="sim_PS">
+    <PointSet name="sim_PS_map">
       <Input>start,b,c,d,end,f,g,h</Input>
       <Output>end_time,CP</Output>
     </PointSet>
