@@ -11,11 +11,11 @@ class project():
   h     = Activity("h",     15)
   end   = Activity("end",   20)
 
-  graph = {start: [f,b,h], 
-           b    : [c], 
-           c    : [g,d], 
-           d    : [end], 
-           f    : [g], 
+  graph = {start: [f,b,h],
+           b    : [c],
+           c    : [g,d],
+           d    : [end],
+           f    : [g],
            g    : [end],
            h    : [end],
            end  : []}
