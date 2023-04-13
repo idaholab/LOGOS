@@ -55,4 +55,15 @@
   UnorderedCsv = 'MultipleKnapsack/PrintPS.csv'
  [../]
  
+ [./CPMmodel]
+  type  = 'RavenFramework'
+  input = 'test_BaseCPMmodel.xml'
+  UnorderedCsv = 'MultipleKnapsack/Print_sim_PS.csv'
+ [../]
+
+ [./CPMmodel_map]
+  type  = 'RavenFramework'
+  input = 'test_BaseCPMmodel_map.xml'
+  UnorderedCsv = 'MultipleKnapsack/Print_sim_PS_map.csv'
+ [../]
 []

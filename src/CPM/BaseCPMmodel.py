@@ -12,6 +12,8 @@ import numpy as np
 import importlib.util
 import sys
 import os
+import copy
+import inspect
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
@@ -24,7 +26,7 @@ from LOGOS.src.CPM.PertMain2 import Activity
 
 class BaseCPMmodel(ExternalModelPluginBase):
   """
-    This class is designed to create the base class for the CPM models
+    This class is designed to create the base class for the critical path model (CPM)
   """
   def __init__(self):
     """
@@ -34,7 +36,11 @@ class BaseCPMmodel(ExternalModelPluginBase):
     """
     ExternalModelPluginBase.__init__(self)
 
-    self.graph = None
+    self.graph  = None  # graph of the input schedule
+    self.CPtime = None  # ID of the variable that indicates the time asscoated with the critical path (CP)
+    self.CPid   = None  # ID of the variable that indicates the CP as sequence of activities/tasks
+    self.mapping = {}   # dictionary containing the schedule graph from RAVEN xml input file
+    self.pert = None    # graph of the imported schedule
 
   def _readMoreXML(self, container, xmlNode):
     """
@@ -43,19 +49,36 @@ class BaseCPMmodel(ExternalModelPluginBase):
       @ In, xmlNode, xml.etree.ElementTree.Element, XML node that needs to be read
       @ Out, None
     """
-    container.mapping = {}
-    container.invMapping = {}
-
     for child in xmlNode:
       if child.tag == 'CPtime':
-        container.CPtime = child.text.strip()
+        self.CPtime = child.text.strip()
+      elif child.tag == 'CPid':
+        self.CPid = child.text.strip()
       elif child.tag == 'variables':
         variables = [str(var.strip()) for var in child.text.split(",")]
       elif child.tag == 'map':
-        container.mapping[child.get('var')]      = child.text.strip()
-        container.invMapping[child.text.strip()] = child.get('var')
+        if child.text is None:
+          self.mapping[child.get('act')] = [child.get('dur'),[]]
+        else:
+          self.mapping[child.get('act')] = [child.get('dur'),child.text.split(",")]
       else:
         raise IOError("CMPmodel: xml node " + str(child.tag) + " is not allowed")
+
+    if self.CPtime is None:
+      raise IOError("CMPmodel: xml node CPtime has not been specified")
+    if self.CPid is None:
+      raise IOError("CMPmodel: xml node CPid has not been specified")
+
+    # construction of the schedule graph from the RAVEN xml block
+    actDict = {}
+    if self.mapping:
+      self.graph = {}
+      for key in self.mapping.keys():
+        actDict[key] = Activity(key,self.mapping[key][0])
+        self.graph[actDict[key]] = []
+      for key in self.mapping.keys():
+        for elem in self.mapping[key][1]:
+          self.graph[actDict[key]].append(actDict[elem])
 
   def initialize(self, container, runInfoDict, inputFiles):
     """
@@ -77,29 +100,47 @@ class BaseCPMmodel(ExternalModelPluginBase):
            a mandatory key is the sampledVars'that contains a dictionary {'name variable':value}
       @ Out, ([(inputDict)],copy.deepcopy(kwargs)), tuple, return the new input in a tuple form
     """
-    file2open = inputs[0].getFilename()
-    spec = importlib.util.spec_from_file_location("project", str(file2open))
-    importedModule = importlib.util.module_from_spec(spec)
-    sys.modules["project"] = importedModule
-    spec.loader.exec_module(importedModule)
-    self.graph = importedModule.project.graph
-    return Kwargs
+    if self.mapping: # if the schedule graph is specified in the the RAVEN xml block
+      return Kwargs
+    else:            # if the schedule graph is specified in a python class located in a separate file
+      file2open = inputs[0].getFilename()
+      spec = importlib.util.spec_from_file_location("projectClass", str(file2open))
+      importedModule = importlib.util.module_from_spec(spec)
+      spec.loader.exec_module(importedModule)
 
-  @abc.abstractmethod
+      if 'project' in list(zip(*inspect.getmembers(importedModule, inspect.isclass)))[0]:
+        self.graph = importedModule.project.graph
+      else:
+        raise IOError("CPMmodel: class project has not been found in " +  str(file2open))
+      return Kwargs
+
   def run(self, container, inputDict):
     """
       This method calculates the CP of the schedule project and its end time
       @ In, container, object, self-like object where all the variables can be stored
       @ In, inputDict, dict, dictionary of inputs from RAVEN
     """
+    self.updateGraphValues(container, inputDict)
+
+    self.pert = Pert(self.graph)  # initialize PERT class and perform numeric calculations
+    endTime = self.pert.infoDict[self.pert.endActivity]['ef']
+
+    # return CP time
+    container.__dict__[self.CPtime] = np.asarray(float(endTime))
+    # return CP (format string) as a sequence of activities separated by "_": start_act1_act2_act3_end
+    container.__dict__[self.CPid]   = "_".join (map (str, self.pert.getCriticalPathSymbolic()))
+
+  def updateGraphValues(self, container, inputDict):
+    """
+      This method updates the duration value of a subset of activities in self.graph when
+      the schedule graph is specified in a python class located in a separate file
+      @ In, container, object, self-like object where all the variables can be stored
+      @ In, inputDict, dict, dictionary of inputs from RAVEN
+    """
     inputDict = inputDict['SampledVars']
-    for input in inputDict.keys():
-      for act in self.graph.keys():
-        if act.returnName()==container.mapping[input]:
-          act.updateDuration(inputDict[input])
-    
-    self.pert = Pert(self.graph)
-    
-    end_time = self.pert.info_dict[self.pert.end_activity]['ef']
-    container.__dict__[container.CPtime] = np.asarray(float(end_time))
-    #CP       = self.pert.get_critical_path()
+    for key in self.graph.keys():
+      if key.returnName() in inputDict.keys():
+        key.updateDuration(inputDict[key.returnName()])
+      for elem in self.graph[key]:
+        if elem.returnName() in inputDict.keys():
+          elem.updateDuration(inputDict[key.returnName()])

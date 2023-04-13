@@ -12,16 +12,9 @@
 
   <Models>
     <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
-      <variables>A,B,C,D,E,F,G,H,end_time</variables>
+      <variables>start,b,c,d,end,f,g,h,end_time,CP</variables>
       <CPtime>end_time</CPtime>
-      <map var='A'>start</map>
-      <map var='B'>b</map>
-      <map var='C'>c</map>
-      <map var='D'>d</map>
-      <map var='E'>end</map>
-      <map var='F'>f</map>
-      <map var='G'>g</map>
-      <map var='H'>h</map>
+      <CPid>CP</CPid>
     </ExternalModel>
   </Models>
 
@@ -65,28 +58,28 @@
       <samplerInit>
         <limit>10</limit>
       </samplerInit>
-      <variable name="A">
+      <variable name="start">
         <distribution>dist_A</distribution>
       </variable>
-      <variable name="B">
+      <variable name="b">
         <distribution>dist_B</distribution>
       </variable>
-      <variable name="C">
+      <variable name="c">
         <distribution>dist_C</distribution>
       </variable>
-      <variable name="D">
+      <variable name="d">
         <distribution>dist_D</distribution>
       </variable>
-      <variable name="E">
+      <variable name="end">
         <distribution>dist_E</distribution>
       </variable>
-      <variable name="F">
+      <variable name="f">
         <distribution>dist_F</distribution>
       </variable>
-      <variable name="G">
+      <variable name="g">
         <distribution>dist_G</distribution>
       </variable>
-      <variable name="H">
+      <variable name="h">
         <distribution>dist_H</distribution>
       </variable>
     </MonteCarlo>
@@ -112,12 +105,12 @@
 
   <DataObjects>
     <PointSet name="inputPlaceHolder">
-      <Input>A,B,C,D,E,F,G,H</Input>
+      <Input>start,b,c,d,end,f,g,h</Input>
       <Output>OutputPlaceHolder</Output>
     </PointSet>
     <PointSet name="sim_PS">
-      <Input>A,B,C,D,E,F,G,H</Input>
-      <Output>end_time</Output>
+      <Input>start,b,c,d,end,f,g,h</Input>
+      <Output>end_time,CP</Output>
     </PointSet>
   </DataObjects>
 

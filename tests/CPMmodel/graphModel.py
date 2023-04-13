@@ -11,8 +11,6 @@ class project():
   h     = Activity("h",     15)
   end   = Activity("end",   20)
 
-  activitiesList = [start,b,c,d,f,g,h,end]
-
   graph = {start: [f,b,h], 
            b    : [c], 
            c    : [g,d], 
@@ -21,6 +19,3 @@ class project():
            g    : [end],
            h    : [end],
            end  : []}
-
-
-
