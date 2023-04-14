@@ -10,3 +10,4 @@ from LOGOS.src import BatteryReplacementCashFlowModel
 from LOGOS.src import IncrementalNPV
 from LOGOS.src.knapsack import MultipleKnapsackModel
 from LOGOS.src.knapsack import SimpleKnapsackModel
+from LOGOS.src.CPM import BaseCPMmodel

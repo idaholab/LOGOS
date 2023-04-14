@@ -1,0 +1,72 @@
+\section{Critical Path Model (CPM)}
+\label{sec:CPM}
+
+The CPM model is designed to perform schedule durations calculations provided a set of activities
+linked by a graph structure.
+This model is designed to be used in a RAVEN workflow where the actitvity duration values can be
+changed through a specific sampling strategy (either sampling or optmization).
+
+The schedule requires a ``start'' and an ``end'' activity, a list of additional activities and
+their correspoding duration values.
+The graph can be imported in two ways. In the first way, the graph is defined in the
+\xmlNode{map} nodes. In each instance of the \xmlNode{map} node, an activity is defined and the
+following information is required: activity ID (act attribute), activity duration (dur attribute),
+and the list of outgoing activities.
+
+Example of CPM input XML in RAVEN input file:
+\begin{lstlisting}[style=XML]
+  <Models>
+    <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMm odel">
+      <variables>start,b,c,d,end,f,g,h,end_time,CP</variables>
+      <CPtime>end_time</CPtime>
+      <CPid>CP</CPid>
+      <map act='start' dur='10'>f,b,h</map>
+      <map act='b'     dur='20'>c</map>
+      <map act='c'     dur='5' >g,d</map>
+      <map act='d'     dur='10'>end</map>
+      <map act='f'     dur='15'>g</map>
+      <map act='g'     dur='5' >end</map>
+      <map act='h'     dur='15'>end</map>
+      <map act='end'   dur='20'></map>
+    </ExternalModel>
+  </Models>
+\end{lstlisting}
+
+In the second way, the graph structure can be define in a .py file and it is specified in a
+project() class (see below). In this class each activity is define in terms of ID and duration
+(see Activity object below).
+Then the graph structure is defined through a dictionary, for each activity, a list of list of
+outgoing activities is provided.
+
+Example of schedule definition in an external .py file:
+\begin{lstlisting}[language=Python]
+  from LOGOS.src.CPM.PertMain2 import Pert
+  from LOGOS.src.CPM.PertMain2 import Activity
+
+  class project():
+    start = Activity("start", 10)
+    b     = Activity("b",     20)
+    c     = Activity("c",      5)
+    d     = Activity("d",     10)
+    f     = Activity("f",     15)
+    g     = Activity("g",      5)
+    h     = Activity("h",     15)
+    end   = Activity("end",   20)
+
+    graph = {start: [f,b,h],
+             b    : [c],
+             c    : [g,d],
+             d    : [end],
+             f    : [g],
+             g    : [end],
+             h    : [end],
+             end  : []}
+  \end{lstlisting}
+
+The CPM model return two parameters. The first one is the critical path time value (i.e., a float),
+while the second one is the actual critical path which is represented as a sequence of activity ID
+that are part of the critial path (i.e., a string) separated by an underscore.
+The RAVEN ID for the critical path time value is specified in the \xmlNode{CPtime}.
+The RAVEN ID for the critical path is specified in the \xmlNode{CPid}.
+
+
