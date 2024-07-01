@@ -253,9 +253,6 @@ class Pert:
     self.resetInfo()
     self.generateInfo()
 
-  def removeActivity(activity):
-    pass
-
   # find isolated activities
   def findIsolated(self):
     """
@@ -352,7 +349,8 @@ class Pert:
   def getAllAlternativePaths(self, startActivity, endActivity, path=[]):
     """
       Get all the paths between 2 nodes (activities) in the graph (pert)
-      @ In, None
+      @ In, startActivity, activity, activity at the beginning of the path
+      @ In, endActivity activity, activity at the end of the path
       @ Out, paths, list, list of paths between startActivity and endActivity
     """
     onePath = path + [startActivity]
@@ -366,119 +364,77 @@ class Pert:
     return paths
   
   def returnSuccList(self,node):
+    """
+      Method designed to return the immediate successors of a node
+      @ In, node, activity, activity being queried
+      @ Out, list, list of activities that are immediate successors of "node"
+    """
     return list(self.forwardDict[node])
   
   def returnNumberSucc(self,node):
+    """
+      Method designed to return the number of immediate successors of a node
+      @ In, node, activity, activity being queried
+      @ Out, int, number activities that are immediate successors of "node"
+    """
     return len(list(self.forwardDict[node]))
 
   def returnPredList(self,node):
+    """
+      Method designed to return the immediate predecessors of a node
+      @ In, node, activity, activity being queried
+      @ Out, list, list of activities that are immediate predecessors of "node"
+    """
     return (self.backwardDict[node])
 
   def returnNumberPred(self,node):
+    """
+      Method designed to return the number of immediate predecessors of a node
+      @ In, node, activity, activity being queried
+      @ Out, int, number activities that are immediate predecessors of "node"
+    """
     return len((self.backwardDict[node]))  
     
   def simplifyGraph(self):
-      updatedGraph = copy.deepcopy(self.forwardDict)
-      listPairs = self.pairsDetection()
+    """
+      Method designed to simplify the structure of a Pert graph by combining activities that are in series
+      @ In, none
+      @ Out, reducedPertModel, Pert model, reduced Pert model
+    """
+    updatedGraph = copy.deepcopy(self.forwardDict)
+    listPairs = self.pairsDetection()
 
-      G = nx.DiGraph()
-      G.add_edges_from(listPairs)
+    G = nx.DiGraph()
+    G.add_edges_from(listPairs)
 
-      UG = G.to_undirected()
-      A = (UG.subgraph(c) for c in nx.connected_components(UG))
-      listSeries = list(A)
+    UG = G.to_undirected()
+    A = (UG.subgraph(c) for c in nx.connected_components(UG))
+    listSeries = list(A)
 
-      for series in listSeries:
-          temp = list(nx.topological_sort(series))
-          predOFSeries = updatedGraph.returnPredList(temp[0])[0]
-          succOFSeries = updatedGraph.returnSuccList(temp[-1])
-          for node in list(series.nodes):
-              del updatedGraph[node]
-          updatedGraph[temp[0]] = succOFSeries
-      reducedPertModel = Pert(updatedGraph)
-      return reducedPertModel
+    for series in listSeries:
+        temp = list(nx.topological_sort(series))
+        predOFSeries = updatedGraph.returnPredList(temp[0])[0]
+        succOFSeries = updatedGraph.returnSuccList(temp[-1])
+        for node in list(series.nodes):
+            del updatedGraph[node]
+        updatedGraph[temp[0]] = succOFSeries
+    reducedPertModel = Pert(updatedGraph)
+    return reducedPertModel
     
-  def graph_partitioning(self, G, plotting=True):
-      """Partition a directed graph into a list of subgraphs that contain
-      only entirely supported or entirely unsupported nodes.
-      """
-      # Categorize nodes by their node_type attribute
-      supported_nodes = {n for n, d in G.nodes(data="node_type") if d == "supported"}
-      unsupported_nodes = {n for n, d in G.nodes(data="node_type") if d == "unsupported"}
-
-      # Make a copy of the graph.
-      H = G.copy()
-      # Remove all edges connecting supported and unsupported nodes.
-      H.remove_edges_from(
-          (n, nbr, d)
-          for n, nbrs in G.adj.items()
-          if n in supported_nodes
-          for nbr, d in nbrs.items()
-          if nbr in unsupported_nodes
-      )
-      H.remove_edges_from(
-          (n, nbr, d)
-          for n, nbrs in G.adj.items()
-          if n in unsupported_nodes
-          for nbr, d in nbrs.items()
-          if nbr in supported_nodes
-      )
-
-      # Collect all removed edges for reconstruction.
-      G_minus_H = nx.DiGraph()
-      G_minus_H.add_edges_from(set(G.edges) - set(H.edges))
-
-      if plotting:
-          # Plot the stripped graph with the edges removed.
-          _node_colors = [c for _, c in H.nodes(data="node_color")]
-          _pos = nx.spring_layout(H)
-          plt.figure(figsize=(8, 8))
-          nx.draw_networkx_edges(H, _pos, alpha=0.3, edge_color="k")
-          nx.draw_networkx_nodes(H, _pos, node_color=_node_colors)
-          nx.draw_networkx_labels(H, _pos, font_size=14)
-          plt.axis("off")
-          plt.title("The stripped graph with the edges removed.")
-          plt.show()
-          # Plot the edges removed.
-          _pos = nx.spring_layout(G_minus_H)
-          plt.figure(figsize=(8, 8))
-          ncl = [G.nodes[n]["node_color"] for n in G_minus_H.nodes]
-          nx.draw_networkx_edges(G_minus_H, _pos, alpha=0.3, edge_color="k")
-          nx.draw_networkx_nodes(G_minus_H, _pos, node_color=ncl)
-          nx.draw_networkx_labels(G_minus_H, _pos, font_size=14)
-          plt.axis("off")
-          plt.title("The removed edges.")
-          plt.show()
-
-      # Find the connected components in the stripped undirected graph.
-      # And use the sets, specifying the components, to partition
-      # the original directed graph into a list of directed subgraphs
-      # that contain only entirely supported or entirely unsupported nodes.
-      subgraphs = [
-          H.subgraph(c).copy() for c in nx.connected_components(H.to_undirected())
-      ]
-
-      return subgraphs, G_minus_H
-
   def pairsDetection(self):
-      pairs = []
-      for node in self.forwardDict:
-          if self.returnNumberSucc(node)==1:
-              successor = self.returnSuccList(node)[0]
-              if self.returnNumberPred(successor)==1:
-                  pairs.append((node,successor))
-      return pairs
-
-'''def pairsDetection(pertModel):
-    graph = pertModel.returnGraph()
+    """
+      Method designed to identify pairs of activities that in series
+      @ In, none
+      @ Out, pairs, list of tuples, list of pairs of activities, each pair is a tuple (activity_1, activity_2)
+    """
     pairs = []
-    for node in graph:
-        if pertModel.returnNumberSucc(node)==1:
-            successor = pertModel.returnSuccList(node)[0]
-            if pertModel.returnNumberPred(successor)==1:
+    for node in self.forwardDict:
+        if self.returnNumberSucc(node)==1:
+            successor = self.returnSuccList(node)[0]
+            if self.returnNumberPred(successor)==1:
                 pairs.append((node,successor))
-    return pairs'''
-  
+    return pairs
+
 '''
 # Example of usegae of the pert class
 if __name__ == "__main__":
