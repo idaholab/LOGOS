@@ -5,6 +5,7 @@ import math
 import copy
 import networkx as nx
 import matplotlib.pyplot as plt
+import itertools
 
 class Activity:
   """
@@ -21,6 +22,7 @@ class Activity:
     self.name = str(name)
     self.duration = duration
     self.subActivities = []
+    self.belongsToCP = False
 
   def returnName(self):
     """
@@ -66,6 +68,12 @@ class Activity:
       tempDuration += act.returnDuration()
     self.duration = tempDuration
 
+  def setOnCP(self):
+    self.belongsToCP = True
+
+  def returnCPstatus(self):
+    return self.belongsToCP
+
 
 class Pert:
   """
@@ -93,7 +101,7 @@ class Pert:
     # str method for pert
   def __str__(self):
     """
-      Method designed to returun basic information of the schedule graph
+      Method designed to return basic information of the schedule graph
       @ In, None
       @ Out, None
     """
@@ -360,7 +368,7 @@ class Pert:
               maxDecreaseToActivities[activity] = self.infoDict[path[1]]["slack"] - 1
     return maxDecreaseToActivities
 
-  def getAllAlternativePaths(self, startActivity, endActivity, path=[]):
+  def getAllAlternativePaths(self, startActivity, endActivity, path=[], symbolic=False):
     """
       Get all the paths between 2 nodes (activities) in the graph (pert)
       @ In, startActivity, activity, activity at the beginning of the path
@@ -375,7 +383,22 @@ class Pert:
     paths = []
     for activity in self.forwardDict[startActivity]:
       paths += self.getAllAlternativePaths(activity, endActivity, onePath)
-    return paths
+    if symbolic:
+      symbPaths = []
+      for path in paths:
+        symbPath = []
+        for act in path:
+          symbPath.append(act.returnName())
+        symbPaths.append(symbPath)
+      return symbPaths
+    else:
+      return paths
+    
+  def getAllPathsParallelToCP(self):
+    CP = self.getCriticalPath()
+    pathsList = self.getAllAlternativePaths(CP[0], CP[-1])
+    pathsList.remove(CP)
+    return pathsList
   
   def returnSuccList(self,node):
     """
@@ -462,7 +485,7 @@ class Pert:
     
   def pairsDetection(self):
     """
-      Method designed to identify pairs of activities that in series
+      Method designed to identify pairs of activities that are in series
       @ In, none
       @ Out, pairs, list of tuples, list of pairs of activities, each pair is a tuple (activity_1, activity_2)
     """
@@ -473,6 +496,65 @@ class Pert:
             if self.returnNumberPred(successor)==1:
                 pairs.append((node,successor))
     return pairs
+  
+  def getSubpathsParalleltoCP(self):
+    CP = self.getCriticalPath() 
+    paths = self.getAllPathsParallelToCP()
+    subpathsSet = []
+    for path in paths:
+      subpaths = getSubpaths(path,CP)
+      subpathsSet = subpathsSet + subpaths
+    
+    b_set = set(map(tuple,subpathsSet)) 
+    subpathsSetRed = list(map(list,b_set)) 
+    subpathsSetRed.remove([])
+    return subpathsSetRed
+  
+  def printPathSymbolic(self, path):
+    symbPath = ''
+    for act in path:
+      symbPath = symbPath + '-' + str(act.name)
+    print(symbPath)
+
+  
+'''  def getSubpathsParalleltoCP(self, CP, paths):
+    subpaths = []
+
+    pathsOrdered = paths.sort(key=len,reverse=True)
+    
+    for path in pathsOrdered:
+      subpath = list(set(path) - set(CP))
+      subpaths.append(subpath)
+    
+    subpathsList = set()
+    for i, subpath in enumerate(subpaths):
+      for j in range(i+1,len(subpaths)):
+        if set(subpath).issubset(subpaths[j]):
+          subpathsList.add()
+        else:      
+          pass'''
+
+def getSubpaths(path,CP):
+  subpaths = []
+  split_list_recursive_list(path, subpaths, [], CP)
+  return subpaths
+
+
+def split_list_recursive_list(test_list, result, temp_list, particular_list):
+  # Source: https://www.geeksforgeeks.org/python-split-list-into-lists-by-particular-value/
+  if not test_list:
+    result.append(temp_list)
+    return
+  if test_list[0] in particular_list:
+    result.append(temp_list)
+    split_list_recursive_list(test_list[1:], result, [], particular_list)
+  else:
+    split_list_recursive_list(test_list[1:],
+                              result,
+                              temp_list + [test_list[0]],
+                              particular_list)
+
+
   
 def graphPartitioning(G, plotting=True):
   """Partition a directed graph into a list of subgraphs that contain
@@ -535,6 +617,7 @@ def graphPartitioning(G, plotting=True):
   ]
 
   return subgraphs, G_minus_H
+
 
 '''
 # Example of usegae of the pert class
