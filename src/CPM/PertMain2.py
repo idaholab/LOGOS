@@ -58,7 +58,7 @@ class Activity:
 
   def addSubActivities(self, subActivities):
     """
-      Methods that associate a list of subactivities 
+      Method that associates a list of subactivities 
       @ In, subActivities, list, list of subactivities
       @ Out, None
     """
@@ -69,9 +69,19 @@ class Activity:
     self.duration = tempDuration
 
   def setOnCP(self):
+    """
+      Methods that sets if an activity is part of the CP
+      @ In, None
+      @ Out, None
+    """
     self.belongsToCP = True
 
   def returnCPstatus(self):
+    """
+      Return if an activity is part of the CP or not
+      @ In, None
+      @ Out, None
+    """
     return self.belongsToCP
 
 
@@ -395,6 +405,11 @@ class Pert:
       return paths
     
   def getAllPathsParallelToCP(self):
+    """
+      Method designed to return all the paths parallel to the critical path
+      @ In, none
+      @ Out, pathsList, list of path that are parallel to the critical path
+    """
     CP = self.getCriticalPath()
     pathsList = self.getAllAlternativePaths(CP[0], CP[-1])
     pathsList.remove(CP)
@@ -433,6 +448,11 @@ class Pert:
     return len((self.backwardDict[node]))  
   
   def returnSubActivities(self, node):
+    """
+      Method retrun the set of activities that have been merged into an activity 
+      @ In, node, activity, activity to be queried
+      @ Out, list, list of activities
+    """
     return node.returnSubActivities()
   
   def deleteActivity(self,node):
@@ -479,10 +499,13 @@ class Pert:
         succOFSeries = list(updatedGraph[temp[-1]])
         for node in list(series.nodes):
             reducedPertModel.deleteActivity(node)
-        reducedPertModel.updateMergedSeries(temp[0], succOFSeries, temp)
+        if checkForEndNode(temp) is None:
+            reducedPertModel.updateMergedSeries(temp[0], succOFSeries, temp)
+        else:
+            reducedPertModel.updateMergedSeries(checkForEndNode(temp), succOFSeries, temp)
     
     return reducedPertModel
-    
+      
   def pairsDetection(self):
     """
       Method designed to identify pairs of activities that are in series
@@ -498,23 +521,36 @@ class Pert:
     return pairs
   
   def getSubpathsParalleltoCP(self):
+    """
+      Method designed to return the subpaths that are parallel to CP
+      @ In, none
+      @ Out, subpathsSetRed, list of activities, list of activities that are parallel to the CP
+    """
     CP = self.getCriticalPath() 
     paths = self.getAllPathsParallelToCP()
     subpathsSet = []
     for path in paths:
       subpaths = getSubpaths(path,CP)
-      subpathsSet = subpathsSet + subpaths
-    
-    b_set = set(map(tuple,subpathsSet)) 
-    subpathsSetRed = list(map(list,b_set)) 
-    subpathsSetRed.remove([])
+      b_set = set(map(tuple,subpaths)) 
+      subpathsSetRed = list(map(list,b_set)) 
+      subpathsSetRed.remove([])
+      subpathsSetExp = expandSubpaths(subpathsSetRed,path)
+      subpathsSet = subpathsSet + subpathsSetExp
+
+    c_set = set(map(tuple,subpathsSet))
+    subpathsSetRed = list(map(list,c_set))
     return subpathsSetRed
   
   def printPathSymbolic(self, path):
+    """
+      Method designed to print the symbolic name of a path
+      @ In, path, list, list of activities
+      @ Out, None
+    """
     symbPath = ''
     for act in path:
-      symbPath = symbPath + '-' + str(act.name)
-    print(symbPath)
+      print(act.name, end =" ")
+    print()
 
   
 '''  def getSubpathsParalleltoCP(self, CP, paths):
@@ -534,25 +570,56 @@ class Pert:
         else:      
           pass'''
 
+def expandSubpaths(subpaths, path):
+  expandedPaths = []
+  for subpath in subpaths:
+    idx1 = path.index(subpath[0])
+    if len(subpath)==1:
+      expSubpath = path[idx1-1:idx1+2]
+    else:
+      expSubpath = path[idx1-1:idx1+len(subpath)+1]
+    expandedPaths.append(expSubpath)
+  return expandedPaths 
+
+def checkForEndNode(listActivities):
+  for elem in listActivities:
+    if elem.returnName()=='end':
+      return elem
+  return None
+
+
 def getSubpaths(path,CP):
+  """
+    Method designed to return the set of subpaths that are part of a path parallel to the CP
+    @ In, path, list, list of activities
+    @ In, CP, list, list of activities
+    @ Out, subpaths, list, list of subpaths that are part "path" parallel to "CP"
+  """
   subpaths = []
-  split_list_recursive_list(path, subpaths, [], CP)
+  splitListRecursiveList(path, subpaths, [], CP)
   return subpaths
 
-
-def split_list_recursive_list(test_list, result, temp_list, particular_list):
-  # Source: https://www.geeksforgeeks.org/python-split-list-into-lists-by-particular-value/
+def splitListRecursiveList(test_list, result, temp_list, particular_list):
+  """
+    Recursive method designed to split a list in sub-lists separated by elements that are included in particular_list
+    Source: https://www.geeksforgeeks.org/python-split-list-into-lists-by-particular-value/
+    @ In, test_list, list, 
+    @ In, result, list, lis of subpath
+    @ In, temp_list, list, temporary list of 
+    @ In, particular_list, list, list of element that mark a separation between sub-lists
+    @ Out, result, list, list of subpaths that are part "path" parallel to "CP"
+  """
   if not test_list:
     result.append(temp_list)
     return
   if test_list[0] in particular_list:
     result.append(temp_list)
-    split_list_recursive_list(test_list[1:], result, [], particular_list)
+    splitListRecursiveList(test_list[1:], result, [], particular_list)
   else:
-    split_list_recursive_list(test_list[1:],
-                              result,
-                              temp_list + [test_list[0]],
-                              particular_list)
+    splitListRecursiveList(test_list[1:],
+                           result,
+                           temp_list + [test_list[0]],
+                           particular_list)
 
 
   
@@ -620,7 +687,7 @@ def graphPartitioning(G, plotting=True):
 
 
 '''
-# Example of usegae of the pert class
+# Example of usage of the pert class
 if __name__ == "__main__":
     start = Activity("start", 5)
     a = Activity("a", 2)
