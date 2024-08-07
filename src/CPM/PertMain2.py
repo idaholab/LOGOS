@@ -6,6 +6,9 @@ import copy
 import networkx as nx
 import matplotlib.pyplot as plt
 import itertools
+import datetime 
+import pandas as pd
+import numpy as np
 
 class Activity:
   """
@@ -13,7 +16,7 @@ class Activity:
     Extended from the original development of Nofar Alfasi
     Source https://github.com/nofaralfasi/PERT-CPM-graph
   """
-  def __init__(self, name, duration):
+  def __init__(self, name, duration, res=None):
     """
       Constructor
       @ In, name, str, ID of the activity
@@ -23,6 +26,10 @@ class Activity:
     self.duration = duration
     self.subActivities = []
     self.belongsToCP = False
+    self.resources = res
+
+    self.startTime = None
+    self.endTime   = None
 
   def returnName(self):
     """
@@ -40,6 +47,14 @@ class Activity:
     """
     return self.duration
 
+  def returnResources(self):
+    """
+      Methods that returns the duration of the activity
+      @ In, None
+      @ Out, duration, float, duration of the activity
+    """
+    return self.resources
+  
   def updateDuration(self, newDuration):
     """
       Methods that changes the duration of the activity
@@ -83,6 +98,14 @@ class Activity:
       @ Out, None
     """
     return self.belongsToCP
+  
+  def setTimes(self, Tin, Tfin):
+    self.startTime = Tin
+    self.endTime   = Tfin
+
+  def returnAbsTimes(self):
+    return (self.startTime,self.endTime)
+
 
 
 class Pert:
@@ -94,13 +117,21 @@ class Pert:
     Source https://github.com/nofaralfasi/PERT-CPM-graph
   """
 
-  def __init__(self, graph={}):
+  def __init__(self, graph={}, startTime=None, resourcesTS=None):
     """
       Constructor
       @ In, None
       @ Out, None
     """
     self.forwardDict = graph   # list of out going nodes for every activity
+    self.resources = resourcesTS
+    self.startTime = startTime
+
+    if resourcesTS is not None:
+      self.checkResources()
+      if pd.infer_freq(resourcesTS.index) not in ['h','H']:
+        print("resourcesTS in PERT is set on the wrong index frequency: " + str(pd.infer_freq(resourcesTS.index)) + " instead of h or H")
+
     self.backwardDict = {}     # list of in going nodes for every activity
     self.infoDict = {}         # map of details for every activity
     self.startActivity = Activity
@@ -108,7 +139,12 @@ class Pert:
     self.resetInitialGraph()   # first reset of the graph
     self.generateInfo()        # entering values into 'info_dict'
 
-    # str method for pert
+    if startTime is not None:
+      self.setActivitiesAbsTimes()
+
+    if resourcesTS is not None:
+      self.resourcesTemporalCheck()
+
   def __str__(self):
     """
       Method designed to return basic information of the schedule graph
@@ -127,6 +163,11 @@ class Pert:
   # iterator for the pert class
   def __iter__(self):
     return iter(self.forwardDict)
+  
+  def checkResources(self):
+    for act in self.forwardDict:
+      if act.returnResources() not in self.resources.columns:
+        print("Activity " + str(act.returnName()) + " has a resource that is not allowed: " + str(act.returnResources()))
 
   def resetInitialGraph(self):
     """
@@ -552,6 +593,24 @@ class Pert:
       print(act.name, end =" ")
     print()
 
+  def setActivitiesAbsTimes(self):
+    for act in self.forwardDict:
+      Tin = self.startTime + datetime.timedelta(hours=self.infoDict[act]['es'])
+      Tfin = Tin + datetime.timedelta(hours=act.returnDuration()) 
+      act.setTimes(Tin,Tfin)
+
+  def resourcesTemporalCheck(self):
+    self.reqResources = pd.DataFrame().reindex_like(self.resources)
+    self.reqResources = self.reqResources.replace(np.nan, 0)
+    for act in self.forwardDict:
+      absTimeVals = act.returnAbsTimes()
+      res = act.returnResources()
+      if res is not None:
+        self.reqResources.loc[absTimeVals[0]:absTimeVals[1],res] += 1
+
+  def returnReqResources(self):
+    return self.reqResources
+
   
 '''  def getSubpathsParalleltoCP(self, CP, paths):
     subpaths = []
@@ -586,7 +645,6 @@ def checkForEndNode(listActivities):
     if elem.returnName()=='end':
       return elem
   return None
-
 
 def getSubpaths(path,CP):
   """
