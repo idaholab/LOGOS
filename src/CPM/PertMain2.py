@@ -9,6 +9,7 @@ import itertools
 import datetime 
 import pandas as pd
 import numpy as np
+import json
 
 class Activity:
   """
@@ -16,7 +17,7 @@ class Activity:
     Extended from the original development of Nofar Alfasi
     Source https://github.com/nofaralfasi/PERT-CPM-graph
   """
-  def __init__(self, name, duration, res=None):
+  def __init__(self, name, duration, res=None, childs=None):
     """
       Constructor
       @ In, name, str, ID of the activity
@@ -30,6 +31,17 @@ class Activity:
 
     self.startTime = None
     self.endTime   = None
+
+    self.childs = childs
+
+  def printToJsn(self):
+    return json.dumps(self.__dict__, sort_keys=True, default=str)
+  
+  def updateChilds(self, childs): 
+    if self.childs is None:
+      self.childs = []
+      for child in childs:
+        self.childs.append(child.returnName())
 
   def returnName(self):
     """
@@ -138,6 +150,9 @@ class Pert:
     self.endActivity = Activity
     self.resetInitialGraph()   # first reset of the graph
     self.generateInfo()        # entering values into 'info_dict'
+
+    for act in self.forwardDict.keys():
+      act.updateChilds(self.forwardDict[act])
 
     if startTime is not None:
       self.setActivitiesAbsTimes()
@@ -598,6 +613,19 @@ class Pert:
       Tin = self.startTime + datetime.timedelta(hours=self.infoDict[act]['es'])
       Tfin = Tin + datetime.timedelta(hours=act.returnDuration()) 
       act.setTimes(Tin,Tfin)
+
+  def returnScheduleEndTime(self):
+    startTime, endTime = self.getCriticalPath()[-1].returnAbsTimes()
+    return endTime
+  
+  def saveScheduleToJsn(self, nameFile=None):
+    if nameFile is None:
+      nameFile = 'schedule.json'
+
+    with open(nameFile, 'w', encoding="utf-8") as fp:
+      for act in self.forwardDict.keys():
+        json.dump(act.printToJsn(), fp, sort_keys=True, indent=4)
+        fp.write("\n")
 
   def resourcesTemporalCheck(self):
     self.reqResources = pd.DataFrame().reindex_like(self.resources)
