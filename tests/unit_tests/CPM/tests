@@ -1,0 +1,5 @@
+[Tests]
+ [./utils]
+  type = 'RavenPython'
+  input = 'CPM.py'
+ [../]
