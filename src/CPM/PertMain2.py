@@ -32,16 +32,30 @@ class Activity:
     self.startTime = None
     self.endTime   = None
 
-    self.childs = childs
+    if childs is None:
+      self.childs = []
+    else:
+      self.childs = childs
 
   def printToJsn(self):
+    """
+      Method designed to print on file activity in json format
+      @ In, None
+      @ Out, file in json format
+    """
     return json.dumps(self.__dict__, sort_keys=True, default=str)
   
   def updateChilds(self, childs): 
-    if self.childs is None:
-      self.childs = []
-      for child in childs:
-        self.childs.append(child.returnName())
+    """
+      Method designed to assign the childs of an activity
+      @ In, None
+      @ Out, file in jason format
+    """
+    #if self.childs is None:
+    #  self.childs = []
+    #else:
+    for child in childs:
+      self.childs.append(child.returnName())
 
   def returnName(self):
     """
@@ -112,10 +126,21 @@ class Activity:
     return self.belongsToCP
   
   def setTimes(self, Tin, Tfin):
+    """
+      Set initial and final time of the activity based on CPM calculations
+      @ In, Tin,  float, initial time of the activity
+      @ In, Tfin, float, final time of the activity
+      @ Out, None
+    """    
     self.startTime = Tin
     self.endTime   = Tfin
 
   def returnAbsTimes(self):
+    """
+      Return initial and final time of the activity based on CPM calculations
+      @ In, None
+      @ Out, (self.startTime,self.endTime), tuple, tuple containing initial and final time of the activity
+    """   
     return (self.startTime,self.endTime)
 
 
@@ -132,7 +157,9 @@ class Pert:
   def __init__(self, graph={}, startTime=None, resourcesTS=None):
     """
       Constructor
-      @ In, None
+      @ In, graph, dict, dictionary containing the child acitivities for each activity
+      @ In, startTime, float, absolute initial time of schedule
+      @ In, resourcesTS, dataframe, pandas dataframe containing resources availability
       @ Out, None
     """
     self.forwardDict = graph   # list of out going nodes for every activity
@@ -160,6 +187,7 @@ class Pert:
     if resourcesTS is not None:
       self.resourcesTemporalCheck()
 
+
   def __str__(self):
     """
       Method designed to return basic information of the schedule graph
@@ -180,9 +208,14 @@ class Pert:
     return iter(self.forwardDict)
   
   def checkResources(self):
+    """
+      Method designed to check that the provided resource temporal profile contains allowed resource types  
+      @ In, None
+      @ Out, None
+    """
     for act in self.forwardDict:
       if act.returnResources() not in self.resources.columns:
-        print("Activity " + str(act.returnName()) + " has a resource that is not allowed: " + str(act.returnResources()))
+        print("Activity " + str(act.returnName()) + " requires a resource that is not allowed: " + str(act.returnResources()))
 
   def resetInitialGraph(self):
     """
@@ -609,16 +642,31 @@ class Pert:
     print()
 
   def setActivitiesAbsTimes(self):
+    """
+      Method designed to assign, to each activity, its initial and final absolute time values
+      @ In, None
+      @ Out, None
+    """
     for act in self.forwardDict:
       Tin = self.startTime + datetime.timedelta(hours=self.infoDict[act]['es'])
       Tfin = Tin + datetime.timedelta(hours=act.returnDuration()) 
       act.setTimes(Tin,Tfin)
 
   def returnScheduleEndTime(self):
+    """
+      Method designed to return the absolute end time of the aschdule
+      @ In, None
+      @ Out, endTime, float, absolute end time of the aschdule
+    """
     startTime, endTime = self.getCriticalPath()[-1].returnAbsTimes()
     return endTime
   
   def saveScheduleToJsn(self, nameFile=None):
+    """
+      Method designed to print on file schedule in json format
+      @ In, nameFile, string, name of the generated file
+      @ Out, file in json format
+    """
     if nameFile is None:
       nameFile = 'schedule.json'
 
@@ -635,9 +683,6 @@ class Pert:
       res = act.returnResources()
       if res is not None:
         self.reqResources.loc[absTimeVals[0]:absTimeVals[1],res] += 1
-
-  def returnReqResources(self):
-    return self.reqResources
 
   
 '''  def getSubpathsParalleltoCP(self, CP, paths):
@@ -768,7 +813,6 @@ def graphPartitioning(G, plotting=True):
   subgraphs = [
       H.subgraph(c).copy() for c in nx.connected_components(H.to_undirected())
   ]
-
   return subgraphs, G_minus_H
 
 
