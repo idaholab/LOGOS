@@ -9,6 +9,9 @@ import warnings
 warnings.simplefilter('default',DeprecationWarning)
 
 import os,sys
+sys.path.insert(0, '../../../src/CPM/')
+from PertMain2 import Pert, Activity
+
 import numpy as np
 
 results = {"pass":0,"fail":0}
@@ -89,31 +92,63 @@ def checkList(comment,check,expected):
     results['pass']+=1
     return True
 
+# Initialize schedule
+start = Activity("start", 5)
+a = Activity("a", 2)
+b = Activity("b", 3)
+c = Activity("c", 3)
+d = Activity("d", 4)
+e = Activity("e", 3)
+f = Activity("f", 6)
+g = Activity("g", 3)
+h = Activity("h", 6)
+end = Activity("end", 2)
 
-# check getRelativeSortedListEntry
-toPopulate = [0.8, 0.002, 0.0003, 0.9, 0.85, 0.799999999999, 0.90000001, 0.00029999999999]
-#populating these in this order tests adding new entries to the front (0.0003), back (0.9), and middle (0.85),
-#  as well as adding matches in the front (0.00029...), back (0.90...1), and middle (0.79...)
-desired = [0.0003, 0.002, 0.8, 0.85, 0.9]
-sortedList = []
-for x in toPopulate:
-  sortedList,index,match = utils.getRelativeSortedListEntry(sortedList,x,tol=1e-6)
-checkArray('Maintaining sorted list',sortedList,desired)
+graph = {start: [a, d, f], 
+         a: [b], 
+         b: [c], 
+         c: [g, h], 
+         d: [e], 
+         e: [c], 
+         f: [c],
+         g: [end],
+         h: [end], 
+         end:[]}
 
+outageStartTime =  datetime(2025, 4, 25, 8)
 
-# partial string formatting
-s = '{a} {b} {a}'
-correct = 'one {b} one'
-got = s.format_map(utils.StringPartialFormatDict(a='one'))
-checkTrue('Partial string formatting', got, correct)
+pert = Pert(graph, startTime=outageStartTime)
 
-s = '{a:3s} {b:2d} {c:3s}'
-correct = '{a}  2 {c}'
-got = utils.partialFormat(s, {'b': 2})
-checkTrue('Partial string formatting 2', got, correct)
+# Test CP
+symbCPlist = pert.getCriticalPathSymbolic()
+expected = ['start', 'd', 'e', 'c', 'h', 'end']
+checkAnswer('CP analysis (path)',symbCPlist,expected)
 
-checkTrue('Partial string formatting 2', got, correct)
+# Test end time
+endTime = pert.returnScheduleEndTime()
+expected = '2025-04-26 07:00:00'
+checkAnswerString('CP analysis (end time)',str(endTime),expected):
 
+# Test paths parallel to CP
+paths = pert.getAllPathsParallelToCP()
+expected = [['start', 'a', 'b', 'c', 'g', 'end'],
+            ['start', 'a', 'b', 'c', 'h', 'end'],
+            ['start', 'd', 'e', 'c', 'g', 'end'],
+            ['start', 'f', 'c', 'g', 'end'],
+            ['start', 'f', 'c', 'h', 'end']]
+for index,path in enumerate(paths):
+    checkAnswerString('CP analysis (parallel paths)',pert.returnPathSymbolic(path),expected[i]):
+
+# Test subpaths 
+subpaths = pert.getSubpathsParalleltoCP()
+for subpath in subpaths:
+    print(pert.returnPathSymbolic(subpath))
+
+# Test reduced graph 
+pertRed = pert.simplifyGraph()
+pertRed.returnGraphSymbolic()
+pertRed.getCriticalPathSymbolic()
+    
 print(results)
 
 sys.exit(results["fail"])

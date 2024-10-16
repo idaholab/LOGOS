@@ -630,16 +630,16 @@ class Pert:
     subpathsSetRed = list(map(list,c_set))
     return subpathsSetRed
   
-  def printPathSymbolic(self, path):
+  def returnPathSymbolic(self, path):
     """
       Method designed to print the symbolic name of a path
       @ In, path, list, list of activities
       @ Out, None
     """
-    symbPath = ''
+    symbPath = []
     for act in path:
-      print(act.name, end =" ")
-    print()
+      symbPath.append(act.name)
+    return symbPath
 
   def setActivitiesAbsTimes(self):
     """
