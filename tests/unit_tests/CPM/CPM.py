@@ -139,15 +139,20 @@ expected = [['start', 'a', 'b', 'c', 'g', 'end'],
             ['start', 'f', 'c', 'g', 'end'],
             ['start', 'f', 'c', 'h', 'end']]
 for index,path in enumerate(paths):
-    checkAnswerString('CP analysis (parallel paths)',pert.returnPathSymbolic(path),expected[index])
+    checkList('CP analysis (parallel paths)',pert.returnPathSymbolic(path),expected[index])
 
 # Test subpaths
 subpaths = pert.getSubpathsParalleltoCP()
+subpathList = []
+for subpath in subpaths:
+    subpathList.append(pert.returnPathSymbolic(subpath))
 expected = [['c', 'g', 'end'],
             ['start', 'a', 'b', 'c'],
             ['start', 'f', 'c']]
+subpathList.sort()
+expected.sort()
 for index,subpath in enumerate(subpaths):
-    checkAnswerString('CP analysis (subpaths)',pert.returnPathSymbolic(subpath),expected[index])
+    checkList('CP analysis (subpaths)',pert.returnPathSymbolic(subpath),expected[index])
 
 # Test reduced graph
 pertRed = pert.simplifyGraph()
