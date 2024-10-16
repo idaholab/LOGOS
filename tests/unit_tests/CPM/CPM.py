@@ -13,7 +13,7 @@ sys.path.insert(0, '../../../src/CPM/')
 from PertMain2 import Pert, Activity
 
 import numpy as np
-import datetime
+from datetime import datetime, time
 
 results = {"pass":0,"fail":0}
 
