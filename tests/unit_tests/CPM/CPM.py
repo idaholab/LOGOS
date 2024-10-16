@@ -127,7 +127,7 @@ checkAnswer('CP analysis (path)',symbCPlist,expected)
 # Test end time
 endTime = pert.returnScheduleEndTime()
 expected = '2025-04-26 07:00:00'
-checkAnswerString('CP analysis (end time)',str(endTime),expected):
+checkAnswerString('CP analysis (end time)',str(endTime),expected)
 
 # Test paths parallel to CP
 paths = pert.getAllPathsParallelToCP()
@@ -137,7 +137,7 @@ expected = [['start', 'a', 'b', 'c', 'g', 'end'],
             ['start', 'f', 'c', 'g', 'end'],
             ['start', 'f', 'c', 'h', 'end']]
 for index,path in enumerate(paths):
-    checkAnswerString('CP analysis (parallel paths)',pert.returnPathSymbolic(path),expected[i]):
+    checkAnswerString('CP analysis (parallel paths)',pert.returnPathSymbolic(path),expected[i])
 
 # Test subpaths
 subpaths = pert.getSubpathsParalleltoCP()
