@@ -86,7 +86,7 @@ def checkList(comment,check,expected):
   else:
     for i in range(len(check)):
       same = same*checkAnswerString(comment+'[%i]'%i,check[i],expected[i],False)
-  if not sam
+  if not same:
     print("checking list",comment,"did not match!")
     results['fail']+=1
     return False
