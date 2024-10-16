@@ -3,6 +3,13 @@
 
 import math
 import copy
+import networkx as nx
+import matplotlib.pyplot as plt
+import itertools
+import datetime
+import pandas as pd
+import numpy as np
+import json
 
 class Activity:
   """
@@ -10,7 +17,7 @@ class Activity:
     Extended from the original development of Nofar Alfasi
     Source https://github.com/nofaralfasi/PERT-CPM-graph
   """
-  def __init__(self, name, duration):
+  def __init__(self, name, duration, res=None, childs=None):
     """
       Constructor
       @ In, name, str, ID of the activity
@@ -18,6 +25,37 @@ class Activity:
     """
     self.name = str(name)
     self.duration = duration
+    self.subActivities = []
+    self.belongsToCP = False
+    self.resources = res
+
+    self.startTime = None
+    self.endTime   = None
+
+    if childs is None:
+      self.childs = []
+    else:
+      self.childs = childs
+
+  def printToJsn(self):
+    """
+      Method designed to print on file activity in json format
+      @ In, None
+      @ Out, file in json format
+    """
+    return json.dumps(self.__dict__, sort_keys=True, default=str)
+
+  def updateChilds(self, childs):
+    """
+      Method designed to assign the childs of an activity
+      @ In, None
+      @ Out, file in jason format
+    """
+    #if self.childs is None:
+    #  self.childs = []
+    #else:
+    for child in childs:
+      self.childs.append(child.returnName())
 
   def returnName(self):
     """
@@ -35,6 +73,14 @@ class Activity:
     """
     return self.duration
 
+  def returnResources(self):
+    """
+      Methods that returns the duration of the activity
+      @ In, None
+      @ Out, duration, float, duration of the activity
+    """
+    return self.resources
+
   def updateDuration(self, newDuration):
     """
       Methods that changes the duration of the activity
@@ -43,41 +89,116 @@ class Activity:
     """
     self.duration = copy.deepcopy(newDuration)
 
+  def returnSubActivities(self):
+    """
+      Methods that returns the list of subactivities
+      @ In, None
+      @ Out, subActivities, list, list of subactivities
+    """
+    return self.subActivities
+
+  def addSubActivities(self, subActivities):
+    """
+      Method that associates a list of subactivities
+      @ In, subActivities, list, list of subactivities
+      @ Out, None
+    """
+    self.subActivities = subActivities
+    tempDuration = 0.
+    for act in subActivities:
+      tempDuration += act.returnDuration()
+    self.duration = tempDuration
+
+  def setOnCP(self):
+    """
+      Methods that sets if an activity is part of the CP
+      @ In, None
+      @ Out, None
+    """
+    self.belongsToCP = True
+
+  def returnCPstatus(self):
+    """
+      Return if an activity is part of the CP or not
+      @ In, None
+      @ Out, None
+    """
+    return self.belongsToCP
+
+  def setTimes(self, Tin, Tfin):
+    """
+      Set initial and final time of the activity based on CPM calculations
+      @ In, Tin,  float, initial time of the activity
+      @ In, Tfin, float, final time of the activity
+      @ Out, None
+    """
+    self.startTime = Tin
+    self.endTime   = Tfin
+
+  def returnAbsTimes(self):
+    """
+      Return initial and final time of the activity based on CPM calculations
+      @ In, None
+      @ Out, (self.startTime,self.endTime), tuple, tuple containing initial and final time of the activity
+    """
+    return (self.startTime,self.endTime)
+
+
+
 class Pert:
   """
     This is the base class for a schedule as a set of activities linked by a graph structure
     A graph is a map with activities as keys and list of outgoing activities as value for every key
-    The graph starts with a 'start' node and ends with a 'end' node
+    The graph starts with a 'start' node and ends with a 'end' node.
     Extended from the original development of Nofar Alfasi
     Source https://github.com/nofaralfasi/PERT-CPM-graph
   """
 
-  def __init__(self, graph={}):
+  def __init__(self, graph={}, startTime=None, resourcesTS=None):
     """
       Constructor
-      @ In, None
+      @ In, graph, dict, dictionary containing the child acitivities for each activity
+      @ In, startTime, float, absolute initial time of schedule
+      @ In, resourcesTS, dataframe, pandas dataframe containing resources availability
       @ Out, None
     """
     self.forwardDict = graph   # list of out going nodes for every activity
+    self.resources = resourcesTS
+    self.startTime = startTime
+
+    if resourcesTS is not None:
+      self.checkResources()
+      if pd.infer_freq(resourcesTS.index) not in ['h','H']:
+        print("resourcesTS in PERT is set on the wrong index frequency: " + str(pd.infer_freq(resourcesTS.index)) + " instead of h or H")
+
     self.backwardDict = {}     # list of in going nodes for every activity
     self.infoDict = {}         # map of details for every activity
     self.startActivity = Activity
     self.endActivity = Activity
-    self.resetInitialGraph()  # first reset of the graph
+    self.resetInitialGraph()   # first reset of the graph
     self.generateInfo()        # entering values into 'info_dict'
 
-    # str method for pert
+    for act in self.forwardDict.keys():
+      act.updateChilds(self.forwardDict[act])
+
+    if startTime is not None:
+      self.setActivitiesAbsTimes()
+
+    if resourcesTS is not None:
+      self.resourcesTemporalCheck()
+
+
   def __str__(self):
     """
-      Method designed to returun basic information of the schedule graph
+      Method designed to return basic information of the schedule graph
       @ In, None
       @ Out, None
     """
     iterator = iter(self)
     graph_str = 'Activities:\n'
     for activity in iterator:
-      graphStr += str(activity) + '\n'
-    return (graphStr + 'Connections:\n'
+      graph_str += str(activity) + '\n'
+    return (graph_str + 'Connections:\n'
       + str(self.forwardDict)
       + '\nProject Duration:\n'
       + str(self.infoDict[self.endActivity]['ef']))
@@ -85,6 +206,16 @@ class Pert:
   # iterator for the pert class
   def __iter__(self):
     return iter(self.forwardDict)
+
+  def checkResources(self):
+    """
+      Method designed to check that the provided resource temporal profile contains allowed resource types
+      @ In, None
+      @ Out, None
+    """
+    for act in self.forwardDict:
+      if act.returnResources() not in self.resources.columns:
+        print("Activity " + str(act.returnName()) + " requires a resource that is not allowed: " + str(act.returnResources()))
 
   def resetInitialGraph(self):
     """
@@ -265,7 +396,7 @@ class Pert:
       @ In, None
       @ Out, slackVals, list, list of slack value for all activities
     """
-    slacks = {activity: self.infoDict[activity]["slack"] for activity in self.infoDict if self.infoDict[activity]["slack"] != 0}
+    slacks = {activity.returnName(): self.infoDict[activity]["slack"] for activity in self.infoDict if self.infoDict[activity]["slack"] != 0}
     slackVals = sorted(slacks.items(), key=lambda kv: kv[1], reverse=True)
     return slackVals
 
@@ -336,10 +467,11 @@ class Pert:
               maxDecreaseToActivities[activity] = self.infoDict[path[1]]["slack"] - 1
     return maxDecreaseToActivities
 
-  def getAllAlternativePaths(self, startActivity, endActivity, path=[]):
+  def getAllAlternativePaths(self, startActivity, endActivity, path=[], symbolic=False):
     """
       Get all the paths between 2 nodes (activities) in the graph (pert)
-      @ In, None
+      @ In, startActivity, activity, activity at the beginning of the path
+      @ In, endActivity activity, activity at the end of the path
       @ Out, paths, list, list of paths between startActivity and endActivity
     """
     onePath = path + [startActivity]
@@ -350,10 +482,342 @@ class Pert:
     paths = []
     for activity in self.forwardDict[startActivity]:
       paths += self.getAllAlternativePaths(activity, endActivity, onePath)
-    return paths
+    if symbolic:
+      symbPaths = []
+      for path in paths:
+        symbPath = []
+        for act in path:
+          symbPath.append(act.returnName())
+        symbPaths.append(symbPath)
+      return symbPaths
+    else:
+      return paths
+
+  def getAllPathsParallelToCP(self):
+    """
+      Method designed to return all the paths parallel to the critical path
+      @ In, none
+      @ Out, pathsList, list of path that are parallel to the critical path
+    """
+    CP = self.getCriticalPath()
+    pathsList = self.getAllAlternativePaths(CP[0], CP[-1])
+    pathsList.remove(CP)
+    return pathsList
+
+  def returnSuccList(self,node):
+    """
+      Method designed to return the immediate successors of a node
+      @ In, node, activity, activity being queried
+      @ Out, list, list of activities that are immediate successors of "node"
+    """
+    return list(self.forwardDict[node])
+
+  def returnNumberSucc(self,node):
+    """
+      Method designed to return the number of immediate successors of a node
+      @ In, node, activity, activity being queried
+      @ Out, int, number activities that are immediate successors of "node"
+    """
+    return len(list(self.forwardDict[node]))
+
+  def returnPredList(self,node):
+    """
+      Method designed to return the immediate predecessors of a node
+      @ In, node, activity, activity being queried
+      @ Out, list, list of activities that are immediate predecessors of "node"
+    """
+    return (self.backwardDict[node])
+
+  def returnNumberPred(self,node):
+    """
+      Method designed to return the number of immediate predecessors of a node
+      @ In, node, activity, activity being queried
+      @ Out, int, number activities that are immediate predecessors of "node"
+    """
+    return len((self.backwardDict[node]))
+
+  def returnSubActivities(self, node):
+    """
+      Method retrun the set of activities that have been merged into an activity
+      @ In, node, activity, activity to be queried
+      @ Out, list, list of activities
+    """
+    return node.returnSubActivities()
+
+  def deleteActivity(self,node):
+    """
+      Method designed to remove an activity from a schedule
+      @ In, node, activity, activity to be removed
+      @ Out, none
+    """
+    del self.forwardDict[node]
+
+  def updateMergedSeries(self, node, listSucc, subActivities):
+    """
+      Method designed to add a merged series to a schedule
+      @ In, node, activity, activity to be added
+      @ In, listSucc, list, list of sucessor activities associated with "node"
+      @ In, subActivities, list, list of activities that are part of the series
+      @ Out, none
+    """
+    node.addSubActivities(subActivities)
+    self.forwardDict[node] = listSucc
+
+  def simplifyGraph(self):
+    """
+      Method designed to simplify the structure of a Pert graph by combining activities that are in series
+      @ In, none
+      @ Out, reducedPertModel, Pert model, reduced Pert model
+    """
+    updatedGraph = copy.deepcopy(self.forwardDict)
+    reducedPertModel = Pert(updatedGraph)
+
+    listPairs = reducedPertModel.pairsDetection()
+
+    G = nx.DiGraph()
+    G.add_edges_from(listPairs)
+
+    #UG = G.to_undirected()
+    #A = (UG.subgraph(c) for c in nx.connected_components(UG))
+
+    subgraphs_of_G_ex, removed_edges = graphPartitioning(G, plotting=False)
+    listSeries = list(subgraphs_of_G_ex)
+
+    for series in listSeries:
+        temp = list(nx.topological_sort(series))
+        succOFSeries = list(updatedGraph[temp[-1]])
+        for node in list(series.nodes):
+            reducedPertModel.deleteActivity(node)
+        if checkForEndNode(temp) is None:
+            reducedPertModel.updateMergedSeries(temp[0], succOFSeries, temp)
+        else:
+            reducedPertModel.updateMergedSeries(checkForEndNode(temp), succOFSeries, temp)
+
+    return reducedPertModel
+
+  def pairsDetection(self):
+    """
+      Method designed to identify pairs of activities that are in series
+      @ In, none
+      @ Out, pairs, list of tuples, list of pairs of activities, each pair is a tuple (activity_1, activity_2)
+    """
+    pairs = []
+    for node in self.forwardDict:
+        if self.returnNumberSucc(node)==1:
+            successor = self.returnSuccList(node)[0]
+            if self.returnNumberPred(successor)==1:
+                pairs.append((node,successor))
+    return pairs
+
+  def getSubpathsParalleltoCP(self):
+    """
+      Method designed to return the subpaths that are parallel to CP
+      @ In, none
+      @ Out, subpathsSetRed, list of activities, list of activities that are parallel to the CP
+    """
+    CP = self.getCriticalPath()
+    paths = self.getAllPathsParallelToCP()
+    subpathsSet = []
+    for path in paths:
+      subpaths = getSubpaths(path,CP)
+      b_set = set(map(tuple,subpaths))
+      subpathsSetRed = list(map(list,b_set))
+      subpathsSetRed.remove([])
+      subpathsSetExp = expandSubpaths(subpathsSetRed,path)
+      subpathsSet = subpathsSet + subpathsSetExp
+
+    c_set = set(map(tuple,subpathsSet))
+    subpathsSetRed = list(map(list,c_set))
+    return subpathsSetRed
+
+  def returnPathSymbolic(self, path):
+    """
+      Method designed to print the symbolic name of a path
+      @ In, path, list, list of activities
+      @ Out, None
+    """
+    symbPath = []
+    for act in path:
+      symbPath.append(act.name)
+    return symbPath
+
+  def setActivitiesAbsTimes(self):
+    """
+      Method designed to assign, to each activity, its initial and final absolute time values
+      @ In, None
+      @ Out, None
+    """
+    for act in self.forwardDict:
+      Tin = self.startTime + datetime.timedelta(hours=self.infoDict[act]['es'])
+      Tfin = Tin + datetime.timedelta(hours=act.returnDuration())
+      act.setTimes(Tin,Tfin)
+
+  def returnScheduleEndTime(self):
+    """
+      Method designed to return the absolute end time of the aschdule
+      @ In, None
+      @ Out, endTime, float, absolute end time of the aschdule
+    """
+    startTime, endTime = self.getCriticalPath()[-1].returnAbsTimes()
+    return endTime
+
+  def saveScheduleToJsn(self, nameFile=None):
+    """
+      Method designed to print on file schedule in json format
+      @ In, nameFile, string, name of the generated file
+      @ Out, file in json format
+    """
+    if nameFile is None:
+      nameFile = 'schedule.json'
+
+    with open(nameFile, 'w', encoding="utf-8") as fp:
+      for act in self.forwardDict.keys():
+        json.dump(act.printToJsn(), fp, sort_keys=True, indent=4)
+        fp.write("\n")
+
+  def resourcesTemporalCheck(self):
+    self.reqResources = pd.DataFrame().reindex_like(self.resources)
+    self.reqResources = self.reqResources.replace(np.nan, 0)
+    for act in self.forwardDict:
+      absTimeVals = act.returnAbsTimes()
+      res = act.returnResources()
+      if res is not None:
+        self.reqResources.loc[absTimeVals[0]:absTimeVals[1],res] += 1
+
+
+'''  def getSubpathsParalleltoCP(self, CP, paths):
+    subpaths = []
+
+    pathsOrdered = paths.sort(key=len,reverse=True)
+
+    for path in pathsOrdered:
+      subpath = list(set(path) - set(CP))
+      subpaths.append(subpath)
+
+    subpathsList = set()
+    for i, subpath in enumerate(subpaths):
+      for j in range(i+1,len(subpaths)):
+        if set(subpath).issubset(subpaths[j]):
+          subpathsList.add()
+        else:
+          pass'''
+
+def expandSubpaths(subpaths, path):
+  expandedPaths = []
+  for subpath in subpaths:
+    idx1 = path.index(subpath[0])
+    if len(subpath)==1:
+      expSubpath = path[idx1-1:idx1+2]
+    else:
+      expSubpath = path[idx1-1:idx1+len(subpath)+1]
+    expandedPaths.append(expSubpath)
+  return expandedPaths
+
+def checkForEndNode(listActivities):
+  for elem in listActivities:
+    if elem.returnName()=='end':
+      return elem
+  return None
+
+def getSubpaths(path,CP):
+  """
+    Method designed to return the set of subpaths that are part of a path parallel to the CP
+    @ In, path, list, list of activities
+    @ In, CP, list, list of activities
+    @ Out, subpaths, list, list of subpaths that are part "path" parallel to "CP"
+  """
+  subpaths = []
+  splitListRecursiveList(path, subpaths, [], CP)
+  return subpaths
+
+def splitListRecursiveList(test_list, result, temp_list, particular_list):
+  """
+    Recursive method designed to split a list in sub-lists separated by elements that are included in particular_list
+    Source: https://www.geeksforgeeks.org/python-split-list-into-lists-by-particular-value/
+    @ In, test_list, list,
+    @ In, result, list, lis of subpath
+    @ In, temp_list, list, temporary list of
+    @ In, particular_list, list, list of element that mark a separation between sub-lists
+    @ Out, result, list, list of subpaths that are part "path" parallel to "CP"
+  """
+  if not test_list:
+    result.append(temp_list)
+    return
+  if test_list[0] in particular_list:
+    result.append(temp_list)
+    splitListRecursiveList(test_list[1:], result, [], particular_list)
+  else:
+    splitListRecursiveList(test_list[1:],
+                           result,
+                           temp_list + [test_list[0]],
+                           particular_list)
+
+
+
+def graphPartitioning(G, plotting=True):
+  """Partition a directed graph into a list of subgraphs that contain
+  only entirely supported or entirely unsupported nodes.
+  """
+  # Categorize nodes by their node_type attribute
+  supported_nodes = {n for n, d in G.nodes(data="node_type") if d == "supported"}
+  unsupported_nodes = {n for n, d in G.nodes(data="node_type") if d == "unsupported"}
+
+  # Make a copy of the graph.
+  H = G.copy()
+  # Remove all edges connecting supported and unsupported nodes.
+  H.remove_edges_from(
+      (n, nbr, d)
+      for n, nbrs in G.adj.items()
+      if n in supported_nodes
+      for nbr, d in nbrs.items()
+      if nbr in unsupported_nodes
+  )
+  H.remove_edges_from(
+      (n, nbr, d)
+      for n, nbrs in G.adj.items()
+      if n in unsupported_nodes
+      for nbr, d in nbrs.items()
+      if nbr in supported_nodes
+  )
+
+  # Collect all removed edges for reconstruction.
+  G_minus_H = nx.DiGraph()
+  G_minus_H.add_edges_from(set(G.edges) - set(H.edges))
+
+  if plotting:
+      # Plot the stripped graph with the edges removed.
+      _node_colors = [c for _, c in H.nodes(data="node_color")]
+      _pos = nx.spring_layout(H)
+      plt.figure(figsize=(8, 8))
+      nx.draw_networkx_edges(H, _pos, alpha=0.3, edge_color="k")
+      nx.draw_networkx_nodes(H, _pos, node_color=_node_colors)
+      nx.draw_networkx_labels(H, _pos, font_size=14)
+      plt.axis("off")
+      plt.title("The stripped graph with the edges removed.")
+      plt.show()
+      # Plot the edges removed.
+      _pos = nx.spring_layout(G_minus_H)
+      plt.figure(figsize=(8, 8))
+      ncl = [G.nodes[n]["node_color"] for n in G_minus_H.nodes]
+      nx.draw_networkx_edges(G_minus_H, _pos, alpha=0.3, edge_color="k")
+      nx.draw_networkx_nodes(G_minus_H, _pos, node_color=ncl)
+      nx.draw_networkx_labels(G_minus_H, _pos, font_size=14)
+      plt.axis("off")
+      plt.title("The removed edges.")
+      plt.show()
+
+  # Find the connected components in the stripped undirected graph.
+  # And use the sets, specifying the components, to partition
+  # the original directed graph into a list of directed subgraphs
+  # that contain only entirely supported or entirely unsupported nodes.
+  subgraphs = [
+      H.subgraph(c).copy() for c in nx.connected_components(H.to_undirected())
+  ]
+  return subgraphs, G_minus_H
+
 
 '''
-# Example of usegae of the pert class
+# Example of usage of the pert class
 if __name__ == "__main__":
     start = Activity("start", 5)
     a = Activity("a", 2)
