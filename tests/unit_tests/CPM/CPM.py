@@ -86,7 +86,7 @@ def checkList(comment,check,expected):
   else:
     for i in range(len(check)):
       same = same*checkAnswerString(comment+'[%i]'%i,check[i],expected[i],False)
-  if not same:
+  if not sam
     print("checking list",comment,"did not match!")
     results['fail']+=1
     return False
@@ -152,7 +152,7 @@ expected = [['c', 'g', 'end'],
 subpathList.sort()
 expected.sort()
 for index,subpath in enumerate(subpaths):
-    checkList('CP analysis (subpaths)',pert.returnPathSymbolic(subpath),expected[index])
+    checkList('CP analysis (subpaths)',subpathList[index],expected[index])
 
 # Test reduced graph
 pertRed = pert.simplifyGraph()
