@@ -123,7 +123,7 @@ pert = Pert(graph, startTime=outageStartTime)
 # Test CP
 symbCPlist = pert.getCriticalPathSymbolic()
 expected = ['start', 'd', 'e', 'c', 'h', 'end']
-checkAnswer('CP analysis (path)',symbCPlist,expected)
+checkList('CP analysis (path)',symbCPlist,expected)
 
 # Test end time
 endTime = pert.returnScheduleEndTime()
@@ -142,8 +142,11 @@ for index,path in enumerate(paths):
 
 # Test subpaths
 subpaths = pert.getSubpathsParalleltoCP()
+expected = [['c', 'g', 'end'],
+            ['start', 'a', 'b', 'c'],
+            ['start', 'f', 'c']]
 for subpath in subpaths:
-    print(pert.returnPathSymbolic(subpath))
+    checkAnswerString('CP analysis (subpaths)',pert.returnPathSymbolic(subpath),expected[i])
 
 # Test reduced graph
 pertRed = pert.simplifyGraph()
