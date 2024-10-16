@@ -87,7 +87,7 @@ def checkList(comment,check,expected):
     for i in range(len(check)):
       same = same*checkAnswerString(comment+'[%i]'%i,check[i],expected[i],False)
   if not same:
-    print("checking array",comment,"did not match!")
+    print("checking list",comment,"did not match!")
     results['fail']+=1
     return False
   else:
@@ -139,20 +139,21 @@ expected = [['start', 'a', 'b', 'c', 'g', 'end'],
             ['start', 'f', 'c', 'g', 'end'],
             ['start', 'f', 'c', 'h', 'end']]
 for index,path in enumerate(paths):
-    checkAnswerString('CP analysis (parallel paths)',pert.returnPathSymbolic(path),expected[i])
+    checkAnswerString('CP analysis (parallel paths)',pert.returnPathSymbolic(path),expected[index])
 
 # Test subpaths
 subpaths = pert.getSubpathsParalleltoCP()
 expected = [['c', 'g', 'end'],
             ['start', 'a', 'b', 'c'],
             ['start', 'f', 'c']]
-for subpath in subpaths:
-    checkAnswerString('CP analysis (subpaths)',pert.returnPathSymbolic(subpath),expected[i])
+for index,subpath in enumerate(subpaths):
+    checkAnswerString('CP analysis (subpaths)',pert.returnPathSymbolic(subpath),expected[index])
 
 # Test reduced graph
 pertRed = pert.simplifyGraph()
-pertRed.returnGraphSymbolic()
-pertRed.getCriticalPathSymbolic()
+symbCPredList = pertRed.getCriticalPathSymbolic()
+expected = ['start', 'd', 'c', 'h', 'end']
+checkList('CP analysis (path)',symbCPredList,expected)
 
 print(results)
 
