@@ -13,6 +13,7 @@ sys.path.insert(0, '../../../src/CPM/')
 from PertMain2 import Pert, Activity
 
 import numpy as np
+import datetime
 
 results = {"pass":0,"fail":0}
 
@@ -115,7 +116,7 @@ graph = {start: [a, d, f],
          h: [end],
          end:[]}
 
-outageStartTime =  datetime(2025, 4, 25, 8)
+outageStartTime = datetime(2025, 4, 25, 8)
 
 pert = Pert(graph, startTime=outageStartTime)
 
