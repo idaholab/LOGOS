@@ -80,6 +80,7 @@ def checkArray(comment,check,expected,tol=1e-10):
     return True
 
 def checkList(comment,check,expected):
+  same=True
   if len(check) != len(expected):
     same=False
   else:
