@@ -38,7 +38,7 @@ def checkAnswer(comment,value,expected,tol=1e-10,updateResults=True):
 
 def checkAnswerString(comment,value,expected,updateResults=True):
   """
-    This method compares two strings 
+    This method compares two strings
     @ In, comment, string, a comment printed out if it fails
     @ In, value, string, the value to compare
     @ In, expected, string, the expected value
@@ -104,15 +104,15 @@ g = Activity("g", 3)
 h = Activity("h", 6)
 end = Activity("end", 2)
 
-graph = {start: [a, d, f], 
-         a: [b], 
-         b: [c], 
-         c: [g, h], 
-         d: [e], 
-         e: [c], 
+graph = {start: [a, d, f],
+         a: [b],
+         b: [c],
+         c: [g, h],
+         d: [e],
+         e: [c],
          f: [c],
          g: [end],
-         h: [end], 
+         h: [end],
          end:[]}
 
 outageStartTime =  datetime(2025, 4, 25, 8)
@@ -139,16 +139,16 @@ expected = [['start', 'a', 'b', 'c', 'g', 'end'],
 for index,path in enumerate(paths):
     checkAnswerString('CP analysis (parallel paths)',pert.returnPathSymbolic(path),expected[i]):
 
-# Test subpaths 
+# Test subpaths
 subpaths = pert.getSubpathsParalleltoCP()
 for subpath in subpaths:
     print(pert.returnPathSymbolic(subpath))
 
-# Test reduced graph 
+# Test reduced graph
 pertRed = pert.simplifyGraph()
 pertRed.returnGraphSymbolic()
 pertRed.getCriticalPathSymbolic()
-    
+
 print(results)
 
 sys.exit(results["fail"])
