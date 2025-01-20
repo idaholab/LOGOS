@@ -691,10 +691,10 @@ class Pert:
 
 def expandSubpaths(subpaths, path):
   """
-    Method designed to 
-    @ In, path, list, critical path 
+    Method designed to
+    @ In, path, list, critical path
     @ In, subpaths, list, list of identified subpaths
-    @ Out, expandedPaths, , 
+    @ Out, expandedPaths, ,
   """
   expandedPaths = []
   for subpath in subpaths:
