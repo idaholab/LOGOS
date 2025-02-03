@@ -1,0 +1,103 @@
+	[
+			{
+				"Task": "Start",
+				"Start": "2023-01-01",
+				"Finish": "2023-01-06",
+				"Duration": 5,
+				"Adj": ["act2","act5","act7"],
+				"Resource": ["Electrical","Mechanical"],
+				"Description": "Beginning Task",
+				"Group" : "Refuel"
+			},
+			{
+				"Task": "act2",
+				"Start": "2023-01-06",
+				"Finish": "2023-01-08",
+				"Duration": 2,
+				"Adj": ["act3"],
+				"Resource": ["Human","Mechanical"],
+				"Description": "Task Description",
+				"Group" : "Refuel"
+			},
+			{
+				"Task": "act3",
+				"Start": "2023-01-08",
+				"Finish": "2023-01-11",
+				"Duration": 3,
+				"Adj": ["act4"],
+				"Resource": ["Electrical","Human"],
+				"Description": "Task Description",
+				"Group" : "Refuel"
+			},
+			{
+				"Task": "act4",
+				"Start": "2023-01-13",
+				"Finish": "2023-01-16",
+				"Duration": 3,
+				"Adj": ["act8","act9"],
+				"Resource": ["Human","Mechanical"],
+				"Description": "Task Description",
+				"Group" : "Refuel"
+			},
+			{
+				"Task": "act5",
+				"Start": "2023-01-06",
+				"Finish": "2023-01-10",
+				"Duration": 4,
+				"Adj": ["act6"],
+				"Resource": ["Electrical","Human"],
+				"Description": "Task Description",
+				"Group" : "Refuel"
+			},
+			{
+				"Task": "act6",
+				"Start": "2023-01-10",
+				"Finish": "2023-01-13",
+				"Duration": 3,
+				"Adj": ["act4"],
+				"Resource": ["Human","Mechanical"],
+				"Description": "Task Description",
+				"Group" : "Refuel"
+			},
+			{
+				"Task": "act7",
+				"Start": "2023-01-06",
+				"Finish": "2023-01-12",
+				"Duration": 6,
+				"Adj": ["act4"],
+				"Resource": ["Electrical","Human"],
+				"Description": "Task Description",
+				"Group" : "Refuel"
+			},
+			{
+				"Task": "act8",
+				"Start": "2023-01-16",
+				"Finish": "2023-01-18",
+				"Duration": 2,
+				"Adj": ["end"],
+				"Resource": ["Human","Mechanical"],
+				"Description": "Task Description",
+				"Group" : "Refuel"
+			},
+			{
+				"Task": "act9",
+				"Start": "2023-01-16",
+				"Finish": "2023-01-19",
+				"Duration": 3,
+				"Adj": ["end"],
+				"Resource": ["Electrical","Human"],
+				"Description": "Task Description",
+				"Group" : "Refuel"
+			},
+			{
+				"Task": "end",
+				"Start": "2023-01-19",
+				"Finish": "2023-01-21",
+				"Duration": 2,
+				"Adj": [],
+				"Resource": ["Human"],
+				"Description": "Task Description",
+				"Group" : "Refuel"
+			}
+	]
+

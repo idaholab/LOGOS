@@ -1,0 +1,102 @@
+[
+	{
+		"Task": "Start",
+		"Start": "2024-01-01",
+		"Finish": "2024-02-06",
+		"Duration": 5,
+		"Adj":["act2","act5","act7"],
+		"Resource":["Electrical", "Mechanical"],
+		"CP_flag": 1,
+		"Description": "Task Description"
+	},
+	{
+		"Task": "act2",
+		"Start": "2024-02-06",
+		"Finish": "2024-03-08",
+		"Duration": 2,
+		"Adj":["act3"],
+		"Resource":["Human", "Mechanical"],
+		"CP_flag": 0,
+		"Description": "Task Description"
+	},
+	{
+		"Task": "act3",
+		"Start": "2024-03-08",
+		"Finish": "2024-04-11",
+		"Duration": 3,
+		"Adj":["act4"],
+		"Resource":["Electrical", "Human"],
+		"CP_flag": 0,
+		"Description": "Task Description"
+	},
+	{
+		"Task": "act4",
+		"Start": "2024-05-13",
+		"Finish": "2024-06-16",
+		"Duration": 3,
+		"Adj":["act8","act9"],
+		"Resource":["Human", "Mechanical"],
+		"CP_flag": 1,
+		"Description": "Task Description"
+	},
+	{
+		"Task": "act5",
+		"Start": "2024-02-06",
+		"Finish": "2024-03-10",
+		"Duration": 4,
+		"Adj":["act6"],
+		"Resource":["Electrical", "Human"],
+		"CP_flag": 1,
+		"Description": "Task Description"
+	},
+	{
+		"Task": "act6",
+		"Start": "2024-03-10",
+		"Finish": "2024-04-13",
+		"Duration": 3,
+		"Adj":["act4"],
+		"Resource":["Human", "Mechanical"],
+		"CP_flag": 1,
+		"Description": "Task Description"
+	},
+	{
+		"Task": "act7",
+		"Start": "2024-02-06",
+		"Finish": "2024-04-12",
+		"Duration": 6,
+		"Adj":["act4"],
+		"Resource":["Electrical", "Human"],
+		"CP_flag": 0,
+		"Description": "Task Description"
+	},
+	{
+		"Task": "act8",
+		"Start": "2024-06-16",
+		"Finish": "2024-07-18",
+		"Duration": 2,
+		"Adj":["end"],
+		"Resource":["Human", "Mechanical"],
+		"CP_flag": 0,
+		"Description": "Task Description"
+	},
+	{
+		"Task": "act9",
+		"Start": "2024-06-16",
+		"Finish": "2024-07-19",
+		"Duration": 3,
+		"Adj":["end"],
+		"Resource":["Electrical", "Human"],
+		"CP_flag": 1,
+		"Description": "Task Description"
+	},
+	{
+		"Task": "end",
+		"Start": "2024-07-19",
+		"Finish": "2024-08-21",
+		"Duration": 2,
+		"Resource":[""],
+		"Adj":[],
+		"CP_flag": 1,
+		"Description": "Task Description"
+	}
+]
