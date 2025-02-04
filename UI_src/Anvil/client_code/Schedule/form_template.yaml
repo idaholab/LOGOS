@@ -1,0 +1,106 @@
+components:
+- components:
+  - components:
+    - components:
+      - data_bindings:
+        - {code: '', property: file, writeback: false}
+        event_bindings: {change: import_button_change}
+        layout_properties: {full_width_row: true, grid_position: 'XRJZSE,LKNTVG'}
+        name: import_button
+        properties: {file_types: '".json"', text: Import Schedule}
+        type: FileLoader
+      - layout_properties: {full_width_row: true, grid_position: 'CVOYYL,GTFELB'}
+        name: label_4
+        properties: {font_size: 20, text: 'Viewing Options:'}
+        type: Label
+      - components:
+        - layout_properties: {col_xs: 2, row: XAOOOC, width_xs: 3}
+          name: label_2
+          properties: {align: right, text: 'Start Date:'}
+          type: Label
+        - event_bindings: {}
+          layout_properties: {col_xs: 5, row: XAOOOC, width_xs: 5}
+          name: start_datePicker
+          properties: {pick_time: false}
+          type: DatePicker
+        - layout_properties: {col_xs: 2, row: RBFGCS, width_xs: 3}
+          name: label_3
+          properties: {align: right, text: 'End Date:'}
+          type: Label
+        - event_bindings: {}
+          layout_properties: {col_xs: 5, row: RBFGCS, width_xs: 5}
+          name: end_datePicker
+          properties: {pick_time: false}
+          type: DatePicker
+        - layout_properties: {col_xs: 2, row: NPQIFM, width_xs: 3}
+          name: label_5
+          properties: {align: right, text: 'Interval:'}
+          type: Label
+        - layout_properties: {col_xs: 5, row: NPQIFM, width_xs: 5}
+          name: interval_drop_down
+          properties: {}
+          type: DropDown
+        layout_properties: {full_width_row: true, grid_position: 'HSIIQJ,JQKSYY'}
+        name: grid_panel_2
+        properties: {}
+        type: GridPanel
+      - components:
+        - layout_properties: {grid_position: 'HOGPJL,SZSQAZ'}
+          name: label_6
+          properties: {align: right, text: 'Show Activity Group:'}
+          type: Label
+        - data_bindings: []
+          event_bindings: {}
+          layout_properties: {grid_position: 'HOGPJL,IVPDDD'}
+          name: group_dropdown
+          properties: {include_placeholder: true, placeholder: All}
+          type: DropDown
+        - layout_properties: {grid_position: 'HOGPJL,VVMGRQ'}
+          name: spacer_1
+          properties: {height: 32}
+          type: Spacer
+        - layout_properties: {grid_position: 'LVRTKV,SUHVKH'}
+          name: CP_flag
+          properties: {text: Show critical path}
+          type: CheckBox
+        - layout_properties: {grid_position: 'YOCVMO,UIHEIG'}
+          name: simplified_flag
+          properties: {text: Show simplified Gantt chart}
+          type: CheckBox
+        - layout_properties: {grid_position: 'XEYHGX,MBZUYI'}
+          name: ArrowOpt
+          properties: {checked: true, text: Show activity arrows}
+          type: CheckBox
+        layout_properties: {grid_position: 'HSIIQJ,JGOYOG'}
+        name: column_panel_1
+        properties: {col_widths: '{"SZSQAZ":15,"IVPDDD":25,"VVMGRQ":40}'}
+        type: ColumnPanel
+      - event_bindings: {click: refresh_button_click}
+        layout_properties: {grid_position: 'BVXILC,AHCDQG'}
+        name: refresh_button
+        properties: {background: '', spacing_above: none, spacing_below: none, text: Refresh Viewer}
+        type: Button
+      layout_properties: {}
+      name: outlined_card_1
+      properties: {col_spacing: medium, role: outlined-card, wrap_on: never}
+      type: ColumnPanel
+    layout_properties: {full_width_row: true, grid_position: 'KUUPAO,JMXRWP'}
+    name: linear_panel_3
+    properties: {}
+    type: LinearPanel
+  - layout_properties: {full_width_row: true, grid_position: 'GPPNFK,IUPGNS'}
+    name: plot_1
+    properties: {}
+    type: Plot
+  layout_properties: {slot: default}
+  name: content_panel
+  properties: {col_spacing: none, col_widths: '{"JMXRWP":76}', wrap_on: never}
+  type: ColumnPanel
+- layout_properties: {slot: title}
+  name: label_1
+  properties: {text: Schedule Optimization Tool - Idaho National Laboratory}
+  type: Label
+container:
+  properties: {html: '@theme:standard-page.html'}
+  type: HtmlTemplate
+is_package: true

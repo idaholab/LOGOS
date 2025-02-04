@@ -1,0 +1,1048 @@
+/**
+ This CSS implements the Material Design 3 look and feel for Anvil apps.
+ **/
+
+/* Stop panel-cols cutting off drop shadows */
+.anvil-panel-col {
+  padding-bottom: 10px;
+  margin-bottom: -10px;
+}
+
+.content > .placeholder {
+  margin: 16px;
+  color: #888;
+  font-size: 18px;
+  outline: 1px dotted;
+  padding: 16px;
+  text-align: center;
+}
+
+/* Put things on a 4px grid (none of this 7px nonsense) */
+.has-text .anvil-component-icon.left-icon { margin-right: 8px; }
+.has-text .anvil-component-icon.right-icon { margin-left: 8px; }
+
+a>.anvil-component-icon.left_edge-icon,
+a>.anvil-component-icon.right_edge-icon,
+.anvil-label>.anvil-component-icon.left_edge-icon,
+.anvil-label>.anvil-component-icon.right_edge-icon {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.anvil-label>.label-text, a>.link-text {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.file-loader>label {
+    padding: 8px;
+}
+.checkbox label, .radio label {
+    padding-top: 8px; padding-right: 8px; padding-bottom: 8px;
+}
+
+/*TODO: see if this spacing stuff needs to be changed*/
+.anvil-spacing-above-none { margin-top: 0px; }
+.anvil-spacing-above-small { margin-top: 4px; }
+.anvil-spacing-above-medium { margin-top: 8px; }
+.anvil-spacing-above-large { margin-top: 16px; }
+.anvil-spacing-below-none { margin-bottom: 0px; }
+.anvil-spacing-below-small { margin-bottom: 4px; }
+.anvil-spacing-below-medium { margin-bottom: 8px; }
+.anvil-spacing-below-large { margin-bottom: 16px; }
+
+
+.col-padding.col-padding-tiny { padding: 0 2px; }
+.column-panel.col-padding-tiny > .anvil-panel-section > .anvil-panel-section-container > .anvil-panel-section-gutter { margin: 0 -2px; }
+
+.col-padding.col-padding-small { padding: 0 4px; }
+.column-panel.col-padding-small > .anvil-panel-section > .anvil-panel-section-container > .anvil-panel-section-gutter { margin: 0 -4px; }
+
+.col-padding.col-padding-medium { padding: 0 8px; }
+.column-panel.col-padding-medium > .anvil-panel-section > .anvil-panel-section-container > .anvil-panel-section-gutter { margin: 0 -8px; }
+
+.col-padding.col-padding-large { padding: 0 12px; }
+.column-panel.col-padding-large > .anvil-panel-section > .anvil-panel-section-container > .anvil-panel-section-gutter { margin: 0 -12px; }
+
+.col-padding.col-padding-huge { padding: 0 20px; }
+.column-panel.col-padding-huge > .anvil-panel-section > .anvil-panel-section-container > .anvil-panel-section-gutter { margin: 0 -20px; }
+
+.flow-panel.flow-spacing-tiny > .flow-panel-gutter { margin: 0 -2px; }
+.flow-panel.flow-spacing-tiny > .flow-panel-gutter > .flow-panel-item { 
+  margin-left: 2px;
+  margin-right: 2px;
+}
+
+.flow-panel.flow-spacing-small > .flow-panel-gutter { margin: 0 -4px; }
+.flow-panel.flow-spacing-small > .flow-panel-gutter > .flow-panel-item { 
+  margin-left: 4px;
+  margin-right: 4px;
+}
+
+.flow-panel.flow-spacing-medium > .flow-panel-gutter { margin: 0 -8px; }
+.flow-panel.flow-spacing-medium > .flow-panel-gutter > .flow-panel-item { 
+  margin-left: 8px;
+  margin-right: 8px;
+}
+
+.flow-panel.flow-spacing-large > .flow-panel-gutter { margin: 0 -12px; }
+.flow-panel.flow-spacing-large > .flow-panel-gutter > .flow-panel-item { 
+  margin-left: 12px;
+  margin-right: 12px;
+}
+
+.flow-panel.flow-spacing-huge > .flow-panel-gutter { margin: 0 -20px; }
+.flow-panel.flow-spacing-huge > .flow-panel-gutter > .flow-panel-item{ 
+  margin-left: 20px;
+  margin-right: 20px;
+}
+
+
+/* Typography */
+body {
+  font-family: Roboto, Noto, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.4286;
+  color: %color:On Surface%;
+  background-color: %color:Background%;
+  min-height: calc(100vh - 56px)
+}
+
+@media print {
+  body {
+    background-color: white;
+  }
+}
+
+a, a:focus {
+  text-decoration: none;
+  color: %color:Primary%;
+}
+
+a:hover, a:active {
+color: %color:On Primary Container%;
+}
+
+.anvil-role-display {
+  font-size: 57px;
+  line-height: 64px;
+  font-weight: 400;
+}
+
+.anvil-role-headline {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 400;
+}
+
+.anvil-role-title {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 500;
+}
+
+.anvil-role-body {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.anvil-role-input-prompt {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.anvil-role-body > .label-text, .anvil-role-body .link-text {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Page structure: App bar with optional left nav */
+.structure {
+/*   display: flex;
+  flex-direction: column; */
+  min-height: 100vh;
+  min-height: calc(100vh - %anvil-banner-height%);
+/*   height: 0; /* To make flex-grow work in IE */
+}
+
+/* However, this breaks the designer's height measurement. IE isn't supported for the designer, so set it back. */
+.designer .structure {
+  height: initial;
+}
+
+.app-bar {
+  z-index: 1000;
+  position: fixed;
+  top: 0;
+  top: %anvil-banner-height%;
+  right: 0;
+  left: 0;
+/*   flex: 0 0;
+  flex-basis: auto;
+  flex-basis: content; */
+}
+
+.nav-holder {
+  display: flex;
+/*   flex-grow: 1;
+  overflow-y: initial; */
+}
+
+@media print {
+  .nav-holder {
+    overflow-y: initial;
+  }
+}
+
+
+/* Mobile and desktop margins for content */
+.content > * > .anvil-container {
+  padding: 8px;
+}
+
+@media(min-width:991px) {
+  .content > * > .anvil-container {
+    padding: 16px 24px;
+  }
+}
+
+.content .anvil-measure-this {
+  padding-bottom: 1px; /* Prevent margin collapse messing up embedding */
+}
+
+/* Allow overflows to show drop shadows in ColumnPanels
+   This can create unwanted scrollbars; we compensate for this at the top level with .nav-holder .content {overflow-x: hidden;}
+*/
+.anvil-container-overflow {
+  overflow-x: visible;
+  overflow-y: visible;
+}
+
+/* Desktop: Nav bar pinned */
+
+.nav-holder {
+  display: flex;
+  flex-direction: row;
+}
+
+.nav-holder .left-nav {
+  position: fixed;
+/*   top: 0; */
+  left: 0;
+  flex-shrink: 0;
+  min-width: 240px;
+  max-width: 400px;
+}
+
+.nav-shield {
+  display: none;
+}
+
+/* Mobile: Nav bar is a modal overlay */
+
+@media(max-width:998px) {
+  html:not(.designer) .nav-holder {
+    display: block;
+  }
+  html:not(.designer) .nav-holder .left-nav {
+    top: 0;
+    bottom: 0;
+    width: calc(100% - 56px);
+    max-width: 360px;
+    z-index: 3;
+    border-right: none;
+    border-radius: 0 20px 20px 0;
+  /* 16dp */ box-shadow: 0 16px 24px 2px rgba(0, 0, 0, 0.14), 0 6px 30px 5px rgba(0, 0, 0, 0.12), 0 8px 10px -5px rgba(0, 0, 0, 0.2);
+
+    display: none;
+    transition: right 0.5s;
+    height: 100%;
+  }
+  
+  html:not(.designer) .nav-holder .left-nav.shown {
+    display: block;
+  }
+  .nav-shield.shown {
+    display: block;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    background-color: rgba(0,0,0,0.2);
+  }
+ }
+
+.nav-holder .left-nav, .left-nav-placeholder {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(0deg, %color:Primary Overlay 1%, %color:Primary Overlay 1%), %color:Background%;
+/*   border-right: 1px solid #e0e0e0; */
+  font-size: 14px;
+  font-weight: 500;
+  color: %color:On Surface Variant%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  position: fixed;
+/*   top: 54px; */
+  height: calc(100% - 54px); /*todo: fix on mobile*/
+}
+
+
+.left-nav-placeholder {
+  display: block;
+  padding: 8px;
+  line-height: 1;
+  width: 58px;
+}
+.left-nav-placeholder .prompt {
+  display: inline-block;
+  white-space: nowrap;
+  transform: translate(-50%,0) rotate(-90deg) translate(-50%,0) translate(15px,16px);
+  padding: 16px 16px;
+  color: #888;
+  outline: 1px dotted #888;
+  visibility: hidden;
+}
+.anvil-highlight .left-nav-placeholder .prompt {
+  visibility: visible;
+}
+
+.left-nav > .column-panel {
+  padding: 24px 0;
+}
+.left-nav > .column-panel > .anvil-panel-section > .anvil-panel-section-container:not(.full-width-row) {
+  margin: 0 16px;
+  width: initial;
+  max-width: initial;
+  overflow-x: visible;
+}
+.left-nav > .column-panel > .anvil-panel-section:first-child > .anvil-panel-section-container.full-width-row {
+  margin-top: -24px;
+}
+.left-nav > .column-panel > .anvil-panel-section > .anvil-panel-section-container > .anvil-panel-section-gutter > .anvil-panel-row > .anvil-panel-col {
+  overflow-x: visible;
+}
+
+/* Make all the sidebar icons look nice */
+
+.left-nav .anvil-component-icon.left-icon {
+  width: 0;
+  margin-right: 24px;
+  position: relative;
+}
+
+.left-nav .anvil-component-icon.left_edge-icon, .left-nav .anvil-component-icon.right_edge-icon {
+  left: 16px;
+  padding-top: 2px;
+  width: 0;
+}
+
+.left-nav .anvil-component-icon.right_edge-icon {
+  left: initial;
+  right: 16px;
+  top: 0;
+  padding-top: 2px;
+}
+
+/* Sidebar links (and labels with edge icons) go +16px wider
+   (Top-level columns in ColumnPanels get overflow-x visible [see above]to enable this)
+*/
+
+.left-nav a, .left-nav .anvil-label, .left-nav .anvil-label.left_edge-icon, .left-nav .anvil-label.right_edge-icon {
+  color: %color:On Surface Variant%;
+  margin: 0 -8px;
+  padding: 4px 16px;
+  border-radius: 100px;
+}
+
+.left-nav .anvil-component.left_edge-icon {
+  padding-left: 72px;
+}
+
+.left-nav a:hover, .app-bar a:hover, .app-bar a:active {
+  background: linear-gradient(0deg, %color:Dark Overlay 1%, %color:Dark Overlay 1%), linear-gradient(0deg, %color:Primary Overlay 1%, %color:Primary Overlay 1%), %color:Background%;
+  opacity: 100%;
+}
+
+.left-nav a.anvil-role-selected, .app-bar a.anvil-role-selected  {
+  background-color: %color:Secondary Container%;
+  color: %color:On Secondary Container%;
+}
+
+.left-nav a.anvil-role-selected:hover, .app-bar a.anvil-role-selected:hover {
+  background: linear-gradient(0deg, %color:Dark Overlay 1%, %color:Dark Overlay 1%), %color:Secondary Container%;
+}
+
+.designer .nav-holder .left-nav {
+  min-width: 56px;
+}
+
+.designer .nav-holder .left-nav > .anvil-component {
+  min-width: 160px;
+}
+
+.nav-holder .left-nav > .anvil-component {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.nav-holder {
+  flex: 1;
+}
+
+.content {
+  flex: 1;
+  overflow-x: hidden;
+}
+
+/* Components: App Bar */
+.app-bar {
+  min-height: 56px;
+  padding: 0 16px 0 72px;
+  position: fixed;
+  width: 100%;
+  
+  line-height: 40px;
+  font-size: 20px;
+
+  background-color: %color:Surface%;
+  transition: background-color 250ms;
+  -webkit-transition: background-color 250ms;
+  -moz-transition: background-color 250ms;
+  -o-transition: background-color 250ms;
+  
+  z-index: 1;
+}
+
+.app-bar.scrolled {
+  background: linear-gradient(0deg, %color:Primary Overlay 2%, %color:Primary Overlay 2%), %color:Background%;
+  transition: background 250ms;
+  -webkit-transition: background 250ms;
+  -moz-transition: background 250ms;
+  -o-transition: background 250ms;
+}
+
+.app-bar .anvil-component {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.app-bar > .sidebar-toggle { display:block; float:left;  margin-left: -61px; }
+.app-bar > .top-left-btn { float: left; margin-left: -60px; margin-right: -40px; }
+.app-bar > .title { float: left; }
+.app-bar > .title > .placeholder { outline: 1px dotted; padding-left: 16px; padding-right: 16px; margin: 8px 8px 0; display:none; }
+.app-bar > .app-bar-nav { float: right; font-weight: normal; }
+.app-bar > .app-bar-nav .placeholder { margin-top: 8px; padding: 0 8px; }
+.anvil-highlight .app-bar > .app-bar-nav .placeholder { outline: 1px dotted #ccc; }
+.anvil-highlight .app-bar > .title > .placeholder { display:block; }
+
+.app-bar a, .app-bar .anvil-component {
+  display: block;
+  color: %color:On Surface%;
+  line-height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  margin: 5px 4px 0;
+}
+
+.app-bar .title .anvil-component {
+  margin-left: 0;
+}
+
+.app-bar input.anvil-component, .app-bar .anvil-component input {
+  line-height: 30px;
+  color: white;
+}
+
+.app-bar select.form-control {
+  height: 43px; /* 30px line height + 12px padding + 1px border */
+}
+
+.app-bar .anvil-component-icon-present .anvil-component-icon, .app-bar .sidebar-toggle .fa {
+  width: 30px;
+  text-align: center;
+}
+
+/* Don't put spacing on the top-level container (eg FlowPanel) */
+.app-bar-nav > .anvil-container {
+  margin: 0;
+  padding: 0;
+  min-height: 56px;
+}
+
+.anvil-highlight .app-bar-nav > .anvil-container:not(.has-components):not(a) {
+  outline: 1px dotted #fff;
+  margin-top: 8px;
+  min-height: 40px;
+  padding: 5px 8px;
+}
+
+.anvil-highlight .app-bar-nav > .anvil-container:not(.has-components):not(a)::after {  
+  content: "Drop Links here"
+}
+
+/* Rejig margin vs padding to give links the halo */
+.app-bar a, .app-bar a.anvil-component {
+  padding: 5px;
+  margin: 8px 0 0;
+  border-radius: 20px;
+}
+
+.app-bar a .link-text {
+  padding: 0 4px;
+}
+.app-bar a.has-text .anvil-component-icon.left {
+  margin-right: 4px;
+}
+.app-bar a.has-text .anvil-component-icon.right {
+  margin-left: 4px;
+}
+
+
+/* Component: Dialog (alert), Notification */
+.modal-content, body>div[data-notify="container"] {
+  border-radius: 28px;
+  background: linear-gradient(0deg, %color:Primary Overlay 3%, %color:Primary Overlay 3%), %color:Background%;
+  box-shadow: none;
+  border: none;
+}
+
+.modal-header {
+  padding: 24px 24px 0px;
+  font-size: 24px;
+  line-height: 32px;
+  border: 0;
+  color: %color:On Surface%;
+}
+
+.modal-body {
+  padding: 24px;
+  font-size: 16px;
+  color: %color:On Surface Variant%;
+}
+
+.modal-footer {
+  padding: 0px 8px 14px 24px;
+  border: 0;
+}
+
+.modal-footer .btn, .modal-footer .btn:focus, .modal-footer .btn:active {
+  box-shadow: none;
+  top: 0;
+}
+
+/* Notifications */
+body>div[data-notify="container"] {
+  background: linear-gradient(0deg, %color:Primary Overlay 3%, %color:Primary Overlay 3%), %color:Background%;
+  border: none;
+  padding: 24px;
+  /* 24dp */ box-shadow: 0 9px 46px 8px rgba(0, 0, 0, 0.14), 0 11px 15px -7px rgba(0, 0, 0, 0.12), 0 24px 38px 3px rgba(0, 0, 0, 0.2);
+}
+
+body>div[data-notify="container"]>span[data-notify="title"] {
+  display: block;
+  font-size: 18px;
+  font-weight: 500;
+  color: %color:On Surface%;
+}
+
+body>div[data-notify="container"]>span[data-notify="message"] {
+  display: block;
+  padding: 20px 0 0;
+  font-size: 16px;
+  color: %color:On Surface Variant%;  
+}
+
+body>div[data-notify="container"].alert-success{
+  background-color: #d4edda;
+}
+
+body>div[data-notify="container"].alert-success>span[data-notify="title"]{
+  color: #155724;
+}
+
+body>div[data-notify="container"].alert-danger{
+  background-color: #f8d7da;
+}
+
+body>div[data-notify="container"].alert-danger>span[data-notify="title"]{
+  color: #721c24;
+}
+
+body>div[data-notify="container"].alert-warning{
+  background-color: #fff3cd;
+}
+
+body>div[data-notify="container"].alert-warning>span[data-notify="title"]{
+  color: #856404;
+}
+
+button.close > span, button.close {
+  color:%color:On Background%;
+  text-shadow: 0 1px 0 %color:Background%;
+}
+
+/* Component: Button */
+
+.btn, .btn-default, .file-loader>label {
+  border-radius: 100px;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 24px;
+  min-height: 40px;
+  letter-spacing: 0.1px;
+
+  border: 0;
+  background-image: none;
+  background-color: transparent;
+  color: %color:Primary%;
+  text-shadow: none;
+  box-shadow: none;
+  -webkit-box-shadow: none;
+  
+  position: relative;
+}
+
+.btn:hover,.file-loader>label:hover {
+  background-color: %color:Light Overlay 1%;
+  background-image: none;
+  outline: none;
+  color: %color:Primary%;
+}
+
+.btn:active, .btn:focus, .btn:active:focus, .file-loader>label:active, .file-loader>label:focus, .file-loader>label:active:focus {
+  background-color: %color:Light Overlay 2%;
+  background-image: none;
+  outline: none;
+  box-shadow: none;
+  color: %color:Primary%;
+}
+
+
+.anvil-role-outlined-button > .btn, .anvil-role-outlined-button.file-loader>label {
+  color: %color:Primary%;
+  border: solid 1px %color:Outline%;
+}
+
+.anvil-role-outlined-button > .btn:hover, .anvil-role-outlined-button.file-loader>label:hover {
+  background-color: %color:Light Overlay 1%;
+}
+
+.anvil-role-outlined-button > .btn:focus, .anvil-role-outlined-button > .btn:active, 
+.anvil-role-outlined-button.file-loader>label:focus, .anvil-role-outlined-button.file-loader>label:active{
+  background-color: %color:Light Overlay 2%;
+  color: %color:Primary%;
+}
+
+.anvil-role-filled-button > .btn, .btn-primary, .anvil-role-filled-button.file-loader>label {
+  background-color: %color:Primary%;
+  color: %color:On Primary%; 
+}
+
+.anvil-role-filled-button > .btn:hover, .btn-primary:hover, .anvil-role-filled-button.file-loader>label:hover {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+  background: linear-gradient(0deg, %color:Light Overlay 1%, %color:Light Overlay 1%), %color:Primary%;
+  color: %color:On Primary%; 
+}
+
+.anvil-role-filled-button > .btn:focus, .btn-primary:focus, .anvil-role-filled-button > .btn:active, 
+.btn-primary:active, .anvil-role-filled-button > .btn:active:hover, .btn-primary:active:hover,
+.anvil-role-filled-button.file-loader>label:focus, .anvil-role-filled-button.file-loader>label:active, 
+.anvil-role-filled-button.file-loader>label:active:focus
+{
+  background: linear-gradient(0deg, %color:Light Overlay 2%, %color:Light Overlay 2%), %color:Primary%;
+  color: %color:On Primary%; 
+}
+
+.anvil-role-elevated-button > .btn, .anvil-role-elevated-button.file-loader>label {
+  color: %color:Primary%;
+  background-color: %color:Surface%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+}
+
+.anvil-role-elevated-button > .btn:focus, .anvil-role-elevated-button > .btn:active, 
+.anvil-role-elevated-button > .btn:active:focus, .anvil-role-elevated-button.file-loader>label:focus, 
+.anvil-role-elevated-button.file-loader>label:active, .anvil-role-elevated-button.file-loader>label:active:focus {
+  background: linear-gradient(0deg, %color:Light Overlay 2%, %color:Light Overlay 2%), %color:Surface%;
+  color: %color:Primary%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+}
+
+.anvil-role-elevated-button > .btn:hover, .anvil-role-elevated-button.file-loader>label:hover {
+  background: linear-gradient(0deg, %color:Light Overlay 1%, %color:Light Overlay 1%), %color:Surface%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
+}
+
+.anvil-role-tonal-button > .btn, .anvil-role-tonal-button.file-loader>label {
+  color: %color:On Secondary Container%;
+  background-color: %color:Secondary Container%;
+}
+
+.anvil-role-tonal-button > .btn:focus, .anvil-role-tonal-button > .btn:active, .anvil-role-tonal-button > .btn:active:focus, 
+.anvil-role-tonal-button.file-loader>label:focus, .anvil-role-tonal-button.file-loader>label:active, .anvil-role-tonal-button.file-loader>label:focus:active {
+  background: linear-gradient(0deg, %color:Dark Overlay 2%, %color:Dark Overlay 2%), %color:Secondary Container%;
+  color: %color:On Secondary Container%;
+}
+
+.anvil-role-tonal-button > .btn:hover, .anvil-role-tonal-button.file-loader>label:hover{
+  background: linear-gradient(0deg, %color:Dark Overlay 1%, %color:Dark Overlay 1%), %color:Secondary Container%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+  color: %color:On Secondary Container%;
+}
+
+.btn-default[disabled], .btn-default[disabled]:hover, .file-loader.anvil-disabled>label, .file-loader.anvil-disabled>label:hover {
+  background: transparent;
+  color: %color:On Disabled%;
+}
+
+.anvil-role-tonal-button > .btn[disabled], .anvil-role-tonal-button> .btn[disabled]:hover, 
+.anvil-role-tonal-button.file-loader.anvil-disabled>label, .anvil-role-tonal-button.file-loader.anvil-disabled>label:hover, 
+.anvil-role-filled-button > .btn[disabled], .anvil-role-filled-button > .btn[disabled]:hover, 
+.anvil-role-filled-button.file-loader.anvil-disabled>label, .anvil-role-filled-button.file-loader.anvil-disabled>label:hover, 
+.anvil-role-elevated-button > .btn[disabled], .anvil-role-elevated-button > .btn[disabled]:hover, 
+.anvil-role-elevated-button.file-loader.anvil-disabled>label, .anvil-role-elevated-button.file-loader.anvil-disabled>label:hover { 
+  background: %color:Disabled Container%;
+  color: %color:On Disabled%;
+  box-shadow: none;
+}
+
+.anvil-role-outlined-button > .btn[disabled], .anvil-role-outlined-button.file-loader.anvil-disabled>label {
+  border-color: %color:On Disabled%;
+  background-color: transparent;
+}
+
+
+/* Component: Card */
+
+.anvil-role-outlined-card {
+  overflow: hidden;
+  border-radius: 12px;
+  background-color: %color:Surface%;
+  border: solid 1px %color:Outline%;
+  padding: 15px;
+}
+
+.anvil-role-elevated-card {
+  overflow: hidden;
+  border-radius: 12px;
+  background-color: %color:Surface%;
+  /* 2dp */  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
+  padding: 15px;
+}
+
+.anvil-role-tonal-card {
+  overflow: hidden;
+  border-radius: 12px;
+  background-color: %color:Surface Variant%;
+  padding: 15px;
+}
+
+
+/* full_width_row sections go full bleed */
+.column-panel.anvil-role-card > .anvil-panel-section > .anvil-panel-section-container.full-width-row {
+  margin-left: -12px;
+  margin-right: -12px;
+  width: initial;
+  max-width: initial;
+}
+
+/* If the first row of a card is a full_width_row, it goes to the top */
+.column-panel.anvil-role-card > .anvil-panel-section:first-child > .anvil-panel-section-container.full-width-row {
+  margin-top: -8px;
+}
+.column-panel.anvil-role-card > .anvil-panel-section:last-child > .anvil-panel-section-container.full-width-row {
+  margin-bottom: -8px;
+}
+
+
+
+/* Component: TextBox + TextArea */
+
+/*this affects dropdowns, text boxes and text areas:*/
+input.anvil-component, textarea.anvil-component, .anvil-component select, .anvil-datepicker input {
+  font-size: 16px;
+  line-height: 1.5;
+  border-radius: 4px 4px 0 0;
+  background-color: %color:Surface Variant%;
+  color: %color:On Surface Variant%;
+  box-shadow: none;
+}
+
+.anvil-dropdown {
+  font-size: 16px;
+}
+
+.anvil-component select {
+  font-size: inherit;
+}
+
+input.anvil-component, .anvil-component select, .anvil-datepicker input, textarea.anvil-component {
+  padding: 8px 16px;
+  border: 0;
+  border-bottom: 1px solid %color:Outline%;
+}
+
+.anvil-dropdown select.form-control {
+  
+  -webkit-appearance: none;
+  -moz-appearance: none;
+/*   padding: 8px 2em 4px 0; */
+  
+  /* ew ew ew - select elements are weird and don't obey line-height, so we just
+     set the height explicitly. Ugh. */
+  height: calc(1.5em + 13px); /* 8px + 4px padding + 1px border = 13px */
+}
+
+.anvil-dropdown {
+  position: relative;
+}
+/* Select arrow styling */
+.anvil-dropdown form:before {
+    content: "\25BC";
+    position: absolute;
+    right: 0;
+    font-size: 80%;
+    line-height: calc(1.8em + 8px);
+    color: %color:Outline%;
+    pointer-events:none;
+    padding: 4px 4px;
+}
+
+.anvil-component select, .anvil-datepicker input { margin-bottom: 4px; }
+input.anvil-component.anvil-spacing-below-none { margin-bottom: 4px; }
+input.anvil-component.anvil-spacing-below-small { margin-bottom: 8px; }
+input.anvil-component.anvil-spacing-below-medium { margin-bottom: 12px; }
+input.anvil-component.anvil-spacing-below-large { margin-bottom: 20px; }
+
+input.anvil-component::-webkit-input-placeholder, textarea.anvil-component::-webkit-input-placeholder {
+  color: %color:On Surface%;
+}
+input.anvil-component::-moz-placeholder, textarea.anvil-component::-moz-placeholder {
+  color: %color:On Surface%;
+}
+input.anvil-component::placeholder, textarea.anvil-component::placeholder  {
+  color: %color:On Surface%;
+}
+
+.app-bar input.anvil-component::-webkit-input-placeholder, .app-bar textarea.anvil-component::-webkit-input-placeholder {
+  color: %color:On Surface%;
+}
+.app-bar input.anvil-component::-moz-placeholder, .app-bar textarea.anvil-component::-moz-placeholder {
+  color: %color:On Surface%;
+}
+.app-bar input.anvil-component::placeholder, .app-bar textarea.anvil-component::placeholder  {
+  color: %color:On Surface%;
+}
+
+input.anvil-component:hover, input.anvil-component:focus, textarea.anvil-component:hover, textarea.anvil-component:focus, 
+.anvil-component select:hover, .anvil-component select:focus, .anvil-datepicker input:hover, .anvil-datepicker input:focus {
+  border-bottom: 2px solid %color:Primary%;
+  padding-bottom: 7px;
+  box-shadow: none;
+}
+
+
+input.anvil-component[disabled], .anvil-component select[disabled], .anvil-datepicker input[disabled], textarea.anvil-component[disabled], 
+textarea.anvil-component.anvil-role-input-error[disabled], input.anvil-component.anvil-role-input-error[disabled], 
+.anvil-component.anvil-role-input-error select[disabled], .anvil-datepicker.anvil-role-input-error input[disabled] {
+  background-color: %color:Dark Overlay 1%;
+  color: %color:On Disabled%;
+  border-bottom: 1px solid %color:On Disabled%;
+  padding-bottom: 8px;
+}
+
+.anvil-component select:hover, .anvil-component select:focus {
+  padding-bottom: 3px;
+}
+
+/* Outlined role for text areas, text boxes, drop downs and date pickers */
+textarea.anvil-component.anvil-role-outlined, input.anvil-component.anvil-role-outlined, 
+.anvil-component.anvil-role-outlined select, .anvil-datepicker.anvil-role-outlined input {
+  background-color: transparent;
+  border: 1px solid %color:Outline%;
+  border-radius: 4px;
+  color: %color:On Surface%;
+}
+
+textarea.anvil-component.anvil-role-outlined:hover, textarea.anvil-component.anvil-role-outlined:focus, 
+input.anvil-component.anvil-role-outlined:hover, input.anvil-component.anvil-role-outlined:focus,
+.anvil-component.anvil-role-outlined select:hover, .anvil-component.anvil-role-outlined select:focus,
+.anvil-datepicker.anvil-role-outlined input:hover, .anvil-datepicker.anvil-role-outlined input:focus{
+  border: 2px solid %color:Primary%;
+  padding: 7px 15px;
+}
+
+textarea.anvil-component.anvil-role-outlined-error:hover, textarea.anvil-component.anvil-role-outlined-error:focus, 
+input.anvil-component.anvil-role-outlined-error:hover, input.anvil-component.anvil-role-outlined-error:focus,
+.anvil-component.anvil-role-outlined-error select:hover, .anvil-component.anvil-role-outlined-error select:focus,
+.anvil-datepicker.anvil-role-outlined-error input:hover, .anvil-datepicker.anvil-role-outlined-error input:focus{
+  border: 2px solid %color:Error%;
+  padding-bottom: 6px;
+}
+
+textarea.anvil-component.anvil-role-outlined[disabled], input.anvil-component.anvil-role-outlined[disabled], 
+.anvil-component.anvil-role-outlined select[disabled], .anvil-datepicker.anvil-role-outlined input[disabled], 
+textarea.anvil-component.anvil-role-outlined-error[disabled], input.anvil-component.anvil-role-outlined-error[disabled], 
+.anvil-component.anvil-role-outlined-error select[disabled], .anvil-datepicker.anvil-role-outlined-error input[disabled] {
+  border: 1px solid %color:On Disabled%;
+  color: %color:On Disabled%;
+  padding-bottom: 8px;
+}
+
+.daterangepicker td.active {
+  background: %color:Primary%;
+}
+
+.daterangepicker td.available:hover {
+  background: %color:Dark Overlay 2%;
+}
+
+.daterangepicker td.active:hover {
+  background: linear-gradient(0deg, %color:Light Overlay 1%, %color:Light Overlay 1%), %color:Primary%;
+}
+
+.daterangepicker td.off {
+  color: %color:On Disabled%;
+}
+
+textarea.anvil-component.anvil-role-outlined-error, input.anvil-component.anvil-role-outlined-error, 
+.anvil-component.anvil-role-outlined-error select, .anvil-datepicker.anvil-role-outlined-error input {
+  color: %color:Error%;
+  background-color: transparent;
+  border: 1px solid %color:Error%;;
+  border-radius: 4px;
+}
+
+textarea.anvil-component.anvil-role-input-error, input.anvil-component.anvil-role-input-error, 
+.anvil-component.anvil-role-input-error select, .anvil-datepicker.anvil-role-input-error input {
+  color: %color:Error%;
+  border-color: %color:Error%; 
+}
+
+/*TODO: figure out what this is used for*/
+/* .daterangepicker .btn-success {
+  color: %color:Primary 500%;
+} */
+
+/* Component: CheckBox, RadioButton */
+.checkbox input, .radio input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 1px;
+  background-color: %color:Surface Variant%; 
+/*   color: %color:On Surface Variant%; */
+}
+
+.radio input {
+  border-radius : 50%;
+}
+
+.checkbox input:hover, .radio input:hover {
+  background: linear-gradient(0deg, %color:Light Overlay 1%, %color:Light Overlay 1%), %color:Surface Variant%;
+}
+
+.checkbox input:focus, .radio input:focus {
+  outline: 0;
+}
+
+.radio input:focus {
+  border-radius: 10px;
+}
+
+.checkbox input[type="checkbox"][disabled]:hover, .radio input[type="radio"][disabled]:hover, 
+.checkbox input[type="checkbox"][disabled], .radio input[type="radio"][disabled] {
+  background: %color:Disabled Container%; 
+}
+
+input[disabled] ~ span {
+  cursor: not-allowed;
+  color: %color:On Disabled%;
+}
+
+.checkbox input, .radio input {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkbox input:checked, .radio input:checked {
+  background-color: %color:Primary Container%;
+  color: %color:On Primary Container%;
+}
+
+.checkbox input:checked:before {
+  font-family: "FontAwesome";
+  content: "\f00c";
+  font-size: 10px;
+}
+
+.checkbox input:indeterminate:before {
+  font-family: "FontAwesome";
+  content: "\f068";
+  font-size: 10px;
+}  
+
+.radio input:checked:before {
+  font-family: "FontAwesome";
+  content: "\f111";
+  font-size: 8px;
+}
+
+.checkbox, .radio {
+  font-size: 16px;
+}
+
+/* Data Grids */
+.anvil-role-tonal-data-grid.anvil-data-grid > .data-grid-child-panel>div.auto-grid-header {
+  background: linear-gradient(0deg, %color:Primary Overlay 2%, %color:Primary Overlay 2%), %color:Background%;
+  border-bottom: 1px solid %color:Surface Variant%;
+  border-radius: 24px 24px 0 0;
+}
+
+.anvil-role-tonal-data-grid.anvil-data-grid > .data-grid-child-panel>div.auto-grid-header div.data-row-col > div {
+  padding: 12px;
+  text-align: center !important;
+}
+
+.anvil-role-tonal-data-grid.anvil-data-grid {
+  border-radius: 24px;
+  border: 1px solid %color:Surface Variant%;
+}
+
+.anvil-role-tonal-data-grid.anvil-data-grid .data-grid-child-panel div.data-row-col {
+  border-left: 1px solid %color:Surface Variant%;
+  border-bottom: 1px solid %color:Surface Variant%;
+}
+
+.anvil-role-tonal-data-grid.anvil-data-grid .data-grid-child-panel div.data-row-col:first-child {
+  border-left: 0;
+}
+
+.anvil-role-tonal-data-grid.anvil-data-grid > .data-grid-child-panel>div.auto-grid-header div.data-row-col {
+  border-top: 0;
+  border-bottom: 0;
+  border-right: 0;
+}
+
+
+/*Plots*/
+
+div.plot-container.plotly svg.main-svg {
+  border: 1px solid %color:Surface Variant%;
+  border-radius: 12px;
+}
+
+.plot-container.plotly .main-svg .parcoords .y-axis .axis .tick > text {
+  text-shadow: none !important;
+}
+
+.plot-container.plotly .main-svg .parcoords .y-axis .axis > path.domain {
+  stroke: %color:Outline%;
+}
+
+.anvil-spinner {
+    --anvil-spinner-bg: %color:Surface Variant%;
+}

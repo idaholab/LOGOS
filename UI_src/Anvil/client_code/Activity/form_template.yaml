@@ -1,0 +1,141 @@
+components:
+- components:
+  - components:
+    - layout_properties: {grid_position: 'CANXDD,EDYANT'}
+      name: label_2
+      properties: {align: center, font_size: 25, text: Activity Dependencies}
+      type: Label
+    layout_properties: {grid_position: 'WDGXOQ,IWEBPM'}
+    name: column_panel_1
+    properties: {}
+    type: ColumnPanel
+  - components:
+    - components:
+      - layout_properties: {column: JKSDUP}
+        name: label_3
+        properties: {align: center, font_size: 20, foreground: 'theme:On Primary', text: Name}
+        type: Label
+      - layout_properties: {column: VJQQOR}
+        name: label_4
+        properties: {align: center, font_size: 20, foreground: 'theme:On Primary', text: Description}
+        type: Label
+      - layout_properties: {column: JPGNPJ}
+        name: label_6
+        properties: {align: center, font_size: 20, foreground: 'theme:On Primary', text: Utilized Resource}
+        type: Label
+      - layout_properties: {column: UMUOAE}
+        name: label_7
+        properties: {align: center, foreground: 'theme:On Primary', text: Activity Dependency}
+        type: Label
+      - layout_properties: {column: QDDSUN}
+        name: label_8
+        properties: {align: center, foreground: 'theme:On Primary', text: Critical Path}
+        type: Label
+      - layout_properties: {column: ENXKXA}
+        name: label_9
+        properties: {align: center, foreground: 'theme:On Primary', text: Group}
+        type: Label
+      - layout_properties: {column: RVRDDL}
+        name: label_10
+        properties: {align: center, foreground: 'theme:On Primary', text: Start}
+        type: Label
+      - layout_properties: {column: UMGSGP}
+        name: label_11
+        properties: {align: center, foreground: 'theme:On Primary', text: End}
+        type: Label
+      layout_properties: {pinned: true}
+      name: data_row_panel_1
+      properties: {background: '#0091ff', font_size: 20}
+      type: DataRowPanel
+    - components:
+      - layout_properties: {column: JKSDUP}
+        name: edit_dep_val
+        properties: {foreground: '', text: ''}
+        type: TextBox
+      - layout_properties: {column: VJQQOR}
+        name: edit_dep_des
+        properties: {foreground: '', text: ''}
+        type: TextBox
+      - event_bindings: {click: add_button_click}
+        layout_properties: {column: FYRUCI}
+        name: add_button
+        properties: {align: left, font_size: 17, icon: 'fa:plus-square', text: ''}
+        type: Button
+      - layout_properties: {column: UMUOAE}
+        name: edit_dependency_multi
+        properties: {placeholder: Select a value}
+        type: form:MultiSelectDropDown
+      - layout_properties: {column: QDDSUN}
+        name: critical_checkbox
+        properties: {text: Critical}
+        type: CheckBox
+      - layout_properties: {column: ENXKXA}
+        name: edit_group
+        properties: {}
+        type: DropDown
+      - layout_properties: {column: RVRDDL}
+        name: edit_start_date
+        properties: {}
+        type: DatePicker
+      - layout_properties: {column: UMGSGP}
+        name: edit_end_date
+        properties: {}
+        type: DatePicker
+      - layout_properties: {column: JPGNPJ}
+        name: edit_resource_multi
+        properties: {}
+        type: form:MultiSelectDropDown
+      layout_properties: {pinned: true}
+      name: data_row_panel_2
+      properties: {}
+      type: DataRowPanel
+    - name: repeating_panel_1
+      properties: {item_template: Activity.RowTemplate4}
+      type: RepeatingPanel
+    - components:
+      - layout_properties: {}
+        name: label_5
+        properties: {text: 'Page Size:'}
+        type: Label
+      - event_bindings: {lost_focus: pg_size_lost_focus}
+        layout_properties: {width: 56}
+        name: pg_size
+        properties: {spacing_above: none, text: '20'}
+        type: TextBox
+      layout_properties: {slot: footer}
+      name: flow_panel_1
+      properties: {}
+      type: FlowPanel
+    layout_properties: {full_width_row: true, grid_position: 'OLNOWC,LOOHLL'}
+    name: data_grid_1
+    properties:
+      auto_header: false
+      columns:
+      - {data_key: Task, expand: false, id: JKSDUP, title: Activity Name, width: 147}
+      - {data_key: Description, expand: false, id: VJQQOR, title: Description, width: 181}
+      - {data_key: Start, expand: false, id: RVRDDL, title: Column 1, width: 139}
+      - {data_key: Finish, expand: false, id: UMGSGP, title: Column 4, width: 142}
+      - {data_key: Resource, expand: false, id: JPGNPJ, title: Resource, width: 193}
+      - {data_key: Adj, expand: false, id: UMUOAE, title: Dependency, width: 183}
+      - {data_key: CP_flag, expand: false, id: QDDSUN, title: Critical Path, width: 93}
+      - {data_key: Group, expand: false, id: ENXKXA, title: Group, width: 136.8887939453125}
+      - {data_key: c1, expand: false, id: FYRUCI, title: Column 2, width: 84}
+      - {data_key: c2, expand: false, id: OYQBVS, title: Column 3, width: 98}
+      rows_per_page: 10
+    type: DataGrid
+  layout_properties: {slot: default}
+  name: content_panel
+  properties: {}
+  type: ColumnPanel
+- layout_properties: {slot: nav-right}
+  name: navbar_links
+  properties: {}
+  type: FlowPanel
+- layout_properties: {slot: title}
+  name: label_1
+  properties: {text: Schedule Optimization Tool - Idaho National Laboratory}
+  type: Label
+container:
+  properties: {html: '@theme:standard-page.html'}
+  type: HtmlTemplate
+is_package: true
