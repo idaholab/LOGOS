@@ -6,9 +6,10 @@ import copy
 import networkx as nx
 import matplotlib.pyplot as plt
 import itertools
-import datetime 
+import datetime
 import pandas as pd
 import numpy as np
+import json
 
 class Activity:
   """
@@ -16,12 +17,20 @@ class Activity:
     Extended from the original development of Nofar Alfasi
     Source https://github.com/nofaralfasi/PERT-CPM-graph
   """
+<<<<<<< HEAD
   def __init__(self, name, duration, res=None):
+=======
+  def __init__(self, name, duration, res=None, childs=None):
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
     """
       Constructor
       @ In, name, str, ID of the activity
+      @ In, duration, float, planned activity duration
+      @ In, res, str, required resource to complete the activity
+      @ In, child, list, list containing the names (str type) of the children (i.e., successors)
       @ Out, None
     """
+<<<<<<< HEAD
     self.name = str(name)
     self.duration = duration
     self.subActivities = []
@@ -30,6 +39,38 @@ class Activity:
 
     self.startTime = None
     self.endTime   = None
+=======
+    self.name = str(name)       # name ID of the activity
+    self.duration = duration    # planned duration of of the activity
+    self.subActivities = []     # list of activities that have been clustered to this activity
+    self.belongsToCP = False    # Boolean flag that indicates if the axctivity belongs to the CP
+    self.resources = res        #  required resource to complete the activity
+
+    self.startTime = None       # activity actual start time
+    self.endTime   = None       # activity actual completion time
+
+    if childs is None:
+      self.childs = []          # list containing the names (str type) of the children (i.e., successors)
+    else:
+      self.childs = childs
+
+  def printToJson(self):
+    """
+      Method designed to print on file activity in json format
+      @ In, None
+      @ Out, file in json format
+    """
+    return json.dumps(self.__dict__, sort_keys=True, default=str)
+
+  def updateChilds(self, childs):
+    """
+      Method designed to assign the childs of an activity
+      @ In, childs, list containing the names (str type) of the children (i.e., successors)
+      @ Out, None
+    """
+    for child in childs:
+      self.childs.append(child.returnName())
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
 
   def returnName(self):
     """
@@ -51,10 +92,17 @@ class Activity:
     """
       Methods that returns the duration of the activity
       @ In, None
+<<<<<<< HEAD
       @ Out, duration, float, duration of the activity
     """
     return self.resources
   
+=======
+      @ Out, resources, str, resources required to complete the activity
+    """
+    return self.resources
+
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
   def updateDuration(self, newDuration):
     """
       Methods that changes the duration of the activity
@@ -65,7 +113,11 @@ class Activity:
 
   def returnSubActivities(self):
     """
+<<<<<<< HEAD
       Methods that returns the list of subactivities 
+=======
+      Methods that returns the list of subactivities
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
       @ In, None
       @ Out, subActivities, list, list of subactivities
     """
@@ -73,7 +125,11 @@ class Activity:
 
   def addSubActivities(self, subActivities):
     """
+<<<<<<< HEAD
       Method that associates a list of subactivities 
+=======
+      Method that associates a list of subactivities
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
       @ In, subActivities, list, list of subactivities
       @ Out, None
     """
@@ -95,15 +151,37 @@ class Activity:
     """
       Return if an activity is part of the CP or not
       @ In, None
+<<<<<<< HEAD
       @ Out, None
     """
     return self.belongsToCP
   
   def setTimes(self, Tin, Tfin):
+=======
+      @ Out, belongsToCP, bool, variable that flags if activity belongs to CP
+    """
+    return self.belongsToCP
+
+  def setTimes(self, Tin, Tfin):
+    """
+      Set initial and final time of the activity based on CPM calculations
+      @ In, Tin,  float, initial time of the activity
+      @ In, Tfin, float, final time of the activity
+      @ Out, None
+    """
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
     self.startTime = Tin
     self.endTime   = Tfin
 
   def returnAbsTimes(self):
+<<<<<<< HEAD
+=======
+    """
+      Return initial and final time of the activity based on CPM calculations
+      @ In, None
+      @ Out, (self.startTime,self.endTime), tuple, tuple containing initial and final time of the activity
+    """
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
     return (self.startTime,self.endTime)
 
 
@@ -120,7 +198,9 @@ class Pert:
   def __init__(self, graph={}, startTime=None, resourcesTS=None):
     """
       Constructor
-      @ In, None
+      @ In, graph, dict, dictionary containing the child acitivities for each activity
+      @ In, startTime, float, absolute initial time of schedule
+      @ In, resourcesTS, dataframe, pandas dataframe containing resources availability
       @ Out, None
     """
     self.forwardDict = graph   # list of out going nodes for every activity
@@ -139,12 +219,22 @@ class Pert:
     self.resetInitialGraph()   # first reset of the graph
     self.generateInfo()        # entering values into 'info_dict'
 
+<<<<<<< HEAD
+=======
+    for act in self.forwardDict.keys():
+      act.updateChilds(self.forwardDict[act])
+
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
     if startTime is not None:
       self.setActivitiesAbsTimes()
 
     if resourcesTS is not None:
       self.resourcesTemporalCheck()
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
   def __str__(self):
     """
       Method designed to return basic information of the schedule graph
@@ -152,7 +242,7 @@ class Pert:
       @ Out, None
     """
     iterator = iter(self)
-    graph_str = 'Activities:\n'
+    graphStr = 'Activities:\n'
     for activity in iterator:
       graph_str += str(activity) + '\n'
     return (graph_str + 'Connections:\n'
@@ -168,6 +258,16 @@ class Pert:
     for act in self.forwardDict:
       if act.returnResources() not in self.resources.columns:
         print("Activity " + str(act.returnName()) + " has a resource that is not allowed: " + str(act.returnResources()))
+
+  def checkResources(self):
+    """
+      Method designed to check that the provided resource temporal profile contains allowed resource types
+      @ In, None
+      @ Out, None
+    """
+    for act in self.forwardDict:
+      if act.returnResources() not in self.resources.columns:
+        raise IOError("Activity " + str(act.returnName()) + " requires a resource that is not allowed: " + str(act.returnResources()))
 
   def resetInitialGraph(self):
     """
@@ -424,6 +524,10 @@ class Pert:
       Get all the paths between 2 nodes (activities) in the graph (pert)
       @ In, startActivity, activity, activity at the beginning of the path
       @ In, endActivity activity, activity at the end of the path
+<<<<<<< HEAD
+=======
+      @ In, symbolic, bool, flag to indicate if alternate path should be generated in twerms of name of each activity
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
       @ Out, paths, list, list of paths between startActivity and endActivity
     """
     onePath = path + [startActivity]
@@ -444,46 +548,81 @@ class Pert:
       return symbPaths
     else:
       return paths
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
   def getAllPathsParallelToCP(self):
     """
       Method designed to return all the paths parallel to the critical path
       @ In, none
+<<<<<<< HEAD
       @ Out, pathsList, list of path that are parallel to the critical path
+=======
+      @ Out, pathsList, list, list of paths that are parallel to the critical path
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
     """
     CP = self.getCriticalPath()
     pathsList = self.getAllAlternativePaths(CP[0], CP[-1])
     pathsList.remove(CP)
     return pathsList
+<<<<<<< HEAD
   
+=======
+
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
   def returnSuccList(self,node):
     """
       Method designed to return the immediate successors of a node
       @ In, node, activity, activity being queried
+<<<<<<< HEAD
       @ Out, list, list of activities that are immediate successors of "node"
     """
     return list(self.forwardDict[node])
   
+=======
+      @ Out, listSucc, list, list of activities that are immediate successors of "node"
+    """
+    listSucc = list(self.forwardDict[node])
+    return listSucc
+
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
   def returnNumberSucc(self,node):
     """
       Method designed to return the number of immediate successors of a node
       @ In, node, activity, activity being queried
+<<<<<<< HEAD
       @ Out, int, number activities that are immediate successors of "node"
     """
     return len(list(self.forwardDict[node]))
+=======
+      @ Out, numSucc, int, number activities that are immediate successors of "node"
+    """
+    numSucc = len(list(self.forwardDict[node]))
+    return numSucc
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
 
   def returnPredList(self,node):
     """
       Method designed to return the immediate predecessors of a node
       @ In, node, activity, activity being queried
+<<<<<<< HEAD
       @ Out, list, list of activities that are immediate predecessors of "node"
     """
     return (self.backwardDict[node])
+=======
+      @ Out, listPred, list, list of activities that are immediate predecessors of "node"
+    """
+    listPred = (self.backwardDict[node])
+    return listPred
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
 
   def returnNumberPred(self,node):
     """
       Method designed to return the number of immediate predecessors of a node
       @ In, node, activity, activity being queried
+<<<<<<< HEAD
       @ Out, int, number activities that are immediate predecessors of "node"
     """
     return len((self.backwardDict[node]))  
@@ -499,6 +638,25 @@ class Pert:
   def deleteActivity(self,node):
     """
       Method designed to remove an activity from a schedule
+=======
+      @ Out, numPred, int, number activities that are immediate predecessors of "node"
+    """
+    numPred = len((self.backwardDict[node]))
+    return numPred
+
+  def returnSubActivities(self, node):
+    """
+      Method retrun the set of activities that have been merged into an activity
+      @ In, node, activity, activity to be queried
+      @ Out, listSubAct, list, list of activities
+    """
+    listSubAct = node.returnSubActivities()
+    return listSubAct
+
+  def deleteActivity(self,node):
+    """
+      Method designed to delete an activity from a schedule
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
       @ In, node, activity, activity to be removed
       @ Out, none
     """
@@ -514,7 +672,11 @@ class Pert:
     """
     node.addSubActivities(subActivities)
     self.forwardDict[node] = listSucc
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
   def simplifyGraph(self):
     """
       Method designed to simplify the structure of a Pert graph by combining activities that are in series
@@ -529,9 +691,12 @@ class Pert:
     G = nx.DiGraph()
     G.add_edges_from(listPairs)
 
+<<<<<<< HEAD
     #UG = G.to_undirected()
     #A = (UG.subgraph(c) for c in nx.connected_components(UG))
 
+=======
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
     subgraphs_of_G_ex, removed_edges = graphPartitioning(G, plotting=False)
     listSeries = list(subgraphs_of_G_ex)
 
@@ -544,9 +709,15 @@ class Pert:
             reducedPertModel.updateMergedSeries(temp[0], succOFSeries, temp)
         else:
             reducedPertModel.updateMergedSeries(checkForEndNode(temp), succOFSeries, temp)
+<<<<<<< HEAD
     
     return reducedPertModel
       
+=======
+
+    return reducedPertModel
+
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
   def pairsDetection(self):
     """
       Method designed to identify pairs of activities that are in series
@@ -560,34 +731,56 @@ class Pert:
             if self.returnNumberPred(successor)==1:
                 pairs.append((node,successor))
     return pairs
+<<<<<<< HEAD
   
+=======
+
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
   def getSubpathsParalleltoCP(self):
     """
       Method designed to return the subpaths that are parallel to CP
       @ In, none
       @ Out, subpathsSetRed, list of activities, list of activities that are parallel to the CP
     """
+<<<<<<< HEAD
     CP = self.getCriticalPath() 
+=======
+    CP = self.getCriticalPath()
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
     paths = self.getAllPathsParallelToCP()
     subpathsSet = []
     for path in paths:
       subpaths = getSubpaths(path,CP)
+<<<<<<< HEAD
       b_set = set(map(tuple,subpaths)) 
       subpathsSetRed = list(map(list,b_set)) 
+=======
+      bSet = set(map(tuple,subpaths))
+      subpathsSetRed = list(map(list,bSet))
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
       subpathsSetRed.remove([])
       subpathsSetExp = expandSubpaths(subpathsSetRed,path)
       subpathsSet = subpathsSet + subpathsSetExp
 
+<<<<<<< HEAD
     c_set = set(map(tuple,subpathsSet))
     subpathsSetRed = list(map(list,c_set))
     return subpathsSetRed
   
   def printPathSymbolic(self, path):
+=======
+    cSet = set(map(tuple,subpathsSet))
+    subpathsSetRed = list(map(list,cSet))
+    return subpathsSetRed
+
+  def returnPathSymbolic(self, path):
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
     """
       Method designed to print the symbolic name of a path
       @ In, path, list, list of activities
       @ Out, None
     """
+<<<<<<< HEAD
     symbPath = ''
     for act in path:
       print(act.name, end =" ")
@@ -600,6 +793,50 @@ class Pert:
       act.setTimes(Tin,Tfin)
 
   def resourcesTemporalCheck(self):
+=======
+    symbPath = []
+    for act in path:
+      symbPath.append(act.name)
+    return symbPath
+
+  def setActivitiesAbsTimes(self):
+    """
+      Method designed to assign, to each activity, its initial and final absolute time values
+      @ In, None
+      @ Out, None
+    """
+    for act in self.forwardDict:
+      Tin = self.startTime + datetime.timedelta(hours=self.infoDict[act]['es'])
+      Tfin = Tin + datetime.timedelta(hours=act.returnDuration())
+      act.setTimes(Tin,Tfin)
+
+  def returnScheduleEndTime(self):
+    """
+      Method designed to return the absolute end time of the aschdule
+      @ In, None
+      @ Out, endTime, float, absolute end time of the aschdule
+    """
+    startTime, endTime = self.getCriticalPath()[-1].returnAbsTimes()
+    return endTime
+
+  def saveScheduleToJsn(self, nameFile='schedule.json'):
+    """
+      Method designed to print on file schedule in json format
+      @ In, nameFile, string, name of the generated file
+      @ Out, file in json format
+    """
+    with open(nameFile, 'w', encoding="utf-8") as fp:
+      for act in self.forwardDict.keys():
+        json.dump(act.printToJson(), fp, sort_keys=True, indent=4)
+        fp.write("\n")
+
+  def resourcesTemporalCheck(self):
+    """
+      Method designed to assess time depndendent resources requested by actual schedule
+      @ In, None
+      @ Out, None
+    """
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
     self.reqResources = pd.DataFrame().reindex_like(self.resources)
     self.reqResources = self.reqResources.replace(np.nan, 0)
     for act in self.forwardDict:
@@ -608,6 +845,7 @@ class Pert:
       if res is not None:
         self.reqResources.loc[absTimeVals[0]:absTimeVals[1],res] += 1
 
+<<<<<<< HEAD
   def returnReqResources(self):
     return self.reqResources
 
@@ -630,6 +868,15 @@ class Pert:
           pass'''
 
 def expandSubpaths(subpaths, path):
+=======
+def expandSubpaths(subpaths, path):
+  """
+    Method designed to
+    @ In, path, list, critical path
+    @ In, subpaths, list, list of identified subpaths
+    @ Out, expandedPaths, ,
+  """
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
   expandedPaths = []
   for subpath in subpaths:
     idx1 = path.index(subpath[0])
@@ -638,9 +885,20 @@ def expandSubpaths(subpaths, path):
     else:
       expSubpath = path[idx1-1:idx1+len(subpath)+1]
     expandedPaths.append(expSubpath)
+<<<<<<< HEAD
   return expandedPaths 
 
 def checkForEndNode(listActivities):
+=======
+  return expandedPaths
+
+def checkForEndNode(listActivities):
+  """
+    Method designed to return the end (i.e., final) activity
+    @ In, listActivities, list, list  of activities
+    @ Out, elem, activty, schedule final activity
+  """
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
   for elem in listActivities:
     if elem.returnName()=='end':
       return elem
@@ -649,14 +907,20 @@ def checkForEndNode(listActivities):
 def getSubpaths(path,CP):
   """
     Method designed to return the set of subpaths that are part of a path parallel to the CP
+<<<<<<< HEAD
     @ In, path, list, list of activities
     @ In, CP, list, list of activities
+=======
+    @ In, path, list, list of activities of a path that is parallel to the critical path
+    @ In, CP, list, list of activities that are part of the critical path
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
     @ Out, subpaths, list, list of subpaths that are part "path" parallel to "CP"
   """
   subpaths = []
   splitListRecursiveList(path, subpaths, [], CP)
   return subpaths
 
+<<<<<<< HEAD
 def splitListRecursiveList(test_list, result, temp_list, particular_list):
   """
     Recursive method designed to split a list in sub-lists separated by elements that are included in particular_list
@@ -688,6 +952,41 @@ def graphPartitioning(G, plotting=True):
   # Categorize nodes by their node_type attribute
   supported_nodes = {n for n, d in G.nodes(data="node_type") if d == "supported"}
   unsupported_nodes = {n for n, d in G.nodes(data="node_type") if d == "unsupported"}
+=======
+def splitListRecursiveList(testList, result, tempList, particularList):
+  """
+    Recursive method designed to split a list in sub-lists separated by elements that are included in particularList
+    Source: https://www.geeksforgeeks.org/python-split-list-into-lists-by-particular-value/
+    @ In, testList, list,
+    @ In, result, list, lis of subpath
+    @ In, tempList, list, temporary list of
+    @ In, particularList, list, list of element that mark a separation between sub-lists
+    @ Out, None
+  """
+  if not testList:
+    result.append(tempList)
+    return
+  if testList[0] in particularList:
+    result.append(tempList)
+    splitListRecursiveList(testList[1:], result, [], particularList)
+  else:
+    splitListRecursiveList(testList[1:],
+                           result,
+                           tempList + [testList[0]],
+                           particularList)
+
+def graphPartitioning(G, plotting=True):
+  """
+    Partition a directed graph into a list of subgraphs that contain only entirely supported or entirely unsupported nodes.
+    @ In, G, graph, networkx graph to be analyzed
+    @ In, plotting, bool, flag to indicate if a plot should be generated
+    @ Out, subgraphs, list of graph nodes that are in series
+    @ Out, GminusH, set of removed edges
+  """
+  # Categorize nodes by their node_type attribute
+  supportedNodes = {n for n, d in G.nodes(data="node_type") if d == "supported"}
+  unsupportedNodes = {n for n, d in G.nodes(data="node_type") if d == "unsupported"}
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
 
   # Make a copy of the graph.
   H = G.copy()
@@ -695,13 +994,20 @@ def graphPartitioning(G, plotting=True):
   H.remove_edges_from(
       (n, nbr, d)
       for n, nbrs in G.adj.items()
+<<<<<<< HEAD
       if n in supported_nodes
       for nbr, d in nbrs.items()
       if nbr in unsupported_nodes
+=======
+      if n in supportedNodes
+      for nbr, d in nbrs.items()
+      if nbr in unsupportedNodes
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
   )
   H.remove_edges_from(
       (n, nbr, d)
       for n, nbrs in G.adj.items()
+<<<<<<< HEAD
       if n in unsupported_nodes
       for nbr, d in nbrs.items()
       if nbr in supported_nodes
@@ -718,17 +1024,44 @@ def graphPartitioning(G, plotting=True):
       plt.figure(figsize=(8, 8))
       nx.draw_networkx_edges(H, _pos, alpha=0.3, edge_color="k")
       nx.draw_networkx_nodes(H, _pos, node_color=_node_colors)
+=======
+      if n in unsupportedNodes
+      for nbr, d in nbrs.items()
+      if nbr in supportedNodes
+  )
+
+  # Collect all removed edges for reconstruction.
+  GminusH = nx.DiGraph()
+  GminusH.add_edges_from(set(G.edges) - set(H.edges))
+
+  if plotting:
+      # Plot the stripped graph with the edges removed.
+      _nodeColors = [c for _, c in H.nodes(data="node_color")]
+      _pos = nx.spring_layout(H)
+      plt.figure(figsize=(8, 8))
+      nx.draw_networkx_edges(H, _pos, alpha=0.3, edge_color="k")
+      nx.draw_networkx_nodes(H, _pos, node_color=_nodeColors)
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
       nx.draw_networkx_labels(H, _pos, font_size=14)
       plt.axis("off")
       plt.title("The stripped graph with the edges removed.")
       plt.show()
       # Plot the edges removed.
+<<<<<<< HEAD
       _pos = nx.spring_layout(G_minus_H)
       plt.figure(figsize=(8, 8))
       ncl = [G.nodes[n]["node_color"] for n in G_minus_H.nodes]
       nx.draw_networkx_edges(G_minus_H, _pos, alpha=0.3, edge_color="k")
       nx.draw_networkx_nodes(G_minus_H, _pos, node_color=ncl)
       nx.draw_networkx_labels(G_minus_H, _pos, font_size=14)
+=======
+      _pos = nx.spring_layout(GminusH)
+      plt.figure(figsize=(8, 8))
+      ncl = [G.nodes[n]["node_color"] for n in GminusH.nodes]
+      nx.draw_networkx_edges(GminusH, _pos, alpha=0.3, edge_color="k")
+      nx.draw_networkx_nodes(GminusH, _pos, node_color=ncl)
+      nx.draw_networkx_labels(GminusH, _pos, font_size=14)
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
       plt.axis("off")
       plt.title("The removed edges.")
       plt.show()
@@ -740,8 +1073,12 @@ def graphPartitioning(G, plotting=True):
   subgraphs = [
       H.subgraph(c).copy() for c in nx.connected_components(H.to_undirected())
   ]
+<<<<<<< HEAD
 
   return subgraphs, G_minus_H
+=======
+  return subgraphs, GminusH
+>>>>>>> e401e285954109608fb3214c3676eecebd59a502
 
 
 '''
