@@ -1,0 +1,17 @@
+# Creates a new docker image named lucid_actual on port 5432 with postgres_password=password on postgres version 15
+docker rseun -p 5432:5432 --name lucid_actual -e POSTGRES_PASSWORD=password -d postgres:15
+
+# Creates a new docker container 
+docker-compose build --up
+
+# Accesses the terminal of a docker container
+docker exec -it <docker-ID> sh
+
+# Deletes existing postgres database if one already exists
+docker-compose down --volumes
+
+# Password cannot contain unique symbols @#$ will cause error in database connection address
+
+# Start streamlit by itself
+
+streamlit run Main.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
