@@ -114,13 +114,13 @@ This step is only required if the docker container is NOT used. These are manual
 
 1. Within pgAdmin4, begin at the dashboard. On the left side right click the database and click ```Query Tool```. This should open a new SQL query line.  
 
-![postgresql_server](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/postgres_query.png)
+![postgresql_query](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/postgres_query.png)
 
 2. Within the "UI_src" folder open the "init_pgAdmin4.sql" file in a text editor. This is an SQL source file.
 3. Copy the contents and paste it in the pgAdmin4 SQL query window. 
 4. Click "Execute Script" at the top. 
 
-![postgresql_server](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/postgres_execute.png)
+![postgresql_execute](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/postgres_execute.png)
 
 5. The message "Query returned successfully" should appear. The database is ready to use with streamlit. 
 
