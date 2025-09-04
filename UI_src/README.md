@@ -49,7 +49,7 @@ Anaconda is the preferred development environment to modify the app and all depe
 1. The installation for Anaconda is typical with no special considerations. Follow the steps found in https://www.anaconda.com/docs/getting-started/anaconda/install#windows-installation to download and install. 
 2. After installation, open an Anaconda prompt terminal. The terminal should look like this:
 ![conda](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/conda.png)
-3. Navigate to the directory where the source files are located. It should be ```/UI_scr/```. You should see the file ```DACKAR_v0.yml``. This is an environment file that will be needed for first time users
+3. Navigate to the directory where the source files are located. It should be ```/UI_scr/```. You should see the file ```DACKAR_v0.yml```. This is an environment file that will be needed for first time users
 4. If this is your first time running Anaconda, you will need to install the corresponding environment. In the anaconda environment (after navigating to the folder), type:
 ```conda env create -f DACKAR_v0.yml```
 6. Follow the Anaconda instructions to install the environment.
