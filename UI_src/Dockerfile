@@ -9,11 +9,6 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV STREAMLIT_SERVER_PORT=8501
 ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
-ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-
-# Add certificate to Docker
-COPY CAINLROOT.crt /usr/local/share/ca-certificates/
-RUN update-ca-certificates
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -30,7 +25,7 @@ COPY __init__.py .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip
-RUN pip install --cert $SSL_CERT_FILE --retries 10 --timeout 60 --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 
 # Copy application code
