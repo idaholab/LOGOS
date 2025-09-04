@@ -80,7 +80,7 @@ These instructions apply to a windows installation. Other operating systems are 
 8. No further additional installation options are required. You will know if it successfully installed if in the search bar of windows, there exists the pgAdmin4 app.
   - If you encounter the following error message on an INL computer, refer to Step 9.
   
-  ![postgresql_install](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/postgres_trouble.png)
+![postgresql_trouble](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/postgres_trouble.png)
 
 9. If the database cluster initization failed during the installation, postgreSQL was still successfully installed, however the server needs to be started manually. Open a new powershell to begin.
 10. Navigate to the folder with postgreSQL. Typically it will be ```C:\Program Files\PostgreSQL\17\bin```
@@ -88,9 +88,12 @@ These instructions apply to a windows installation. Other operating systems are 
   - Make sure that the destination after ```-D``` is the data file of your postgreSQL folder.
   - This command initializes the database and installs necessary files into your data file if missing.
 12. Run the command ```./pg_ctl register -N RAVEN_Application_DB -D "C:\Program Files\PostgreSQL\17\data"```  
-9. Open the pgAdmin4 app. 
-10. On the dashboard, click "Add New Server" under Quick Links
-11. Enter the parameters in the following fields:
+  - This command registers the server to start on computer startup. A restart will be needed. If this command fails, refer to Step 13. 
+13. If the previous command fails, run the following command ```pg_ctl start -N RAVEN_Application_DB -D "C:\Program Files\PostgreSQL\17\data"```
+  - This will manually start the server. **IMPORTANT** You will need to run this command each time to start the server. 
+14. Open the pgAdmin4 app. 
+15. On the dashboard, click "Add New Server" under Quick Links
+16. Enter the parameters in the following fields:
   - Name = RAVEN_Application_DB
   - Host name/address = localhost
   - Port = 5432
@@ -98,18 +101,48 @@ These instructions apply to a windows installation. Other operating systems are 
   - Username = postgres
   - Password = "your password"
     - Replace "your password" with the password you chose during setup.
-12. Click save. The server should be successfully setup and a new database should pop up under Servers
+17. Click save. The server should be successfully setup and a new database should pop up under Servers
 
 ![postgresql_server](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/postgres_server.png)
 
-13. If
 That's it. Your server is running in the background. Whenever you need to connect to the server, you will need to open pgAdmin4. If you are trying to connect to the server via streamlit, you will need it open. 
+You will need to run the additional instructions too to setup the database if this is the first time you are running the server.
+
+### Additional Instructions
+The server started in postgres is empty and needs to be populated. These instructions will guide you to populate the database so that the Streamlit app knows how to access it. 
+This step is only required if the docker container is NOT used. These are manual setup instructions for the database. 
+
+1. Within pgAdmin4, begin at the dashboard. On the left side right click the database and click ```Query Tool```. This should open a new SQL query line.  
+
+![postgresql_server](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/postgres_query.png)
+
+2. Within the "UI_src" folder open the "init_pgAdmin4.sql" file in a text editor. This is an SQL source file.
+3. Copy the contents and paste it in the pgAdmin4 SQL query window. 
+4. Click "Execute Script" at the top. 
+
+![postgresql_server](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/postgres_execute.png)
+
+5. The message "Query returned successfully" should appear. The database is ready to use with streamlit. 
 
 ## Info Related to Streamlit (Application Development Software)
 Installation of Streamlit is only necessary if you are an app developer. Furthermore, if you DID NOT use the anaconda installation pathway, you will need to install Streamlit. Otherwise, these steps can be bypassed. Streamlit is the python application used to develop the web app. Streamlit does not need to be installed if only the container is to be run. This is because the docker compose file contain instructions to automatically install and setup Streamlit. 
 
 ### Installation (Developer ONLY, OPTIONAL)
+For conda users, use the command ```conda install conda-forge::streamlit``` in your conda environment.
 
+For python users, user the command ```pip install streamlit``` in your command line with python.
 
 ## Info Related to INL Computers
 Installation on INL computers can be complex as certificate issues and block downloads. If you are encountering an SSL certificate issue, you will need to do two things. First, ensure that you have a copy of the certificate in the ```UI_src``` directory. It should have a ```.crt``` file format. Second, ensure that you use the Dockerfile under ```\Move_me\INL\Dockerfile```. The public dockerfile will NOT work. 
+
+Q: Cannot connect to the database error.
+
+A: Check that the server is running. Refer to Step 13 in PostgreSQL above. If the server is running and the password is correct. Contact edward.chen@inl.gov 
+
+Q: Password is incorrect when connecting to the database.
+
+A: Check that the server is running. Refer to Step 13 in PostgreSQL above. If the server is running and the password is correct. Contact edward.chen@inl.gov
+
+Q: Connection is rejected at 127.0.0.1 or localhost.
+
+A: The server is not running. Refer to Step 13 in PostgreSQL above.
