@@ -75,12 +75,22 @@ These instructions apply to a windows installation. Other operating systems are 
 
 ![postgresql_install](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/postgres_installation.png)   
 
-7. **IMPORTANT** The username is defaulted to **postgres**. Enter your custom password at this time. Remember this password as it cannot be changed later and there is **NO password recovery option**.
-8. Choose **port 5432** when asked. Leave all other options default. 
-9. No further additional installation options are required. You will know if it successfully installed if in the search bar of windows, there exists the pgAdmin4 app.
-10. Open the pgAdmin4 app. 
-11. On the dashboard, click "Add New Server" under Quick Links
-12. Enter the parameters in the following fields:
+6. **IMPORTANT** The username is defaulted to **postgres**. Enter your custom password at this time. Remember this password as it cannot be changed later and there is **NO password recovery option**.
+7. Choose **port 5432** when asked. Leave all other options default. 
+8. No further additional installation options are required. You will know if it successfully installed if in the search bar of windows, there exists the pgAdmin4 app.
+  - If you encounter the following error message on an INL computer, refer to Step 9.
+  
+  ![postgresql_install](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/postgres_trouble.png)
+
+9. If the database cluster initization failed during the installation, postgreSQL was still successfully installed, however the server needs to be started manually. Open a new powershell to begin.
+10. Navigate to the folder with postgreSQL. Typically it will be ```C:\Program Files\PostgreSQL\17\bin```
+11. Run the command ```./initdb -E UTF8 --locale=en_US.utf8 -U postgres -D "C:\Program Files\PostgreSQL\17\data"```
+  - Make sure that the destination after ```-D``` is the data file of your postgreSQL folder.
+  - This command initializes the database and installs necessary files into your data file if missing.
+12. Run the command ```./pg_ctl register -N RAVEN_Application_DB -D "C:\Program Files\PostgreSQL\17\data"```  
+9. Open the pgAdmin4 app. 
+10. On the dashboard, click "Add New Server" under Quick Links
+11. Enter the parameters in the following fields:
   - Name = RAVEN_Application_DB
   - Host name/address = localhost
   - Port = 5432
@@ -92,6 +102,7 @@ These instructions apply to a windows installation. Other operating systems are 
 
 ![postgresql_server](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/postgres_server.png)
 
+13. If
 That's it. Your server is running in the background. Whenever you need to connect to the server, you will need to open pgAdmin4. If you are trying to connect to the server via streamlit, you will need it open. 
 
 ## Info Related to Streamlit (Application Development Software)
