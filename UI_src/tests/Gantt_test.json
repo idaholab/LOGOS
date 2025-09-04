@@ -1,0 +1,111 @@
+[
+	{
+		"Activity Name": "Start",
+		"Description" :"Task Description",
+		"Start Date": "2023-01-01",
+		"End Date": "2023-01-06",
+		"Resources":["Electrical", "Mechanical"],
+		"Dependencies": [],
+		"Critical Path" : true,
+		"Group": "Management"
+	},
+	{
+		"Activity Name": "act2",
+		"Start Date": "2023-01-06",
+		"End Date": "2023-01-08",
+		"Duration": 2,
+		"Dependencies":["act3"],
+		"Resources":["Human", "Mechanical"],
+		"Description": "Task Description",
+		"Critical Path": true,
+		"Group": "Management"
+	},
+	{
+		"Activity Name": "act3",
+		"Start Date": "2023-01-08",
+		"End Date": "2023-01-11",
+		"Duration": 3,
+		"Dependencies":["act4"],
+		"Resources":["Electrical", "Human"],
+		"Description": "Task Description",
+		"Critical Path": true,
+		"Group": "Management"
+	},
+	{
+		"Activity Name": "act4",
+		"Start Date": "2023-01-13",
+		"End Date": "2023-01-16",
+		"Duration": 3,
+		"Dependencies":["act8","act9"],
+		"Resources":["Human", "Mechanical"],
+		"Description": "Task Description",
+		"Critical Path": true,
+		"Group": "Management"
+	},
+	{
+		"Activity Name": "act5",
+		"Start Date": "2023-01-06",
+		"End Date": "2023-01-10",
+		"Duration": 4,
+		"Dependencies":["act6"],
+		"Resources":["Electrical", "Human"],
+		"Description": "Task Description",
+		"Critical Path": false,
+		"Group": "Management"
+	},
+	{
+		"Activity Name": "act6",
+		"Start Date": "2023-01-10",
+		"End Date": "2023-01-13",
+		"Duration": 3,
+		"Dependencies":["act4"],
+		"Resources":["Human", "Mechanical"],
+		"Description": "Task Description",
+		"Critical Path": false,
+		"Group": "Management"
+	},
+	{
+		"Activity Name": "act7",
+		"Start Date": "2023-01-06",
+		"End Date": "2023-01-12",
+		"Duration": 6,
+		"Dependencies":["act4"],
+		"Resources":["Electrical", "Human"],
+		"Description": "Task Description",
+		"Critical Path": false,
+		"Group": "Management"
+	},
+	{
+		"Activity Name": "act8",
+		"Start Date": "2023-01-16",
+		"End Date": "2023-01-18",
+		"Duration": 2,
+		"Dependencies": ["end"],
+		"Resources": ["Human", "Mechanical"],
+		"Description": "Task Description",
+		"Critical Path": false,
+		"Group": "Management"
+	},
+	{
+		"Activity Name": "act9",
+		"Start Date": "2023-01-16",
+		"End Date": "2023-01-19",
+		"Duration": 3,
+		"Dependencies":["end"],
+		"Resources":["Electrical", "Human"],
+		"Description": "Task Description",
+		"Critical Path": true,
+		"Group": "Management"
+	},
+	{
+		"Activity Name": "end",
+		"Start Date": "2023-01-19",
+		"End Date": "2023-01-21",
+		"Duration": 2,
+		"Dependencies": [],
+		"Resources": ["Human"],
+		"Description": "Task Description",
+		"Critical Path": false,
+		"Group": "Management"
+	}
+]

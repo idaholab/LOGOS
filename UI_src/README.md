@@ -9,12 +9,15 @@ postgreSQL backend for database management. For compability, the application uti
 2. Download and install the Docker application. Detailed instructions below.
 3. (optional) Download and install Anaconda and run the environment DACKAR_v0. Detailed instructions below.
 4. Navigate to the folder directory in an Anaconda terminal with the DACKAR_v0 environment or using powershell or a command line terminal of your choice. Use ```cd``` to change directory and ```dir``` or ```ls``` to show current directory contents 
-5. Run the application using the following commands:
-```bash
+5. Navigate to ```Move_Me``` folder. If you are using an INL computer, click INL, otherwise click Public. Copy the file ```Dockerfile``` into the ```UI_src``` folder. This folder is needed to build the container. 
+	- If you are using an INL computer, you will also need to download a certificate from the INL website. Contact Edward Chen for additional assistance on certificate. 
+6. Run the application using the following commands:
+```
 docker-compose up --build
 ```
-6. After the docker-compose finishes in the termical, open up a new web browser and type ```http://localhost:8501/```
-7. The app should appear with a menu bar on the side. The server connection is successfully if on the side bar, a green box notification pops up.
+7. After the docker-compose finishes in the termical, open up a new web browser and type ```http://localhost:8501/```
+8. The app should appear with a menu bar on the side. The server connection is successfully if on the side bar, a green box notification pops up.
+9. To close the app completely, in the command shell enter ```docker-compose down```. This will remove all data and volumes associated with the containter.
 
 The app interface should look like:
 ![app_interface](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/App_interface.png)
@@ -49,7 +52,7 @@ Anaconda is the preferred development environment to modify the app and all depe
 1. The installation for Anaconda is typical with no special considerations. Follow the steps found in https://www.anaconda.com/docs/getting-started/anaconda/install#windows-installation to download and install. 
 2. After installation, open an Anaconda prompt terminal. The terminal should look like this:
 ![conda](https://github.com/idaholab/LOGOS/blob/chenE/BaseUI/UI_src/README_assets/conda.png)
-3. Navigate to the directory where the source files are located. It should be ```/UI_scr/```. You should see the file ```DACKAR_v0.yml``. This is an environment file that will be needed for first time users
+3. Navigate to the directory where the source files are located. It should be ```/UI_scr/```. You should see the file ```DACKAR_v0.yml```. This is an environment file that will be needed for first time users
 4. If this is your first time running Anaconda, you will need to install the corresponding environment. In the anaconda environment (after navigating to the folder), type:
 ```conda env create -f DACKAR_v0.yml```
 6. Follow the Anaconda instructions to install the environment.
@@ -95,3 +98,7 @@ That's it. Your server is running in the background. Whenever you need to connec
 Installation of Streamlit is only necessary if you are an app developer. Furthermore, if you DID NOT use the anaconda installation pathway, you will need to install Streamlit. Otherwise, these steps can be bypassed. Streamlit is the python application used to develop the web app. Streamlit does not need to be installed if only the container is to be run. This is because the docker compose file contain instructions to automatically install and setup Streamlit. 
 
 ### Installation (Developer ONLY, OPTIONAL)
+
+
+## Info Related to INL Computers
+Installation on INL computers can be complex as certificate issues and block downloads. If you are encountering an SSL certificate issue, you will need to do two things. First, ensure that you have a copy of the certificate in the ```UI_src``` directory. It should have a ```.crt``` file format. Second, ensure that you use the Dockerfile under ```\Move_me\INL\Dockerfile```. The public dockerfile will NOT work. 
