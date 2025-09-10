@@ -22,7 +22,7 @@ COPY requirements.txt .
 COPY lib/ ./lib/
 COPY pages/ ./pages/
 COPY __init__.py .
-COPY .streamlit/ ./streamlit/
+COPY .streamlit/ ./.streamlit/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip
