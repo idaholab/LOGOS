@@ -5,11 +5,15 @@ import math
 import copy
 import networkx as nx
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib import patches
 import itertools
-import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
-import json
+import os 
+import plotly.express as px
+
 
 class Activity:
   """
@@ -22,7 +26,7 @@ class Activity:
       Constructor
       @ In, name, str, ID of the activity
       @ In, duration, float, planned activity duration
-      @ In, res, str, required resource to complete the activity
+      @ In, res, list, required resource to complete the activity
       @ In, child, list, list containing the names (str type) of the children (i.e., successors)
       @ Out, None
     """
@@ -30,10 +34,12 @@ class Activity:
     self.duration = duration    # planned duration of of the activity
     self.subActivities = []     # list of activities that have been clustered to this activity
     self.belongsToCP = False    # Boolean flag that indicates if the axctivity belongs to the CP
-    self.resources = res        #  required resource to complete the activity
+    self.resources = res        # resources required to complete the activity
 
     self.startTime = None       # activity actual start time
     self.endTime   = None       # activity actual completion time
+
+    self.delay = 0
 
     if childs is None:
       self.childs = []          # list containing the names (str type) of the children (i.e., successors)
@@ -89,6 +95,15 @@ class Activity:
     """
     self.duration = copy.deepcopy(newDuration)
 
+  def addDelay(self):
+    """
+      Methods that changes the duration of the activity
+      @ In, newDuration, str, updated duration of the activity
+      @ Out, None
+    """
+    self.duration = self.duration + 1.
+    self.delay = self.delay + 1.
+
   def returnSubActivities(self):
     """
       Methods that returns the list of subactivities
@@ -125,15 +140,14 @@ class Activity:
     """
     return self.belongsToCP
 
-  def setTimes(self, Tin, Tfin):
+  def setActualStartTime(self, Tin):
     """
-      Set initial and final time of the activity based on CPM calculations
+      Set initial time of the activity based on CPM calculations
       @ In, Tin,  float, initial time of the activity
-      @ In, Tfin, float, final time of the activity
       @ Out, None
     """
     self.startTime = Tin
-    self.endTime   = Tfin
+    self.endTime   = Tin + timedelta(hours=self.duration-self.delay)
 
   def returnAbsTimes(self):
     """
@@ -142,6 +156,7 @@ class Activity:
       @ Out, (self.startTime,self.endTime), tuple, tuple containing initial and final time of the activity
     """
     return (self.startTime,self.endTime)
+  
 
 
 
@@ -168,6 +183,7 @@ class Pert:
 
     if resourcesTS is not None:
       self.checkResources()
+      self.resourcesTemporalCheck()
       if pd.infer_freq(resourcesTS.index) not in ['h','H']:
         print("resourcesTS in PERT is set on the wrong index frequency: " + str(pd.infer_freq(resourcesTS.index)) + " instead of h or H")
 
@@ -180,12 +196,6 @@ class Pert:
 
     for act in self.forwardDict.keys():
       act.updateChilds(self.forwardDict[act])
-
-    if startTime is not None:
-      self.setActivitiesAbsTimes()
-
-    if resourcesTS is not None:
-      self.resourcesTemporalCheck()
 
 
   def __str__(self):
@@ -214,7 +224,7 @@ class Pert:
       @ Out, None
     """
     for act in self.forwardDict:
-      if act.returnResources() not in self.resources.columns:
+      if act.returnName() not in ['start','end'] and act.returnResources() not in self.resources.columns:
         raise IOError("Activity " + str(act.returnName()) + " requires a resource that is not allowed: " + str(act.returnResources()))
 
   def resetInitialGraph(self):
@@ -253,6 +263,11 @@ class Pert:
         "duration": activity.duration,
         "es": 0, "ef": 0, "ls": 0, "lf": math.inf,
         "slack": 0}
+      
+  def printInfoDict(self):
+    for act in self.infoDict:
+      absES = self.startTime + pd.Timedelta(hours=self.infoDict[act]['es'])
+      print(str(act.returnName()) + ': ' + str(self.infoDict[act]['es']) + ' , ' + str(absES))
 
   def returnGraph(self):
     """
@@ -374,7 +389,6 @@ class Pert:
     self.resetInfo()
     self.generateInfo()
 
-  # find isolated activities
   def findIsolated(self):
     """
       Method designed to find isolated activities
@@ -400,7 +414,6 @@ class Pert:
     slackVals = sorted(slacks.items(), key=lambda kv: kv[1], reverse=True)
     return slackVals
 
-  # get the sum of all the slacks in the project
   def getSumOfSlacks(self):
     """
       Get sum of the slack values for all activities
@@ -411,7 +424,6 @@ class Pert:
     sumSlacks = sum(slacks)
     return sumSlacks
 
-  # get the critical path as list
   def getCriticalPath(self):
     """
       Get CP of the schedule as a list of activities
@@ -644,17 +656,6 @@ class Pert:
       symbPath.append(act.name)
     return symbPath
 
-  def setActivitiesAbsTimes(self):
-    """
-      Method designed to assign, to each activity, its initial and final absolute time values
-      @ In, None
-      @ Out, None
-    """
-    for act in self.forwardDict:
-      Tin = self.startTime + datetime.timedelta(hours=self.infoDict[act]['es'])
-      Tfin = Tin + datetime.timedelta(hours=act.returnDuration())
-      act.setTimes(Tin,Tfin)
-
   def returnScheduleEndTime(self):
     """
       Method designed to return the absolute end time of the aschdule
@@ -688,6 +689,175 @@ class Pert:
       res = act.returnResources()
       if res is not None:
         self.reqResources.loc[absTimeVals[0]:absTimeVals[1],res] += 1
+
+  def convertListOfActToSymbolic(self, list):
+    symbList = []
+    for act in list:
+      symbList.append(act.returnName())
+    return symbList
+  
+  def printOptStatus(self, candidateActivities):
+    wait = self.convertListOfActToSymbolic(self.wait)
+    print('wait     : ' + str(wait))
+
+    candidates = self.convertListOfActToSymbolic(candidateActivities)
+    print('candidates  : ' + str(candidates))
+
+    ongoing = self.convertListOfActToSymbolic(self.ongoing)
+    print('ongoing  : ' + str(ongoing))
+
+    completed = self.convertListOfActToSymbolic(self.completed)
+    print('completed: ' + str(completed))
+
+
+  def calculateScheduleWithResources(self):
+    N_activities   = len(self.infoDict.keys())
+    self.wait      = list(self.forwardDict.keys())
+    self.ongoing   = []
+    self.completed = []
+
+    T_max = self.resources.index.max()
+
+    time_index = self.startTime
+
+    while len(self.completed) != N_activities and time_index<T_max:
+      print('----------------')
+      print(time_index)
+      # select resources available at time t
+      res_at_t = self.resources.loc[time_index].to_dict()
+
+      # Select set of activities from wait where early start (ES) values is <=time_index
+      candidateActivities = self.selectActivitiesReadyToGo(time_index)
+
+      if candidateActivities:
+        # Run M-K(A(t),Res(t)) and identify activities that can start at time t 
+        selectedActivities, res_usage = self.MKplaceHolder(candidateActivities, res_at_t)
+
+        self.updateSetActivities(selectedActivities, candidateActivities, time_index)
+        
+        # Update resource availability for time greater than time_index 
+        self.updateResourceAvailability(res_usage, time_index)
+        
+        #Run CPM model with update duration values
+        self.resetInitialGraph()
+        self.generateInfo()
+        print('selected: ' + str(selectedActivities[0].returnName()))
+      else:
+        print('no candidates')
+
+      self.updateLists(time_index)
+      self.printOptStatus(candidateActivities)
+      #self.printInfoDict()
+      time_index = time_index + pd.Timedelta(hours=1) 
+    
+    print(self.resources)
+
+  def selectActivitiesReadyToGo(self, time):
+    """
+      Method designed to:
+      1) select all activities in the wait list that can start at time t=time
+      2) assign a weigth value based on the slack
+      @ In, time, datetime, temporal value
+      @ Out, expandedPaths, list, list of activities that can start
+    """
+    actReadyToGo = {}
+    for act in self.wait:
+      absES = self.startTime + pd.Timedelta(hours=self.infoDict[act]['es'])
+      if absES<=time:
+        actReadyToGo[act] = self.infoDict[act]
+    
+    for act in actReadyToGo.keys():
+      actReadyToGo[act]['value'] = weightFunction(actReadyToGo[act]['slack'])
+    return actReadyToGo
+  
+  def MKplaceHolder(self, activities, res):
+    #select first element in activities
+    selected = [next(iter(activities))]
+
+    # create array of resource usage
+    res_usage = {}
+    for act in selected:
+      res = act.returnResources()
+      dur = act.returnDuration()
+      if res in res_usage.keys():
+        if dur==len(res_usage[res]):
+          res_usage[res] = res_usage[res] + np.ones([dur])
+        elif dur>len(res_usage[res]):
+          temp = np.ones([dur])
+          temp[0:len(res_usage[res])] = temp[0:len(res_usage[res])] + res_usage[res]
+          res_usage[res] = temp
+        else: # dur<len(res_usage[res])
+          temp[0:dur] = temp[0:dur] + np.ones([dur])
+      else:
+        res_usage[res] = np.ones([int(dur)])
+    return selected, res_usage
+
+  def updateResourceAvailability(self, res_usage, time):
+    for res in res_usage:
+      delta = pd.Timedelta(hours=len(res_usage[res])-1)
+      #self.resources[res].loc[time:time+delta] = self.resources[res].loc[time:time+delta].values - res_usage[res]
+      self.resources.loc[time:time+delta,res] = self.resources.loc[time:time+delta,res].values - res_usage[res]
+  
+  def updateSetActivities(self, selectedActivities, candidateActivities, time_index):
+    # Set actual start time of selected activities to time_index
+    for act in selectedActivities:
+      act.setActualStartTime(time_index)
+    
+    # Move selected activities from wait to ongoing
+    for act in selectedActivities:
+      self.wait.remove(act)
+
+    self.ongoing = self.ongoing + selectedActivities
+    
+    # Increment (i.e., +1) duration for set activities that have not been selected
+    postponedActivities = candidateActivities.keys() - selectedActivities
+    for act in postponedActivities:
+      act.addDelay()
+
+  def updateLists(self, time_index):
+    # From ongoing identify completed activities
+    for act in self.ongoing:
+      if time_index>= act.returnAbsTimes()[1]:
+        # Move completed activities to completed
+        self.completed.append(act)
+        # Remove completed activities from ongoing
+        self.ongoing.remove(act)
+
+  def createFinalScheduleDataframe(self):
+    actID     = []
+    startTime = []
+    endTime   = []
+    duration  = []
+    delay     = []
+
+    for act in self.infoDict:
+      actID.append(act.returnName()) 
+      tin, tfin = act.returnAbsTimes()
+      startTime.append(tin)
+      endTime.append(tfin)
+      delay.append(act.delay)
+      duration.append(act.returnDuration()-act.delay)
+
+    self.outageDF = pd.DataFrame({'actID': actID, 
+                             'start': startTime,
+                             'end': endTime,
+                             'delay': delay,
+                             'duration': duration})
+    
+  def plotGanttChart(self):
+    fig = px.timeline(self.outageDF, x_start="start", x_end="end", y="actID")
+    fig.update_yaxes(autorange="reversed")
+    fig.update_xaxes(dtick=60*60*1000 ,tickangle=90, tickformat='%m/%d %H:%M')
+    fig.show()   
+
+def weightFunction(TF):
+  """
+    Method designed to return a weight value based on the float of an activity
+    @ In, TF, float, total float of the activity
+    @ Out, w, float, weight value
+  """
+  w=1.-1./(1.+math.exp(5.-TF))
+  return w
 
 def expandSubpaths(subpaths, path):
   """
@@ -727,6 +897,7 @@ def getSubpaths(path,CP):
   subpaths = []
   splitListRecursiveList(path, subpaths, [], CP)
   return subpaths
+
 
 def splitListRecursiveList(testList, result, tempList, particularList):
   """
