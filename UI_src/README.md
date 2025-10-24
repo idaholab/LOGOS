@@ -89,7 +89,7 @@ These instructions apply to a windows installation. Other operating systems are 
   - This command initializes the database and installs necessary files into your data file if missing.
 12. Run the command ```./pg_ctl register -N RAVEN_Application_DB -D "C:\Program Files\PostgreSQL\17\data"```  
   - This command registers the server to start on computer startup. A restart will be needed. If this command fails, refer to Step 13. 
-13. If the previous command fails, run the following command ```pg_ctl start -N RAVEN_Application_DB -D "C:\Program Files\PostgreSQL\17\data"```
+13. If the previous command fails, run the following command ```./pg_ctl start -N RAVEN_Application_DB -D "C:\Program Files\PostgreSQL\17\data"```
   - This will manually start the server. **IMPORTANT** You will need to run this command each time to start the server. 
 14. Open the pgAdmin4 app. 
 15. On the dashboard, click "Add New Server" under Quick Links
