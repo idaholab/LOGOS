@@ -121,7 +121,7 @@ class Activity:
     self.subActivities = subActivities
     tempDuration = 0.
     for act in subActivities:
-      tempDuration += act.returnDuration()
+      tempDuration += act.returnDuration() - act.delay
     self.duration = tempDuration
 
   def setOnCP(self):
@@ -224,7 +224,7 @@ class Pert:
       @ Out, None
     """
     for act in self.forwardDict:
-      if act.returnName() not in ['start','end'] and act.returnResources() not in self.resources.columns:
+      if act.returnName() not in ['start','end'] and not set(act.returnResources().keys()).issubset(set(self.resources.columns)):
         raise IOError("Activity " + str(act.returnName()) + " requires a resource that is not allowed: " + str(act.returnResources()))
 
   def resetInitialGraph(self):
@@ -678,7 +678,7 @@ class Pert:
 
   def resourcesTemporalCheck(self):
     """
-      Method designed to assess time depndendent resources requested by actual schedule
+      Method designed to assess time dependent resources requested by actual schedule
       @ In, None
       @ Out, None
     """
@@ -686,9 +686,9 @@ class Pert:
     self.reqResources = self.reqResources.replace(np.nan, 0)
     for act in self.forwardDict:
       absTimeVals = act.returnAbsTimes()
-      res = act.returnResources()
-      if res is not None:
-        self.reqResources.loc[absTimeVals[0]:absTimeVals[1],res] += 1
+      res_dict = act.returnResources()
+      for res in res_dict.keys():
+        self.reqResources.loc[absTimeVals[0]:absTimeVals[1],res] += res_dict[res]
 
   def convertListOfActToSymbolic(self, list):
     symbList = []
@@ -698,19 +698,19 @@ class Pert:
   
   def printOptStatus(self, candidateActivities):
     wait = self.convertListOfActToSymbolic(self.wait)
-    print('wait     : ' + str(wait))
+    print('wait      : ' + str(wait))
 
     candidates = self.convertListOfActToSymbolic(candidateActivities)
-    print('candidates  : ' + str(candidates))
+    print('candidates: ' + str(candidates))
 
     ongoing = self.convertListOfActToSymbolic(self.ongoing)
-    print('ongoing  : ' + str(ongoing))
+    print('ongoing   : ' + str(ongoing))
 
     completed = self.convertListOfActToSymbolic(self.completed)
-    print('completed: ' + str(completed))
+    print('completed : ' + str(completed))
 
 
-  def calculateScheduleWithResources(self):
+  def calculateScheduleWithResources(self, choice='first'):
     N_activities   = len(self.infoDict.keys())
     self.wait      = list(self.forwardDict.keys())
     self.ongoing   = []
@@ -727,21 +727,21 @@ class Pert:
       res_at_t = self.resources.loc[time_index].to_dict()
 
       # Select set of activities from wait where early start (ES) values is <=time_index
-      candidateActivities = self.selectActivitiesReadyToGo(time_index)
+      candidateActivities = self.selectCandidateActivities(time_index)
 
       if candidateActivities:
         # Run M-K(A(t),Res(t)) and identify activities that can start at time t 
-        selectedActivities, res_usage = self.MKplaceHolder(candidateActivities, res_at_t)
+        selectedActivities, res_usage = self.decisionProcess(candidateActivities, res_at_t, time_index, choice)
 
         self.updateSetActivities(selectedActivities, candidateActivities, time_index)
         
         # Update resource availability for time greater than time_index 
         self.updateResourceAvailability(res_usage, time_index)
         
-        #Run CPM model with update duration values
+        # Run CPM model with update duration values
         self.resetInitialGraph()
         self.generateInfo()
-        print('selected: ' + str(selectedActivities[0].returnName()))
+        print('selected  : ' + str(self.convertListOfActToSymbolic(selectedActivities)))
       else:
         print('no candidates')
 
@@ -749,10 +749,8 @@ class Pert:
       self.printOptStatus(candidateActivities)
       #self.printInfoDict()
       time_index = time_index + pd.Timedelta(hours=1) 
-    
-    print(self.resources)
 
-  def selectActivitiesReadyToGo(self, time):
+  def selectCandidateActivities(self, time):
     """
       Method designed to:
       1) select all activities in the wait list that can start at time t=time
@@ -770,49 +768,98 @@ class Pert:
       actReadyToGo[act]['value'] = weightFunction(actReadyToGo[act]['slack'])
     return actReadyToGo
   
-  def MKplaceHolder(self, activities, res):
-    #select first element in activities
-    selected = [next(iter(activities))]
+  def decisionProcess(self, candidates, res, time_index, choice):
+    # space left for ranking candidate activities
 
-    # create array of resource usage
-    res_usage = {}
-    for act in selected:
-      res = act.returnResources()
-      dur = act.returnDuration()
-      if res in res_usage.keys():
-        if dur==len(res_usage[res]):
-          res_usage[res] = res_usage[res] + np.ones([dur])
-        elif dur>len(res_usage[res]):
-          temp = np.ones([dur])
-          temp[0:len(res_usage[res])] = temp[0:len(res_usage[res])] + res_usage[res]
-          res_usage[res] = temp
-        else: # dur<len(res_usage[res])
-          temp[0:dur] = temp[0:dur] + np.ones([dur])
-      else:
-        res_usage[res] = np.ones([int(dur)])
+    if choice=='first':
+      # select first element in activities
+      selected = [next(iter(candidates))]
+    elif choice=='first_with_res':
+      # select first element in activities and check actual resources are available
+      selected = [next(iter(candidates))]
+      reqResources = selected[0].returnResources()
+      if res[reqResources]<1.:
+        selected = []
+    elif choice=='max_use_res':
+      # select all activities that match available resources
+      selected = []
+      for act in candidates:
+        temp = copy.deepcopy(self.resources)
+        temp_selected = copy.deepcopy(selected)
+        temp_selected.append(act)
+        res_usage_temp = self.resourceUseProfile(temp_selected)
+        # check resource availability
+        outcome = self.checkResourceAvailability(temp, res_usage_temp, time_index)
+        if outcome:
+          print("=====> Selected: Activity: " + str(act.returnName()))
+          selected.append(act)
+        else:
+          print("=====> Not enough res: Activity: " + str(act.returnName()))
+
+    res_usage = self.resourceUseProfile(selected)
+
     return selected, res_usage
-
-  def updateResourceAvailability(self, res_usage, time):
+  
+  def checkResourceAvailability(self, temp_res_profile, res_usage, time):
     for res in res_usage:
       delta = pd.Timedelta(hours=len(res_usage[res])-1)
-      #self.resources[res].loc[time:time+delta] = self.resources[res].loc[time:time+delta].values - res_usage[res]
-      self.resources.loc[time:time+delta,res] = self.resources.loc[time:time+delta,res].values - res_usage[res]
+      temp_res_profile.loc[time:time+delta,res] = temp_res_profile.loc[time:time+delta,res].values - res_usage[res]
+    
+    if (temp_res_profile.values<0).any():
+      out = False
+    else:
+      out = True
+    return out
   
-  def updateSetActivities(self, selectedActivities, candidateActivities, time_index):
-    # Set actual start time of selected activities to time_index
-    for act in selectedActivities:
-      act.setActualStartTime(time_index)
-    
-    # Move selected activities from wait to ongoing
-    for act in selectedActivities:
-      self.wait.remove(act)
+  def resourceUseProfile(self, selected):
+    # create array of resource usage based on selected activities
+    res_usage = {}
+    if selected:
+      for act in selected:
+        res_dict = act.returnResources()
+        dur = int(act.returnDuration()-act.delay)
+        for res in res_dict.keys():
+          if res in res_usage.keys():
+            if dur==len(res_usage[res]):
+              res_usage[res] = res_usage[res] + np.ones([dur])*res_dict[res]
+            elif dur>len(res_usage[res]):
+              temp = np.ones([dur])*res_dict[res]
+              temp[0:len(res_usage[res])] = temp[0:len(res_usage[res])] + res_usage[res]
+              res_usage[res] = temp
+            else: # dur<len(res_usage[res])
+              temp = res_usage[res]
+              temp[0:dur] = temp[0:dur] + np.ones([dur])*res_dict[res]
+              res_usage[res] = temp
+          else:
+            res_usage[res] = np.ones([int(dur)])
+    return res_usage
 
-    self.ongoing = self.ongoing + selectedActivities
+  def updateResourceAvailability(self, res_usage, time):
+    if res_usage:
+      for res in res_usage:
+        delta = pd.Timedelta(hours=len(res_usage[res])-1)
+        self.resources.loc[time:time+delta,res] = self.resources.loc[time:time+delta,res].values - res_usage[res]
+
+  def updateSetActivities(self, selectedActivities, candidateActivities, time_index):
+    if selectedActivities:
+      # Set actual start time of selected activities to time_index
+      for act in selectedActivities:
+        act.setActualStartTime(time_index)
+      
+      # Move selected activities from wait to ongoing
+      for act in selectedActivities:
+        self.wait.remove(act)
+
+      self.ongoing = self.ongoing + selectedActivities
     
-    # Increment (i.e., +1) duration for set activities that have not been selected
-    postponedActivities = candidateActivities.keys() - selectedActivities
-    for act in postponedActivities:
-      act.addDelay()
+      # Increment (i.e., +1) duration for set activities that have not been selected
+      postponedActivities = candidateActivities.keys() - selectedActivities
+      for act in postponedActivities:
+        act.addDelay()
+    else:
+      postponedActivities = candidateActivities.keys()
+      for act in postponedActivities:
+        act.addDelay()        
 
   def updateLists(self, time_index):
     # From ongoing identify completed activities
@@ -845,10 +892,25 @@ class Pert:
                              'duration': duration})
     
   def plotGanttChart(self):
+    tin  = self.outageDF['start'].min()
+    tfin = self.outageDF['end'].max()
+
     fig = px.timeline(self.outageDF, x_start="start", x_end="end", y="actID")
     fig.update_yaxes(autorange="reversed")
     fig.update_xaxes(dtick=60*60*1000 ,tickangle=90, tickformat='%m/%d %H:%M')
+    
+    fig.update_xaxes(range=[tin, tfin])
     fig.show()   
+  
+  def plotReosurces(self):
+    tin  = self.outageDF['start'].min()
+    tfin = self.outageDF['end'].max()
+    fig = px.bar(self.resources['res1'], x=self.resources.index, y='res1')
+    fig.update_xaxes(range=[tin, tfin])
+    fig.update_xaxes(dtick=60*60*1000 ,tickangle=90, tickformat='%m/%d %H:%M')
+    fig.update_xaxes(showgrid=True)
+    fig.show()
+
 
 def weightFunction(TF):
   """
