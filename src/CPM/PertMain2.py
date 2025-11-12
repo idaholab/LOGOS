@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 import os 
 import plotly.express as px
+import plotly.io as pio
 import random
 
 from MDKoutage import mdkChoiceModel
@@ -703,7 +704,7 @@ class Pert:
       symbList.append(act.returnName())
     return symbList
   
-  def printOptStatus(self, candidateActivities, time_index, selectedActivities):
+  def localOptStatus(self, candidateActivities, time_index, selectedActivities):
     """
       Method designed to print out the project scheduling process; this method has been added mainly
       for debugging purposes
@@ -729,18 +730,34 @@ class Pert:
     completed = self.convertListOfActToSymbolic(self.completed)
     print('completed : ' + str(completed))
 
+    new_elem = pd.DataFrame([[time_index, wait, candidates, selected, ongoing, completed]], columns=self.optStatusDF.columns)
+    self.optStatusDF = pd.concat([self.optStatusDF, new_elem], ignore_index=True)
+
+  def printSchedulingProgression(self, fileName=None):
+    if fileName is None:
+      fileName = 'scheduleProgression.csv'
+    else:
+      fileName = fileName + '.csv'
+    self.optStatusDF.to_csv(fileName, index=False)
 
   def calculateScheduleWithResources(self, choice):
     """
       Method designed to schedule activity actual start and end time based on available resources
-      @ In, choice, string, type of choice to select activities out of candidates. Note that some types have been 
+      @ In, choice, string, type of choice to select activities out of available candidates. Note that some types have been 
                             added only for testing purposes. Allowed types:
-                            * first: select the first activoity in candidates
-                            * first_with_res: select first element in activities only if resources are available
-                            * max_use_res:
-                            * max_use_res_ranked:
-                            * max_use_res_shuffled:
-                            * MD-Knapsack:  
+                            * first: select the first activity in candidates
+                            * first_with_res: select the first activity in candidates only if present and future resources 
+                              are available
+                            * max_use_res_act: select the first N activities in candidates only if present and future 
+                              resources are available
+                            * max_use_res_ranked: rank activities based on float values and select the first N activities 
+                              in candidates only if present and future resources are available
+                            * max_use_res_shuffled: randomly shuffle the initial list of activities and select the first 
+                              N activities in candidates only if present and future resources are available
+                            * MD-Knapsack: select N activities through the multi-dimensional knapsack optimization model 
+                                           in candidates only if present resources are available. This assumes that once a 
+                                           resource has been tasked to an activty, that resource is assigned until the activity 
+                                           has been completed. This might lead to negative resource availability
       @ Out, actReadyToGo, dict, dictionary of activities that can start
     """
 
@@ -752,6 +769,8 @@ class Pert:
     T_max = self.resources.index.max()
 
     time_index = self.startTime
+
+    self.optStatusDF = pd.DataFrame(columns=['time', 'wait', 'candidates', 'selected', 'ongoing', 'completed'])
 
     while len(self.completed) != N_activities and time_index<T_max:
       # select resources available at time t
@@ -776,11 +795,13 @@ class Pert:
         print('no candidates')
 
       self.updateLists(time_index)
-      self.printOptStatus(candidateActivities, time_index, selectedActivities)
-
-      self.summarizeSchedulingProcess()
+      self.localOptStatus(candidateActivities, time_index, selectedActivities)
 
       time_index = time_index + pd.Timedelta(hours=1) 
+
+    self.summarizeSchedule()
+    self.printSchedulingProgression()
+    self.printSchedule()
 
   def selectCandidateActivities(self, time):
     """
@@ -933,7 +954,7 @@ class Pert:
       Method designed to update the set of activities that at time_index were candidate to start (i.e., candidateActivities). 
       A subset got selected (i.e., selectedActivities) while the remaining are postponed.
       Move the selected activities to self.ongoing, add delay to the ones that did not get selected
-      @ In, candidateActivities, list, initial list of candidate activities that were ready to start
+      @ In, candidateActivities, list, initial list of candidate activities that are ready to start
       @ In, selectedActivities, list, list of activities that got selected to start
       @ In, time_index, datetime, current time of project schedule progression
       @ Out, None
@@ -976,9 +997,9 @@ class Pert:
         # Remove completed activities from ongoing
         self.ongoing.remove(act)
 
-  def summarizeSchedulingProcess(self):
+  def summarizeSchedule(self):
     """
-      Method designed to provide the built project schedule
+      Method designed to save on dataframe the built project schedule
       @ In, fileName, string, name of the .csv file that will contain the built project schedule
       @ Out, None
     """
@@ -1002,12 +1023,16 @@ class Pert:
                                   'delay': delay,
                                   'duration': duration})
 
-  def printSchedulingProcess(self, fileName):
+  def printSchedule(self, fileName=None):
     """
       Print on file the built project schedule
       @ In, None 
       @ Out, None
     """
+    if fileName is None:
+      fileName = 'schedule.csv'
+    else:
+      fileName = fileName + '.csv'
     self.outageDF.to_csv(fileName, index=False)
     
   def plotGanttChart(self):
@@ -1024,7 +1049,8 @@ class Pert:
     fig.update_xaxes(dtick=60*60*1000 ,tickangle=90, tickformat='%m/%d %H:%M')
     
     fig.update_xaxes(range=[tin, tfin])
-    fig.show()   
+    fileID = 'gantt.png'
+    pio.write_image(fig, fileID)  
   
   def plotResource(self, resID):
     """
@@ -1041,7 +1067,7 @@ class Pert:
     fig.update_xaxes(dtick=60*60*1000 ,tickangle=90, tickformat='%m/%d %H:%M')
     fig.update_xaxes(showgrid=True)
     fileID = resID + str('.png')
-    fig.savefig(fileID)
+    pio.write_image(fig, fileID)
 
 
 def weightFunction(TF):
