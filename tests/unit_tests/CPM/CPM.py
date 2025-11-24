@@ -93,7 +93,7 @@ def checkList(comment,check,expected):
   else:
     results['pass']+=1
     return True
-  
+
 def checkDicts(comment,check,expected,updateResults=True):
   """
     This method is aimed to compare two dictionaries

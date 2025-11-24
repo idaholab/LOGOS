@@ -5,7 +5,7 @@ import random
 
 class mdkChoiceModel:
     """
-        This is the base class for the multi-dimensional knapsack problem adapted to the outage 
+        This is the base class for the multi-dimensional knapsack problem adapted to the outage
         scheduling problem
     """
     def __init__(self, candidates, resources):
@@ -34,7 +34,7 @@ class mdkChoiceModel:
                     self.res_dict[(candidate.returnName(),res)] = req_res[res]
                 else:
                     self.res_dict[(candidate.returnName(),res)] = 0.
-             
+
         self.values  = {}
         self.candidate_mapping = {}
         for candidate in candidates:
@@ -49,8 +49,8 @@ class mdkChoiceModel:
         """
         model = pyo.ConcreteModel()
 
-        model.I = pyo.Set(initialize=self.jobs_ID) 
-        model.K = pyo.Set(initialize=self.res_ID) 
+        model.I = pyo.Set(initialize=self.jobs_ID)
+        model.K = pyo.Set(initialize=self.res_ID)
 
         model.value    = pyo.Param(model.I, initialize=self.values)
         model.weight   = pyo.Param(model.I, model.K, initialize=self.res_dict)
@@ -74,5 +74,5 @@ class mdkChoiceModel:
             if pyo.value(model.x[i]) > 0.5:
                 print(f"Knapsack model: job {i} selected")
                 selected.append(self.candidate_mapping[i])
-        
+
         return selected
