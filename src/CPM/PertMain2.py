@@ -199,6 +199,9 @@ class Pert:
     self.resetInitialGraph()   # first reset of the graph
     self.generateInfo()        # entering values into 'info_dict'
 
+    self.seed = 2506178
+    random.seed(self.seed)
+
     for act in self.forwardDict.keys():
       act.updateChilds(self.forwardDict[act])
 
@@ -220,6 +223,10 @@ class Pert:
   # iterator for the pert class
   def __iter__(self):
     return iter(self.forwardDict)
+  
+  def reseed(self, seed_value):
+    self.seed = seed_value
+    random.seed(self.seed)
 
   def checkResources(self):
     """
@@ -267,11 +274,6 @@ class Pert:
         "duration": activity.duration,
         "es": 0, "ef": 0, "ls": 0, "lf": math.inf,
         "slack": 0}
-
-  def printInfoDict(self):
-    for act in self.infoDict:
-      absES = self.startTime + pd.Timedelta(hours=self.infoDict[act]['es'])
-      print(str(act.returnName()) + ': ' + str(self.infoDict[act]['es']) + ' , ' + str(absES))
 
   def returnGraph(self):
     """
@@ -662,9 +664,9 @@ class Pert:
 
   def returnScheduleEndTime(self):
     """
-      Method designed to return the absolute end time of the aschdule
+      Method designed to return the absolute end time of the schedule
       @ In, None
-      @ Out, endTime, float, absolute end time of the aschdule
+      @ Out, endTime, float, absolute end time of the schedule
     """
     startTime, endTime = self.getCriticalPath()[-1].returnAbsTimes()
     return endTime
@@ -707,7 +709,7 @@ class Pert:
 
   def localOptStatus(self, candidateActivities, time_index, selectedActivities):
     """
-      Method designed to print out the project scheduling process; this method has been added mainly
+      Method designed to print on terminal the project scheduling process; this method has been added mainly
       for debugging purposes
       @ In, candidateActivities, dict, dictionary of candidate activities in the form:
                                        {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
@@ -735,6 +737,11 @@ class Pert:
     self.optStatusDF = pd.concat([self.optStatusDF, new_elem], ignore_index=True)
 
   def printSchedulingProgression(self, fileName=None):
+    """
+      Method designed to print on .csv file the project scheduling process
+      @ In,fileName, string, name of the file that will be generated       
+      @ Out, None
+    """
     if fileName is None:
       fileName = 'scheduleProgression.csv'
     else:
@@ -763,27 +770,31 @@ class Pert:
     """
 
     N_activities   = len(self.infoDict.keys())
-    self.wait      = list(self.forwardDict.keys())
-    self.ongoing   = []
-    self.completed = []
+    self.wait      = list(self.forwardDict.keys())    # List of activities that needs to be completed
+    self.ongoing   = []                               # List of activities that are actually being performed
+    self.completed = []                               # List of activities that have been completed
 
     T_max = self.resources.index.max()
 
     time_index = self.startTime
 
+    # Initialize dataframe that will contain calculation progression
     self.optStatusDF = pd.DataFrame(columns=['time', 'wait', 'candidates', 'selected', 'ongoing', 'completed'])
 
     while len(self.completed) != N_activities and time_index<T_max:
       # select resources available at time t
       res_at_t = self.resources.loc[time_index].to_dict()
 
-      # Select set of activities from wait where early start (ES) values is <=time_index
+      # Select set of activities that can potentially start from wait (criteria: early start (ES) values is <=time_index)
       candidateActivities = self.selectCandidateActivities(time_index)
 
+      # If there are potential candidates
       if candidateActivities:
-        # Run M-K(A(t),Res(t)) and identify activities that can start at time t
+        # Select activities that will start at time t and generate the future usage profile of the resources of
+        # the selected acitvities
         selectedActivities, res_usage = self.choice(candidateActivities, res_at_t, time_index, choice)
 
+        # update the lists self.wait and self.ongoing based on candidateActivities and selectedActivities
         self.updateSetActivities(selectedActivities, candidateActivities, time_index)
 
         # Update resource availability for time greater than time_index
@@ -795,7 +806,10 @@ class Pert:
       else:
         print('no candidates')
 
-      self.updateLists(time_index)
+      # Update the self.ongoing and self.completed lists: the activities that are completed at time t
+      self.updateOngoingList(time_index)
+
+      # Save RCPSP calculation status outcome at each iteration
       self.localOptStatus(candidateActivities, time_index, selectedActivities)
 
       time_index = time_index + pd.Timedelta(hours=1)
@@ -850,7 +864,7 @@ class Pert:
       if choice=='max_use_res_ranked':
         candidates = self.ranked(candidates)
       if choice=='max_use_res_shuffled':
-        pass # candidates = random.shuffle(candidates)
+        candidates = self.shuffle(candidates)
       for act in candidates:
         temp = copy.deepcopy(self.resources)
         temp_selected = copy.deepcopy(selected)
@@ -920,18 +934,36 @@ class Pert:
             res_usage[res] = np.ones([int(dur)])*res_dict[res]
     return res_usage
 
-  def ranked(self, candidate_list):
+  def ranked(self, candidate_dict):
     """
-      Method designed to rank set of candidates based on weightFunction calculated using acitivity'slack (i.e. float)
-      @ In, candidate_list, list, list of candidate activities
-      @ Out, value_dict_sorted.keys(), list, list of candidate activities sorted by weightFunction
+      Method designed to rank set of candidates based on weightFunction calculated using activity slack (i.e. float)
+      @ In, candidate_dict, dict, dictionary of candidate activities in the form:
+                                  {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
+      @ Out, value_dict_sorted.keys(), dict, dict of candidate activities sorted by weightFunction
     """
     value_dict = {}
 
-    for act in candidate_list:
+    for act in candidate_dict:
       TF = self.infoDict[act]['slack']
       imp_value = weightFunction(TF)
       value_dict[act] = imp_value
+
+    value_item_sorted = sorted(value_dict.items(), key=lambda item: item[1], reverse=True)
+    value_dict_sorted = dict(value_item_sorted)
+
+    return value_dict_sorted.keys()
+  
+  def shuffle(self, candidate_dict):
+    """
+     Method designed to randomly shuffle the set of candidate activities
+     @ In, candidate_list, dict, dictionary of candidate activities in the form:
+                                  {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
+     @ Out, value_dict_sorted.keys(), dict, dict of candidate activities sorted by weightFunction
+    """
+    value_dict = {}
+
+    for act in candidate_dict:
+      value_dict[act] = random.random()
 
     value_item_sorted = sorted(value_dict.items(), key=lambda item: item[1], reverse=True)
     value_dict_sorted = dict(value_item_sorted)
@@ -955,7 +987,8 @@ class Pert:
       Method designed to update the set of activities that at time_index were candidate to start (i.e., candidateActivities).
       A subset got selected (i.e., selectedActivities) while the remaining are postponed.
       Move the selected activities to self.ongoing, add delay to the ones that did not get selected
-      @ In, candidateActivities, list, initial list of candidate activities that are ready to start
+      @ In, candidateActivities, dict, dictionary of candidate activities in the form:
+                                       {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
       @ In, selectedActivities, list, list of activities that got selected to start
       @ In, time_index, datetime, current time of project schedule progression
       @ Out, None
@@ -965,10 +998,11 @@ class Pert:
       for act in selectedActivities:
         act.setActualStartTime(time_index)
 
-      # Move selected activities from wait to ongoing
+      # Remove selected activities from wait 
       for act in selectedActivities:
         self.wait.remove(act)
-
+      
+      # Move selected activities to ongoing
       self.ongoing = self.ongoing + selectedActivities
 
       # Increment (i.e., +1) duration for set activities that have not been selected
@@ -980,7 +1014,7 @@ class Pert:
       for act in postponedActivities:
         act.addDelay()
 
-  def updateLists(self, time_index):
+  def updateOngoingList(self, time_index):
     """
       Method designed to update the set of ongoing activities.
       If they have been completed (i.e., time_index>= act.returnAbsTimes()[1]), the acitivity has been completed
