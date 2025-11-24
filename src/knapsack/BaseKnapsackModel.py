@@ -87,6 +87,20 @@ class BaseKnapsackModel(ExternalModelPluginBase):
       elif name == 'variables':
         variables = val
 
+  def readFromDict(self, container, inputDict):
+    container.mapping = {}
+    for key in inputDict.keys():
+      if key == 'penaltyFactor':
+        self.penaltyFactor = inputDict[key]
+      elif key == 'outcome':
+        self.outcome = inputDict[key]
+      elif key == 'choiceValue':
+        self.choiceValue = inputDict[key]
+      elif key == 'map':
+        container.mapping[inputDict[key]] = [node.parameterValues['value'],node.parameterValues['cost']]
+      elif key == 'variables':
+        variables = inputDict[key]      
+
 
   def initialize(self, container, runInfoDict, inputFiles):
     """

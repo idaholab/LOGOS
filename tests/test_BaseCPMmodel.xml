@@ -66,7 +66,7 @@
   <Samplers>
     <MonteCarlo name="MC_external">
       <samplerInit>
-        <limit>10</limit>
+        <limit>1000</limit>
       </samplerInit>
       <variable name="start">
         <distribution>dist_A</distribution>
