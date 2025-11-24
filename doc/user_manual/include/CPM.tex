@@ -1,14 +1,93 @@
-\section{Critical Path Model (CPM)}
+\section{Critical Path Model (CPM) Class}
 \label{sec:CPM}
 
-The CPM model is designed to perform schedule durations calculations provided a set of activities
-linked by a graph structure.
-This model is designed to be used in a RAVEN workflow where the actitvity duration values can be
-changed through a specific sampling strategy (either sampling or optmization).
+The CPM class is designed to perform schedule durations calculations provided a set of activities
+linked in an acyclic graph structure.
+The schedule requires a ``start'' and an ``end'' activity that symbolically represent the first and last
+activity to be performed. 
+Every activity is defined in an ``Activity'' class instance where these parameteres are provided:
+\begin{itemize}
+  \item name (string): ID of the activity (required)
+  \item duration (float): planned activity duration (required)
+  \item res (list of dictionaries): resources required to complete the activity (optional). Each required 
+                                    resource is specified by a dictionary in the form of 
+                                    ${resource_ID: amount_required}$ where ``resource_ID'' indicates the name 
+                                    of the required resource while ``amount_required'' indicates the required 
+                                    amount.
+\end{itemize}
 
-The schedule requires a ``start'' and an ``end'' activity, a list of additional activities and
-their correspoding duration values.
-The graph can be imported in two ways. In the first way, the graph is defined in the
+An example of definition of a set of eight activity is provided below:
+\begin{lstlisting}[language=Python]
+  start = Activity("start", 10)
+  b     = Activity("b",     20)
+  c     = Activity("c",      5)
+  d     = Activity("d",     10)
+  f     = Activity("f",     15)
+  g     = Activity("g",      5)
+  h     = Activity("h",     15)
+  end   = Activity("end",   20)
+\end{lstlisting}
+
+The set of dependencies for each activity is specified through a dictionary where, for each activity,
+a list of activities that dedend on it is provided. 
+\begin{lstlisting}[language=Python]
+  dependencies = {  start: [f,b,h],
+                    b    : [c],
+                    c    : [g,d],
+                    d    : [end],
+                    f    : [g],
+                    g    : [end],
+                    h    : [end],
+                    end  : []}
+\end{lstlisting}
+As an example, the completion of activity ``c'' can enable the start of activities ``g'' and ``d''.
+
+The project schedule can now be instantiated through the ``Pert'' class:
+\begin{lstlisting}[language=Python]
+outage = Pert(graph=dependencies, startTime, resourcesTS)
+\end{lstlisting}
+
+where these parameteres are provided:
+\begin{itemize}
+  \item graph (dictionary): set of dependencies (required)
+  \item startTime (datetime): initial time of schedule (optional)
+  \item resourcesTS (pd.dataframe): resources availability (optional). 
+\end{itemize}
+
+These are methods associated with the ``Pert'' class:
+
+\begin{itemize}
+  \item getCriticalPathSymbolic(): return critical path as an ordered list of activity indicates
+  \item returnScheduleEndTime(): return end time of project schedule
+\end{itemize}
+
+
+\section{Resource-Constrained Project Scheduling Problem (RCPSP)}
+\label{sec:RCPSP-CP}
+If the resources are specified in the schedule problem, then it is possible to use the ``Pert'' class to solve the 
+RCPSP optimization problem as follows
+
+\begin{lstlisting}[language=Python]
+outage.calculateScheduleWithResources(choice='MD-Knapsack')
+\end{lstlisting}
+
+where the parameter ``choice'' indicates the strategy to select activities out of available candidates at each time step.
+Allowed values for the ``choice'' paramteres are:
+\begin{itemize}
+  \item max_use_res_act: select the first $N$ activities in candidates only if present and future resources are available
+  \item max_use_res_ranked: rank activities based on float values and select the first N activities in candidates only if 
+                            present and future resources are available
+  \item max_use_res_shuffled: randomly shuffle the initial list of activities and select the first $N$ activities in candidates 
+                              only if present and future resources are available
+  \item MD-Knapsack: select $N$ activities through the multi-dimensional knapsack optimization model in candidates only if 
+                     present resources are available. This assumes that once a resource has been tasked to an activty, that 
+                     resource is assigned until the activity has been completed. This might lead to negative resource availability.
+\end{itemize}
+
+\section{CPM Model and RAVEN}
+\label{sec:CPM_RAVEN}
+
+In RAVEN the graph can be imported in two ways. In the first way, the graph is defined in the
 \xmlNode{map} nodes. In each instance of the \xmlNode{map} node, an activity is defined and the
 following information is required: activity ID (act attribute), activity duration (dur attribute),
 and the list of outgoing activities.
