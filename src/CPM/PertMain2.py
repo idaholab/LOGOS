@@ -759,7 +759,7 @@ class Pert:
                                            in candidates only if present resources are available. This assumes that once a 
                                            resource has been tasked to an activty, that resource is assigned until the activity 
                                            has been completed. This might lead to negative resource availability
-      @ Out, actReadyToGo, dict, dictionary of activities that can start
+      @ Out, None
     """
 
     N_activities   = len(self.infoDict.keys())
@@ -1001,7 +1001,7 @@ class Pert:
   def summarizeSchedule(self):
     """
       Method designed to save on dataframe the built project schedule
-      @ In, fileName, string, name of the .csv file that will contain the built project schedule
+      @ In, None
       @ Out, None
     """
     actID     = []
