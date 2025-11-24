@@ -99,7 +99,7 @@ class BaseKnapsackModel(ExternalModelPluginBase):
       elif key == 'map':
         container.mapping[inputDict[key]] = [node.parameterValues['value'],node.parameterValues['cost']]
       elif key == 'variables':
-        variables = inputDict[key]      
+        variables = inputDict[key]
 
 
   def initialize(self, container, runInfoDict, inputFiles):
