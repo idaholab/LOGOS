@@ -17,6 +17,7 @@
     <coincbc skip_check="True">remove</coincbc>
     <glpk skip_check="True">remove</glpk>
     <ipopt skip_check="True">remove</ipopt>
+    <plotly source='pip'/>
     <!-- <cbcpy source='pip'/> -->
   </alternate>
 </dependencies>
