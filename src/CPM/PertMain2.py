@@ -15,6 +15,7 @@ import os
 import plotly.express as px
 import plotly.io as pio
 import random
+import json
 
 from MDKoutage import mdkChoiceModel
 
@@ -177,7 +178,7 @@ class Pert:
     """
       Constructor
       @ In, graph, dict, dictionary containing the child acitivities for each activity
-      @ In, startTime, float, absolute initial time of schedule
+      @ In, startTime, datetime, absolute initial time of schedule
       @ In, resourcesTS, dataframe, pandas dataframe containing resources availability
       @ Out, None
     """
