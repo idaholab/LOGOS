@@ -44,7 +44,7 @@ class Activity:
     self.startTime = None       # activity actual start time
     self.endTime   = None       # activity actual completion time
 
-    self.delay = 0
+    self.delay = 0              # delay imposed to the activity by resource availability
 
     if childs is None:
       self.childs = []          # list containing the names (str type) of the children (i.e., successors)
@@ -182,9 +182,9 @@ class Pert:
       @ In, resourcesTS, dataframe, pandas dataframe containing resources availability
       @ Out, None
     """
-    self.forwardDict = graph   # list of out going nodes for every activity
-    self.resources = resourcesTS
-    self.startTime = startTime
+    self.forwardDict = graph      # list of out going nodes for every activity
+    self.resources = resourcesTS  # dataframe containing resources availability
+    self.startTime = startTime    # initial time/date of project schedule
 
     if resourcesTS is not None:
       self.checkResources()
@@ -199,7 +199,8 @@ class Pert:
     self.resetInitialGraph()   # first reset of the graph
     self.generateInfo()        # entering values into 'info_dict'
 
-    self.seed = 2506178
+    # Initialization of the seed used by the random shuffling choice strategy
+    self.seed = 2506178 
     random.seed(self.seed)
 
     for act in self.forwardDict.keys():
@@ -225,6 +226,11 @@ class Pert:
     return iter(self.forwardDict)
   
   def reseed(self, seed_value):
+    """
+      Method designed to reseed the RNG
+      @ In, seed_value, int, new seed value
+      @ Out, None
+    """
     self.seed = seed_value
     random.seed(self.seed)
 
@@ -873,10 +879,7 @@ class Pert:
         # check resource availability
         outcome = self.checkResourceAvailability(temp, res_usage_temp, time_index)
         if outcome:
-          print("=====> Enough res: " + str(act.returnName()))
           selected.append(act)
-        else:
-          print("=====> Not enough res:  " + str(act.returnName()))
     elif choice=='MD-Knapsack':
       MDKmodel = mdkChoiceModel(candidates, self.resources.loc[time_index])
       selected = MDKmodel.run()
