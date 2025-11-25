@@ -1156,7 +1156,6 @@ def getSubpaths(path,CP):
   splitListRecursiveList(path, subpaths, [], CP)
   return subpaths
 
-
 def splitListRecursiveList(testList, result, tempList, particularList):
   """
     Recursive method designed to split a list in sub-lists separated by elements that are included in particularList
