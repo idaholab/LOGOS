@@ -200,7 +200,7 @@ class Pert:
     self.generateInfo()        # entering values into 'info_dict'
 
     # Initialization of the seed used by the random shuffling choice strategy
-    self.seed = 2506178 
+    self.seed = 2506178
     random.seed(self.seed)
 
     for act in self.forwardDict.keys():
@@ -224,7 +224,7 @@ class Pert:
   # iterator for the pert class
   def __iter__(self):
     return iter(self.forwardDict)
-  
+
   def reseed(self, seed_value):
     """
       Method designed to reseed the RNG
@@ -745,7 +745,7 @@ class Pert:
   def printSchedulingProgression(self, fileName=None):
     """
       Method designed to print on .csv file the project scheduling process
-      @ In,fileName, string, name of the file that will be generated       
+      @ In,fileName, string, name of the file that will be generated
       @ Out, None
     """
     if fileName is None:
@@ -955,7 +955,7 @@ class Pert:
     value_dict_sorted = dict(value_item_sorted)
 
     return value_dict_sorted.keys()
-  
+
   def shuffle(self, candidate_dict):
     """
      Method designed to randomly shuffle the set of candidate activities
@@ -1001,10 +1001,10 @@ class Pert:
       for act in selectedActivities:
         act.setActualStartTime(time_index)
 
-      # Remove selected activities from wait 
+      # Remove selected activities from wait
       for act in selectedActivities:
         self.wait.remove(act)
-      
+
       # Move selected activities to ongoing
       self.ongoing = self.ongoing + selectedActivities
 
