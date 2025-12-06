@@ -1,0 +1,156 @@
+name: GitHub LOGOS test
+run-name: ${{ github.actor }} is testing out LOGOS
+on: [push, pull_request]
+
+concurrency:
+  # Here the group is defined by the head_ref of the PR
+  group: ${{ github.head_ref }}
+  # Here we specify that we'll cancel any "in progress" workflow of the same group. Thus if we push, amend a commit and push
+  # again the previous workflow will be cancelled, thus saving us github action build minutes and avoid any conflicts
+  cancel-in-progress: true
+
+jobs:
+  Test-LOGOS-Ubuntu-Latest:
+    runs-on: ubuntu-latest
+    # runs-on: ubuntu-22.04
+    steps:
+      - name: Setup Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniconda-version: "latest"
+          channels: conda-forge, defaults
+          activate-environment: raven_libraries
+          use-only-tar-bz2: true  # IMPORTANT: This needs to be set for caching to work properly!
+          auto-update-conda: true
+          auto-activate-base: true
+
+      - name: Job Information
+        run: |
+          echo " The job was automatically triggered by a ${{ github.event_name }} event."
+          echo " This job is now running on a ${{ runner.os }} server"
+          echo " The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+
+      - name: Fetch and Branch
+        uses: actions/checkout@v3
+
+      - name: Install RAVEN and TEAL/LOGOS plugin
+        run: |
+          pwd
+          cd ..
+          git clone https://github.com/idaholab/raven.git
+          cd raven
+          git checkout devel
+          git pull
+          python3 ./scripts/install_plugins.py -s TEAL
+          python3 ./scripts/install_plugins.py -s /home/runner/work/LOGOS/LOGOS
+
+      - name: Set Python Environment
+        run: |
+          ./scripts/establish_conda_env.sh --install
+
+      - name: Build RAVEN
+        run: |
+          ./build_raven
+
+      - name: Test LOGOS
+        run: |
+          export LD_LIBRARY_PATH=/home/runner/miniconda3/envs/raven_libraries/lib
+          ./run_tests --library-report
+          ./run_tests -j4 --plugins --re=LOGOS
+
+  Test-LOGOS-macOS-latest:
+    runs-on: macos-latest
+    # runs-on: macos-14
+    steps:
+      - name: Setup Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniconda-version: "latest"
+          channels: conda-forge, defaults
+          activate-environment: raven_libraries
+          use-only-tar-bz2: False
+          auto-update-conda: true
+          auto-activate-base: true
+
+      - name: Job Information
+        run: |
+          echo " The job was automatically triggered by a ${{ github.event_name }} event."
+          echo " This job is now running on a ${{ runner.os }} server"
+          echo " The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+
+      - name: Fetch and Branch
+        uses: actions/checkout@v3
+
+      - name: Install RAVEN and TEAL/LOGOS plugin
+        run: |
+          pwd
+          cd ..
+          git clone https://github.com/idaholab/raven.git
+          cd raven
+          git checkout devel
+          git pull
+          python3 ./scripts/install_plugins.py -s TEAL
+          python3 ./scripts/install_plugins.py -s /home/runner/work/LOGOS/LOGOS
+
+      - name: Set Python Environment
+        run: |
+          ./scripts/establish_conda_env.sh --install
+
+      - name: Build RAVEN
+        run: |
+          ./build_raven
+
+      - name: Test LOGOS
+        run: |
+          export LD_LIBRARY_PATH=/home/runner/miniconda3/envs/raven_libraries/lib
+          ./run_tests --library-report
+          ./run_tests -j4 --plugins --re=LOGOS
+
+
+  Test-LOGOS-Windows-Latest:
+    runs-on: windows-latest
+    steps:
+      - name: Setup Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniconda-version: "latest"
+          channels: conda-forge, defaults
+          activate-environment: raven_libraries
+          use-only-tar-bz2: true
+          auto-update-conda: true
+          auto-activate-base: true
+
+      - name: Job Information
+        run: |
+          echo " The job was automatically triggered by a ${{ github.event_name }} event."
+          echo " This job is now running on a ${{ runner.os }} server"
+          echo " The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+
+      - name: Fetch and Branch
+        uses: actions/checkout@v3
+
+      - name: Install RAVEN and TEAL/LOGOS plugin
+        run: |
+          pwd
+          cd ..
+          git clone https://github.com/idaholab/raven.git
+          cd raven
+          git checkout devel
+          git pull
+          python3 ./scripts/install_plugins.py -s TEAL
+          python3 ./scripts/install_plugins.py -s /home/runner/work/LOGOS/LOGOS
+
+      - name: Set Python Environment
+        run: |
+          bash ./scripts/establish_conda_env.sh --install --conda-defs $HOME/miniconda3/etc/profile.d/conda.sh
+
+      - name: Build RAVEN
+        run: |
+          bash ./build_raven
+
+      - name: Test LOGOS
+        run: |
+          bash ./run_tests --library-report
+          bash ./run_tests -j4 --plugins --re=LOGOS
+
+
