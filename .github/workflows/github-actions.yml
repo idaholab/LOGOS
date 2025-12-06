@@ -152,7 +152,7 @@ jobs:
           git checkout devel
           git pull
           python3 ./scripts/install_plugins.py -s TEAL
-          python3 ./scripts/install_plugins.py -s $HOME/work/LOGOS/LOGOS
+          python3 ./scripts/install_plugins.py -s ../LOGOS
 
       - name: Set Python Environment
         run: |
