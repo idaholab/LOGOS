@@ -42,7 +42,7 @@ jobs:
           git checkout devel
           git pull
           python3 ./scripts/install_plugins.py -s TEAL
-          python3 ./scripts/install_plugins.py -s /home/runner/work/LOGOS/LOGOS
+          python3 ./scripts/install_plugins.py -s /Users/runner/work/LOGOS/LOGOS
 
       - name: Set Python Environment
         run: |
@@ -90,7 +90,7 @@ jobs:
           git checkout devel
           git pull
           python3 ./scripts/install_plugins.py -s TEAL
-          python3 ./scripts/install_plugins.py -s /home/runner/work/LOGOS/LOGOS
+          python3 ./scripts/install_plugins.py -s /Users/runner/work/LOGOS/LOGOS
 
       - name: Set Python Environment
         run: |
@@ -138,7 +138,7 @@ jobs:
           git checkout devel
           git pull
           python3 ./scripts/install_plugins.py -s TEAL
-          python3 ./scripts/install_plugins.py -s /home/runner/work/LOGOS/LOGOS
+          python3 ./scripts/install_plugins.py -s /Users/runner/work/LOGOS/LOGOS
 
       - name: Set Python Environment
         run: |

@@ -19,23 +19,3 @@
   </alternate>
 </dependencies>
 
-<!-- original dependencies.ini
-[forge]
-pyomo
-coincbc
-glpk
-ipopt
-
-[skip-check]
-coincbc
-glpk
-ipopt
-
-[windows-forge]
-coincbc = remove
-
-[pip-install]
-coincbc = remove
-glpk = remove
-ipopt = remove
--->
