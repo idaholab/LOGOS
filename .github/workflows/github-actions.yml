@@ -43,20 +43,29 @@ jobs:
           git pull
           python3 ./scripts/install_plugins.py -s TEAL
           python3 ./scripts/install_plugins.py -s /Users/runner/work/LOGOS/LOGOS
+          cd ..
 
       - name: Set Python Environment
         run: |
+          pwd
+          cd raven
           ./scripts/establish_conda_env.sh --install
+          cd ..
 
       - name: Build RAVEN
         run: |
+          pwd
+          cd raven
           ./build_raven
+          cd ..
 
       - name: Test LOGOS
         run: |
           export LD_LIBRARY_PATH=/home/runner/miniconda3/envs/raven_libraries/lib
+          cd raven
           ./run_tests --library-report
           ./run_tests -j4 --plugins --re=LOGOS
+          cd ..
 
   Test-LOGOS-macOS-latest:
     runs-on: macos-latest
@@ -91,20 +100,30 @@ jobs:
           git pull
           python3 ./scripts/install_plugins.py -s TEAL
           python3 ./scripts/install_plugins.py -s /Users/runner/work/LOGOS/LOGOS
+          cd ..
 
       - name: Set Python Environment
         run: |
+          pwd
+          cd raven
           ./scripts/establish_conda_env.sh --install
+          cd ..
 
       - name: Build RAVEN
         run: |
+          pwd
+          cd raven
           ./build_raven
+          cd ..
 
       - name: Test LOGOS
         run: |
+          pwd
+          cd raven
           export LD_LIBRARY_PATH=/home/runner/miniconda3/envs/raven_libraries/lib
           ./run_tests --library-report
           ./run_tests -j4 --plugins --re=LOGOS
+          cd ..
 
 
   Test-LOGOS-Windows-Latest:
@@ -139,18 +158,28 @@ jobs:
           git pull
           python3 ./scripts/install_plugins.py -s TEAL
           python3 ./scripts/install_plugins.py -s /Users/runner/work/LOGOS/LOGOS
+          cd ..
 
       - name: Set Python Environment
         run: |
+          pwd
+          cd raven
           bash ./scripts/establish_conda_env.sh --install --conda-defs $HOME/miniconda3/etc/profile.d/conda.sh
+          cd ..
 
       - name: Build RAVEN
         run: |
+          pwd
+          cd raven
           bash ./build_raven
+          cd ..
 
       - name: Test LOGOS
         run: |
+          pwd
+          cd raven
           bash ./run_tests --library-report
           bash ./run_tests -j4 --plugins --re=LOGOS
+          cd ..
 
 
