@@ -9,6 +9,8 @@
     <glpk skip_check="True" source="forge" />
     <pyutilib source='pip'/>
     <numpy-financial source='pip'/>
+    <networkx source='pip'/>
+    <plotly source='pip'/>
   </main>
 
   <alternate name="pip">
