@@ -12,8 +12,15 @@ LOGOS documentation
 
    Introduction
    include/ModelingComponents
-
-
+   include/DeterministicCapitalBudgeting
+   include/StochasticCapitalBudgeting
+   include/DRO
+   include/CVaR
+   include/rcpsp
+   include/PluginForRavenCode
+   include/CashflowAndNPVModels
+   include/Knapsack
+   include/CPM
 
 .. toctree::
    :maxdepth: 2
@@ -24,12 +31,9 @@ LOGOS documentation
    :style: unsrt
 
 
-.. include/DeterministicCapitalBudgeting
-.. include/StochasticCapitalBudgeting
-.. include/DRO
-.. include/CVaR
-.. include/rcpsp
-.. include/PluginForRavenCode
-.. include/CashflowAndNPVModels
-.. include/Knapsack
-.. include/CPM
+
+
+
+
+
+

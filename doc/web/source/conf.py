@@ -82,6 +82,15 @@ latex_elements = {
 }
 
 
+mathjax3_config = {
+    "tex": {
+        "tags": "ams",          # or "all"
+        "tagSide": "right",     # <— this is what you want
+        "tagIndent": "0.8em",
+    }
+}
+
+
 # # Define custom field role
 
 # def xml_node_role(name, rawtext, text, lineno, inliner, options={}, content=[]):

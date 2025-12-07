@@ -203,18 +203,23 @@ This document provides a detailed description of LOGOS. The features
 currently included in LOGOS are:
 
 - Overview of modeling components
-  .. (see :ref:`sec-ModelingComponents`)
+  (see :ref:`sec-ModelingComponents`)
 
-.. - Deterministic capital budgeting
-..   (see :ref:`sec-DeterministicCapitalBudgeting`)
-.. - Prioritizing project selection to hedge against uncertainty
-..   (see :ref:`sec-StochasticCapitalBudgeting`)
-.. - Distributionally robust optimization
-..   (see :ref:`sec-DROCapitalBudgeting`)
-.. - Risk-based stochastic capital budgeting using conditional
-..   Value-at-Risk (CVaR)
-..   (see :ref:`sec-CVaR`)
-.. - Plugin for the RAVEN code
-..   (see :ref:`sec-RavenPlugin`)
-.. - SSC cashflow and NPV models
-..   (see :ref:`sec-SSCNPV`)
+- Deterministic capital budgeting
+  (see :ref:`sec-DeterministicCapitalBudgeting`)
+
+- Prioritizing project selection to hedge against uncertainty
+  (see :ref:`sec-StochasticCapitalBudgeting`)
+
+- Distributionally robust optimization
+  (see :ref:`sec-DROCapitalBudgeting`)
+
+- Risk-based stochastic capital budgeting using conditional
+  Value-at-Risk (CVaR)
+  (see :ref:`sec-CVaR`)
+
+- Plugin for the RAVEN code
+  (see :ref:`sec-RavenPlugin`)
+
+- SSC cashflow and NPV models
+  (see :ref:`sec-SSCNPV`)
