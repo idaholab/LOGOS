@@ -174,17 +174,24 @@ class Pert:
     Source https://github.com/nofaralfasi/PERT-CPM-graph
   """
 
-  def __init__(self, graph={}, startTime=None, resourcesTS=None):
+  def __init__(self, graph={}, jsonFile=None, startTime=None, resourcesTS=None, priorities=None):
     """
       Constructor
-      @ In, graph, dict, dictionary containing the child acitivities for each activity
+      @ In, graph, dict, dictionary containing the child activities for each activity
       @ In, startTime, datetime, absolute initial time of schedule
       @ In, resourcesTS, dataframe, pandas dataframe containing resources availability
+      @ In, priorities, dict, dictionary containing the priority values for each activity
       @ Out, None
     """
-    self.forwardDict = graph      # list of out going nodes for every activity
+    if jsonFile is not None:
+      self.forwardDict = []
+    else:
+      self.forwardDict = graph    # list of out going nodes for every activity
+    
     self.resources = resourcesTS  # dataframe containing resources availability
     self.startTime = startTime    # initial time/date of project schedule
+
+    self.priorities = priorities
 
     if resourcesTS is not None:
       self.checkResources()
@@ -197,7 +204,7 @@ class Pert:
     self.startActivity = Activity
     self.endActivity = Activity
     self.resetInitialGraph()   # first reset of the graph
-    self.generateInfo()        # entering values into 'info_dict'
+    self.generateInfo()        # entering values into 'infoDict'
 
     # Initialization of the seed used by the random shuffling choice strategy
     self.seed = 2506178
@@ -206,6 +213,41 @@ class Pert:
     for act in self.forwardDict.keys():
       act.updateChilds(self.forwardDict[act])
 
+
+  def parseInputFile(self, filename):
+    """
+    Parses a JSON file containing activity definitions and dependencies.
+    Validates unique activity IDs, instantiates Activity objects, and builds the graph.
+    Returns:
+        graph: dict mapping Activity instance to list of dependent Activity instances
+    """
+    with open(filename, 'r') as f:
+      data = json.load(f)
+
+    activities_data = data.get("activities", [])
+    dependencies_data = data.get("dependencies", {})
+
+    # Validate unique IDs
+    ids = [activity['id'] for activity in activities_data]
+    if len(ids) != len(set(ids)):
+      raise ValueError("Activity IDs must be unique.")
+
+    # Instantiate Activity objects
+    id_to_activity = {}
+    for activity in activities_data:
+        act = Activity(activity['id'], activity['duration'], activity['resources'])
+        id_to_activity[activity['id']] = act
+
+    # Build graph using Activity instances
+    graph = {}
+    for src_id, dest_ids in dependencies_data.items():
+        src_activity = id_to_activity[src_id]
+        graph[src_activity] = []
+        for dest_id in dest_ids:
+            graph[src_activity].append(id_to_activity[dest_id])
+
+    return graph
+  
   def __str__(self):
     """
       Method designed to return basic information of the schedule graph
@@ -674,7 +716,7 @@ class Pert:
       @ In, None
       @ Out, endTime, float, absolute end time of the schedule
     """
-    startTime, endTime = self.getCriticalPath()[-1].returnAbsTimes()
+    endTime = self.startTime + timedelta(hours=self.infoDict[self.getCriticalPath()[-1]]['ef'])
     return endTime
 
   def saveScheduleToJsn(self, nameFile='schedule.json'):
@@ -792,13 +834,16 @@ class Pert:
       res_at_t = self.resources.loc[time_index].to_dict()
 
       # Select set of activities that can potentially start from wait (criteria: early start (ES) values is <=time_index)
-      candidateActivities = self.selectCandidateActivities(time_index)
+      if self.priorities is None:
+        candidateActivities = self.selectCandidateActivities(time_index, 'TF_based')
+      else:
+        candidateActivities = self.selectCandidateActivities(time_index, 'external')
 
       # If there are potential candidates
       if candidateActivities:
         # Select activities that will start at time t and generate the future usage profile of the resources of
-        # the selected acitvities
-        selectedActivities, res_usage = self.choice(candidateActivities, res_at_t, time_index, choice)
+        # the selected actvities
+        selectedActivities, res_usage = self.scheduleGenerationScheme(candidateActivities, res_at_t, time_index, choice)
 
         # update the lists self.wait and self.ongoing based on candidateActivities and selectedActivities
         self.updateSetActivities(selectedActivities, candidateActivities, time_index)
@@ -824,7 +869,7 @@ class Pert:
     self.printSchedulingProgression()
     self.printSchedule()
 
-  def selectCandidateActivities(self, time):
+  def selectCandidateActivities(self, time, valueAssignment):
     """
       Method designed to:
       1) select all activities in the wait list that can start at time t=time
@@ -838,11 +883,15 @@ class Pert:
       if absES<=time:
         actReadyToGo[act] = self.infoDict[act]
 
-    for act in actReadyToGo.keys():
-      actReadyToGo[act]['value'] = weightFunction(actReadyToGo[act]['slack'])
+    if valueAssignment == 'TF_based':
+      for act in actReadyToGo.keys():
+        actReadyToGo[act]['value'] = weightFunction(actReadyToGo[act]['slack'])
+    elif valueAssignment == 'external':
+      for act in actReadyToGo.keys():
+        actReadyToGo[act]['value'] = self.priorities[actReadyToGo[act].returnName()]
     return actReadyToGo
 
-  def choice(self, candidates, res, time_index, choice):
+  def scheduleGenerationScheme(self, candidates, res, time_index, choice):
     """
       Method that implement the chosen choice to select activities out of a set of candidate activities
       @ In, candidates, dict, dictionary of candidate activities in the form:
@@ -881,7 +930,10 @@ class Pert:
         if outcome:
           selected.append(act)
     elif choice=='MD-Knapsack':
-      MDKmodel = mdkChoiceModel(candidates, self.resources.loc[time_index])
+      if self.priorities is not None:
+        MDKmodel = mdkChoiceModel(candidates, self.resources.loc[time_index], 'uniform')
+      else:
+        MDKmodel = mdkChoiceModel(candidates, self.resources.loc[time_index], 'value_based')
       selected = MDKmodel.run()
     else:
       raise IOError('Chosen choice method not allowed')
@@ -942,17 +994,19 @@ class Pert:
       Method designed to rank set of candidates based on weightFunction calculated using activity slack (i.e. float)
       @ In, candidate_dict, dict, dictionary of candidate activities in the form:
                                   {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
-      @ Out, value_dict_sorted.keys(), dict, dict of candidate activities sorted by weightFunction
+      @ Out, value_dict_sorted.keys(), dict, dictionary of candidate activities sorted by weightFunction
     """
-    value_dict = {}
+    #value_dict = {}
 
-    for act in candidate_dict:
-      TF = self.infoDict[act]['slack']
-      imp_value = weightFunction(TF)
-      value_dict[act] = imp_value
+    #for act in candidate_dict:
+    #  TF = self.infoDict[act]['slack']
+    #  imp_value = weightFunction(TF)
+    #  value_dict[act] = imp_value
 
-    value_item_sorted = sorted(value_dict.items(), key=lambda item: item[1], reverse=True)
-    value_dict_sorted = dict(value_item_sorted)
+    #value_item_sorted = sorted(value_dict.items(), key=lambda item: item[1], reverse=True)
+    #value_dict_sorted = dict(value_item_sorted)
+
+    value_dict_sorted = dict(sorted(candidate_dict.items(), key=lambda item: item[1]['value'], reverse=True))
 
     return value_dict_sorted.keys()
 
