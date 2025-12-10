@@ -1,0 +1,170 @@
+<Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.mckp_optimization</name>
+    <author>mandd</author>
+    <created>2023-04-13</created>
+    <classesTested>Models.ExternalModel.LOGOS.BaseCPMmodel</classesTested>
+    <description>
+       This test is is designed to check the functionality of the CPM model when
+       project schedule is defined from file
+    </description>
+  </TestInfo>
+
+  <RunInfo>
+    <WorkingDir>CPMmodel</WorkingDir>
+    <Sequence>optimize, print</Sequence>
+    <batchSize>1</batchSize>
+  </RunInfo>
+
+  <Files>
+    <Input name="test_graph_model" type="graph_model">graphModel.py</Input>
+  </Files>
+
+  <Models>
+    <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
+      <variables>start,b,c,d,end,f,g,h,end_time,CP</variables>
+      <analysis>activity_duration</analysis> <!--activity_duration or activity_priority-->
+      <sgs>max_use_res_ranked</sgs>
+      <CPtime>end_time</CPtime>
+      <CPid>CP</CPid>
+    </ExternalModel>
+  </Models>
+
+  <Distributions>
+    <Uniform name="dist">
+      <lowerBound>0</lowerBound>
+      <upperBound>1</upperBound>
+    </Uniform>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="MC_init">
+      <samplerInit>
+        <limit>10</limit>
+      </samplerInit>
+      <variable name="start">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="b">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="c">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="d">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="end">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="f">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="g">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="h">
+        <distribution>dist</distribution>
+      </variable>
+    </MonteCarlo>
+  </Samplers>
+
+  <Steps>
+    <MultiRun name="optimize" >
+      <Input          class="DataObjects" type="PointSet"         >inputPlaceHolder</Input>
+      <Model          class="Models"      type="ExternalModel"    >CPMmodel</Model>
+      <Optimizer      class="Optimizers"  type="GeneticAlgorithm" >GAopt</Optimizer>
+      <SolutionExport class="DataObjects" type="PointSet"         >opt_export</SolutionExport>
+      <Output         class="DataObjects" type="PointSet"         >sim_PS</Output>
+    </MultiRun> 
+    <IOStep name="print">
+      <Input  class="DataObjects" type="PointSet" >opt_export</Input>
+      <Input  class="DataObjects" type="PointSet" >sim_PS</Input>
+      <Output class="OutStreams"  type="Print"    >opt_export</Output>
+      <Output class="OutStreams"  type="Print"    >optOut</Output>
+    </IOStep>
+  </Steps>
+
+  <Optimizers>
+    <GeneticAlgorithm name="GAopt">
+      <samplerInit>
+        <limit>5</limit>
+        <initialSeed>42</initialSeed>
+        <writeSteps>every</writeSteps>
+      </samplerInit>
+
+      <GAparams>
+        <populationSize>30</populationSize>
+        <parentSelection>rouletteWheel</parentSelection>
+        <reproduction>
+          <crossover type="onePointCrossover">
+            <crossoverProb>0.8</crossoverProb>
+          </crossover>
+          <mutation type="swapMutator">
+            <mutationProb>0.9</mutationProb>
+          </mutation>
+        </reproduction>
+        <fitness type="feasibleFirst"></fitness>
+        <survivorSelection>fitnessBased</survivorSelection>
+      </GAparams>
+
+      <convergence>
+        <AHDp>0.0</AHDp>
+      </convergence>
+
+      <variable name="start">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="b">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="c">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="d">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="end">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="f">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="g">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="h">
+        <distribution>dist</distribution>
+      </variable>
+
+      <objective>end_time</objective>
+      <TargetEvaluation class="DataObjects" type="PointSet">sim_PS</TargetEvaluation>
+    
+    <Sampler    class="Samplers"  type="MonteCarlo" >MC_init</Sampler>
+    </GeneticAlgorithm>
+  </Optimizers>
+
+  <OutStreams>
+    <Print name="Print_sim_PS">
+      <type>csv</type>
+      <source>sim_PS</source>
+      <what>input,output</what>
+    </Print>
+  </OutStreams>
+
+  <DataObjects>
+    <PointSet name="inputPlaceHolder">
+      <Input>start,b,c,d,end,f,g,h</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="sim_PS">
+      <Input>start,b,c,d,end,f,g,h</Input>
+      <Output>end_time</Output>
+    </PointSet>
+    <PointSet name="opt_export">
+      <Input>trajID</Input>
+      <Output>x,y,ans,age,batchId,fitness,iteration,accepted,AHDp,conv_AHDp</Output>
+    </PointSet>
+  </DataObjects>
+
+</Simulation>

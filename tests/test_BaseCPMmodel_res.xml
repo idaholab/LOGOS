@@ -1,0 +1,101 @@
+<Simulation verbosity="debug">
+  <TestInfo>
+    <name>framework.mckp_optimization</name>
+    <author>mandd</author>
+    <created>2023-04-13</created>
+    <classesTested>Models.ExternalModel.LOGOS.BaseCPMmodel</classesTested>
+    <description>
+       This test is is designed to check the functionality of the CPM model when
+       project schedule is defined from file
+    </description>
+  </TestInfo>
+
+  <RunInfo>
+    <WorkingDir>CPMmodel</WorkingDir>
+    <Sequence>simRun</Sequence>
+    <batchSize>1</batchSize>
+  </RunInfo>
+
+  <Files>
+    <Input name="test_graph_model" type="graph_model">graphModel.py</Input>
+  </Files>
+
+  <Models>
+    <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
+      <variables>start,b,c,d,end,f,g,h,end_time,CP</variables>
+      <analysis>activity_duration</analysis> <!--activity_duration or activity_priority-->
+      <sgs>max_use_res_ranked</sgs>
+      <CPtime>end_time</CPtime>
+      <CPid>CP</CPid>
+    </ExternalModel>
+  </Models>
+
+  <Distributions>
+    <Uniform name="dist">
+      <lowerBound>0</lowerBound>
+      <upperBound>1</upperBound>
+    </Uniform>
+  </Distributions>
+
+  <Samplers>
+    <MonteCarlo name="MC_external">
+      <samplerInit>
+        <limit>10</limit>
+      </samplerInit>
+      <variable name="start">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="b">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="c">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="d">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="end">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="f">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="g">
+        <distribution>dist</distribution>
+      </variable>
+      <variable name="h">
+        <distribution>dist</distribution>
+      </variable>
+    </MonteCarlo>
+  </Samplers>
+
+  <Steps>
+    <MultiRun name="simRun">
+      <Input   class="Files"        type="graph_model"     >test_graph_model</Input>
+      <Model   class="Models"       type="ExternalModel"   >CPMmodel</Model>
+      <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
+      <Output  class="DataObjects"  type="PointSet"        >sim_PS</Output>
+      <Output  class="OutStreams"   type="Print"           >Print_sim_PS</Output>
+    </MultiRun>
+  </Steps>
+
+  <OutStreams>
+    <Print name="Print_sim_PS">
+      <type>csv</type>
+      <source>sim_PS</source>
+      <what>input,output</what>
+    </Print>
+  </OutStreams>
+
+  <DataObjects>
+    <PointSet name="inputPlaceHolder">
+      <Input>start,b,c,d,end,f,g,h</Input>
+      <Output>OutputPlaceHolder</Output>
+    </PointSet>
+    <PointSet name="sim_PS">
+      <Input>start,b,c,d,end,f,g,h</Input>
+      <Output>end_time</Output>
+    </PointSet>
+  </DataObjects>
+
+</Simulation>
