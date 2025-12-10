@@ -8,7 +8,7 @@ class mdkChoiceModel:
         This is the base class for the multi-dimensional knapsack problem adapted to the outage
         scheduling problem
     """
-    def __init__(self, candidates, resources):
+    def __init__(self, candidates, resources, valueType):
         """
         Constructor
         @ In, candidates, list, list of candidate activities
@@ -35,11 +35,17 @@ class mdkChoiceModel:
                 else:
                     self.res_dict[(candidate.returnName(),res)] = 0.
 
-        self.values  = {}
-        self.candidate_mapping = {}
-        for candidate in candidates:
-            self.values[candidate.returnName()] = 1.
-            self.candidate_mapping[candidate.returnName()] = candidate
+        if valueType == 'uniform':
+            self.values = {candidate.returnName(): 1 for candidate in candidates}
+        elif valueType == 'value_based':
+            self.values = {candidate.returnName(): candidate['value']  for candidate in candidates}
+        else:
+            print('Error on mdkChoiceModel valueType')
+        
+        self.candidate_mapping = {candidate.returnName(): candidate for candidate in candidates}
+        #for candidate in candidates:
+        #    self.values[candidate.returnName()] = 1.
+        #    self.candidate_mapping[candidate.returnName()] = candidate
 
     def run(self):
         """
@@ -64,7 +70,7 @@ class mdkChoiceModel:
             return sum(model.weight[i, k] * model.x[i] for i in model.I) <= model.capacity[k]
         model.capacity_constraint = pyo.Constraint(model.K, rule=capacity_rule)
 
-        solver = pyo.SolverFactory('glpk') # cbc, gurobi
+        solver = pyo.SolverFactory('glpk') 
         results = solver.solve(model)
 
         selected = []

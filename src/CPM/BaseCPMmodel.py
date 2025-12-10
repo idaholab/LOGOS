@@ -42,6 +42,12 @@ class BaseCPMmodel(ExternalModelPluginBase):
     self.mapping = {}   # dictionary containing the schedule graph from RAVEN xml input file
     self.pert = None    # graph of the imported schedule
 
+    self.startTime = None
+    self.resources = None 
+
+    self.analysis = None
+    self.sgs = None
+
   def _readMoreXML(self, container, xmlNode):
     """
       Method to read the portion of the XML that belongs to the CPM model
@@ -56,6 +62,10 @@ class BaseCPMmodel(ExternalModelPluginBase):
         self.CPid = child.text.strip()
       elif child.tag == 'variables':
         variables = [str(var.strip()) for var in child.text.split(",")]
+      elif child.tag == 'analysis':
+        self.analysis = child.text.strip()
+      elif child.tag == 'sgs':
+        self.sgs = child.text.strip()
       elif child.tag == 'map':
         if child.text is None:
           self.mapping[child.get('act')] = [child.get('dur'),[]]
@@ -108,10 +118,14 @@ class BaseCPMmodel(ExternalModelPluginBase):
       importedModule = importlib.util.module_from_spec(spec)
       spec.loader.exec_module(importedModule)
 
-      if 'project' in list(zip(*inspect.getmembers(importedModule, inspect.isclass)))[0]:
-        self.graph = importedModule.project.graph
-      else:
-        raise IOError("CPMmodel: class project has not been found in " +  str(file2open))
+      for elem in list(zip(*inspect.getmembers(importedModule, inspect.isclass)))[0]:
+        if elem == 'project': 
+          self.graph = importedModule.project.graph
+        elif elem == 'resource_schedule':
+          self.startTime = importedModule.resource_schedule.outageStartTime 
+          self.resources = importedModule.resource_schedule.resources      
+        else:
+          raise IOError("CPMmodel: Only project and resource_schedule classes can been found in " +  str(file2open))
       return Kwargs
 
   def run(self, container, inputDict):
@@ -120,15 +134,27 @@ class BaseCPMmodel(ExternalModelPluginBase):
       @ In, container, object, self-like object where all the variables can be stored
       @ In, inputDict, dict, dictionary of inputs from RAVEN
     """
-    self.updateGraphValues(container, inputDict)
+    if self.analysis == 'activity_duration':
+      self.updateGraphValues(container, inputDict)
+      self.pert = Pert(self.graph)  # initialize PERT class and perform numeric calculations
+      endTime = self.pert.infoDict[self.pert.endActivity]['ef']
 
-    self.pert = Pert(self.graph)  # initialize PERT class and perform numeric calculations
-    endTime = self.pert.infoDict[self.pert.endActivity]['ef']
+      # return CP time
+      container.__dict__[self.CPtime] = np.asarray(float(endTime))
+      # return CP (format string) as a sequence of activities separated by "_": start_act1_act2_act3_end
+      container.__dict__[self.CPid]   = "_".join (map (str, self.pert.getCriticalPathSymbolic()))
+    elif self.analysis == 'activity_priority':
+      self.pert = Pert(graph=self.graph, 
+                       jsonFile=None, 
+                       startTime=self.startTime, 
+                       resourcesTS=self.resources, 
+                       priorities=inputDict)
+      self.pert.calculateScheduleWithResources(self.sgs)
+      endTime = self.pert.infoDict[self.pert.endActivity]['ef']
+      container.__dict__[self.CPtime] = np.asarray(float(endTime))
+    else:
+      raise IOError("CPMmodel: Only activity_duration or activity_priority can be specified in the analysis node")
 
-    # return CP time
-    container.__dict__[self.CPtime] = np.asarray(float(endTime))
-    # return CP (format string) as a sequence of activities separated by "_": start_act1_act2_act3_end
-    container.__dict__[self.CPid]   = "_".join (map (str, self.pert.getCriticalPathSymbolic()))
 
   def updateGraphValues(self, container, inputDict):
     """
