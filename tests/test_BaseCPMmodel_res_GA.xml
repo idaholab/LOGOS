@@ -163,7 +163,8 @@
     </PointSet>
     <PointSet name="opt_export">
       <Input>trajID</Input>
-      <Output>x,y,ans,age,batchId,fitness,iteration,accepted,AHDp,conv_AHDp</Output>
+      <Output>start,b,c,d,end,f,g,h,end_time,
+              age,batchId,fitness,iteration,accepted,AHDp,conv_AHDp</Output>
     </PointSet>
   </DataObjects>
 

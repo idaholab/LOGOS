@@ -267,13 +267,13 @@ class Pert:
   def __iter__(self):
     return iter(self.forwardDict)
 
-  def reseed(self, seed_value):
+  def reseed(self, seedValue):
     """
       Method designed to reseed the RNG
       @ In, seed_value, int, new seed value
       @ Out, None
     """
-    self.seed = seed_value
+    self.seed = seedValue
     random.seed(self.seed)
 
   def checkResources(self):
@@ -740,18 +740,18 @@ class Pert:
     self.reqResources = self.reqResources.replace(np.nan, 0)
     for act in self.forwardDict:
       absTimeVals = act.returnAbsTimes()
-      res_dict = act.returnResources()
-      for res in res_dict.keys():
-        self.reqResources.loc[absTimeVals[0]:absTimeVals[1],res] += res_dict[res]
+      resDict = act.returnResources()
+      for res in resDict.keys():
+        self.reqResources.loc[absTimeVals[0]:absTimeVals[1],res] += resDict[res]
 
-  def convertListOfActToSymbolic(self, activities_list):
+  def convertListOfActToSymbolic(self, activitiesList):
     """
       Method designed to convert a list of activities into a list activity names
       @ In, activities_list, list, list of activities instances
       @ Out, symbList, list, list of strings (i.e., activity names)
     """
     symbList = []
-    for act in activities_list:
+    for act in activitiesList:
       symbList.append(act.returnName())
     return symbList
 
@@ -888,7 +888,7 @@ class Pert:
         actReadyToGo[act]['value'] = weightFunction(actReadyToGo[act]['slack'])
     elif valueAssignment == 'external':
       for act in actReadyToGo.keys():
-        actReadyToGo[act]['value'] = self.priorities[actReadyToGo[act].returnName()]
+        actReadyToGo[act]['value'] = self.priorities[act]#actReadyToGo[act].returnName()]
     return actReadyToGo
 
   def scheduleGenerationScheme(self, candidates, res, time_index, choice):
