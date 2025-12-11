@@ -188,7 +188,7 @@ class Pert:
       self.forwardDict = []
     else:
       self.forwardDict = graph    # list of out going nodes for every activity
-    
+
     self.resources = resourcesTS  # dataframe containing resources availability
     self.startTime = startTime    # initial time/date of project schedule
 
@@ -248,7 +248,7 @@ class Pert:
             graph[src_activity].append(id_to_activity[dest_id])
 
     return graph
-  
+
   def __str__(self):
     """
       Method designed to return basic information of the schedule graph

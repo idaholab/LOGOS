@@ -26,7 +26,7 @@ class project():
           g: [end],
           h: [end],
           end:[]}
-  
+
 class resource_schedule():
   outageStartTime = dt.datetime(2025, 10, 20, 8)
 
