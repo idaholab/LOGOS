@@ -122,10 +122,13 @@ class BaseCPMmodel(ExternalModelPluginBase):
       importedModule = importlib.util.module_from_spec(spec)
       spec.loader.exec_module(importedModule)
 
+      # Mandatory attribute
       self.graph = importedModule.project.graph
-      self.startTime = importedModule.resource_schedule.outageStartTime 
-      self.resources = importedModule.resource_schedule.resources      
-      
+
+      # Optional attributes with safe access
+      self.startTime = getattr(getattr(importedModule, 'resource_schedule', None), 'outageStartTime', None)
+      self.resources = getattr(getattr(importedModule, 'resource_schedule', None), 'resources', None)
+    
       return Kwargs
 
   def run(self, container, inputDict):
