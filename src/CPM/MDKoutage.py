@@ -41,7 +41,7 @@ class mdkChoiceModel:
             self.values = {candidate.returnName(): candidate['value']  for candidate in candidates}
         else:
             print('Error on mdkChoiceModel valueType')
-        
+
         self.candidate_mapping = {candidate.returnName(): candidate for candidate in candidates}
         #for candidate in candidates:
         #    self.values[candidate.returnName()] = 1.
@@ -70,7 +70,7 @@ class mdkChoiceModel:
             return sum(model.weight[i, k] * model.x[i] for i in model.I) <= model.capacity[k]
         model.capacity_constraint = pyo.Constraint(model.K, rule=capacity_rule)
 
-        solver = pyo.SolverFactory('glpk') 
+        solver = pyo.SolverFactory('glpk')
         results = solver.solve(model)
 
         selected = []

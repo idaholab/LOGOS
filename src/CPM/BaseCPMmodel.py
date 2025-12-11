@@ -47,7 +47,7 @@ class BaseCPMmodel(ExternalModelPluginBase):
     self.pert = None    # graph of the imported schedule
 
     self.startTime = None
-    self.resources = None 
+    self.resources = None
 
     self.analysis = None
     self.sgs = None
@@ -128,7 +128,7 @@ class BaseCPMmodel(ExternalModelPluginBase):
       # Optional attributes with safe access
       self.startTime = getattr(getattr(importedModule, 'resource_schedule', None), 'outageStartTime', None)
       self.resources = getattr(getattr(importedModule, 'resource_schedule', None), 'resources', None)
-    
+
       return Kwargs
 
   def run(self, container, inputDict):
@@ -148,10 +148,10 @@ class BaseCPMmodel(ExternalModelPluginBase):
       container.__dict__[self.CPid]   = "_".join (map (str, self.pert.getCriticalPathSymbolic()))
     elif self.analysis == 'activity_priority':
       priorityDict = self.parsePriorityValues(container, inputDict)
-      self.pert = Pert(graph=self.graph, 
-                       jsonFile=None, 
-                       startTime=self.startTime, 
-                       resourcesTS=self.resources, 
+      self.pert = Pert(graph=self.graph,
+                       jsonFile=None,
+                       startTime=self.startTime,
+                       resourcesTS=self.resources,
                        priorities=priorityDict)
       self.pert.calculateScheduleWithResources(self.sgs)
       endTime = self.pert.infoDict[self.pert.endActivity]['ef']
