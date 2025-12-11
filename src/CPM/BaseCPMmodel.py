@@ -14,6 +14,10 @@ import sys
 import os
 import copy
 import inspect
+from datetime import datetime
+import pandas as pd
+import numpy as np
+
 #External Modules End-----------------------------------------------------------
 
 #Internal Modules---------------------------------------------------------------
@@ -118,14 +122,10 @@ class BaseCPMmodel(ExternalModelPluginBase):
       importedModule = importlib.util.module_from_spec(spec)
       spec.loader.exec_module(importedModule)
 
-      for elem in list(zip(*inspect.getmembers(importedModule, inspect.isclass)))[0]:
-        if elem == 'project': 
-          self.graph = importedModule.project.graph
-        elif elem == 'resource_schedule':
-          self.startTime = importedModule.resource_schedule.outageStartTime 
-          self.resources = importedModule.resource_schedule.resources      
-        else:
-          raise IOError("CPMmodel: Only project and resource_schedule classes can been found in " +  str(file2open))
+      self.graph = importedModule.project.graph
+      self.startTime = importedModule.resource_schedule.outageStartTime 
+      self.resources = importedModule.resource_schedule.resources      
+      
       return Kwargs
 
   def run(self, container, inputDict):
@@ -144,17 +144,17 @@ class BaseCPMmodel(ExternalModelPluginBase):
       # return CP (format string) as a sequence of activities separated by "_": start_act1_act2_act3_end
       container.__dict__[self.CPid]   = "_".join (map (str, self.pert.getCriticalPathSymbolic()))
     elif self.analysis == 'activity_priority':
+      priorityDict = self.parsePriorityValues(container, inputDict)
       self.pert = Pert(graph=self.graph, 
                        jsonFile=None, 
                        startTime=self.startTime, 
                        resourcesTS=self.resources, 
-                       priorities=inputDict)
+                       priorities=priorityDict)
       self.pert.calculateScheduleWithResources(self.sgs)
       endTime = self.pert.infoDict[self.pert.endActivity]['ef']
       container.__dict__[self.CPtime] = np.asarray(float(endTime))
     else:
       raise IOError("CPMmodel: Only activity_duration or activity_priority can be specified in the analysis node")
-
 
   def updateGraphValues(self, container, inputDict):
     """
@@ -170,3 +170,11 @@ class BaseCPMmodel(ExternalModelPluginBase):
       for elem in self.graph[key]:
         if elem.returnName() in inputDict.keys():
           elem.updateDuration(inputDict[key.returnName()])
+
+  def parsePriorityValues(self, container, inputDict):
+    priorityDict = {}
+    inputDict = inputDict['SampledVars']
+    for key in self.graph.keys():
+      if key.returnName() in inputDict.keys():
+        priorityDict[key] = inputDict[key.returnName()]
+    return priorityDict

@@ -17,7 +17,8 @@ import plotly.io as pio
 import random
 import json
 
-from MDKoutage import mdkChoiceModel
+#from MDKoutage import mdkChoiceModel
+from LOGOS.src.CPM import MDKoutage
 
 
 class Activity:
