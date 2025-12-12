@@ -75,10 +75,8 @@ class mdkChoiceModel:
 
         selected = []
 
-        print("Optimal objective value:", pyo.value(model.objective))
         for i in model.I:
             if pyo.value(model.x[i]) > 0.5:
-                print(f"Knapsack model: job {i} selected")
                 selected.append(self.candidate_mapping[i])
 
         return selected
