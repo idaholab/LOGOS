@@ -196,6 +196,17 @@ g     = Activity("g",     duration=3, res={'res1':1})
 h     = Activity("h",     duration=4, res={'res1':1})
 end   = Activity("end",   duration=2, res={'res1':1})
 
+graph = {start: [a, d, f],
+         a: [b],
+         b: [c],
+         c: [g, h],
+         d: [e],
+         e: [c],
+         f: [c],
+         g: [end],
+         h: [end],
+         end:[]}
+
 # Test RCPSP - 1
 pert = Pert(graph, startTime=outageStartTime, resourcesTS=resources)
 pert.calculateScheduleWithResources('MD-Knapsack')
