@@ -23,7 +23,7 @@ if any(os.path.normcase(sp) == pertLoc for sp in sys.path):
 else:
   sys.path.append(pertLoc)
 
-#from MDKoutage import mdkChoiceModel
+from MDKoutage import mdkChoiceModel
 #from LOGOS.src.CPM import MDKoutage
 # C: try except
 
