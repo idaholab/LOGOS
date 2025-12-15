@@ -197,6 +197,7 @@ h     = Activity("h",     duration=4, res={'res1':1})
 end   = Activity("end",   duration=2, res={'res1':1})
 
 # Test RCPSP - 1
+pert = Pert(graph, startTime=outageStartTime, resourcesTS=resources)
 pert.calculateScheduleWithResources('MD-Knapsack')
 outageSchedule = pert.outageDF
 
