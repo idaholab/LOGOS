@@ -11,15 +11,21 @@ import itertools
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
-import os
+import os, sys
 import plotly.express as px
 import plotly.io as pio
 import random
 import json
 
-#from MDKoutage import mdkChoiceModel
-from LOGOS.src.CPM import MDKoutage
+pertLoc = os.path.abspath(os.path.join(os.path.dirname(__file__)))
+if any(os.path.normcase(sp) == pertLoc for sp in sys.path):
+  print(f'WARNING: "{pertLoc}" already in system path. Skipping setup')
+else:
+  sys.path.append(pertLoc)
 
+#from MDKoutage import mdkChoiceModel
+#from LOGOS.src.CPM import MDKoutage
+# C: try except
 
 class Activity:
   """
