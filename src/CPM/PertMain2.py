@@ -25,7 +25,6 @@ else:
 
 from MDKoutage import mdkChoiceModel
 #from LOGOS.src.CPM import MDKoutage
-# C: try except
 
 class Activity:
   """
