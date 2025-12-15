@@ -797,24 +797,24 @@ class Pert:
       fileName = fileName + '.csv'
     self.optStatusDF.to_csv(fileName, index=False)
 
-  def calculateScheduleWithResources(self, choice):
+  def calculateScheduleWithResources(self, sgs):
     """
       Method designed to schedule activity actual start and end time based on available resources
-      @ In, choice, string, type of choice to select activities out of available candidates. Note that some types have been
-                            added only for testing purposes. Allowed types:
-                            * first: select the first activity in candidates
-                            * first_with_res: select the first activity in candidates only if present and future resources
-                              are available
-                            * max_use_res_act: select the first N activities in candidates only if present and future
-                              resources are available
-                            * max_use_res_ranked: rank activities based on float values and select the first N activities
-                              in candidates only if present and future resources are available
-                            * max_use_res_shuffled: randomly shuffle the initial list of activities and select the first
-                              N activities in candidates only if present and future resources are available
-                            * MD-Knapsack: select N activities through the multi-dimensional knapsack optimization model
-                                           in candidates only if present resources are available. This assumes that once a
-                                           resource has been tasked to an activty, that resource is assigned until the activity
-                                           has been completed. This might lead to negative resource availability
+      @ In, sgs, string,  type of choice to select activities out of available candidates. Note that some types have been
+                          added only for testing purposes. Allowed types:
+                          * first: select the first activity in candidates
+                          * first_with_res: select the first activity in candidates only if present and future resources
+                            are available
+                          * max_use_res_act: select the first N activities in candidates only if present and future
+                            resources are available
+                          * max_use_res_ranked: rank activities based on float values and select the first N activities
+                            in candidates only if present and future resources are available
+                          * max_use_res_shuffled: randomly shuffle the initial list of activities and select the first
+                            N activities in candidates only if present and future resources are available
+                          * MD-Knapsack: select N activities through the multi-dimensional knapsack optimization model
+                                          in candidates only if present resources are available. This assumes that once a
+                                          resource has been tasked to an activty, that resource is assigned until the activity
+                                          has been completed. This might lead to negative resource availability
       @ Out, None
     """
 
@@ -844,7 +844,7 @@ class Pert:
       if candidateActivities:
         # Select activities that will start at time t and generate the future usage profile of the resources of
         # the selected actvities
-        selectedActivities, res_usage = self.scheduleGenerationScheme(candidateActivities, res_at_t, time_index, choice)
+        selectedActivities, res_usage = self.scheduleGenerationScheme(candidateActivities, res_at_t, time_index, sgs)
 
         # update the lists self.wait and self.ongoing based on candidateActivities and selectedActivities
         self.updateSetActivities(selectedActivities, candidateActivities, time_index)
