@@ -122,6 +122,7 @@ yet still use one from within the other.
 
 .. The main structure of the LOGOS repository is shown in
 .. Figure :ref:`fig-Logos`.
+
 The folder *LOGOS/tests* contains the inputs for the
 tests, in addition to the corresponding output (in the ``gold`` folder)
 used to ensure that the behavior of the code does not change when new
