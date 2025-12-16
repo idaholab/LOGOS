@@ -8,8 +8,10 @@ import warnings
 warnings.simplefilter('default',DeprecationWarning)
 
 import os,sys
+print(os.getcwd())
 sys.path.insert(0, '../../../src/CPM/')
 from PertMain2 import Pert, Activity
+#from src.CPM.PertMain2 import Activity
 
 import numpy as np
 import pandas as pd
@@ -183,10 +185,12 @@ checkList('CP analysis (path)',symbCPredList,expected)
 
 
 # Test RCPSP
+outageStartTime = datetime(2025, 10, 20, 8)
 N = 30
-hourly_index = pd.date_range(start='2025-4-25 08:00', periods=N, freq='h')
-resources = pd.DataFrame({'res1': 2*np.ones(N)}, index=hourly_index)
+hourly_index = pd.date_range(start=outageStartTime, periods=N, freq='h')
+resources = pd.DataFrame({'res1': 1*np.ones(N)}, index=hourly_index)
 
+# Set of activities
 start = Activity("start", duration=2, res={'res1':1})
 a     = Activity("a",     duration=2, res={'res1':1})
 b     = Activity("b",     duration=3, res={'res1':1})
@@ -198,6 +202,7 @@ g     = Activity("g",     duration=3, res={'res1':1})
 h     = Activity("h",     duration=4, res={'res1':1})
 end   = Activity("end",   duration=2, res={'res1':1})
 
+# Activity dependencies
 graph = {start: [a, d, f],
          a: [b],
          b: [c],
@@ -331,6 +336,7 @@ outageSchedule_gold_2 = {'actID': {0: 'start',
 checkDicts('Test RCPSP - 2', outageSchedule, outageSchedule_gold_2, updateResults=True)
 
 # Test RCPSP - 3
+pert = Pert(graph, startTime=outageStartTime, resourcesTS=resources)
 pert.calculateScheduleWithResources('max_use_res_act')
 outageSchedule = pert.outageDF.to_dict()
 
