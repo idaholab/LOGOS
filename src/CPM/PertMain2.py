@@ -894,7 +894,7 @@ class Pert:
         actReadyToGo[act]['value'] = weightFunction(actReadyToGo[act]['slack'])
     elif valueAssignment == 'external':
       for act in actReadyToGo.keys():
-        actReadyToGo[act]['value'] = self.priorities[act]#actReadyToGo[act].returnName()]
+        actReadyToGo[act]['value'] = self.priorities[act]
     return actReadyToGo
 
   def scheduleGenerationScheme(self, candidates, res, time_index, choice):
@@ -997,7 +997,7 @@ class Pert:
 
   def ranked(self, candidate_dict):
     """
-      Method designed to rank set of candidates based on weightFunction calculated using activity slack (i.e. float)
+      Method designed to rank set of candidates based on 'value' 
       @ In, candidate_dict, dict, dictionary of candidate activities in the form:
                                   {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
       @ Out, value_dict_sorted.keys(), dict, dictionary of candidate activities sorted by weightFunction
