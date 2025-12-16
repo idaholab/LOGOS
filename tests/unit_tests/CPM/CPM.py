@@ -1,6 +1,8 @@
 """
   This Module performs Unit Tests for the utils methods
   It cannot be considered part of the active code but of the regression test system
+
+  To run it: LOGOS/tests/unit_tests/CPM$ python CPM.py
 """
 
 #For future compatibility with Python 3

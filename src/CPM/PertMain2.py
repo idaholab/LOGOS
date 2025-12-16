@@ -997,7 +997,7 @@ class Pert:
 
   def ranked(self, candidate_dict):
     """
-      Method designed to rank set of candidates based on 'value' 
+      Method designed to rank set of candidates based on 'value'
       @ In, candidate_dict, dict, dictionary of candidate activities in the form:
                                   {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
       @ Out, value_dict_sorted.keys(), dict, dictionary of candidate activities sorted by weightFunction
