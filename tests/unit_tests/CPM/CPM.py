@@ -11,7 +11,6 @@ import os,sys
 print(os.getcwd())
 sys.path.insert(0, '../../../src/CPM/')
 from PertMain2 import Pert, Activity
-#from src.CPM.PertMain2 import Activity
 
 import numpy as np
 import pandas as pd
@@ -278,7 +277,7 @@ outageSchedule_gold_1 = {'actID': { 0: 'start',
 checkDicts('Test RCPSP - 1', outageSchedule, outageSchedule_gold_1, updateResults=True)
 
 # Test RCPSP - 2
-pert = Pert(graph, startTime=outageStartTime, resourcesTS=resources)
+pert = Pert(graph, startTime=outageStartTime, resourcesTS=resources, priorities=priorities)
 pert.calculateScheduleWithResources('max_use_res_ranked')
 outageSchedule = pert.outageDF.to_dict()
 
