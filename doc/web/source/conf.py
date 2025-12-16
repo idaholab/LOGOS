@@ -24,17 +24,17 @@ today_fmt = '%B %d, %Y'
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = ['sphinx.ext.intersphinx',
-	'sphinx.ext.autodoc',
-	'sphinx.ext.doctest',
-	'sphinx.ext.todo',
-	"sphinx.ext.autodoc.typehints",
-	"sphinx.ext.mathjax",
+    'sphinx.ext.autodoc',
+    'sphinx.ext.doctest',
+    'sphinx.ext.todo',
+    "sphinx.ext.autodoc.typehints",
+    "sphinx.ext.mathjax",
     # "sphinx.ext.autosummary",
-	"nbsphinx",  # <- For Jupyter Notebook support
-	"sphinx.ext.napoleon",  # <- For Google style docstrings
-	"sphinx.ext.imgmath",
-	"sphinx.ext.viewcode",
-	# 'autoapi.extension',
+    "nbsphinx",  # <- For Jupyter Notebook support
+    "sphinx.ext.napoleon",  # <- For Google style docstrings
+    "sphinx.ext.imgmath",
+    "sphinx.ext.viewcode",
+    # 'autoapi.extension',
     'sphinx_copybutton',
     'sphinxcontrib.bibtex',]
 
