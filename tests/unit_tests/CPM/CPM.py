@@ -273,6 +273,7 @@ outageSchedule_gold_1 = {'actID': { 0: 'start',
 checkDicts('Test RCPSP - 1', outageSchedule, outageSchedule_gold_1, updateResults=True)
 
 # Test RCPSP - 2
+pert = Pert(graph, startTime=outageStartTime, resourcesTS=resources)
 pert.calculateScheduleWithResources('max_use_res_ranked')
 outageSchedule = pert.outageDF.to_dict()
 
