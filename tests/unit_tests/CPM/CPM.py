@@ -217,7 +217,7 @@ for act in graph:
 
 pert = Pert(graph, startTime=outageStartTime, resourcesTS=resources, priorities=priorities)
 pert.calculateScheduleWithResources('MD-Knapsack')
-outageSchedule = pert.outageDF
+outageSchedule = pert.outageDF.to_dict()
 
 outageSchedule_gold_1 = {'actID': { 0: 'start',
                                     1: 'a',
@@ -274,7 +274,7 @@ checkDicts('Test RCPSP - 1', outageSchedule, outageSchedule_gold_1, updateResult
 
 # Test RCPSP - 2
 pert.calculateScheduleWithResources('max_use_res_ranked')
-outageSchedule = pert.outageDF
+outageSchedule = pert.outageDF.to_dict()
 
 outageSchedule_gold_2 = {'actID': {0: 'start',
                                     1: 'a',
@@ -331,7 +331,7 @@ checkDicts('Test RCPSP - 2', outageSchedule, outageSchedule_gold_2, updateResult
 
 # Test RCPSP - 3
 pert.calculateScheduleWithResources('max_use_res_act')
-outageSchedule = pert.outageDF
+outageSchedule = pert.outageDF.to_dict()
 
 outageSchedule_gold_3 = {'actID': { 0: 'start',
                                     1: 'a',
