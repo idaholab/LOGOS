@@ -15,6 +15,8 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, time
 
+import random
+
 results = {"pass":0,"fail":0}
 
 def checkAnswer(comment,value,expected,tol=1e-10,updateResults=True):
@@ -208,7 +210,12 @@ graph = {start: [a, d, f],
          end:[]}
 
 # Test RCPSP - 1
-pert = Pert(graph, startTime=outageStartTime, resourcesTS=resources)
+priorities={}
+random.seed(42)
+for act in graph:
+    priorities[act] = np.random.rand()
+
+pert = Pert(graph, startTime=outageStartTime, resourcesTS=resources, priorities=priorities)
 pert.calculateScheduleWithResources('MD-Knapsack')
 outageSchedule = pert.outageDF
 
@@ -222,46 +229,46 @@ outageSchedule_gold_1 = {'actID': { 0: 'start',
                                     7: 'g',
                                     8: 'h',
                                     9: 'end'},
-                          'start': { 0: pd.Timestamp('2025-10-20 08:00:00'),
-                                      1: pd.Timestamp('2025-10-20 10:00:00'),
-                                      2: pd.Timestamp('2025-10-20 12:00:00'),
-                                      3: pd.Timestamp('2025-10-20 17:00:00'),
-                                      4: pd.Timestamp('2025-10-20 10:00:00'),
-                                      5: pd.Timestamp('2025-10-20 14:00:00'),
-                                      6: pd.Timestamp('2025-10-20 15:00:00'),
-                                      7: pd.Timestamp('2025-10-20 20:00:00'),
-                                      8: pd.Timestamp('2025-10-20 20:00:00'),
-                                      9: pd.Timestamp('2025-10-21 00:00:00')},
-                          'end': { 0: pd.Timestamp('2025-10-20 10:00:00'),
-                                    1: pd.Timestamp('2025-10-20 12:00:00'),
-                                    2: pd.Timestamp('2025-10-20 15:00:00'),
-                                    3: pd.Timestamp('2025-10-20 20:00:00'),
-                                    4: pd.Timestamp('2025-10-20 14:00:00'),
-                                    5: pd.Timestamp('2025-10-20 17:00:00'),
-                                    6: pd.Timestamp('2025-10-20 17:00:00'),
-                                    7: pd.Timestamp('2025-10-20 23:00:00'),
-                                    8: pd.Timestamp('2025-10-21 00:00:00'),
-                                    9: pd.Timestamp('2025-10-21 02:00:00')},
-                          'delay': { 0: 0.0,
-                                      1: 0.0,
-                                      2: 0.0,
-                                      3: 0.0,
-                                      4: 0.0,
-                                      5: 0.0,
-                                      6: 5.0,
-                                      7: 0.0,
-                                      8: 0.0,
-                                      9: 0.0},
-                          'duration': {0: 2.0,
-                                        1: 2.0,
-                                        2: 3.0,
-                                        3: 3.0,
-                                        4: 4.0,
-                                        5: 3.0,
-                                        6: 2.0,
-                                        7: 3.0,
-                                        8: 4.0,
-                                        9: 2.0}}
+                        'start': {0: pd.Timestamp('2025-10-20 08:00:00'),
+                          1: pd.Timestamp('2025-10-20 10:00:00'),
+                          2: pd.Timestamp('2025-10-20 12:00:00'),
+                          3: pd.Timestamp('2025-10-21 00:00:00'),
+                          4: pd.Timestamp('2025-10-20 15:00:00'),
+                          5: pd.Timestamp('2025-10-20 19:00:00'),
+                          6: pd.Timestamp('2025-10-20 22:00:00'),
+                          7: pd.Timestamp('2025-10-21 03:00:00'),
+                          8: pd.Timestamp('2025-10-21 06:00:00'),
+                          9: pd.Timestamp('2025-10-21 10:00:00')},
+                        'end': {0: pd.Timestamp('2025-10-20 10:00:00'),
+                          1: pd.Timestamp('2025-10-20 12:00:00'),
+                          2: pd.Timestamp('2025-10-20 15:00:00'),
+                          3: pd.Timestamp('2025-10-21 03:00:00'),
+                          4: pd.Timestamp('2025-10-20 19:00:00'),
+                          5: pd.Timestamp('2025-10-20 22:00:00'),
+                          6: pd.Timestamp('2025-10-21 00:00:00'),
+                          7: pd.Timestamp('2025-10-21 06:00:00'),
+                          8: pd.Timestamp('2025-10-21 10:00:00'),
+                          9: pd.Timestamp('2025-10-21 12:00:00')},
+                        'delay': {0: 0.0,
+                          1: 0.0,
+                          2: 0.0,
+                          3: 0.0,
+                          4: 5.0,
+                          5: 0.0,
+                          6: 12.0,
+                          7: 0.0,
+                          8: 3.0,
+                          9: 0.0},
+                        'duration': {0: 2.0,
+                          1: 2.0,
+                          2: 3.0,
+                          3: 3.0,
+                          4: 4.0,
+                          5: 3.0,
+                          6: 2.0,
+                          7: 3.0,
+                          8: 4.0,
+                          9: 2.0}}
 
 checkDicts('Test RCPSP - 1', outageSchedule, outageSchedule_gold_1, updateResults=True)
 
