@@ -29,14 +29,14 @@ extensions = ['sphinx.ext.intersphinx',
 	'sphinx.ext.todo',
 	"sphinx.ext.autodoc.typehints",
 	"sphinx.ext.mathjax",
-  # "sphinx.ext.autosummary",
+    # "sphinx.ext.autosummary",
 	"nbsphinx",  # <- For Jupyter Notebook support
 	"sphinx.ext.napoleon",  # <- For Google style docstrings
 	"sphinx.ext.imgmath",
 	"sphinx.ext.viewcode",
 	# 'autoapi.extension',
-  'sphinx_copybutton',
-  'sphinxcontrib.bibtex',]
+    'sphinx_copybutton',
+    'sphinxcontrib.bibtex',]
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
