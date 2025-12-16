@@ -120,19 +120,20 @@ regression testing for compatibility with RAVEN as it continues to
 evolve. In this way, we are able to treat this repository as separate,
 yet still use one from within the other.
 
-The main structure of the LOGOS repository is shown in
-Figure :ref:`fig-Logos`. The folder *tests* contains the inputs for the
+.. The main structure of the LOGOS repository is shown in
+.. Figure :ref:`fig-Logos`.
+The folder *LOGOS/tests* contains the inputs for the
 tests, in addition to the corresponding output (in the ``gold`` folder)
 used to ensure that the behavior of the code does not change when new
 modifications are introduced. These tests can also be organized in
 subfolders based on their characteristics.
 
-.. _fig-Logos:
-.. figure:: ../figures/LogosRepo.jpg
-   :scale: 50%
-   :align: center
+.. .. _fig-Logos:
+.. .. figure:: ../figures/LogosRepo.jpg
+..    :scale: 50%
+..    :align: center
 
-   Folder tree of the LOGOS repository.
+..    Folder tree of the LOGOS repository.
 
 
 The RAVEN repository contains a complete testing system for providing

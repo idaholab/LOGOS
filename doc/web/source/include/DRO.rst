@@ -212,14 +212,14 @@ Taking the dual of this linear DRO program, and substituting
 
 To build intuition, consider two extremes:
 
-- **Case :math:`\varepsilon = 0`.** There is no penalty for large
+- Case :math:`\varepsilon = 0`. There is no penalty for large
   :math:`\gamma` in the objective. As :math:`\gamma` grows large, the
   constraints for :math:`\sigma \ne \omega` become vacuous. For
   :math:`\sigma = \omega`, :math:`d_{\sigma,\sigma} = 0`, so the constraint
   becomes :math:`\nu^\sigma \le f(s,\xi^\sigma)`. Optimizing yields
   :math:`\sum_\sigma q^\sigma f(s,\xi^\sigma)`, which is exactly the nominal
   expected value.
-- **Case :math:`\varepsilon \to \infty`.** To avoid a large penalty
+- Case :math:`\varepsilon \to \infty`. To avoid a large penalty
   :math:`-\gamma \varepsilon` in the objective, we must have :math:`\gamma = 0`.
   The constraint reduces to :math:`\nu^\sigma \le f(s,\xi^\omega)` for all
   :math:`\omega`, so :math:`\nu^\sigma = \min_\omega f(s,\xi^\omega)`. The

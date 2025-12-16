@@ -53,9 +53,9 @@ Acquiring and Installing LOGOS
 
 LOGOS is supported on three separate computing platforms: Linux, macOS
 (OSX, Apple Macintosh), and Microsoft Windows. Currently, LOGOS can be
-downloaded from the LOGOS GitLab repository:
+downloaded from the LOGOS GitHub repository:
 
-- https://hpcgitlab.hpc.inl.gov/RAVEN_PLUGINS/LOGOS.git
+- https://github.com/idaholab/LOGOS
 
 New users should contact LOGOS developers to get started with LOGOS.
 This typically involves the following steps:
@@ -63,7 +63,7 @@ This typically involves the following steps:
 - *Download LOGOS*
   You can download the source code for LOGOS from
 
-  - https://hpcgitlab.hpc.inl.gov/RAVEN_PLUGINS/LOGOS.git
+  - https://github.com/idaholab/LOGOS
 
 - *Install LOGOS dependencies*
 
