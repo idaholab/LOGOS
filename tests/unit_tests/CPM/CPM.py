@@ -10,7 +10,6 @@ import warnings
 warnings.simplefilter('default',DeprecationWarning)
 
 import os,sys
-print(os.getcwd())
 sys.path.insert(0, '../../../src/CPM/')
 from PertMain2 import Pert, Activity
 
