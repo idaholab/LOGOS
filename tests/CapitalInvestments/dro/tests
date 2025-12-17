@@ -82,6 +82,7 @@
   input = 'test_dromkp_scenarios.xml'
   output = 'test_dromkp_scenarios.csv'
   skip_if_OS = windows
+  heavy = True
  [../]
 
  [./test_dromkp_scenarios_I]
