@@ -1,0 +1,54 @@
+name: "Sphinx: Render docs"
+
+on: push
+
+jobs:
+  build:
+    # runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniconda-version: "latest"
+          channels: conda-forge, defaults
+          use-only-tar-bz2: true  # IMPORTANT: This needs to be set for caching to work properly!
+          auto-update-conda: true
+          activate-environment: logos_libs
+          auto-activate-base: false
+      # - name: Use Pandoc
+      #   uses: docker://pandoc/core:2.9
+      #   with:
+      #     args: "--help" # gets appended to pandoc command
+      - name: Install
+        uses: pandoc/actions/setup@v1
+        with:
+          version: 2.19
+
+      - name: Run pandoc
+        run: pandoc --version
+      - run: echo " Install Libraries Required to build Sphinx Documents"
+      - run: |
+          pwd
+          ls -l
+          pip install sphinx sphinx_rtd_theme nbsphinx sphinx-copybutton sphinx-autoapi sphinxcontrib-bibtex
+          cd doc/web
+          make html
+          cd ../..
+      # - name: Build HTML
+      #   uses: ammaraskar/sphinx-action@master
+      #   with:
+      #     pre-build-command: "apt-get update && apt-get install -y pandoc"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-docs
+          path: doc/web/build/html/
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        if: github.ref == 'refs/heads/devel'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: doc/web/build/html
