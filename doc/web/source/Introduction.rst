@@ -60,16 +60,29 @@ downloaded from the LOGOS GitHub repository:
 New users should contact LOGOS developers to get started with LOGOS.
 This typically involves the following steps:
 
+- *Install Miniconda*
+  you can install Miniconda from https://conda.io/miniconda.html
+
 - *Download LOGOS*
-  You can download the source code for LOGOS from
-
-  - https://github.com/idaholab/LOGOS
-
-- *Install LOGOS dependencies*
+  You can download the source code for LOGOS from https://github.com/idaholab/LOGOS
 
   .. code-block:: bash
 
-     path/to/LOGOS/build.sh --install
+    git clone https://github.com/idaholab/LOGOS.git
+
+  or
+
+  .. code-block:: bash
+
+    git clone git@github.com:idaholab/LOGOS.git
+
+- *Install LOGOS dependencies*
+  Identify your conda location, and provide the correct path of miniconda3/etc/profile.d/conda.sh
+  to --conda-defs.
+
+  .. code-block:: bash
+
+     path/to/LOGOS/build.sh --install --conda-defs path/to/miniconda3/etc/profile.d/conda.sh
 
 - *Activate LOGOS Libraries*
 
@@ -223,3 +236,22 @@ currently included in LOGOS are:
 
 - SSC cashflow and NPV models
   (see :ref:`sec-SSCNPV`)
+
+
+Related Publications
+--------------------
+
+- Mandelli, D., C. Wang, M. Abdo, K. Vedros, J. Cogliati, J. Farber, A. Al Rashdan, et al.
+  *Industry Use Cases for Risk-Informed System Health and Asset Management.* (2021).
+
+- Wang, Congjian, Diego Mandelli, Shawn St Germain, Curtis Smith, David Morton, Ivilina Popova,
+  and Stephen Hess.
+  *Stochastic optimization for long term capital structures, systems, and components refurbishment
+  and replacement.* In **ASME Power Conference**, vol. 83747, p. V001T06A001.
+  American Society of Mechanical Engineers, 2020.
+
+- Wang, Congjian, Diego Mandelli, Ivilina Popova, Stephen Hess, Shawn W. St Germain, and
+  Curtis L. Smith.
+  *Stochastic analysis for long term capital structures, systems, and components refurbishment
+  and replacement.* No. INL/CON-20-57013-Rev001. Idaho National Laboratory (INL),
+  Idaho Falls, ID (United States), 2020.
