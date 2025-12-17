@@ -46,10 +46,12 @@ class BaseCPMmodel(ExternalModelPluginBase):
     self.mapping = {}   # dictionary containing the schedule graph from RAVEN xml input file
     self.pert = None    # graph of the imported schedule
 
-    self.startTime = None
-    self.resources = None
+    self.startTime = None # time when project schedule will start (datetime)
+    self.resources = None # pandas dataframe of resource availability
 
-    self.analysis = None
+    self.analysis = None # type of analysis to be performed in raven: 
+                         # 1) activity_duration: RAVEN sample acitivty duration values
+                         # 2) activity_priority: RAVEN sample acitivty priority values
     self.sgs = None
 
   def _readMoreXML(self, container, xmlNode):

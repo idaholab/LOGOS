@@ -1,12 +1,13 @@
 <Simulation verbosity="debug">
   <TestInfo>
-    <name>framework.mckp_optimization</name>
+    <name>framework.BaseCPMmodel_GA</name>
     <author>mandd</author>
-    <created>2023-04-13</created>
+    <created>2025-12-17</created>
     <classesTested>Models.ExternalModel.LOGOS.BaseCPMmodel</classesTested>
     <description>
-       This test is is designed to check the functionality of the CPM model when
-       project schedule is defined from file
+       This test is is designed to check the functionality of the CPM model 
+       when activity_priority values are sampled through a GA optmization 
+       workflow
     </description>
   </TestInfo>
 
@@ -23,7 +24,7 @@
   <Models>
     <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
       <variables>start,b,c,d,end,f,g,h,end_time,CP</variables>
-      <analysis>activity_duration</analysis> <!--activity_duration or activity_priority-->
+      <analysis>activity_priority</analysis> <!--activity_duration or activity_priority-->
       <sgs>max_use_res_ranked</sgs>
       <CPtime>end_time</CPtime>
       <CPid>CP</CPid>

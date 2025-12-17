@@ -11,41 +11,41 @@ class mdkChoiceModel:
     def __init__(self, candidates, resources, valueType):
         """
         Constructor
-        @ In, candidates, list, list of candidate activities
+        @ In, candidates, dict, dictionary of candidate activities in the form:
+                                {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
         @ In, resources, pd.dataframe, present resources availability
+        @ In, valueType, string, approach employed to assign values to activities
+                                 * uniform: assign equal velua (1.) to every activity
+                                 * value_based: employ the value specified in candidates[activity]['value']
         @ Out, None
         """
         resourcesList = list(resources.keys())
 
-        self.jobs_ID = []
-        self.res_ID  = list(resources.to_dict().keys())
+        self.jobsID = [] # ID (string) of the candidate activities
+        self.resID  = list(resources.to_dict().keys()) # ID (string) of the available resources
 
         self.knapsacks = resources.to_dict()
 
-        self.jobs_ID = []
         for job in candidates:
-            self.jobs_ID.append(job.returnName())
+            self.jobsID.append(job.returnName())
 
-        self.res_dict = {}
+        self.resDict = {}
         for candidate in candidates.keys():
-            req_res = candidate.returnResources()
+            reqRes = candidate.returnResources()
             for res in resourcesList:
-                if res in list(req_res):
-                    self.res_dict[(candidate.returnName(),res)] = req_res[res]
+                if res in list(reqRes):
+                    self.resDict[(candidate.returnName(),res)] = reqRes[res]
                 else:
-                    self.res_dict[(candidate.returnName(),res)] = 0.
+                    self.resDict[(candidate.returnName(),res)] = 0.
 
         if valueType == 'uniform':
             self.values = {candidate.returnName(): 1 for candidate in candidates}
         elif valueType == 'value_based':
-            self.values = {candidate.returnName(): candidate['value']  for candidate in candidates}
+            self.values = {candidate.returnName(): candidates[candidate]['value'] for candidate in candidates}
         else:
-            print('Error on mdkChoiceModel valueType')
+            raise ValueError('Error on mdkChoiceModel valueType')
 
-        self.candidate_mapping = {candidate.returnName(): candidate for candidate in candidates}
-        #for candidate in candidates:
-        #    self.values[candidate.returnName()] = 1.
-        #    self.candidate_mapping[candidate.returnName()] = candidate
+        self.candidateMapping = {candidate.returnName(): candidate for candidate in candidates}
 
     def run(self):
         """
@@ -55,11 +55,11 @@ class mdkChoiceModel:
         """
         model = pyo.ConcreteModel()
 
-        model.I = pyo.Set(initialize=self.jobs_ID)
-        model.K = pyo.Set(initialize=self.res_ID)
+        model.I = pyo.Set(initialize=self.jobsID)
+        model.K = pyo.Set(initialize=self.resID)
 
         model.value    = pyo.Param(model.I, initialize=self.values)
-        model.weight   = pyo.Param(model.I, model.K, initialize=self.res_dict)
+        model.weight   = pyo.Param(model.I, model.K, initialize=self.resDict)
         model.capacity = pyo.Param(model.K, initialize=self.knapsacks)
 
         model.x = pyo.Var(model.I, domain=pyo.Binary)
@@ -77,6 +77,6 @@ class mdkChoiceModel:
 
         for i in model.I:
             if pyo.value(model.x[i]) > 0.5:
-                selected.append(self.candidate_mapping[i])
+                selected.append(self.candidateMapping[i])
 
         return selected
