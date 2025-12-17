@@ -229,7 +229,7 @@ class Pert:
     """
       Parses a JSON file containing activity definitions and dependencies.
       Validates unique activity IDs, instantiates Activity objects, and builds the graph.
-      @ In, filename, string, name of json file 
+      @ In, filename, string, name of json file
       @ Out, graph, dict mapping activity instances and their depedencies
     """
     with open(filename, 'r') as f:
@@ -888,9 +888,9 @@ class Pert:
       1) select all activities in the wait list that can start at time t=time
       2) assign a weigth value based on the slack
       @ In, time, datetime, current time of project schedule progression
-      @ In, valueAssignment, string, method employ to assign a priority value to every activity 
+      @ In, valueAssignment, string, method employ to assign a priority value to every activity
                                      that can start at time t=time:
-                                     * TF_based: calcualted throught the weightFunction based 
+                                     * TF_based: calcualted throught the weightFunction based
                                                  on the activity float value
                                      * external: provided externally by the the self.priorities var
       @ Out, actReadyToGo, dict, dictionary of activities that can start

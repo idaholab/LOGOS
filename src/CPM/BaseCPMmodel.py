@@ -49,7 +49,7 @@ class BaseCPMmodel(ExternalModelPluginBase):
     self.startTime = None # time when project schedule will start (datetime)
     self.resources = None # pandas dataframe of resource availability
 
-    self.analysis = None # type of analysis to be performed in raven: 
+    self.analysis = None # type of analysis to be performed in raven:
                          # 1) activity_duration: RAVEN sample acitivty duration values
                          # 2) activity_priority: RAVEN sample acitivty priority values
     self.sgs = None
