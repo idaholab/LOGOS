@@ -913,9 +913,14 @@ class Pert:
       selected = [next(iter(candidates))]
     elif choice=='first_with_res':
       # select first element in activities and check actual resources are available
-      selected = [next(iter(candidates))]
-      reqResources = selected[0].returnResources()
-      if res[reqResources]<1.:
+      selected_temp = [next(iter(candidates))]
+      res_usage_temp = self.resourceUseProfile(selected_temp)
+      # check resource availability
+      temp = copy.deepcopy(self.resources)
+      outcome = self.checkResourceAvailability(temp, res_usage_temp, time_index)
+      if outcome:
+        selected = selected_temp
+      else:
         selected = []
     elif choice=='max_use_res_act' or choice=='max_use_res_ranked' or choice=='max_use_res_shuffled':
       # select all activities that match available resources
@@ -950,7 +955,7 @@ class Pert:
 
   def checkResourceAvailability(self, res_profile, res_usage, time):
     """
-      Method designed to check that the forecasted resource availability is not ngetaive (i.e., planned
+      Method designed to check that the forecasted resource availability is not negative (i.e., planned
       resources exceed actual availability)
       @ In, res_profile, pd.dataframe, temporal profile of resources availability
       @ In, res_usage, dict, dictionary containing the forecasted resources required to complete the selected activities
