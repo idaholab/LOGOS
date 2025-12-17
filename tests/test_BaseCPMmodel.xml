@@ -1,6 +1,6 @@
 <Simulation verbosity="debug">
   <TestInfo>
-    <name>framework.mckp_optimization</name>
+    <name>framework.BaseCPMmodel</name>
     <author>mandd</author>
     <created>2023-04-13</created>
     <classesTested>Models.ExternalModel.LOGOS.BaseCPMmodel</classesTested>

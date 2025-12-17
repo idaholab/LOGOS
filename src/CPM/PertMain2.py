@@ -16,6 +16,9 @@ import plotly.express as px
 import plotly.io as pio
 import random
 import json
+import logging
+
+logging.basicConfig(format='%(message)s', level=logging.INFO)
 
 pertLoc = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 if any(os.path.normcase(sp) == pertLoc for sp in sys.path):
@@ -24,7 +27,6 @@ else:
   sys.path.append(pertLoc)
 
 from MDKoutage import mdkChoiceModel
-#from LOGOS.src.CPM import MDKoutage
 
 class Activity:
   """
@@ -108,8 +110,10 @@ class Activity:
 
   def addDelay(self):
     """
-      Methods that changes the duration of the activity
-      @ In, newDuration, str, updated duration of the activity
+      Methods that changes the duration of the activity. This function is used to
+      model the fact that when the RCPSP problem is being solved, an activity that
+      could start is post-poned because resources are not available.
+      @ In, None
       @ Out, None
     """
     self.duration = self.duration + 1.
@@ -180,13 +184,14 @@ class Pert:
     Source https://github.com/nofaralfasi/PERT-CPM-graph
   """
 
-  def __init__(self, graph={}, jsonFile=None, startTime=None, resourcesTS=None, priorities=None):
+  def __init__(self, graph={}, jsonFile=None, startTime=None, resourcesTS=None, priorities=None, seed=2506178):
     """
       Constructor
       @ In, graph, dict, dictionary containing the child activities for each activity
       @ In, startTime, datetime, absolute initial time of schedule
       @ In, resourcesTS, dataframe, pandas dataframe containing resources availability
       @ In, priorities, dict, dictionary containing the priority values for each activity
+      @ In, seed, int, integrer value representing the seed for the random elements used in this class
       @ Out, None
     """
     if jsonFile is not None:
@@ -203,7 +208,7 @@ class Pert:
       self.checkResources()
       self.resourcesTemporalCheck()
       if pd.infer_freq(resourcesTS.index) not in ['h','H']:
-        print("resourcesTS in PERT is set on the wrong index frequency: " + str(pd.infer_freq(resourcesTS.index)) + " instead of h or H")
+        raise ValueError("resourcesTS in PERT is set on the wrong index frequency: " + str(pd.infer_freq(resourcesTS.index)) + " instead of h or H")
 
     self.backwardDict = {}     # list of in going nodes for every activity
     self.infoDict = {}         # map of details for every activity
@@ -213,7 +218,7 @@ class Pert:
     self.generateInfo()        # entering values into 'infoDict'
 
     # Initialization of the seed used by the random shuffling choice strategy
-    self.seed = 2506178
+    self.seed = seed
     random.seed(self.seed)
 
     for act in self.forwardDict.keys():
@@ -222,10 +227,10 @@ class Pert:
 
   def parseInputFile(self, filename):
     """
-    Parses a JSON file containing activity definitions and dependencies.
-    Validates unique activity IDs, instantiates Activity objects, and builds the graph.
-    Returns:
-        graph: dict mapping Activity instance to list of dependent Activity instances
+      Parses a JSON file containing activity definitions and dependencies.
+      Validates unique activity IDs, instantiates Activity objects, and builds the graph.
+      @ In, filename, string, name of json file 
+      @ Out, graph, dict mapping activity instances and their depedencies
     """
     with open(filename, 'r') as f:
       data = json.load(f)
@@ -753,7 +758,7 @@ class Pert:
   def convertListOfActToSymbolic(self, activitiesList):
     """
       Method designed to convert a list of activities into a list activity names
-      @ In, activities_list, list, list of activities instances
+      @ In, activitiesList, list, list of activities instances
       @ Out, symbList, list, list of strings (i.e., activity names)
     """
     symbList = []
@@ -767,25 +772,27 @@ class Pert:
       for debugging purposes
       @ In, candidateActivities, dict, dictionary of candidate activities in the form:
                                        {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
+      @ In, time_index, datetime, current time step in the analysis
+      @ In, selectedActivities, dict, dictionary of candidate activities in the form presented above
       @ Out, None
     """
-    print('----------------')
-    print(time_index)
+    logging.info('----------------')
+    logging.info(time_index)
 
     wait = self.convertListOfActToSymbolic(self.wait)
-    print('wait      : ' + str(wait))
+    logging.info('wait      : ' + str(wait))
 
     candidates = self.convertListOfActToSymbolic(candidateActivities)
-    print('candidates: ' + str(candidates))
+    logging.info('candidates: ' + str(candidates))
 
     selected = self.convertListOfActToSymbolic(selectedActivities)
-    print('selected  : ' + str(selected))
+    logging.info('selected  : ' + str(selected))
 
     ongoing = self.convertListOfActToSymbolic(self.ongoing)
-    print('ongoing   : ' + str(ongoing))
+    logging.info('ongoing   : ' + str(ongoing))
 
     completed = self.convertListOfActToSymbolic(self.completed)
-    print('completed : ' + str(completed))
+    logging.info('completed : ' + str(completed))
 
     new_elem = pd.DataFrame([[time_index, wait, candidates, selected, ongoing, completed]], columns=self.optStatusDF.columns)
     self.optStatusDF = pd.concat([self.optStatusDF, new_elem], ignore_index=True)
@@ -861,7 +868,7 @@ class Pert:
         self.resetInitialGraph()
         self.generateInfo()
       else:
-        print('no candidates')
+        logging.info('no candidate acitivties has been found')
 
       # Update the self.ongoing and self.completed lists: the activities that are completed at time t
       self.updateOngoingList(time_index)
@@ -881,6 +888,11 @@ class Pert:
       1) select all activities in the wait list that can start at time t=time
       2) assign a weigth value based on the slack
       @ In, time, datetime, current time of project schedule progression
+      @ In, valueAssignment, string, method employ to assign a priority value to every activity 
+                                     that can start at time t=time:
+                                     * TF_based: calcualted throught the weightFunction based 
+                                                 on the activity float value
+                                     * external: provided externally by the the self.priorities var
       @ Out, actReadyToGo, dict, dictionary of activities that can start
     """
     actReadyToGo = {}
@@ -941,7 +953,7 @@ class Pert:
         if outcome:
           selected.append(act)
     elif choice=='MD-Knapsack':
-      if self.priorities is not None:
+      if self.priorities is None:
         MDKmodel = mdkChoiceModel(candidates, self.resources.loc[time_index], 'uniform')
       else:
         MDKmodel = mdkChoiceModel(candidates, self.resources.loc[time_index], 'value_based')
@@ -1007,16 +1019,6 @@ class Pert:
                                   {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
       @ Out, value_dict_sorted.keys(), dict, dictionary of candidate activities sorted by weightFunction
     """
-    #value_dict = {}
-
-    #for act in candidate_dict:
-    #  TF = self.infoDict[act]['slack']
-    #  imp_value = weightFunction(TF)
-    #  value_dict[act] = imp_value
-
-    #value_item_sorted = sorted(value_dict.items(), key=lambda item: item[1], reverse=True)
-    #value_dict_sorted = dict(value_item_sorted)
-
     value_dict_sorted = dict(sorted(candidate_dict.items(), key=lambda item: item[1]['value'], reverse=True))
 
     return value_dict_sorted.keys()
@@ -1043,6 +1045,7 @@ class Pert:
       Method designed to update resources availability based on planned acitivities
       @ In, res_usage, dict, dictionary containing planned resource use. Dictionay format:
                              res_usage = {'res1': np.array, 'res2': np.array, ...}
+      @ In, time, datetime, current date and time value in the analysis process
       @ Out, None
     """
     if res_usage:
@@ -1129,7 +1132,7 @@ class Pert:
   def printSchedule(self, fileName=None):
     """
       Print on file the built project schedule
-      @ In, None
+      @ In, fileName, string, name of the file where schedule info will be printed upon
       @ Out, None
     """
     if fileName is None:
@@ -1162,7 +1165,7 @@ class Pert:
       @ Out, None
     """
     if resID not in self.resources.columns.tolist():
-      print('Specified resource is not part of the predfined set of resources: ' + str(self.resources.columns.tolist()))
+      raise ValueError('Specified resource is not part of the predfined set of resources: ' + str(self.resources.columns.tolist()))
     tin  = self.outageDF['start'].min()
     tfin = self.outageDF['end'].max()
     fig  = px.bar(self.resources[resID], x=self.resources.index, y=resID)
@@ -1307,56 +1310,3 @@ def graphPartitioning(G, plotting=True):
       H.subgraph(c).copy() for c in nx.connected_components(H.to_undirected())
   ]
   return subgraphs, GminusH
-
-
-'''
-# Example of usage of the pert class
-if __name__ == "__main__":
-    start = Activity("start", 5)
-    a = Activity("a", 2)
-    b = Activity("b", 3)
-    c = Activity("c", 3)
-    d = Activity("d", 4)
-    e = Activity("e", 3)
-    f = Activity("f", 6)
-    end = Activity("end", 2)
-    graph = {start: [a, d, f], a: [b], b: [c], c: [end], d: [e], e: [end], f:[end], end:[]}
-
-    print("initialize a graph:")
-    pert = Pert(graph)
-
-    # add activity
-    j = Activity("j", 16)
-    print("add activity to project:")
-    pert.addActivity(j, [start], [end])
-
-    # print activity with str
-    print("print activity:")
-    print(j)
-    print("critical path:")
-    print(pert.getCriticalPath())
-
-    # maximum shorting times
-    print("maximum shorting times:")
-    print(pert.shortenCriticalPath())
-
-    # slack time for each activity
-    print("slack time in descending order:")
-    print(pert.getSlackForEachActivity())
-
-    # sum of slack times
-    print("sum of slack times:")
-    print(pert.getSumOfSlacks())
-
-    # iterate on the nodes with iterator
-    print("iterate over all the activities with iterator:")
-    for activity in iter(pert):
-        print(activity)
-
-    # isolated activities
-    print("isolated activities:")
-    print(pert.findIsolated())
-    # print pert
-    print("print pert:")
-    print(pert)
-'''
