@@ -1,0 +1,354 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Introduction &mdash; LOGOS 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=8d563738"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Overview of Capital Budgeting Modeling Components" href="include/ModelingComponents.html" />
+    <link rel="prev" title="LOGOS documentation" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            LOGOS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#acquiring-and-installing-logos">Acquiring and Installing LOGOS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#user-manual-formats">User Manual Formats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#components-of-logos">Components of LOGOS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#capabilities-of-logos">Capabilities of LOGOS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#related-publications">Related Publications</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="include/ModelingComponents.html">Overview of Capital Budgeting Modeling Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="include/DeterministicCapitalBudgeting.html">Deterministic Capital Budgeting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="include/StochasticCapitalBudgeting.html">Prioritizing Project Selection to Hedge Against Uncertainty</a></li>
+<li class="toctree-l1"><a class="reference internal" href="include/DRO.html">Distributionally Robust Optimization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="include/CVaR.html">Risk-Based Stochastic Capital Budgeting using Conditional Value-at-Risk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="include/rcpsp.html">Resource-Constrained Project Scheduling Problem (RCPSP)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="include/PluginForRavenCode.html">Plugin for the RAVEN Code</a></li>
+<li class="toctree-l1"><a class="reference internal" href="include/CashflowAndNPVModels.html">SSC Cashflow and NPV Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="include/Knapsack.html">Knapsack Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="include/CPM.html">Critical Path Model (CPM)</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">LOGOS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Introduction</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/Introduction.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="introduction">
+<h1>Introduction<a class="headerlink" href="#introduction" title="Link to this heading"></a></h1>
+<p id="sec-introduction">Industry equipment reliability (ER) and asset management (AM) programs
+are essential elements that help ensure the safe and economical
+operation of nuclear power plants (NPPs). The effectiveness of these
+programs is addressed in several industry-developed and regulatory
+programs. However, these programs have proven labor-intensive and
+expensive. There is an opportunity to significantly enhance the
+collection, analysis, and use of this information in order to provide
+more cost-effective plant operation.</p>
+<p>LOGOS provides computational capabilities to optimize plant resources,
+such as maintenance optimization (ER application) and optimal component
+replacement schedules (AM application), by using state-of-the-art
+discrete optimization methods.</p>
+<p>LOGOS is a software package and RAVEN <span id="id1">[<a class="reference internal" href="index.html#id2" title="C. Rabiti, A. Alfonsi, J. Cogliati, D. Mandelli, R. Kinoshita, S. Sen, C. Wang, and J. Chen. RAVEN User Manual. Technical Report INL/EXT-15-34123, Idaho National Laboratory, March 2017.">1</a>, <a class="reference internal" href="index.html#id3" title="A. Alfonsi, C. Rabiti, D. Mandelli, J. Cogliati, C. Wang, P. W. Talbot, D. P. Maljovec, and C. Smith. RAVEN Theory Manual and User Guide. Technical Report, Idaho National Laboratory, 2017.">2</a>]</span>
+plugin that contains a set of discrete optimization models designed to
+solve capital budgeting optimization problems by integrating economic
+and reliability data into the analysis framework. More specifically,
+given system, structure and component (SSC) health (e.g., failure rate
+or probability), O&amp;M costs, replacement costs, and cost associated with
+component failure and budget constraints, LOGOS provides the optimal
+set of projects (e.g., SSC replacement) to maximize profit and satisfy
+the provided reliability requirements.</p>
+<p>The aforementioned input data can be either deterministic or stochastic
+in nature (i.e., they can be point values or probability distribution
+functions). In the latter case, several scenarios are generated by
+sampling the provided distributions.</p>
+<p>The developed models are based on different versions of the knapsack
+optimization problem. Two main classes of optimization models were
+initially developed: deterministic and stochastic. Stochastic
+optimization models evolve deterministic models by explicitly
+considering data uncertainties associated with constraints or item cost
+and reward. In FY-20, we moved forward by implementing two schedule
+optimization methods. The first one reformulates the capital budgeting
+problem in a distributionally robust form, which allows the user to
+rely on data directly rather than proposing a distribution from the
+data itself. The second one reformulates the capital budgeting
+explicitly using risk measures as quantities to be maximized or
+minimized.</p>
+<p>These models can be employed as stand-alone models or interfaced with
+the INL-developed RAVEN code to propagate data uncertainties and
+analyze the generated data (e.g., sensitivity analysis).</p>
+<section id="acquiring-and-installing-logos">
+<h2>Acquiring and Installing LOGOS<a class="headerlink" href="#acquiring-and-installing-logos" title="Link to this heading"></a></h2>
+<p>LOGOS is supported on three separate computing platforms: Linux, macOS
+(OSX, Apple Macintosh), and Microsoft Windows. Currently, LOGOS can be
+downloaded from the LOGOS GitHub repository:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/idaholab/LOGOS">https://github.com/idaholab/LOGOS</a></p></li>
+</ul>
+<p>New users should contact LOGOS developers to get started with LOGOS.
+This typically involves the following steps:</p>
+<ul>
+<li><p><em>Install Miniconda</em>
+you can install Miniconda from <a class="reference external" href="https://conda.io/miniconda.html">https://conda.io/miniconda.html</a></p></li>
+<li><p><em>Download LOGOS</em>
+You can download the source code for LOGOS from <a class="reference external" href="https://github.com/idaholab/LOGOS">https://github.com/idaholab/LOGOS</a></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/idaholab/LOGOS.git
+</pre></div>
+</div>
+<p>or</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:idaholab/LOGOS.git
+</pre></div>
+</div>
+</li>
+<li><p><em>Install LOGOS dependencies</em>
+Identify your conda location, and provide the correct path of miniconda3/etc/profile.d/conda.sh
+to –conda-defs.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>path/to/LOGOS/build.sh<span class="w"> </span>--install<span class="w"> </span>--conda-defs<span class="w"> </span>path/to/miniconda3/etc/profile.d/conda.sh
+</pre></div>
+</div>
+</li>
+<li><p><em>Activate LOGOS Libraries</em></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>activate<span class="w"> </span>LOGOS_libraries
+</pre></div>
+</div>
+</li>
+<li><p><em>Test LOGOS</em></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>run_tests.py
+</pre></div>
+</div>
+<p>Alternatively, the <code class="code docutils literal notranslate"><span class="pre">logos</span></code> script contained in the
+<code class="code docutils literal notranslate"><span class="pre">LOGOS</span></code> folder can be used directly:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>path/to/LOGOS/logos<span class="w"> </span>-i<span class="w"> </span>&lt;inputFile.xml&gt;<span class="w"> </span>-o<span class="w"> </span>&lt;outputFile.csv&gt;
+</pre></div>
+</div>
+</li>
+<li><p><em>For use as a RAVEN Plugin</em>
+RAVEN must first be downloaded from</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/idaholab/raven.git">https://github.com/idaholab/raven.git</a></p></li>
+</ul>
+<p>Detailed instructions are available from</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/idaholab/raven/wiki">https://github.com/idaholab/raven/wiki</a></p></li>
+</ul>
+<p>To register a plugin with RAVEN and make its components accessible,
+run the script:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>raven/scripts/install_plugins.py<span class="w"> </span>-s<span class="w"> </span>/abs/path/to/LOGOS
+</pre></div>
+</div>
+<p>After plugin registration, follow the installation instructions at</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/idaholab/raven/wiki/installationMain">https://github.com/idaholab/raven/wiki/installationMain</a></p></li>
+</ul>
+<p>to install the required dependencies.</p>
+</li>
+</ul>
+</section>
+<section id="user-manual-formats">
+<h2>User Manual Formats<a class="headerlink" href="#user-manual-formats" title="Link to this heading"></a></h2>
+<p>In this manual, we employ the following formats to highlight specific
+elements with particular meanings (i.e., input structure, examples, and
+terminal commands):</p>
+<ul>
+<li><p><strong>Python coding</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">AClass</span><span class="p">():</span>
+  <span class="k">def</span><span class="w"> </span><span class="nf">aMethodImplementation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">pass</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>LOGOS XML input example</strong></p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;MainXMLBlock&gt;</span>
+<span class="w">  </span>...
+<span class="w">  </span><span class="nt">&lt;aXMLnode</span><span class="w"> </span><span class="na">anAttribute=</span><span class="s">&quot;aValue&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span><span class="nt">&lt;aSubNode&gt;</span>body<span class="nt">&lt;/aSubNode&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/aXMLnode&gt;</span>
+<span class="w">  </span><span class="cm">&lt;!-- This is a commented block --&gt;</span>
+<span class="w">  </span>...
+<span class="nt">&lt;/MainXMLBlock&gt;</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Bash commands</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>path/to/LOGOS/
+./build.sh<span class="w"> </span>--install
+<span class="nb">cd</span><span class="w"> </span>../../
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
+<section id="components-of-logos">
+<h2>Components of LOGOS<a class="headerlink" href="#components-of-logos" title="Link to this heading"></a></h2>
+<p>In LOGOS, eXtensible Markup Language (XML) format is used to create the
+input file. For more information about XML, see the tutorial at:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://www.w3schools.com/xml/default.asp">https://www.w3schools.com/xml/default.asp</a></p></li>
+</ul>
+<p>The main input blocks are as follows:</p>
+<ul>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;Logos&gt;</span></code>
+The root node containing the entire input; all subsequent blocks
+must be defined inside the <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Logos&gt;</span></code> block.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;Settings&gt;</span></code>
+Specifies the calculation settings (i.e., options for optimization
+solvers, options for constraints, and working directory).</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code>
+Specifies a collection of data, possibly including numeric data
+(e.g., real or integer values) as well as symbolic data (e.g.,
+strings), typically used to specify valid indices for indexed
+components.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Numeric data provided in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code> are treated as
+strings.</p>
+</div>
+</li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;Parameters&gt;</span></code>
+Specifies a collection of parameters, which are numerical values used
+to formulate constraints and objectives in an optimization model. A
+parameter can denote a single value, an array of values, or a
+multi-dimensional array of values.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;Uncertainties&gt;</span></code>
+Specifies a collection of scenarios, which are numerical values used
+to simulate variations within parameters. A scenario block should
+follow the same structure and indexing as the corresponding
+parameter.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;ExternalConstraints&gt;</span></code>
+Specifies a collection of external constraints, which are Python
+functions used to add additional constraints to the current
+optimization problem.</p></li>
+</ul>
+<p>Each of these components is explained in dedicated sections of this
+user manual.</p>
+</section>
+<section id="capabilities-of-logos">
+<h2>Capabilities of LOGOS<a class="headerlink" href="#capabilities-of-logos" title="Link to this heading"></a></h2>
+<p>This document provides a detailed description of LOGOS. The features
+currently included in LOGOS are:</p>
+<ul class="simple">
+<li><p>Overview of modeling components
+(see <a class="reference internal" href="include/ModelingComponents.html#sec-modelingcomponents"><span class="std std-ref">Overview of Capital Budgeting Modeling Components</span></a>)</p></li>
+<li><p>Deterministic capital budgeting
+(see <a class="reference internal" href="include/DeterministicCapitalBudgeting.html#sec-deterministiccapitalbudgeting"><span class="std std-ref">Deterministic Capital Budgeting</span></a>)</p></li>
+<li><p>Prioritizing project selection to hedge against uncertainty
+(see <a class="reference internal" href="include/StochasticCapitalBudgeting.html#sec-stochasticcapitalbudgeting"><span class="std std-ref">Prioritizing Project Selection to Hedge Against Uncertainty</span></a>)</p></li>
+<li><p>Distributionally robust optimization
+(see <a class="reference internal" href="include/DRO.html#sec-drocapitalbudgeting"><span class="std std-ref">Distributionally Robust Optimization</span></a>)</p></li>
+<li><p>Risk-based stochastic capital budgeting using conditional
+Value-at-Risk (CVaR)
+(see <a class="reference internal" href="include/CVaR.html#sec-cvar"><span class="std std-ref">Risk-Based Stochastic Capital Budgeting using Conditional Value-at-Risk</span></a>)</p></li>
+<li><p>Plugin for the RAVEN code
+(see <a class="reference internal" href="include/PluginForRavenCode.html#sec-ravenplugin"><span class="std std-ref">Plugin for the RAVEN Code</span></a>)</p></li>
+<li><p>SSC cashflow and NPV models
+(see <a class="reference internal" href="include/CashflowAndNPVModels.html#sec-sscnpv"><span class="std std-ref">SSC Cashflow and NPV Models</span></a>)</p></li>
+</ul>
+</section>
+<section id="related-publications">
+<h2>Related Publications<a class="headerlink" href="#related-publications" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Mandelli, D., C. Wang, M. Abdo, K. Vedros, J. Cogliati, J. Farber, A. Al Rashdan, et al.
+<em>Industry Use Cases for Risk-Informed System Health and Asset Management.</em> (2021).</p></li>
+<li><p>Wang, Congjian, Diego Mandelli, Shawn St Germain, Curtis Smith, David Morton, Ivilina Popova,
+and Stephen Hess.
+<em>Stochastic optimization for long term capital structures, systems, and components refurbishment
+and replacement.</em> In <strong>ASME Power Conference</strong>, vol. 83747, p. V001T06A001.
+American Society of Mechanical Engineers, 2020.</p></li>
+<li><p>Wang, Congjian, Diego Mandelli, Ivilina Popova, Stephen Hess, Shawn W. St Germain, and
+Curtis L. Smith.
+<em>Stochastic analysis for long term capital structures, systems, and components refurbishment
+and replacement.</em> No. INL/CON-20-57013-Rev001. Idaho National Laboratory (INL),
+Idaho Falls, ID (United States), 2020.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="LOGOS documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="include/ModelingComponents.html" class="btn btn-neutral float-right" title="Overview of Capital Budgeting Modeling Components" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Copyright 2020, Battelle Energy Alliance, LLC ALL RIGHTS RESERVED.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

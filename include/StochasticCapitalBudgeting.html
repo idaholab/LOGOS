@@ -1,0 +1,787 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prioritizing Project Selection to Hedge Against Uncertainty &mdash; LOGOS 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Distributionally Robust Optimization" href="DRO.html" />
+    <link rel="prev" title="Deterministic Capital Budgeting" href="DeterministicCapitalBudgeting.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LOGOS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../Introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ModelingComponents.html">Overview of Capital Budgeting Modeling Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DeterministicCapitalBudgeting.html">Deterministic Capital Budgeting</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Prioritizing Project Selection to Hedge Against Uncertainty</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#notation-and-formulation">Notation and formulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#indices-and-sets">Indices and sets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#data">Data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#decision-variables">Decision variables</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#risk-informed-single-knapsack-problem-optimization">Risk-Informed Single Knapsack Problem Optimization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#risk-informed-simple-knapsack-problem">Risk-Informed Simple Knapsack Problem</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#formulation">Formulation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#example-logos-input-xml">Example LOGOS input XML</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#example-logos-output-csv">Example LOGOS output CSV</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#risk-informed-multi-dimensional-knapsack-problem">Risk-Informed Multi-Dimensional Knapsack Problem</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id2">Formulation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id3">Example LOGOS input XML</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id4">Example LOGOS output CSV</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#risk-informed-multiple-knapsack-problem-optimization">Risk-Informed Multiple Knapsack Problem Optimization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#model-formulation">Model formulation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#objective-and-priority-consistency">Objective and priority consistency</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#budget-and-unit-selection-constraints">Budget and unit selection constraints</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id5">Example LOGOS input XML</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id6">Example LOGOS output CSV</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#risk-informed-multiple-choice-multi-dimensional-knapsack-problem-optimization">Risk-Informed Multiple-Choice Multi-Dimensional Knapsack Problem Optimization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id7">Model formulation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id8">Objective and priority consistency</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#budget-and-option-constraints">Budget and option constraints</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id9">Example LOGOS input XML</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id10">Example LOGOS output CSV</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="DRO.html">Distributionally Robust Optimization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CVaR.html">Risk-Based Stochastic Capital Budgeting using Conditional Value-at-Risk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rcpsp.html">Resource-Constrained Project Scheduling Problem (RCPSP)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="PluginForRavenCode.html">Plugin for the RAVEN Code</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CashflowAndNPVModels.html">SSC Cashflow and NPV Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Knapsack.html">Knapsack Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CPM.html">Critical Path Model (CPM)</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LOGOS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Prioritizing Project Selection to Hedge Against Uncertainty</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/include/StochasticCapitalBudgeting.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="prioritizing-project-selection-to-hedge-against-uncertainty">
+<span id="sec-stochasticcapitalbudgeting"></span><h1>Prioritizing Project Selection to Hedge Against Uncertainty<a class="headerlink" href="#prioritizing-project-selection-to-hedge-against-uncertainty" title="Link to this heading"></a></h1>
+<p>One limitation of traditional optimization models for capital budgeting
+is that they do not account for risk and uncertainty in profit and cost
+streams associated with individual projects, nor do they account for
+risk in resource availability in future years. Projects can incur cost
+overruns, especially when projects are large, performed infrequently, or
+when there is risk regarding technical viability, external contractors,
+and/or suppliers of requisite parts and materials. Occasionally,
+projects are performed ahead of schedule and with savings in cost.
+Planned budgets for capital improvements can be cut, and key personnel
+may be lost. Or, there may be surprise budgetary windfalls for
+maintenance activities due to decreased costs for “unplanned”
+maintenance.</p>
+<p>In such cases, how should we resolve capital budgeting when we have risk
+forecasts for costs, profits, and budgets? One approach is to re-solve
+the models described in the previous section once refined forecasts for
+these parameters become available. However, it is not always practical
+to fully revise a project portfolio whenever better forecasts become
+available.</p>
+<p>To prioritize project selection using a risk forecast for these
+parameters, a two-stage stochastic optimization model
+<span id="id1">[<a class="reference internal" href="../index.html#id4" title="A. Koç, D. P. Morton, E. Popova, S. M. Hess, E. Kee, and D. Richards. Prioritizing project selection. The Engineering Economist, 54(4):267–297, 2009.">3</a>]</span> is employed to provide priority
+lists to decision-makers and support better risk-informed decisions.
+Its inputs include those described in the previous sections for
+different variants of the capital budgeting problem, except that a
+probabilistic description of the uncertain parameters is integrated into
+the optimization process.</p>
+<p>The two-stage stochastic optimization model forms a priority list as its
+first-stage decision, then forms a corresponding project portfolio for
+each scenario as its second-stage decision. When forming the optimal
+second-stage project portfolio under a specific scenario, the model
+ensures that the portfolio is consistent with the first-stage
+prioritization (i.e., a project can be selected only if all
+higher-priority projects are also selected). Thus, the portfolios of
+projects corresponding to different scenarios are nested.</p>
+<section id="notation-and-formulation">
+<h2>Notation and formulation<a class="headerlink" href="#notation-and-formulation" title="Link to this heading"></a></h2>
+<section id="indices-and-sets">
+<h3>Indices and sets<a class="headerlink" href="#indices-and-sets" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><span class="math">t \in T</span>:
+time periods (years).</p></li>
+<li><p><span class="math">i, i' \in I</span>:
+candidate projects.</p></li>
+<li><p><span class="math">j \in J_i</span>:
+options for selecting project <span class="math">i</span>.</p></li>
+<li><p><span class="math">k \in K</span>:
+types of resources.</p></li>
+<li><p><span class="math">m \in M</span>:
+units of the nuclear power plant (NPP).</p></li>
+<li><p><span class="math">\omega \in \Omega</span>:
+scenarios.</p></li>
+</ul>
+</section>
+<section id="data">
+<h3>Data<a class="headerlink" href="#data" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><span class="math">a_i^\omega</span>:
+reward for selecting project <span class="math">i</span> under scenario <span class="math">\omega</span>.</p></li>
+<li><p><span class="math">a_{ij}^\omega</span>:
+reward for selecting project <span class="math">i</span> via option <span class="math">j</span>
+under scenario <span class="math">\omega</span>.</p></li>
+<li><p><span class="math">b^\omega</span>:
+available budget under scenario <span class="math">\omega</span>.</p></li>
+<li><p><span class="math">b_k^\omega</span>:
+available budget for a resource of type <span class="math">k</span> under scenario
+<span class="math">\omega</span>.</p></li>
+<li><p><span class="math">b_t^\omega</span>:
+available budget in year <span class="math">t</span> under scenario <span class="math">\omega</span>.</p></li>
+<li><p><span class="math">b_m^\omega</span>:
+available budget for unit <span class="math">m</span> under scenario <span class="math">\omega</span>.</p></li>
+<li><p><span class="math">b_{kt}^\omega</span>:
+available budget for a resource of type <span class="math">k</span> in year <span class="math">t</span>
+under scenario <span class="math">\omega</span>.</p></li>
+<li><p><span class="math">c_i^\omega</span>:
+cost of investment <span class="math">i</span> under scenario <span class="math">\omega</span>.</p></li>
+<li><p><span class="math">c_{ik}^\omega</span>:
+consumption of resource of type <span class="math">k</span> if project <span class="math">i</span> is
+selected under scenario <span class="math">\omega</span>.</p></li>
+<li><p><span class="math">c_{ijt}^\omega</span>:
+consumption of resources in year <span class="math">t</span> if project <span class="math">i</span> is
+performed via option <span class="math">j</span> under scenario <span class="math">\omega</span>.</p></li>
+<li><p><span class="math">c_{ijkt}^\omega</span>:
+consumption of resource of type <span class="math">k</span> in year <span class="math">t</span> if
+project <span class="math">i</span> is performed via option <span class="math">j</span> under scenario
+<span class="math">\omega</span>.</p></li>
+<li><p><span class="math">q^\omega</span>:
+probability of scenario <span class="math">\omega</span>.</p></li>
+</ul>
+</section>
+<section id="decision-variables">
+<h3>Decision variables<a class="headerlink" href="#decision-variables" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><span class="math">x_i^\omega</span>:
+equals 1 if project <span class="math">i</span> is selected under scenario <span class="math">\omega</span>;
+0 otherwise.</p></li>
+<li><p><span class="math">x_{im}^\omega</span>:
+equals 1 if project <span class="math">i</span> is selected for unit <span class="math">m</span> under
+scenario <span class="math">\omega</span>; 0 otherwise.</p></li>
+<li><p><span class="math">x_{ij}^\omega</span>:
+equals 1 if project <span class="math">i</span> is selected via option <span class="math">j</span> under
+scenario <span class="math">\omega</span>; 0 otherwise.</p></li>
+<li><p><span class="math">y_{ii'}</span>:
+equals 1 if project <span class="math">i</span> has no lower priority than project
+<span class="math">i'</span>; 0 otherwise.</p></li>
+</ul>
+</section>
+</section>
+<section id="risk-informed-single-knapsack-problem-optimization">
+<span id="subsec-riskp"></span><h2>Risk-Informed Single Knapsack Problem Optimization<a class="headerlink" href="#risk-informed-single-knapsack-problem-optimization" title="Link to this heading"></a></h2>
+<section id="risk-informed-simple-knapsack-problem">
+<h3>Risk-Informed Simple Knapsack Problem<a class="headerlink" href="#risk-informed-simple-knapsack-problem" title="Link to this heading"></a></h3>
+<section id="formulation">
+<h4>Formulation<a class="headerlink" href="#formulation" title="Link to this heading"></a></h4>
+<div class="math" id="equation-risimplekp">
+<p><span class="eqno">(12)<a class="headerlink" href="#equation-risimplekp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\max_{x} \quad
+&amp; \sum_{\omega \in \Omega} q^\omega \sum_{i \in I} a_i^\omega x_i^\omega \\
+\text{s.t.} \quad
+&amp; \sum_{i \in I} c_i^\omega x_i^\omega \le b^\omega,
+  &amp;&amp; \forall \omega \in \Omega, \\
+&amp; y_{ii'} + y_{i'i} \ge 1,
+  &amp;&amp; i &lt; i', \\
+&amp; x_i^\omega \ge x_{i'}^\omega + y_{ii'} - 1,
+  &amp;&amp; i \ne i',\ \forall \omega \in \Omega.
+\end{aligned}</span></p>
+</div><p>For simplicity in what follows, the variable <span class="math">y_{ii'} = 1</span> means
+that project <span class="math">i</span> is of higher priority than <span class="math">i'</span>, even
+though the variable definition allows for ties (i.e., projects of the
+same priority).</p>
+<ul class="simple">
+<li><p>Constraint <a class="reference internal" href="#equation-risimplekp">Eq. 12</a> (budget constraint) requires the solution
+to be within budget under each scenario.</p></li>
+<li><p>Constraint <span class="math">y_{ii'} + y_{i'i} \ge 1</span> indicates that either
+project <span class="math">i</span> is of higher priority than project <span class="math">i'</span>, or
+vice versa, or that both are of equal priority (i.e., a tie).</p></li>
+<li><p>Constraint <span class="math">x_i^\omega \ge x_{i'}^\omega + y_{ii'} - 1</span>
+indicates that if project <span class="math">i</span> is of higher priority than project
+<span class="math">i'</span> (<span class="math">y_{ii'} = 1</span>) and we select the lower priority
+project, then we must also select the higher priority project. If
+<span class="math">y_{ii'} = 0</span>, or if <span class="math">x_{i'}^\omega = 0</span>, then the
+constraint is vacuous.</p></li>
+</ul>
+<p>In order to handle risk in the capital budgeting problems, the entity
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;Uncertainties&gt;</span></code>
+(see <a class="reference internal" href="ModelingComponents.html#subsec-uncertainties"><span class="std std-ref">Uncertainties</span></a>) is used to specify different scenarios
+of input parameters.</p>
+</section>
+<section id="example-logos-input-xml">
+<h4>Example LOGOS input XML<a class="headerlink" href="#example-logos-input-xml" title="Link to this heading"></a></h4>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
+<span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
+<span class="w">    </span><span class="nt">&lt;investments&gt;</span>
+<span class="w">      </span>1,2,3,4,5,6,7,8,9,10
+<span class="w">    </span><span class="nt">&lt;/investments&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Sets&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Parameters&gt;</span>
+<span class="w">    </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>18,20,17,19,25,21,27,23,25,24
+<span class="w">    </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">    </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>1,3,7,4,8,9,6,10,2,5
+<span class="w">    </span><span class="nt">&lt;/costs&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals&gt;</span>
+<span class="w">      </span>15
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Parameters&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Uncertainties&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals&gt;</span>
+<span class="w">      </span><span class="nt">&lt;totalScenarios&gt;</span>10<span class="nt">&lt;/totalScenarios&gt;</span>
+<span class="w">      </span><span class="nt">&lt;probabilities&gt;</span>
+<span class="w">        </span>0.012,<span class="w"> </span>0.019,<span class="w"> </span>0.032,<span class="w"> </span>0.052,<span class="w"> </span>0.086,
+<span class="w">        </span>0.142,<span class="w"> </span>0.235,<span class="w"> </span>0.188,<span class="w"> </span>0.141,<span class="w"> </span>0.093
+<span class="w">      </span><span class="nt">&lt;/probabilities&gt;</span>
+<span class="w">      </span><span class="nt">&lt;scenarios&gt;</span>
+<span class="w">        </span>11,<span class="w"> </span>12,<span class="w"> </span>13,<span class="w"> </span>14,<span class="w"> </span>15,<span class="w"> </span>16,<span class="w"> </span>17,<span class="w"> </span>18,<span class="w"> </span>19,<span class="w"> </span>20
+<span class="w">      </span><span class="nt">&lt;/scenarios&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">    </span><span class="nt">&lt;net_present_values&gt;</span>
+<span class="w">      </span><span class="nt">&lt;totalScenarios&gt;</span>2<span class="nt">&lt;/totalScenarios&gt;</span>
+<span class="w">      </span><span class="nt">&lt;probabilities&gt;</span>
+<span class="w">        </span>0.3,<span class="w"> </span>0.7
+<span class="w">      </span><span class="nt">&lt;/probabilities&gt;</span>
+<span class="w">      </span><span class="nt">&lt;scenarios&gt;</span>
+<span class="w">        </span>18,20,17,19,25,21,27,23,25,24,
+<span class="w">        </span>18,20,17,19,25,21,27,23,25,24
+<span class="w">      </span><span class="nt">&lt;/scenarios&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Uncertainties&gt;</span>
+<span class="w">  </span>...
+<span class="nt">&lt;/Logos&gt;</span>
+</pre></div>
+</div>
+<p>When running this case, LOGOS generates a CSV (comma-separated values)
+file containing solutions for the optimization problem (i.e., values of
+decision variables and the maximum profit; <code class="code docutils literal notranslate"><span class="pre">MaxNPV</span></code> is used to
+describe the maximum profit). The header of this CSV file contains the
+indices listed under <code class="xml-node docutils literal notranslate"><span class="pre">&lt;investments&gt;</span></code>, used as indices for the
+decision variables, the objective variable <code class="code docutils literal notranslate"><span class="pre">MaxNPV</span></code>, the scenario
+name, and the associated probability weight. The data provides the
+values for both decision variables and the objective variable.</p>
+</section>
+<section id="example-logos-output-csv">
+<h4>Example LOGOS output CSV<a class="headerlink" href="#example-logos-output-csv" title="Link to this heading"></a></h4>
+<div class="literal-block-wrapper docutils container" id="id11">
+<div class="code-block-caption"><span class="caption-number">Listing 1 </span><span class="caption-text">Example output for risk-informed simple knapsack</span><a class="headerlink" href="#id11" title="Link to this code"></a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="mi">1</span><span class="p">,</span><span class="mi">10</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">7</span><span class="p">,</span><span class="mi">8</span><span class="p">,</span><span class="mi">9</span><span class="p">,</span><span class="n">ScenarioName</span><span class="p">,</span><span class="n">ProbabilityWeight</span><span class="p">,</span><span class="n">MaxNPV</span>
+<span class="linenos">2</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="n">scenario_1</span><span class="p">,</span><span class="mf">0.0036</span><span class="p">,</span><span class="mf">70.0</span>
+<span class="linenos">3</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="n">scenario_6</span><span class="p">,</span><span class="mf">0.0224</span><span class="p">,</span><span class="mf">70.0</span>
+<span class="linenos">4</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="n">scenario_5</span><span class="p">,</span><span class="mf">0.0096</span><span class="p">,</span><span class="mf">70.0</span>
+<span class="linenos">5</span><span class="o">...</span>
+<span class="linenos">6</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="n">scenario_18</span><span class="p">,</span><span class="mf">0.0987</span><span class="p">,</span><span class="mf">114.0</span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+<section id="risk-informed-multi-dimensional-knapsack-problem">
+<h3>Risk-Informed Multi-Dimensional Knapsack Problem<a class="headerlink" href="#risk-informed-multi-dimensional-knapsack-problem" title="Link to this heading"></a></h3>
+<section id="id2">
+<h4>Formulation<a class="headerlink" href="#id2" title="Link to this heading"></a></h4>
+<div class="math" id="equation-rimultidkp">
+<p><span class="eqno">(13)<a class="headerlink" href="#equation-rimultidkp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\max_{x} \quad
+&amp; \sum_{\omega \in \Omega} q^\omega \sum_{i \in I} a_i^\omega x_i^\omega \\
+\text{s.t.} \quad
+&amp; \sum_{i \in I} c_{it}^\omega x_i^\omega \le b_t^\omega,
+  &amp;&amp; t \in T,\ \forall \omega \in \Omega, \\
+&amp; y_{ii'} + y_{i'i} \ge 1,
+  &amp;&amp; i &lt; i', \\
+&amp; x_i^\omega \ge x_{i'}^\omega + y_{ii'} - 1,
+  &amp;&amp; i \ne i',\ \forall \omega \in \Omega.
+\end{aligned}</span></p>
+</div></section>
+<section id="id3">
+<h4>Example LOGOS input XML<a class="headerlink" href="#id3" title="Link to this heading"></a></h4>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
+<span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
+<span class="w">    </span><span class="nt">&lt;investments&gt;</span>
+<span class="w">      </span>1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
+<span class="w">    </span><span class="nt">&lt;/investments&gt;</span>
+<span class="w">    </span><span class="nt">&lt;time_periods&gt;</span>
+<span class="w">      </span>1,2,3,4,5
+<span class="w">    </span><span class="nt">&lt;/time_periods&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Sets&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Parameters&gt;</span>
+<span class="w">    </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>2.315,0.824,22.459,60.589,0.667,5.173,4.003,0.582,0.122,
+<span class="w">      </span>-2.870,-0.102,-0.278,-0.322,-3.996,-0.246,-20.155
+<span class="w">    </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">    </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments, time_periods&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>0.219,0.257,0.085,0.0,0.0,
+<span class="w">      </span>0.0,0.0,0.122,0.103,0.013,
+<span class="w">      </span>5.044,1.839,0.0,0.0,0.0,
+<span class="w">      </span>6.74,6.134,10.442,0.0,0.0,
+<span class="w">      </span>0.425,0.0,0.0,0.0,0.0,
+<span class="w">      </span>2.125,2.122,0.0,0.0,0.0,
+<span class="w">      </span>2.387,0.19,0.012,2.383,0.192,
+<span class="w">      </span>0.0,0.95,0.0,0.0,0.0,
+<span class="w">      </span>0.03,0.03,0.688,0.0,0.0,
+<span class="w">      </span>0,0.2,0.763,0.739,2.539,
+<span class="w">      </span>0.081,0.032,0,0,0,
+<span class="w">      </span>0.3,0,0,0,0,
+<span class="w">      </span>0.347,0,0,0,0,
+<span class="w">      </span>4.025,0.297,0,0,0,
+<span class="w">      </span>0.095,0.095,0.095,0,0,
+<span class="w">      </span>5.487,5.664,0.5,6.803,6.778
+<span class="w">    </span><span class="nt">&lt;/costs&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;time_periods&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>18,18,18,18,18
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Parameters&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Uncertainties&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals&gt;</span>
+<span class="w">      </span><span class="nt">&lt;totalScenarios&gt;</span>10<span class="nt">&lt;/totalScenarios&gt;</span>
+<span class="w">      </span><span class="nt">&lt;probabilities&gt;</span>
+<span class="w">        </span>0.012,<span class="w"> </span>0.019,<span class="w"> </span>0.032,<span class="w"> </span>0.052,<span class="w"> </span>0.086,
+<span class="w">        </span>0.142,<span class="w"> </span>0.235,<span class="w"> </span>0.188,<span class="w"> </span>0.141,<span class="w"> </span>0.093
+<span class="w">      </span><span class="nt">&lt;/probabilities&gt;</span>
+<span class="w">      </span><span class="cm">&lt;!--</span>
+<span class="cm">        scenarios is ordered by numberScenarios * parametersIndex,</span>
+<span class="cm">        numberScenarios * time_periods = 10 * 5</span>
+<span class="cm">      --&gt;</span>
+<span class="w">      </span><span class="nt">&lt;scenarios&gt;</span>
+<span class="w">        </span>11,<span class="w"> </span>11,<span class="w"> </span>11,<span class="w"> </span>11,<span class="w"> </span>11,
+<span class="w">        </span>12,<span class="w"> </span>12,<span class="w"> </span>12,<span class="w"> </span>12,<span class="w"> </span>12,
+<span class="w">        </span>13,<span class="w"> </span>13,<span class="w"> </span>13,<span class="w"> </span>13,<span class="w"> </span>13,
+<span class="w">        </span>14,<span class="w"> </span>14,<span class="w"> </span>14,<span class="w"> </span>14,<span class="w"> </span>14,
+<span class="w">        </span>15,<span class="w"> </span>15,<span class="w"> </span>15,<span class="w"> </span>15,<span class="w"> </span>15,
+<span class="w">        </span>16,<span class="w"> </span>16,<span class="w"> </span>16,<span class="w"> </span>16,<span class="w"> </span>16,
+<span class="w">        </span>17,<span class="w"> </span>17,<span class="w"> </span>17,<span class="w"> </span>17,<span class="w"> </span>17,
+<span class="w">        </span>18,<span class="w"> </span>18,<span class="w"> </span>18,<span class="w"> </span>18,<span class="w"> </span>18,
+<span class="w">        </span>19,<span class="w"> </span>19,<span class="w"> </span>19,<span class="w"> </span>19,<span class="w"> </span>19,
+<span class="w">        </span>20,<span class="w"> </span>20,<span class="w"> </span>20,<span class="w"> </span>20,<span class="w"> </span>20
+<span class="w">      </span><span class="nt">&lt;/scenarios&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Uncertainties&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Settings&gt;</span>
+<span class="w">    </span><span class="nt">&lt;mandatory&gt;</span>10,11,12,13,14,15,16<span class="nt">&lt;/mandatory&gt;</span>
+<span class="w">    </span><span class="nt">&lt;solver&gt;</span>cbc<span class="nt">&lt;/solver&gt;</span>
+<span class="w">    </span><span class="nt">&lt;sense&gt;</span>maximize<span class="nt">&lt;/sense&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Settings&gt;</span>
+<span class="nt">&lt;/Logos&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="id4">
+<h4>Example LOGOS output CSV<a class="headerlink" href="#id4" title="Link to this heading"></a></h4>
+<div class="literal-block-wrapper docutils container" id="id12">
+<div class="code-block-caption"><span class="caption-number">Listing 2 </span><span class="caption-text">Example output for risk-informed multi-dimensional knapsack</span><a class="headerlink" href="#id12" title="Link to this code"></a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="mi">1</span><span class="p">,</span><span class="mi">10</span><span class="p">,</span><span class="mi">11</span><span class="p">,</span><span class="mi">12</span><span class="p">,</span><span class="mi">13</span><span class="p">,</span><span class="mi">14</span><span class="p">,</span><span class="mi">15</span><span class="p">,</span><span class="mi">16</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">7</span><span class="p">,</span><span class="mi">8</span><span class="p">,</span><span class="mi">9</span><span class="p">,</span><span class="n">ScenarioName</span><span class="p">,</span><span class="n">ProbabilityWeight</span><span class="p">,</span><span class="n">MaxNPV</span>
+<span class="linenos">2</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="n">scenario_1</span><span class="p">,</span><span class="mf">0.012</span><span class="p">,</span><span class="o">-</span><span class="mf">23.581</span>
+<span class="linenos">3</span><span class="o">...</span>
+<span class="linenos">4</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="n">scenario_10</span><span class="p">,</span><span class="mf">0.093</span><span class="p">,</span><span class="mf">42.303</span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+</section>
+<section id="risk-informed-multiple-knapsack-problem-optimization">
+<h2>Risk-Informed Multiple Knapsack Problem Optimization<a class="headerlink" href="#risk-informed-multiple-knapsack-problem-optimization" title="Link to this heading"></a></h2>
+<section id="model-formulation">
+<span id="subsec-rimkp"></span><h3>Model formulation<a class="headerlink" href="#model-formulation" title="Link to this heading"></a></h3>
+<section id="objective-and-priority-consistency">
+<h4>Objective and priority consistency<a class="headerlink" href="#objective-and-priority-consistency" title="Link to this heading"></a></h4>
+<div class="math" id="equation-rimkp-obj">
+<p><span class="eqno">(14)<a class="headerlink" href="#equation-rimkp-obj" title="Link to this equation"></a></span><span class="math">\mathop{\max}_{x,y} \;
+\sum_{\omega \in \Omega} q^\omega
+\sum_{i \in I} \sum_{m \in M} a_i^\omega x_{im}^\omega</span></p>
+</div><p>subject to</p>
+<div class="math" id="equation-rimkp-conb">
+<p><span class="eqno">(15)<a class="headerlink" href="#equation-rimkp-conb" title="Link to this equation"></a></span><span class="math">y_{ii'} + y_{i'i} \ge 1,
+\qquad i &lt; i',\ i,i' \in I,</span></p>
+</div><div class="math" id="equation-rimkp-conc">
+<p><span class="eqno">(16)<a class="headerlink" href="#equation-rimkp-conc" title="Link to this equation"></a></span><span class="math">\sum_{m=1}^M x_{im}^\omega
+\ge \sum_{m=1}^M x_{i'm}^\omega + y_{ii'} - 1,
+\qquad i \ne i',\ i,i' \in I,\ \omega \in \Omega.</span></p>
+</div><p>Constraint <a class="reference internal" href="#equation-rimkp-conb">Eq. 15</a> indicates that either project <span class="math">i</span>
+is of higher priority than project <span class="math">i'</span>, or vice versa, or that
+both are of equal priority (i.e., a tie).</p>
+<p>Constraint <a class="reference internal" href="#equation-rimkp-conc">Eq. 16</a> indicates that if project <span class="math">i</span>
+is higher priority than project <span class="math">i'</span>
+(<span class="math">y_{ii'} = 1</span>), and we select the lower priority project
+<em>for some unit</em>, then we must also select the higher priority project.
+If <span class="math">y_{ii'} = 0</span>, or if
+<span class="math">\sum_{m=1}^{M} x_{i'm}^\omega = 0</span>, then the constraint is
+vacuous.</p>
+</section>
+<section id="budget-and-unit-selection-constraints">
+<h4>Budget and unit selection constraints<a class="headerlink" href="#budget-and-unit-selection-constraints" title="Link to this heading"></a></h4>
+<div class="math" id="equation-rimkp-budget">
+<p><span class="eqno">(17)<a class="headerlink" href="#equation-rimkp-budget" title="Link to this equation"></a></span><span class="math">\sum_{i \in I} c_i^\omega x_{im}^\omega \le b_m^\omega,
+\qquad m \in M,\ \omega \in \Omega,</span></p>
+</div><p>Constraint <a class="reference internal" href="#equation-rimkp-budget">Eq. 17</a> requires that we be within budget for
+each unit under each scenario.</p>
+<div class="math" id="equation-rimkp-oneunit">
+<p><span class="eqno">(18)<a class="headerlink" href="#equation-rimkp-oneunit" title="Link to this equation"></a></span><span class="math">\sum_{m \in M} x_{im}^\omega \le 1,
+\qquad i \in I,\ \omega \in \Omega,</span></p>
+</div><p>Constraint <a class="reference internal" href="#equation-rimkp-oneunit">Eq. 18</a> ensures that each project <span class="math">i</span> is
+selected for at most one unit.</p>
+</section>
+<section id="id5">
+<h4>Example LOGOS input XML<a class="headerlink" href="#id5" title="Link to this heading"></a></h4>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
+<span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
+<span class="w">    </span><span class="nt">&lt;investments&gt;</span>
+<span class="w">      </span>1,2,3,4,5,6,7,8,9,10
+<span class="w">    </span><span class="nt">&lt;/investments&gt;</span>
+<span class="w">    </span><span class="nt">&lt;capitals&gt;</span>
+<span class="w">      </span>unit_1,<span class="w"> </span>unit_2
+<span class="w">    </span><span class="nt">&lt;/capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Sets&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Parameters&gt;</span>
+<span class="w">    </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>78,<span class="w"> </span>35,<span class="w"> </span>89,<span class="w"> </span>36,<span class="w"> </span>94,<span class="w"> </span>75,<span class="w"> </span>74,<span class="w"> </span>79,<span class="w"> </span>80,<span class="w"> </span>16
+<span class="w">    </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">    </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>18,<span class="w"> </span>9,<span class="w"> </span>23,<span class="w"> </span>20,<span class="w"> </span>59,<span class="w"> </span>61,<span class="w"> </span>70,<span class="w"> </span>75,<span class="w"> </span>76,<span class="w"> </span>30
+<span class="w">    </span><span class="nt">&lt;/costs&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;capitals&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>103,<span class="w"> </span>156
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Parameters&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Uncertainties&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals&gt;</span>
+<span class="w">      </span><span class="nt">&lt;totalScenarios&gt;</span>2<span class="nt">&lt;/totalScenarios&gt;</span>
+<span class="w">      </span><span class="nt">&lt;probabilities&gt;</span>
+<span class="w">        </span>0.3<span class="w"> </span>0.7
+<span class="w">      </span><span class="nt">&lt;/probabilities&gt;</span>
+<span class="w">      </span><span class="nt">&lt;scenarios&gt;</span>
+<span class="w">        </span>103,<span class="w"> </span>156,
+<span class="w">        </span>103,<span class="w"> </span>156
+<span class="w">      </span><span class="nt">&lt;/scenarios&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">    </span><span class="nt">&lt;net_present_values&gt;</span>
+<span class="w">      </span><span class="nt">&lt;totalScenarios&gt;</span>2<span class="nt">&lt;/totalScenarios&gt;</span>
+<span class="w">      </span><span class="nt">&lt;probabilities&gt;</span>
+<span class="w">        </span>0.3,<span class="w"> </span>0.7
+<span class="w">      </span><span class="nt">&lt;/probabilities&gt;</span>
+<span class="w">      </span><span class="nt">&lt;scenarios&gt;</span>
+<span class="w">        </span>78,<span class="w"> </span>35,<span class="w"> </span>89,<span class="w"> </span>36,<span class="w"> </span>94,<span class="w"> </span>75,<span class="w"> </span>74,<span class="w"> </span>79,<span class="w"> </span>80,<span class="w"> </span>16,
+<span class="w">        </span>78,<span class="w"> </span>35,<span class="w"> </span>89,<span class="w"> </span>36,<span class="w"> </span>94,<span class="w"> </span>75,<span class="w"> </span>74,<span class="w"> </span>79,<span class="w"> </span>80,<span class="w"> </span>16
+<span class="w">      </span><span class="nt">&lt;/scenarios&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Uncertainties&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Settings&gt;</span>
+<span class="w">    </span><span class="nt">&lt;solver&gt;</span>glpk<span class="nt">&lt;/solver&gt;</span>
+<span class="w">    </span><span class="nt">&lt;sense&gt;</span>maximize<span class="nt">&lt;/sense&gt;</span>
+<span class="w">    </span><span class="nt">&lt;problem_type&gt;</span>MultipleKnapsack<span class="nt">&lt;/problem_type&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Settings&gt;</span>
+<span class="nt">&lt;/Logos&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="id6">
+<h4>Example LOGOS output CSV<a class="headerlink" href="#id6" title="Link to this heading"></a></h4>
+<div class="literal-block-wrapper docutils container" id="id13">
+<div class="code-block-caption"><span class="caption-number">Listing 3 </span><span class="caption-text">Example output for risk-informed multiple knapsack</span><a class="headerlink" href="#id13" title="Link to this code"></a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="s2">&quot;(&#39;1&#39;, &#39;unit_1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;1&#39;, &#39;unit_2&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;10&#39;, &#39;unit_1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;10&#39;, &#39;unit_2&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;2&#39;, &#39;unit_1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;2&#39;, &#39;unit_2&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;3&#39;, &#39;unit_1&#39;)&quot;</span><span class="p">,</span>
+<span class="linenos">2</span><span class="s2">&quot;(&#39;3&#39;, &#39;unit_2&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;4&#39;, &#39;unit_1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;4&#39;, &#39;unit_2&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;5&#39;, &#39;unit_1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;5&#39;, &#39;unit_2&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;6&#39;, &#39;unit_1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;6&#39;, &#39;unit_2&#39;)&quot;</span><span class="p">,</span>
+<span class="linenos">3</span><span class="s2">&quot;(&#39;7&#39;, &#39;unit_1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;7&#39;, &#39;unit_2&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;8&#39;, &#39;unit_1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;8&#39;, &#39;unit_2&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;9&#39;, &#39;unit_1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;9&#39;, &#39;unit_2&#39;)&quot;</span><span class="p">,</span>
+<span class="linenos">4</span><span class="n">ScenarioName</span><span class="p">,</span><span class="n">ProbabilityWeight</span><span class="p">,</span><span class="n">MaxNPV</span>
+<span class="linenos">5</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="n">scenario_1</span><span class="p">,</span><span class="mf">0.09</span><span class="p">,</span><span class="mf">452.0</span>
+<span class="linenos">6</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="n">scenario_2</span><span class="p">,</span><span class="mf">0.21</span><span class="p">,</span><span class="mf">452.0</span>
+<span class="linenos">7</span><span class="o">...</span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+</section>
+<section id="risk-informed-multiple-choice-multi-dimensional-knapsack-problem-optimization">
+<span id="subsec-rimckp"></span><h2>Risk-Informed Multiple-Choice Multi-Dimensional Knapsack Problem Optimization<a class="headerlink" href="#risk-informed-multiple-choice-multi-dimensional-knapsack-problem-optimization" title="Link to this heading"></a></h2>
+<section id="id7">
+<h3>Model formulation<a class="headerlink" href="#id7" title="Link to this heading"></a></h3>
+<section id="id8">
+<h4>Objective and priority consistency<a class="headerlink" href="#id8" title="Link to this heading"></a></h4>
+<div class="math" id="equation-rimckp-obj">
+<p><span class="eqno">(19)<a class="headerlink" href="#equation-rimckp-obj" title="Link to this equation"></a></span><span class="math">\mathop{\max}_{x,y} \;
+\sum_{\omega \in \Omega} q^\omega
+\sum_{i \in I} \sum_{j \in J_i} a_{ij}^\omega x_{ij}^\omega</span></p>
+</div><p>subject to</p>
+<div class="math" id="equation-rimckp-conb">
+<p><span class="eqno">(20)<a class="headerlink" href="#equation-rimckp-conb" title="Link to this equation"></a></span><span class="math">y_{ii'} + y_{i'i} \ge 1,
+\qquad i &lt; i',\ i,i' \in I,</span></p>
+</div><div class="math" id="equation-rimckp-conc">
+<p><span class="eqno">(21)<a class="headerlink" href="#equation-rimckp-conc" title="Link to this equation"></a></span><span class="math">\sum_{j=1}^{J_i} x_{ij}^\omega
+\ge \sum_{j=1}^{J_i} x_{i'j}^\omega + y_{ii'} - 1,
+\qquad i \ne i',\ i,i' \in I,\ \omega \in \Omega.</span></p>
+</div><p>Constraint <a class="reference internal" href="#equation-rimckp-conb">Eq. 20</a> indicates that either project <span class="math">i</span> is
+of higher priority than project <span class="math">i'</span>, or vice versa, or that both
+are of equal priority (i.e., a tie).</p>
+<p>Constraint <a class="reference internal" href="#equation-rimckp-conc">Eq. 21</a> indicates that if project <span class="math">i</span> is
+higher priority than project <span class="math">i'</span>
+(<span class="math">y_{ii'} = 1</span>), and we select the lower priority project <em>under
+some option</em>, then we must also select the higher priority project. If
+<span class="math">y_{ii'} = 0</span>, or if
+<span class="math">\sum_{j=1}^{J_i} x_{i'j}^\omega = 0</span>, then the constraint is
+vacuous.</p>
+</section>
+<section id="budget-and-option-constraints">
+<h4>Budget and option constraints<a class="headerlink" href="#budget-and-option-constraints" title="Link to this heading"></a></h4>
+<div class="math" id="equation-rimckp-budget">
+<p><span class="eqno">(22)<a class="headerlink" href="#equation-rimckp-budget" title="Link to this equation"></a></span><span class="math">\sum_{i \in I} \sum_{j \in J_i} c_{ijkt}^\omega x_{ij}^\omega
+\le b_{kt}^\omega,
+\qquad k \in K,\ t \in T,\ \omega \in \Omega,</span></p>
+</div><p>Constraint <a class="reference internal" href="#equation-rimckp-budget">Eq. 22</a> requires that we be within budget in each
+time period, for each resource type, and under each scenario.</p>
+<div class="math" id="equation-rimckp-oneopt">
+<p><span class="eqno">(23)<a class="headerlink" href="#equation-rimckp-oneopt" title="Link to this equation"></a></span><span class="math">\sum_{j \in J_i} x_{ij}^\omega \le 1,
+\qquad i \in I,\ \omega \in \Omega.</span></p>
+</div><p>Constraint <a class="reference internal" href="#equation-rimckp-oneopt">Eq. 23</a> ensures that we select project <span class="math">i</span>
+via at most one option. This illustrates a situation in which we must
+include the <code class="code docutils literal notranslate"><span class="pre">DoNothing</span></code> option among the alternatives to optional
+projects.</p>
+</section>
+<section id="id9">
+<h4>Example LOGOS input XML<a class="headerlink" href="#id9" title="Link to this heading"></a></h4>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
+<span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
+<span class="w">    </span><span class="nt">&lt;investments&gt;</span>
+<span class="w">      </span>1,<span class="w"> </span>2,<span class="w"> </span>3,<span class="w"> </span>4,<span class="w"> </span>5,<span class="w"> </span>6,<span class="w"> </span>7,<span class="w"> </span>8,<span class="w"> </span>9,<span class="w"> </span>10,
+<span class="w">      </span>11,<span class="w"> </span>12,<span class="w"> </span>13,<span class="w"> </span>14,<span class="w"> </span>15,<span class="w"> </span>16,<span class="w"> </span>17
+<span class="w">    </span><span class="nt">&lt;/investments&gt;</span>
+<span class="w">    </span><span class="nt">&lt;options</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1,2,3;
+<span class="w">      </span>1,2,3,4;
+<span class="w">      </span>1,2,3,4,5,6,7;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1
+<span class="w">    </span><span class="nt">&lt;/options&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Sets&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Parameters&gt;</span>
+<span class="w">    </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;options&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>2.046
+<span class="w">      </span>2.679
+<span class="w">      </span>2.489
+<span class="w">      </span>2.61
+<span class="w">      </span>2.313
+<span class="w">      </span>1.02
+<span class="w">      </span>3.013
+<span class="w">      </span>2.55
+<span class="w">      </span>3.351
+<span class="w">      </span>3.423
+<span class="w">      </span>3.781
+<span class="w">      </span>2.525
+<span class="w">      </span>2.169
+<span class="w">      </span>2.267
+<span class="w">      </span>2.747
+<span class="w">      </span>4.309
+<span class="w">      </span>6.452
+<span class="w">      </span>2.849
+<span class="w">      </span>7.945
+<span class="w">      </span>2.538
+<span class="w">      </span>1.761
+<span class="w">      </span>3.002
+<span class="w">      </span>3.449
+<span class="w">      </span>2.865
+<span class="w">      </span>3.999
+<span class="w">      </span>2.283
+<span class="w">      </span>0.9
+<span class="w">      </span>8.608
+<span class="w">    </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">    </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;options&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>36538462
+<span class="w">      </span>83849038
+<span class="w">      </span>4615385
+<span class="w">      </span>2788461538
+<span class="w">      </span>2692307692
+<span class="w">      </span>5480769231
+<span class="w">      </span>1634615385
+<span class="w">      </span>2981730768
+<span class="w">      </span>7211538462
+<span class="w">      </span>9038461538
+<span class="w">      </span>649038462
+<span class="w">      </span>650000000
+<span class="w">      </span>216346154
+<span class="w">      </span>212500000
+<span class="w">      </span>3076923077
+<span class="w">      </span>3942307692
+<span class="w">      </span>1144230769
+<span class="w">      </span>675721154
+<span class="w">      </span>1442307692
+<span class="w">      </span>99711538
+<span class="w">      </span>4807692
+<span class="w">      </span>123076923
+<span class="w">      </span>138461538
+<span class="w">      </span>86538462
+<span class="w">      </span>108653846
+<span class="w">      </span>75092404
+<span class="w">      </span>6413462
+<span class="w">      </span>147932692
+<span class="w">    </span><span class="nt">&lt;/costs&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals&gt;</span>
+<span class="w">      </span>15E9
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Parameters&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Uncertainties&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals&gt;</span>
+<span class="w">      </span><span class="nt">&lt;totalScenarios&gt;</span>3<span class="nt">&lt;/totalScenarios&gt;</span>
+<span class="w">      </span><span class="nt">&lt;probabilities&gt;</span>
+<span class="w">        </span>0.2,0.6,0.2
+<span class="w">      </span><span class="nt">&lt;/probabilities&gt;</span>
+<span class="w">      </span><span class="nt">&lt;scenarios&gt;</span>
+<span class="w">        </span>5E9,10E9,15E9
+<span class="w">      </span><span class="nt">&lt;/scenarios&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Uncertainties&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Settings&gt;</span>
+<span class="w">    </span><span class="nt">&lt;solver&gt;</span>cbc<span class="nt">&lt;/solver&gt;</span>
+<span class="w">    </span><span class="nt">&lt;solverOptions&gt;</span>
+<span class="w">      </span><span class="nt">&lt;threads&gt;</span>1<span class="nt">&lt;/threads&gt;</span>
+<span class="w">      </span><span class="nt">&lt;StochSolver&gt;</span>EF<span class="nt">&lt;/StochSolver&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/solverOptions&gt;</span>
+<span class="w">    </span><span class="nt">&lt;sense&gt;</span>maximize<span class="nt">&lt;/sense&gt;</span>
+<span class="w">    </span><span class="nt">&lt;problem_type&gt;</span>mckp<span class="nt">&lt;/problem_type&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Settings&gt;</span>
+<span class="nt">&lt;/Logos&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="id10">
+<h4>Example LOGOS output CSV<a class="headerlink" href="#id10" title="Link to this heading"></a></h4>
+<div class="literal-block-wrapper docutils container" id="id14">
+<div class="code-block-caption"><span class="caption-number">Listing 4 </span><span class="caption-text">Example output for risk-informed multiple-choice knapsack</span><a class="headerlink" href="#id14" title="Link to this code"></a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="s2">&quot;(&#39;1&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;10&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;11&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;12&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;13&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;14&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;15&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;16&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span>
+<span class="linenos">2</span><span class="s2">&quot;(&#39;17&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;2&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;3&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;4&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;4&#39;, &#39;2&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;4&#39;, &#39;3&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;5&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;5&#39;, &#39;2&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;5&#39;, &#39;3&#39;)&quot;</span><span class="p">,</span>
+<span class="linenos">3</span><span class="s2">&quot;(&#39;5&#39;, &#39;4&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;6&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;6&#39;, &#39;2&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;6&#39;, &#39;3&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;6&#39;, &#39;4&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;6&#39;, &#39;5&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;6&#39;, &#39;6&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;6&#39;, &#39;7&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;7&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span>
+<span class="linenos">4</span><span class="s2">&quot;(&#39;8&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="s2">&quot;(&#39;9&#39;, &#39;1&#39;)&quot;</span><span class="p">,</span><span class="n">ScenarioName</span><span class="p">,</span><span class="n">ProbabilityWeight</span><span class="p">,</span><span class="n">MaxNPV</span>
+<span class="linenos">5</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="n">scenario_1</span><span class="p">,</span><span class="mf">0.2</span><span class="p">,</span><span class="mf">53.865</span>
+<span class="linenos">6</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="n">scenario_2</span><span class="p">,</span><span class="mf">0.6</span><span class="p">,</span><span class="mf">59.488</span>
+<span class="linenos">7</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="n">scenario_3</span><span class="p">,</span><span class="mf">0.2</span><span class="p">,</span><span class="mf">59.826</span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="DeterministicCapitalBudgeting.html" class="btn btn-neutral float-left" title="Deterministic Capital Budgeting" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="DRO.html" class="btn btn-neutral float-right" title="Distributionally Robust Optimization" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Copyright 2020, Battelle Energy Alliance, LLC ALL RIGHTS RESERVED.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

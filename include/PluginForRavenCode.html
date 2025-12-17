@@ -1,0 +1,295 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plugin for the RAVEN Code &mdash; LOGOS 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="SSC Cashflow and NPV Models" href="CashflowAndNPVModels.html" />
+    <link rel="prev" title="Resource-Constrained Project Scheduling Problem (RCPSP)" href="rcpsp.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LOGOS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../Introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ModelingComponents.html">Overview of Capital Budgeting Modeling Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DeterministicCapitalBudgeting.html">Deterministic Capital Budgeting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="StochasticCapitalBudgeting.html">Prioritizing Project Selection to Hedge Against Uncertainty</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DRO.html">Distributionally Robust Optimization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CVaR.html">Risk-Based Stochastic Capital Budgeting using Conditional Value-at-Risk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rcpsp.html">Resource-Constrained Project Scheduling Problem (RCPSP)</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Plugin for the RAVEN Code</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#test-automation">Test Automation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#testing-system-prerequisites">Testing System Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#test-location-and-definition">Test Location and Definition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#running-the-tests">Running the Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#continuous-integration-system-civet">Continuous Integration System (CIVET)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="CashflowAndNPVModels.html">SSC Cashflow and NPV Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Knapsack.html">Knapsack Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CPM.html">Critical Path Model (CPM)</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LOGOS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Plugin for the RAVEN Code</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/include/PluginForRavenCode.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="plugin-for-the-raven-code">
+<span id="sec-ravenplugin"></span><h1>Plugin for the RAVEN Code<a class="headerlink" href="#plugin-for-the-raven-code" title="Link to this heading"></a></h1>
+<p>The deterministic model can be repeatedly solved by changing the input
+values (i.e., <code class="xml-node docutils literal notranslate"><span class="pre">&lt;available_capitals&gt;</span></code> (corresponding to
+<span class="math">b_{kt}</span>) and <code class="xml-node docutils literal notranslate"><span class="pre">&lt;net_present_values&gt;</span></code> (corresponding to
+<span class="math">a_{ij}</span>)). This allows for what-if sensitivity analysis to
+identify the crucial drivers behind the optimal project selection
+decision. Monte Carlo simulation permits a powerful variant of this
+approach in which we model <span class="math">a_{ij}</span> and <span class="math">b_{kt}</span> as random
+variables, sample from their distributions, and perform a form of
+uncertainty quantification in terms of the resulting distributions
+governing the binary decisions <span class="math">x_{ij}</span> and the overall NPV of
+the selected portfolio.</p>
+<p>Example RAVEN input <code class="xml-node docutils literal notranslate"><span class="pre">&lt;ExternalModel&gt;</span></code> XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Models&gt;</span>
+<span class="w">  </span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;singleKnapsack&quot;</span><span class="w"> </span><span class="na">subType=</span><span class="s">&quot;LOGOS.CapitalInvestmentModel&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span><span class="nt">&lt;variables&gt;</span>available_capitals,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,
+<span class="w">      </span>MaxNPV<span class="nt">&lt;/variables&gt;</span>
+<span class="w">    </span><span class="nt">&lt;ModelData&gt;</span>
+<span class="w">      </span><span class="nt">&lt;Sets&gt;</span>
+<span class="w">        </span><span class="nt">&lt;investments&gt;</span>
+<span class="w">          </span>i1,i2,i3,i4,i5,i6,i7,i8,i9,i10
+<span class="w">        </span><span class="nt">&lt;/investments&gt;</span>
+<span class="w">      </span><span class="nt">&lt;/Sets&gt;</span>
+<span class="w">      </span><span class="nt">&lt;Parameters&gt;</span>
+<span class="w">        </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">          </span>18,20,17,19,25,21,27,23,25,24
+<span class="w">        </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">        </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">          </span>1,3,7,4,8,9,6,10,2,5
+<span class="w">        </span><span class="nt">&lt;/costs&gt;</span>
+<span class="w">        </span><span class="nt">&lt;available_capitals&gt;</span>
+<span class="w">          </span>15
+<span class="w">        </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">      </span><span class="nt">&lt;/Parameters&gt;</span>
+<span class="w">      </span><span class="nt">&lt;Settings&gt;</span>
+<span class="w">        </span><span class="nt">&lt;solver&gt;</span>glpk<span class="nt">&lt;/solver&gt;</span>
+<span class="w">        </span><span class="nt">&lt;sense&gt;</span>maximize<span class="nt">&lt;/sense&gt;</span>
+<span class="w">      </span><span class="nt">&lt;/Settings&gt;</span>
+<span class="w">    </span><span class="nt">&lt;/ModelData&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/ExternalModel&gt;</span>
+<span class="nt">&lt;/Models&gt;</span>
+</pre></div>
+</div>
+<p>As the name suggests, an external model is an entity that is embedded in
+the RAVEN code at run time. This object allows the user to import the
+LOGOS module, which will then be treated as a predefined internal RAVEN
+object. In other words, the <strong>External Model</strong> will be treated by RAVEN
+as a normal external model. See the RAVEN user manual for a more
+detailed description.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The value for attribute <code class="xml-attr docutils literal notranslate"><span class="pre">subType</span></code> should always be
+<code class="xml-string docutils literal notranslate"><span class="pre">'LOGOS.CapitalInvestmentModel'</span></code>.</p>
+</div>
+<p>The <code class="xml-node docutils literal notranslate"><span class="pre">&lt;variables&gt;</span></code> node specifies a list of variable names that
+must match variables used/defined in the LOGOS model. In the example
+above, the variable <code class="xml-string docutils literal notranslate"><span class="pre">'available_capitals'</span></code> is sampled by
+RAVEN, and its value is passed to LOGOS instead of using the default
+values specified in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;ModelData&gt;</span></code>. The decision variables
+<code class="xml-string docutils literal notranslate"><span class="pre">'i1,i2,i3,i4,i5,i6,i7,i8,i9,i10'</span></code> and the objective variable
+<code class="xml-string docutils literal notranslate"><span class="pre">'MaxNPV'</span></code> are collected from the output of the LOGOS model and
+can be stored in the RAVEN data objects. The XML node
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;ModelData&gt;</span></code> is used to specify the LOGOS optimization problem,
+and should be consistent with the stand-alone LOGOS input XML file.</p>
+<section id="test-automation">
+<h2>Test Automation<a class="headerlink" href="#test-automation" title="Link to this heading"></a></h2>
+<p>Automated regression testing is a development methodology generally used
+to verify the correctness and performance of software after each
+modification. This methodology is integrated directly into GitHub and
+GitLab for RAVEN and RAVEN-supported plugins. In this case, testing is
+performed automatically as part of the continuous integration system
+(CIS) process whenever a user commits a change to the repository. Tests
+of changes across multiple platforms are executed with each pull
+request. Results from each test execution are maintained in an approved
+records repository in the CIS database, along with results from the
+timing executions.</p>
+</section>
+<section id="testing-system-prerequisites">
+<h2>Testing System Prerequisites<a class="headerlink" href="#testing-system-prerequisites" title="Link to this heading"></a></h2>
+<p>The module test system consists of scripts written in Bash and Python. It
+may be used on any platform supported by RAVEN (i.e., Linux, macOS, and
+Windows). The following conditions must be satisfied for the module test
+system to function properly:</p>
+<ul class="simple">
+<li><p>RAVEN should be installed and updated, since RAVEN itself is used to
+run the module tests.</p></li>
+<li><p>The system running the tests must be configured with the software
+prerequisites necessary to build and run RAVEN. These include:</p>
+<ul>
+<li><p>a Python interpreter,</p></li>
+<li><p>Python libraries (<code class="docutils literal notranslate"><span class="pre">h5py</span></code>, <code class="docutils literal notranslate"><span class="pre">matplotlib</span></code>, <code class="docutils literal notranslate"><span class="pre">numpy</span></code>, <code class="docutils literal notranslate"><span class="pre">scipy</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">scikit-learn</span></code>),</p></li>
+<li><p>development tools (C++ compiler, Miniconda package manager for
+Python, and Git source code control).</p></li>
+</ul>
+</li>
+<li><p>RAVEN must be built with the appropriate compiler before it can be
+used to run the tests.</p></li>
+<li><p>The LOGOS submodule must be initialized and fully updated. Additional
+prerequisites include PYOMO, <code class="docutils literal notranslate"><span class="pre">glpk</span></code>, and <code class="docutils literal notranslate"><span class="pre">coincbc</span></code>.</p></li>
+</ul>
+</section>
+<section id="test-location-and-definition">
+<h2>Test Location and Definition<a class="headerlink" href="#test-location-and-definition" title="Link to this heading"></a></h2>
+<p>LOGOS is a RAVEN-supported plugin and is managed by Git. RAVEN plugins
+provide an option to associate a workflow or a set of RAVEN external
+models with RAVEN without including them directly in the main RAVEN
+repository. The benefits include modularity, access restriction, and
+regression testing for compatibility with RAVEN as it continues to
+evolve. In this way, we are able to treat this repository as separate,
+yet still use one from within the other.</p>
+<p>The folder <em>LOGOS/tests</em> contains the inputs for the
+tests, in addition to the corresponding output (in the <code class="docutils literal notranslate"><span class="pre">gold</span></code> folder)
+used to ensure that the behavior of the code does not change when new
+modifications are introduced. These tests can also be organized in
+subfolders based on their characteristics.</p>
+<p>The RAVEN repository contains a complete testing system for providing
+regression testing for itself and for its plugins. The LOGOS module
+tests are defined in the same manner as those for RAVEN itself. A single
+test consists of a RAVEN input file along with the associated data
+needed to perform that run. This can include input data, external
+models, and Python files. These may be placed in the <em>tests</em> directory
+or in related subdirectories.</p>
+<p>Each directory that contains tests to be run by the framework must
+contain a test specification file named <code class="docutils literal notranslate"><span class="pre">tests</span></code>. The syntax of these
+files is defined by the RAVEN test framework, which controls how each
+test is run and sets the criteria used to determine whether it passed or
+not. An example of a test specification file is:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">Tests</span><span class="p">]</span>
+  <span class="p">[</span><span class="o">./</span><span class="n">skp_optimization</span><span class="p">]</span>
+    <span class="nb">type</span> <span class="o">=</span> <span class="s1">&#39;RavenFramework&#39;</span>
+    <span class="nb">input</span> <span class="o">=</span> <span class="s1">&#39;test_skp.xml&#39;</span>
+    <span class="n">UnorderedCsv</span> <span class="o">=</span> <span class="s1">&#39;skp/test_skp.csv&#39;</span>
+  <span class="p">[</span><span class="o">../</span><span class="p">]</span>
+<span class="p">[]</span>
+</pre></div>
+</div>
+<p>In the example above, one test, named <code class="docutils literal notranslate"><span class="pre">skp_optimization</span></code>, is defined
+using the RAVEN test module (<code class="docutils literal notranslate"><span class="pre">type</span> <span class="pre">=</span> <span class="pre">'RavenFramework'</span></code>). Comparison
+criteria are also defined in the <code class="docutils literal notranslate"><span class="pre">tests</span></code> file. In most cases, one or
+more output files generated by running the specified input file with
+RAVEN are compared against a gold standard provided by the developer and
+stored in the repository. Typically, comparisons are performed on
+numeric values contained in CSV files up to a defined tolerance.</p>
+<p>When these file comparisons are specified by the test developer,
+reference files must have the same name and be placed in the <code class="docutils literal notranslate"><span class="pre">gold</span></code>
+subdirectory below the directory containing the <code class="docutils literal notranslate"><span class="pre">tests</span></code> file.</p>
+</section>
+<section id="running-the-tests">
+<h2>Running the Tests<a class="headerlink" href="#running-the-tests" title="Link to this heading"></a></h2>
+<p>The integrated tests can also be run manually, for example by executing:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>path/to/raven/raven_framework<span class="w"> </span>path/to/LOGOS/tests/TestName
+</pre></div>
+</div>
+</section>
+<section id="continuous-integration-system-civet">
+<h2>Continuous Integration System (CIVET)<a class="headerlink" href="#continuous-integration-system-civet" title="Link to this heading"></a></h2>
+<p>CIVET, developed at INL, is used for continuous integration,
+verification, enhancement, and testing of RAVEN and LOGOS. Each time a
+developer proposes a modification to the contents of the LOGOS
+repository, CIVET triggers the automated tests to be run on the modified
+version. These tests must all pass before a proposed change can become
+part of the official repository. In this way, the LOGOS project is
+protected from the accidental introduction of flaws into software that
+required a significant investment of resources to develop.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="rcpsp.html" class="btn btn-neutral float-left" title="Resource-Constrained Project Scheduling Problem (RCPSP)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="CashflowAndNPVModels.html" class="btn btn-neutral float-right" title="SSC Cashflow and NPV Models" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Copyright 2020, Battelle Energy Alliance, LLC ALL RIGHTS RESERVED.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

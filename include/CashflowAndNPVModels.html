@@ -1,0 +1,343 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SSC Cashflow and NPV Models &mdash; LOGOS 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Knapsack Models" href="Knapsack.html" />
+    <link rel="prev" title="Plugin for the RAVEN Code" href="PluginForRavenCode.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LOGOS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../Introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ModelingComponents.html">Overview of Capital Budgeting Modeling Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DeterministicCapitalBudgeting.html">Deterministic Capital Budgeting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="StochasticCapitalBudgeting.html">Prioritizing Project Selection to Hedge Against Uncertainty</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DRO.html">Distributionally Robust Optimization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CVaR.html">Risk-Based Stochastic Capital Budgeting using Conditional Value-at-Risk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rcpsp.html">Resource-Constrained Project Scheduling Problem (RCPSP)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="PluginForRavenCode.html">Plugin for the RAVEN Code</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">SSC Cashflow and NPV Models</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#planned-replacement-at-t-0">Planned Replacement at <span class="math">T_0</span></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#example-raven-input-xml">Example RAVEN Input XML</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#external-model-parameters">External Model Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#example-incremental-npv-output-csv">Example Incremental NPV Output CSV</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Knapsack.html">Knapsack Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CPM.html">Critical Path Model (CPM)</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LOGOS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">SSC Cashflow and NPV Models</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/include/CashflowAndNPVModels.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="ssc-cashflow-and-npv-models">
+<span id="sec-sscnpv"></span><h1>SSC Cashflow and NPV Models<a class="headerlink" href="#ssc-cashflow-and-npv-models" title="Link to this heading"></a></h1>
+<p>Imagine a portfolio of candidate projects, in which some of the decisions involve
+either replacing an item now or postponing replacement and facing potentially higher
+maintenance and replacement costs. We assume the item must either be replaced now or
+in the future, and it is in this context that we describe the appropriate cashflow
+calculations. We then extend the discussion to allow the planned replacement to occur
+in year 2 or 3, rather than in year 1.</p>
+<p>We assume that doing nothing is not an option, since the items under consideration
+are of significant importance and, if not replaced in due course, would impose an
+unacceptable risk to either safety or production.</p>
+<p>Notation:</p>
+<ul class="simple">
+<li><p><span class="math">p</span>: probability of item failure for one year</p></li>
+<li><p><span class="math">C_P</span>: cost of planned replacement</p></li>
+<li><p><span class="math">C_U</span>: cost of unplanned replacement</p></li>
+<li><p><span class="math">C_D</span>: cost of shutdown per day</p></li>
+<li><p><span class="math">D</span>: number of days plant is off-line, if a shutdown occurs</p></li>
+<li><p><span class="math">N</span>: number of years</p></li>
+<li><p><span class="math">R</span>: discount rate</p></li>
+</ul>
+<p>We could incorporate additional parameters, such as weekly or monthly inspection costs,
+fixed costs of shutdown in addition to the daily costs specified above, etc. The setting
+we describe allows us to illustrate key ideas in the cashflow calculations for computing NPV.</p>
+<p>We further assume that, if we do not replace the item, its failure time is a random
+variable following a geometric distribution where the probability of failure in
+one year is <span class="math">p</span> (i.e., probability of survival over one year is <span class="math">1-p</span>).
+Thus, if the plant faces a 20-year decision period, the probability of survival to year
+<span class="math">t</span> is <span class="math">(1-p)^t</span>, and the probability of failing in year <span class="math">t</span> is
+<span class="math">p(1-p)^{t-1}</span>.</p>
+<p>A useful construct for the calculations is to visualize a <em>coin flip</em> for each year,
+yielding a <em>fail</em> or <em>no fail</em> event, and immediately after the flip appropriate
+costs are incurred.</p>
+<p>If the item is not replaced today (<span class="math">t=1</span>), the expected replacement cost in any
+year <span class="math">t = 1,2,\ldots,N-1</span> is:</p>
+<div class="math" id="equation-npv-1">
+<p><span class="eqno">(49)<a class="headerlink" href="#equation-npv-1" title="Link to this equation"></a></span><span class="math">\text{Expected Replacement Cost in Year } t =
+C_U \, p (1-p)^{t-1}</span></p>
+</div><p>Here, we incur this cost only if the item survived years <span class="math">1</span> to <span class="math">t-1</span>
+and failed in year <span class="math">t</span>.</p>
+<p>Since we assume the item must be replaced in year <span class="math">N</span> if it has not already
+failed, the expected replacement cost in year <span class="math">N</span> is:</p>
+<div class="math" id="equation-npv-2">
+<p><span class="eqno">(50)<a class="headerlink" href="#equation-npv-2" title="Link to this equation"></a></span><span class="math">\text{Expected Replacement Cost in Year } N =
+C_P (1-p)^{N-1}</span></p>
+</div><p>To illustrate downtime, assume shutdown costs of <span class="math">C_D</span> per day. The expected
+downtime cost in year <span class="math">t=1,\ldots,N-1</span> is:</p>
+<div class="math" id="equation-npv-3">
+<p><span class="eqno">(51)<a class="headerlink" href="#equation-npv-3" title="Link to this equation"></a></span><span class="math">\text{Expected Downtime Cost in Year } t =
+D\,C_D \, p (1-p)^{t-1}</span></p>
+</div><p>More generally, we can express reliability-related costs with:</p>
+<div class="math" id="equation-include-cashflowandnpvmodels-0">
+<p><span class="eqno">(52)<a class="headerlink" href="#equation-include-cashflowandnpvmodels-0" title="Link to this equation"></a></span><span class="math">Re\_Cost(p, t, C_1, C_2, \ldots, C_M)</span></p>
+</div><p>There are two relevant time-series of cash flows: replacing now and replacing later.</p>
+<p>If replaced today (time <span class="math">t=1</span>), we incur the planned replacement cost
+<span class="math">C_P</span>.</p>
+<p>For replacing later, for <span class="math">t = 1,\ldots,N-1</span>, the expected cash flows are:</p>
+<div class="math" id="equation-npv-4">
+<p><span class="eqno">(53)<a class="headerlink" href="#equation-npv-4" title="Link to this equation"></a></span><span class="math">\text{Cash Flow Replaced in Year } t =
+-\left[(C_U + D C_D) \, p \, (1-p)^{t-1} \right]</span></p>
+</div><p>And for the final year:</p>
+<div class="math" id="equation-npv-5">
+<p><span class="eqno">(54)<a class="headerlink" href="#equation-npv-5" title="Link to this equation"></a></span><span class="math">\text{Cash Flow Replaced in Year } N =
+-\left[ C_P (1-p)^{N-1} \right]</span></p>
+</div><p>All cash flows are costs and therefore negative.</p>
+<figure class="align-default" id="id1">
+<a class="reference internal image-reference" href="../_images/image1.png"><img alt="Replace now timeline" src="../_images/image1.png" style="width: 3224.0px; height: 474.0px;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 2 </span><span class="caption-text">Graphical representation of option 1: replace now.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<figure class="align-default" id="id2">
+<a class="reference internal image-reference" href="../_images/image2.png"><img alt="Replace later timeline" src="../_images/image2.png" style="width: 3224.0px; height: 492.0px;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 3 </span><span class="caption-text">Graphical representation of option 2: replace later.</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>The NPV of option 1 is:</p>
+<div class="math" id="equation-npv-6">
+<p><span class="eqno">(55)<a class="headerlink" href="#equation-npv-6" title="Link to this equation"></a></span><span class="math">\text{NPV option 1} = -C_P</span></p>
+</div><p>The NPV of option 2 is:</p>
+<div class="math" id="equation-npv-7">
+<p><span class="eqno">(56)<a class="headerlink" href="#equation-npv-7" title="Link to this equation"></a></span><span class="math">\text{NPV option 2} =
+-\left[
+  \sum_{t=1}^{N-1}
+    \frac{(C_U + D C_D) p (1-p)^{t-1}}{(1+R)^{t-1}}
+  +
+  \frac{C_P (1-p)^{N-1}}{(1+R)^{N-1}}
+\right]</span></p>
+</div><p>The difference between the two NPVs is:</p>
+<div class="math" id="equation-npv-7-b">
+<p><span class="eqno">(57)<a class="headerlink" href="#equation-npv-7-b" title="Link to this equation"></a></span><span class="math">\text{NPV} =
+-C_P +
+\left[
+  \sum_{t=1}^{N-1}
+    \frac{(C_U + D C_D) p (1-p)^{t-1}}{(1+R)^{t-1}}
+  +
+  \frac{C_P (1-p)^{N-1}}{(1+R)^{N-1}}
+\right]</span></p>
+</div><p>If <span class="math">\text{NPV} &gt; 0</span>, the decision is to replace today.</p>
+<section id="planned-replacement-at-t-0">
+<h2>Planned Replacement at <span class="math">T_0</span><a class="headerlink" href="#planned-replacement-at-t-0" title="Link to this heading"></a></h2>
+<p>Now we allow delaying planned replacement to year <span class="math">T_0</span>, at the risk of
+possible failure before then.</p>
+<p>For <span class="math">t = 1,\ldots,T_0 - 1</span>, the cash flow is:</p>
+<div class="math" id="equation-npv-8">
+<p><span class="eqno">(58)<a class="headerlink" href="#equation-npv-8" title="Link to this equation"></a></span><span class="math">\text{Cash Flow Replaced in Year } t =
+-\left[(C_U + D C_D) p (1-p)^{t-1}\right]</span></p>
+</div><p>For <span class="math">t = T_0</span>, the expected planned replacement cash flow is:</p>
+<div class="math" id="equation-npv-9">
+<p><span class="eqno">(59)<a class="headerlink" href="#equation-npv-9" title="Link to this equation"></a></span><span class="math">\text{Cash Flow Replaced in Year } T_0 =
+-\left[ C_P (1-p)^{T_0 - 1} \right]</span></p>
+</div><figure class="align-default" id="id3">
+<a class="reference internal image-reference" href="../_images/image3.png"><img alt="Planned replacement at T0" src="../_images/image3.png" style="width: 3212.0px; height: 544.0px;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 4 </span><span class="caption-text">Graphical representation of option 1: planned replacement at <span class="math">T_0</span>.</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>The NPV for planned replacement at <span class="math">T_0</span> is:</p>
+<div class="math" id="equation-npv-10">
+<p><span class="eqno">(60)<a class="headerlink" href="#equation-npv-10" title="Link to this equation"></a></span><span class="math">\text{NPV option 1} =
+-\left[
+   \sum_{t=1}^{T_0-1}
+     \frac{(C_U + D C_D) p (1-p)^{t-1}}{(1+R)^{t-1}}
+   +
+   \frac{C_P (1-p)^{T_0-1}}{(1+R)^{T_0-1}}
+\right]</span></p>
+</div><p>If <span class="math">T_0 = 1</span>, this reduces to <span class="math">-C_P</span>.</p>
+<p>Option 2 (delay to <span class="math">N</span>) has NPV:</p>
+<div class="math" id="equation-npv-11">
+<p><span class="eqno">(61)<a class="headerlink" href="#equation-npv-11" title="Link to this equation"></a></span><span class="math">\text{NPV option 2} =
+-\left[
+   \sum_{t=1}^{N-1}
+     \frac{(C_U + D C_D) p (1-p)^{t-1}}{(1+R)^{t-1}}
+   +
+   \frac{C_P (1-p)^{N-1}}{(1+R)^{N-1}}
+\right]</span></p>
+</div><p>Thus, the incremental NPV is:</p>
+<div class="math" id="equation-npv-12">
+<p><span class="eqno">(62)<a class="headerlink" href="#equation-npv-12" title="Link to this equation"></a></span><span class="math">\text{NPV} =
+\sum_{t=T_0}^{N-1}
+  \frac{(C_U + D C_D) p (1-p)^{t-1}}{(1+R)^{t-1}}
++
+  \frac{C_P (1-p)^{N-1}}{(1+R)^{N-1}}
+-
+  \frac{C_P (1-p)^{T_0-1}}{(1+R)^{T_0-1}}</span></p>
+</div><p>A new RAVEN <strong>External Model</strong> with <code class="docutils literal notranslate"><span class="pre">subType=&quot;LOGOS.IncrementalNPV&quot;</span></code> is used to
+compute the NPVs described above.</p>
+</section>
+<section id="example-raven-input-xml">
+<h2>Example RAVEN Input XML<a class="headerlink" href="#example-raven-input-xml" title="Link to this heading"></a></h2>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;rvi_model&quot;</span><span class="w"> </span><span class="na">subType=</span><span class="s">&quot;LOGOS.IncrementalNPV&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;variables&gt;</span>fp,rvi_npv_a,rvi_npv_b<span class="nt">&lt;/variables&gt;</span>
+<span class="w">  </span><span class="nt">&lt;alias</span><span class="w"> </span><span class="na">variable=</span><span class="s">&quot;rvi_p_failure&quot;</span><span class="w"> </span><span class="na">type=</span><span class="s">&quot;input&quot;</span><span class="nt">&gt;</span>fp<span class="nt">&lt;/alias&gt;</span>
+<span class="w">  </span><span class="nt">&lt;Cp&gt;</span>19.82<span class="nt">&lt;/Cp&gt;</span>
+<span class="w">  </span><span class="nt">&lt;Cu&gt;</span>39.64<span class="nt">&lt;/Cu&gt;</span>
+<span class="w">  </span><span class="nt">&lt;fp&gt;</span>0.05<span class="nt">&lt;/fp&gt;</span>
+<span class="w">  </span><span class="nt">&lt;Cd&gt;</span>1.<span class="nt">&lt;/Cd&gt;</span>
+<span class="w">  </span><span class="nt">&lt;D&gt;</span>30<span class="nt">&lt;/D&gt;</span>
+<span class="w">  </span><span class="nt">&lt;options&gt;</span>
+<span class="w">    </span><span class="nt">&lt;Td&gt;</span>1,<span class="w"> </span>4<span class="nt">&lt;/Td&gt;</span>
+<span class="w">    </span><span class="nt">&lt;output&gt;</span>rvi_npv_a,rvi_npv_b<span class="nt">&lt;/output&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/options&gt;</span>
+<span class="w">  </span><span class="nt">&lt;discountRate&gt;</span>0.03<span class="nt">&lt;/discountRate&gt;</span>
+<span class="w">  </span><span class="nt">&lt;startTime&gt;</span>2019<span class="nt">&lt;/startTime&gt;</span>
+<span class="w">  </span><span class="nt">&lt;lifetime&gt;</span>20<span class="nt">&lt;/lifetime&gt;</span>
+<span class="nt">&lt;/ExternalModel&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="external-model-parameters">
+<h2>External Model Parameters<a class="headerlink" href="#external-model-parameters" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Cp</span></code>: float, required – cost of planned replacement</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Cu</span></code>: float, required – cost of unplanned replacement</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Cd</span></code>: float, required – cost of shutdown per day</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">D</span></code>: integer, required – days plant is off-line</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fp</span></code>: float, required – probability of item failure over one year</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">discountRate</span></code>: float, required – discount rate</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">inflation</span></code>: float, optional (default 0.0)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tax</span></code>: float, optional (default 0.0)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">HardSavings</span></code>: float, optional (default 0.0)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">count</span></code>: int, optional (default 1)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">startTime</span></code>: int, required</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lifetime</span></code>: int, required</p></li>
+</ul>
+<p>Options:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Td</span></code>: comma-separated integers specifying delay lengths</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">output</span></code>: output variable names (must appear under <code class="docutils literal notranslate"><span class="pre">&lt;variables&gt;</span></code>)</p></li>
+</ul>
+<p>The parameters <code class="docutils literal notranslate"><span class="pre">Cp,</span> <span class="pre">Cu,</span> <span class="pre">fp,</span> <span class="pre">Cd,</span> <span class="pre">inflation,</span> <span class="pre">tax</span></code> may be sampled by RAVEN. If
+specified in the XML, they are replaced by sampled values.</p>
+</section>
+<section id="example-incremental-npv-output-csv">
+<h2>Example Incremental NPV Output CSV<a class="headerlink" href="#example-incremental-npv-output-csv" title="Link to this heading"></a></h2>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>fp,rvi_npv_a,rvi_npv_b
+...
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The TEAL plugin is required to compute NPVs.
+See: <a class="reference external" href="https://github.com/idaholab/raven/wiki/Plugins">https://github.com/idaholab/raven/wiki/Plugins</a></p>
+</div>
+<figure class="align-default" id="id4">
+<a class="reference internal image-reference" href="../_images/image11.jpg"><img alt="RAVEN Logos workflow" src="../_images/image11.jpg" style="width: 504.0px; height: 315.0px;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 5 </span><span class="caption-text">Risk-informed capital budgeting via RAVEN and RAVEN plugins.</span><a class="headerlink" href="#id4" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="PluginForRavenCode.html" class="btn btn-neutral float-left" title="Plugin for the RAVEN Code" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="Knapsack.html" class="btn btn-neutral float-right" title="Knapsack Models" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Copyright 2020, Battelle Energy Alliance, LLC ALL RIGHTS RESERVED.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

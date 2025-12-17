@@ -1,0 +1,654 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Overview of Capital Budgeting Modeling Components &mdash; LOGOS 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Deterministic Capital Budgeting" href="DeterministicCapitalBudgeting.html" />
+    <link rel="prev" title="Introduction" href="../Introduction.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LOGOS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../Introduction.html">Introduction</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Overview of Capital Budgeting Modeling Components</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#sets">Sets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#parameters">Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#uncertainties">Uncertainties</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#external-constraints">External Constraints</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#settings-options-for-optimization">Settings: Options for Optimization</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="DeterministicCapitalBudgeting.html">Deterministic Capital Budgeting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="StochasticCapitalBudgeting.html">Prioritizing Project Selection to Hedge Against Uncertainty</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DRO.html">Distributionally Robust Optimization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CVaR.html">Risk-Based Stochastic Capital Budgeting using Conditional Value-at-Risk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rcpsp.html">Resource-Constrained Project Scheduling Problem (RCPSP)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="PluginForRavenCode.html">Plugin for the RAVEN Code</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CashflowAndNPVModels.html">SSC Cashflow and NPV Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Knapsack.html">Knapsack Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CPM.html">Critical Path Model (CPM)</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LOGOS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Overview of Capital Budgeting Modeling Components</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/include/ModelingComponents.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="overview-of-capital-budgeting-modeling-components">
+<span id="sec-modelingcomponents"></span><h1>Overview of Capital Budgeting Modeling Components<a class="headerlink" href="#overview-of-capital-budgeting-modeling-components" title="Link to this heading"></a></h1>
+<p>We consider a capital budgeting problem for a nuclear generation station, with
+possible extension to a larger fleet of plants. Due to limited resources, we
+can only select a subset from a number of candidate investment projects. Our
+goal is to maximize overall net present value (NPV), or a variant of this
+objective when we incorporate uncertainty into project cost and revenue
+streams. In doing so, we must respect resource limits and capture key
+structural and stochastic dependencies of the system. Example projects include
+upgrading a steam turbine, refurbishing or replacing a set of reactor coolant
+pumps, and replacing a set of feed-water heaters. Selecting an individual
+project has multiple facets and implications.</p>
+<ul>
+<li><p><strong>Rewards or Net Present Values</strong>:
+Selecting a project can improve revenue (e.g., upgrading a steam turbine may
+lead to an uprate in plant capacity resulting in larger revenue from selling
+power). Replacing a key system component can improve reliability, increasing
+revenue due to a reduction in forced outages as well as operations and
+maintenance (O&amp;M) costs. Choosing to perform minimum maintenance versus
+refurbishing a component or replacing and improving a system can produce
+reward streams that can be negative or positive depending on the selection.
+The parameter <code class="xml-node docutils literal notranslate"><span class="pre">&lt;net_present_values&gt;</span></code> is used to specify the rewards
+(see Section <a class="reference internal" href="#subsec-parameters"><span class="std std-ref">Parameters</span></a>).</p></li>
+<li><p><strong>Resources and Liabilities</strong>:
+Critical resources include:</p>
+<ol class="arabic simple">
+<li><p>capital costs,</p></li>
+<li><p>O&amp;M costs,</p></li>
+<li><p>time and labor-hours during a planned outage, and</p></li>
+<li><p>personnel, installation and maintenance equipment, workspaces, etc.</p></li>
+</ol>
+<p>Within these categories, resources can be further sub-categorized (each
+subcategory having its own budget) according to the plant’s organizational
+structure to provide multiple “colors” of money within capital costs, O&amp;M
+costs, personnel availability, etc.</p>
+<p>The set <code class="xml-node docutils literal notranslate"><span class="pre">&lt;resources&gt;</span></code> and the parameter
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;available_capitals&gt;</span></code> are used to specify the resources and
+liabilities (see Sections <a class="reference internal" href="#subsec-sets"><span class="std std-ref">Sets</span></a> and <a class="reference internal" href="#subsec-parameters"><span class="std std-ref">Parameters</span></a>).</p>
+</li>
+<li><p><strong>Costs</strong>:
+Selecting a project in year <span class="math">t</span> induces multiple cost streams in year
+<span class="math">t</span> as well as in subsequent years; we interpret “cost” broadly to
+include commitment of critical resources. The parameter <code class="xml-node docutils literal notranslate"><span class="pre">&lt;costs&gt;</span></code> is
+used to specify the costs (see Section <a class="reference internal" href="#subsec-parameters"><span class="std std-ref">Parameters</span></a>).</p></li>
+<li><p><strong>Time Periods</strong>:
+Multiple capital projects can compete for the same time period, limiting
+project selection. The set <code class="xml-node docutils literal notranslate"><span class="pre">&lt;time_periods&gt;</span></code> is used to provide
+indices for <strong>costs</strong> and <strong>available capitals</strong> (see
+Section <a class="reference internal" href="#subsec-sets"><span class="std std-ref">Sets</span></a>).</p></li>
+<li><p><strong>Options</strong>:
+The goal of selecting a project is typically to improve or maintain a
+particular function the plant performs, and there may be multiple ways to
+carry out the task. A project may be performed over a three-year
+period—say, years “<span class="math">t, t+1, t+2</span>”—or the start of the project could
+instead be two years hence, changing the period to
+“<span class="math">t+2, t+3, t+4</span>”. Alternatively, at increased cost and benefit, it
+may be possible to complete the project in two years:
+“<span class="math">t, t+1</span>” or “<span class="math">t+2, t+3</span>”. When selecting a project to uprate
+plant capacity, we may have the options of increasing it by 3% or 6%.</p>
+<p>In all these cases, we can perform the project in at most one particular way
+out of a collection of options. We represent this by cloning a “project”
+into multiple project–option pairs, and adding a constraint saying that we
+can select at most one from this set of options. The set
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;options&gt;</span></code> is used to provide indices for these multiple
+project–option pairs (see Section <a class="reference internal" href="#subsec-sets"><span class="std std-ref">Sets</span></a>).</p>
+</li>
+<li><p><strong>Capitals</strong>:
+If we consider maintenance for multiple units in an NPP in parallel, it must
+be decided whether to accept a particular replacement and, if so, in which
+unit to conduct the corresponding replacement. In this case, the set
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;capitals&gt;</span></code> is used to provide indices for these units (see
+Section <a class="reference internal" href="#subsec-sets"><span class="std std-ref">Sets</span></a>).</p></li>
+<li><p><strong>Available Capitals</strong>:
+These are the budgets available for resources/units. The parameter
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;available_capitals&gt;</span></code> is used to specify the available capital for
+different resources/units at different <span class="math">t</span> (see
+Section <a class="reference internal" href="#subsec-parameters"><span class="std std-ref">Parameters</span></a>).</p></li>
+<li><p><strong>Non-Selection</strong>:
+Not selecting a project also has implications, such as a growth in O&amp;M
+costs in future years, a decrease in plant production, an increase in forced
+outages, and even risking a premature end to plant life. Thus, not
+selecting a project can be seen as one more “option” for how a larger
+project is executed, expanding the list discussed earlier. Selection of the
+“do nothing” option is reflected in both liability streams and reward
+streams. This can be activated by setting <code class="xml-node docutils literal notranslate"><span class="pre">&lt;nonSelection&gt;</span></code> to
+<code class="xml-string docutils literal notranslate"><span class="pre">'True'</span></code> (see Section <a class="reference internal" href="#subsec-settings"><span class="std std-ref">Settings: Options for Optimization</span></a>).</p></li>
+<li><p><strong>Uncertainty</strong>:
+One limitation of traditional optimization models for capital budgeting is
+that they do not account for uncertainty in reward and cost streams
+associated with individual projects, nor do they account for uncertainty in
+resource availability in future years. Projects can incur cost overruns,
+especially when projects are large, performed infrequently, or when there is
+uncertainty regarding technical viability, external contractors, and/or
+suppliers of requisite parts and materials. Occasionally, projects are
+performed ahead of schedule and with savings in cost. Planned budgets for
+capital improvements can be cut, and key personnel may be lost. Or, there
+may be surprise budgetary windfalls for maintenance activities due to
+decreased costs for “unplanned” maintenance. The XML node
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;Uncertainties&gt;</span></code> is used to specify such uncertainties (see
+Section <a class="reference internal" href="#subsec-uncertainties"><span class="std std-ref">Uncertainties</span></a>).</p></li>
+</ul>
+<p>LOGOS consists of a collection of modeling entities/components that define
+different aspects of the model, including <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code>,
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;Parameters&gt;</span></code>, <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Uncertainties&gt;</span></code>, and
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;ExternalConstraints&gt;</span></code>. In addition, the <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Settings&gt;</span></code> block
+specifies how the overall computation should run.</p>
+<section id="sets">
+<span id="subsec-sets"></span><h2>Sets<a class="headerlink" href="#sets" title="Link to this heading"></a></h2>
+<p>This subsection describes the XML nodes used to define the
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code> of the optimization model being performed through LOGOS.
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code> specifies collections of data, possibly including numeric
+data (e.g., real or integer values) as well as symbolic data (e.g.,
+strings), typically used to specify the valid indices for indexed
+components.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Numeric data provided in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code> is treated as strings.</p>
+</div>
+<p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code> accepts the following sub-nodes:</p>
+<ul class="simple">
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;investments&gt;</span></code>, comma/space-separated string, <strong>required</strong>
+Specifies the valid indices for investment projects.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;capitals&gt;</span></code>, comma/space-separated string, <em>optional</em>
+Specifies the indices for NPP units.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;time_periods&gt;</span></code>, comma/space-separated string, <em>optional</em>
+Specifies the indices for time.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;resources&gt;</span></code>, comma/space-separated string, <em>optional</em>
+Specifies indices for the resources and liabilities.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;options&gt;</span></code>, semi-colon-separated list of strings, <em>optional</em>
+Specifies the indices for multiple project–option pairs.
+This sub-node accepts the following attribute:</p>
+<ul>
+<li><p><code class="xml-attr docutils literal notranslate"><span class="pre">index</span></code>, string, <strong>required</strong>
+Specifies the index dependence. The valid index is
+<code class="xml-string docutils literal notranslate"><span class="pre">'investments'</span></code>.</p></li>
+</ul>
+</li>
+</ul>
+<p>Example XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Sets&gt;</span>
+<span class="w">  </span><span class="nt">&lt;investments&gt;</span>
+<span class="w">    </span>HPFeedwaterHeaterUpgrade
+<span class="w">    </span>PresurizerReplacement
+<span class="w">    </span>...
+<span class="w">    </span>ReplaceMoistureSeparatorReheater
+<span class="w">  </span><span class="nt">&lt;/investments&gt;</span>
+<span class="w">  </span><span class="nt">&lt;time_periods&gt;</span>year1<span class="w"> </span>year2<span class="w"> </span>year3<span class="w"> </span>year4<span class="w"> </span>year5<span class="nt">&lt;/time_periods&gt;</span>
+<span class="w">  </span><span class="nt">&lt;resources&gt;</span>CapitalFunds<span class="w"> </span>OandMFunds<span class="nt">&lt;/resources&gt;</span>
+<span class="w">  </span><span class="nt">&lt;options</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span>PlanA<span class="w"> </span>PlanB<span class="w"> </span>DoNothing;
+<span class="w">    </span>PlanA<span class="w"> </span>PlanB<span class="w"> </span>PlanC;
+<span class="w">    </span>...
+<span class="w">    </span>PlanA<span class="w"> </span>PlanB<span class="w"> </span>PlanC<span class="w"> </span>DoNothing
+<span class="w">  </span><span class="nt">&lt;/options&gt;</span>
+<span class="nt">&lt;/Sets&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="parameters">
+<span id="subsec-parameters"></span><h2>Parameters<a class="headerlink" href="#parameters" title="Link to this heading"></a></h2>
+<p>This subsection describes the XML nodes used to define the
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;Parameters&gt;</span></code> of the optimization model being performed through
+LOGOS:</p>
+<ul>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;net_present_values&gt;</span></code>, comma/space-separated string, <strong>required</strong>
+Specifies the NPVs for capital projects or project–option pairs.
+Optional attribute:</p>
+<ul class="simple">
+<li><p><code class="xml-attr docutils literal notranslate"><span class="pre">index</span></code>, comma-separated string, <em>optional</em>
+Specifies the indices of this parameter; keywords should be predefined
+in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code>. Valid keywords are <code class="xml-string docutils literal notranslate"><span class="pre">'investments'</span></code> and
+<code class="xml-string docutils literal notranslate"><span class="pre">'options'</span></code>.
+<strong>Default</strong>: <code class="xml-string docutils literal notranslate"><span class="pre">'investments'</span></code>.</p></li>
+</ul>
+</li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;costs&gt;</span></code>, comma/space-separated string, <strong>required</strong>
+Specifies the costs for capital projects or project–option pairs.
+Optional attribute:</p>
+<ul>
+<li><p><code class="xml-attr docutils literal notranslate"><span class="pre">index</span></code>, comma-separated string, <em>optional</em>
+Specifies the indices of this parameter; keywords should be predefined
+in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code>. Valid keywords are:</p>
+<ul class="simple">
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'investments'</span></code></p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'investments,</span> <span class="pre">time_periods'</span></code></p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'options'</span></code></p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'options,</span> <span class="pre">resources'</span></code></p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'options,</span> <span class="pre">time_periods'</span></code></p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'options,</span> <span class="pre">resources,</span> <span class="pre">time_periods'</span></code></p></li>
+</ul>
+<p><strong>Default</strong>: <code class="xml-string docutils literal notranslate"><span class="pre">'investments'</span></code>.</p>
+</li>
+</ul>
+</li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;available_capitals&gt;</span></code>, comma/space-separated string, <strong>required</strong>
+Specifies the available capitals for capital projects or project–option
+pairs.
+Optional attribute:</p>
+<ul>
+<li><p><code class="xml-attr docutils literal notranslate"><span class="pre">index</span></code>, comma-separated string, <em>optional</em>
+Specifies the indices of this parameter; keywords should be predefined
+in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code>. Valid keywords are:</p>
+<ul class="simple">
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'resources'</span></code></p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'time_periods'</span></code></p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'capitals'</span></code></p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'resources,</span> <span class="pre">time_periods'</span></code></p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'capitals,</span> <span class="pre">time_periods'</span></code></p></li>
+</ul>
+<p><strong>Default</strong>: None.</p>
+</li>
+</ul>
+</li>
+</ul>
+<p>Example XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Parameters&gt;</span>
+<span class="w">  </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;options&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span>27.98<span class="w"> </span>27.17<span class="w"> </span>0.
+<span class="w">    </span>-10.07<span class="w"> </span>-9.78<span class="w"> </span>-9.22
+<span class="w">    </span>...
+<span class="w">    </span>8.26<span class="w"> </span>7.56<span class="w"> </span>7.34<span class="w"> </span>0.
+<span class="w">  </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">  </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;options,resources,time_periods&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span>12.99<span class="w"> </span>1.3<span class="w"> </span>0<span class="w"> </span>0<span class="w"> </span>0
+<span class="w">    </span>...
+<span class="w">    </span>0.01<span class="w"> </span>0<span class="w"> </span>0<span class="w"> </span>0<span class="w"> </span>0
+<span class="w">  </span><span class="nt">&lt;/costs&gt;</span>
+<span class="w">  </span><span class="nt">&lt;available_capitals</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;resources,time_periods&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span>22.6<span class="w"> </span>36.7<span class="w"> </span>20.6<span class="w"> </span>23.6<span class="w"> </span>22.7
+<span class="w">    </span>0.08<span class="w"> </span>0.17<span class="w"> </span>0.05<span class="w"> </span>0.15<span class="w"> </span>0.14
+<span class="w">  </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="nt">&lt;/Parameters&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="uncertainties">
+<span id="subsec-uncertainties"></span><h2>Uncertainties<a class="headerlink" href="#uncertainties" title="Link to this heading"></a></h2>
+<p>This subsection describes the XML nodes used to define the
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;Uncertainties&gt;</span></code> of the optimization model being performed
+through LOGOS:</p>
+<ul class="simple">
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;available_capitals&gt;</span></code>, <em>optional</em>
+Specifies the scenarios associated with available capitals. This node
+accepts the attribute <code class="xml-attr docutils literal notranslate"><span class="pre">index</span></code>, which should be consistent with
+the <code class="xml-node docutils literal notranslate"><span class="pre">&lt;available_capitals&gt;</span></code> defined in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Parameters&gt;</span></code>.
+It accepts the following sub-nodes:</p>
+<ul>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;totalScenarios&gt;</span></code>, integer, <strong>required</strong>
+Specifies the total number of scenarios for this parameter.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;probabilities&gt;</span></code>, comma/space-separated float, <strong>required</strong>
+Specifies the probability for each scenario. The length must equal the
+total number of scenarios.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;scenarios&gt;</span></code>, comma/space-separated float, <strong>required</strong>
+Specifies all scenarios for this parameter. The length must equal
+(total number of scenarios) × (length of the parameter as defined in
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;Parameters&gt;</span></code>).</p></li>
+</ul>
+</li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;net_present_values&gt;</span></code>, <em>optional</em>
+Specifies the scenarios associated with <code class="xml-node docutils literal notranslate"><span class="pre">&lt;net_present_values&gt;</span></code>.
+This node accepts the attribute <code class="xml-attr docutils literal notranslate"><span class="pre">index</span></code>, which should be
+consistent with <code class="xml-node docutils literal notranslate"><span class="pre">&lt;net_present_values&gt;</span></code> as defined in
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;Parameters&gt;</span></code>. It accepts the following sub-nodes:</p>
+<ul>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;totalScenarios&gt;</span></code>, integer, <strong>required</strong></p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;probabilities&gt;</span></code>, comma/space-separated float, <strong>required</strong></p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;scenarios&gt;</span></code>, comma/space-separated float, <strong>required</strong></p></li>
+</ul>
+</li>
+</ul>
+<p>The overall number of scenarios is the total number of scenarios for
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;available_capitals&gt;</span></code> multiplied by the total number of scenarios
+for <code class="xml-node docutils literal notranslate"><span class="pre">&lt;net_present_values&gt;</span></code>.</p>
+<p>Example XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Uncertainties&gt;</span>
+<span class="w">  </span><span class="nt">&lt;available_capitals</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;resources,time_periods&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span><span class="nt">&lt;totalScenarios&gt;</span>10<span class="nt">&lt;/totalScenarios&gt;</span>
+<span class="w">    </span><span class="nt">&lt;probabilities&gt;</span>
+<span class="w">      </span>0.5,<span class="w"> </span>0.5
+<span class="w">    </span><span class="nt">&lt;/probabilities&gt;</span>
+<span class="w">    </span><span class="nt">&lt;scenarios&gt;</span>
+<span class="w">      </span>20.0<span class="w"> </span>34.0<span class="w"> </span>17.0<span class="w"> </span>20.0<span class="w"> </span>18.0<span class="w"> </span>0.08<span class="w"> </span>0.17<span class="w"> </span>0.05<span class="w"> </span>0.15<span class="w"> </span>0.14
+<span class="w">      </span>23.0<span class="w"> </span>38.0<span class="w"> </span>22.0<span class="w"> </span>25.0<span class="w"> </span>24.0<span class="w"> </span>0.08<span class="w"> </span>0.17<span class="w"> </span>0.05<span class="w"> </span>0.15<span class="w"> </span>0.14
+<span class="w">    </span><span class="nt">&lt;/scenarios&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;options&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span><span class="nt">&lt;totalScenarios&gt;</span>9<span class="nt">&lt;/totalScenarios&gt;</span>
+<span class="w">    </span><span class="nt">&lt;probabilities&gt;</span>
+<span class="w">      </span>0.3<span class="w"> </span>0.8
+<span class="w">    </span><span class="nt">&lt;/probabilities&gt;</span>
+<span class="w">    </span><span class="nt">&lt;scenarios&gt;</span>
+<span class="w">      </span>13.3129<span class="w"> </span>12.0228<span class="w"> </span>0.0<span class="w"> </span>-10.07
+<span class="w">      </span>...
+<span class="w">    </span><span class="nt">&lt;/scenarios&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="nt">&lt;/Uncertainties&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="external-constraints">
+<h2>External Constraints<a class="headerlink" href="#external-constraints" title="Link to this heading"></a></h2>
+<p id="subsec-externalconstraints">This subsection describes the XML nodes used to define the
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;ExternalConstraints&gt;</span></code> of the optimization model being performed
+through LOGOS. This node accepts the following sub-node(s):</p>
+<ul>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;constraint&gt;</span></code>, string, <strong>required</strong>
+Specifies the external Python module file name along with its absolute
+or relative path. This external Python module contains the user-defined
+additional constraint.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If a relative path is specified, the code first checks relative to
+the working directory, then relative to the location of the input
+file. The working directory can be specified in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Settings&gt;</span></code>
+(see Section <a class="reference internal" href="#subsec-settings"><span class="std std-ref">Settings: Options for Optimization</span></a>). The extension <code class="docutils literal notranslate"><span class="pre">.py</span></code> is
+optional for the module file name.</p>
+</div>
+<p>This sub-node also requires the following attribute:</p>
+<ul class="simple">
+<li><p><code class="xml-attr docutils literal notranslate"><span class="pre">name</span></code>, string, <strong>required</strong>
+Specifies the name of the constraint that will be added to the
+optimization problem.</p></li>
+</ul>
+</li>
+</ul>
+<p>Example XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;ExternalConstraints&gt;</span>
+<span class="w">  </span><span class="nt">&lt;constraint</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;con_I&quot;</span><span class="nt">&gt;</span>externalConst<span class="nt">&lt;/constraint&gt;</span>
+<span class="w">  </span><span class="nt">&lt;constraint</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;con_II&quot;</span><span class="nt">&gt;</span>externalConstII.py<span class="nt">&lt;/constraint&gt;</span>
+<span class="nt">&lt;/ExternalConstraints&gt;</span>
+</pre></div>
+</div>
+<p>These constraints are Python modules with a format automatically
+interpretable by LOGOS. Users can define their own constraint, and LOGOS
+will embed and use the constraint as though it were an internal part of
+the optimization model.</p>
+<p>Example Python function:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># External constraint function</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pyomo.environ</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pyomo</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Optional method.</span>
+
+<span class="sd">    Optimization model parameter values can be updated/modified</span>
+<span class="sd">    without directly accessing the optimization model.</span>
+<span class="sd">    Values will be updated in-place.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    updateDict : dict</span>
+<span class="sd">        Dictionary of the form {paramName: paramInfoDict},</span>
+<span class="sd">        where paramInfoDict contains {Indices: Values}.</span>
+<span class="sd">        Indices are parameter indices (either strings or tuples of</span>
+<span class="sd">        strings, depending on the parameter&#39;s dimensionality).</span>
+<span class="sd">        Values are the new values being assigned.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">updateDict</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;available_capitals&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;None&quot;</span><span class="p">:</span> <span class="mi">16</span><span class="p">},</span>
+        <span class="s2">&quot;costs&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;1&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;2&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;3&quot;</span><span class="p">:</span> <span class="mi">7</span><span class="p">,</span> <span class="s2">&quot;4&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;5&quot;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
+            <span class="s2">&quot;6&quot;</span><span class="p">:</span> <span class="mi">9</span><span class="p">,</span> <span class="s2">&quot;7&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">,</span> <span class="s2">&quot;8&quot;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;9&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;10&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">updateDict</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">constraint</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">sets</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Required method.</span>
+
+<span class="sd">    External constraint provided by the user that will be added to the</span>
+<span class="sd">    optimization problem.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    var : object</span>
+<span class="sd">        The internally used decision variable. The dimensions/indices</span>
+<span class="sd">        depend on the type of optimization problem (i.e., the</span>
+<span class="sd">        ``&lt;problem_type&gt;`` from the LOGOS input file).</span>
+<span class="sd">        Currently supported types:</span>
+
+<span class="sd">        1. &quot;singleknapsack&quot;: var[:] indexed by the elements of</span>
+<span class="sd">           the ``investments`` set.</span>
+<span class="sd">        2. &quot;multipleknapsack&quot;: var[:,:] indexed by combinations</span>
+<span class="sd">           of ``investments`` and ``capitals``.</span>
+<span class="sd">        3. &quot;mckp&quot;: var[:,:] indexed by combinations of</span>
+<span class="sd">           ``investments`` and ``options``.</span>
+
+<span class="sd">        Note: all index elements are converted to strings.</span>
+
+<span class="sd">    sets : dict</span>
+<span class="sd">        All sets from the LOGOS input file, stored as</span>
+<span class="sd">        {setName: setObject}.</span>
+
+<span class="sd">    params : dict</span>
+<span class="sd">        All parameters from the LOGOS input file, stored as</span>
+<span class="sd">        {paramName: paramObject}.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple</span>
+<span class="sd">        Either (constraintRule,) or (constraintRule, indices).</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Any modifications to &quot;sets&quot; and &quot;params&quot; in this function have</span>
+<span class="sd">    impact only locally within this module. Internal constraints and</span>
+<span class="sd">    objectives in LOGOS use the original versions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">investments</span> <span class="o">=</span> <span class="n">sets</span><span class="p">[</span><span class="s2">&quot;investments&quot;</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">constraintRule</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Expression for the user-provided external constraint.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        self : object</span>
+<span class="sd">            Required by Pyomo, but not used here.</span>
+<span class="sd">        i : str</span>
+<span class="sd">            Element from the index set.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        expression</span>
+<span class="sd">            A Pyomo expression defining the constraint for index i.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Example: place an upper bound on the i-th decision variable</span>
+        <span class="k">return</span> <span class="n">var</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">1</span>
+
+    <span class="c1"># Return the rule and the indexing set for iterative construction</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">constraintRule</span><span class="p">,</span> <span class="n">investments</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="settings-options-for-optimization">
+<span id="subsec-settings"></span><h2>Settings: Options for Optimization<a class="headerlink" href="#settings-options-for-optimization" title="Link to this heading"></a></h2>
+<p>This subsection describes the XML nodes used to define the
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;Settings&gt;</span></code> of the optimization model being performed through
+LOGOS:</p>
+<ul>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;problem_type&gt;</span></code>, string, <strong>required</strong>
+Specifies the type of optimization problem. Available types include:</p>
+<ul class="simple">
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'SingleKnapsack'</span></code>,</p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'MultipleKnapsack'</span></code>,</p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'MCKP'</span></code> for risk-informed stochastic optimization;</p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'droskp'</span></code>, <code class="xml-string docutils literal notranslate"><span class="pre">'dromkp'</span></code>,
+<code class="xml-string docutils literal notranslate"><span class="pre">'dromckp'</span></code> for distributionally robust optimization;</p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'cvarskp'</span></code>, <code class="xml-string docutils literal notranslate"><span class="pre">'cvarmkp'</span></code>,
+<code class="xml-string docutils literal notranslate"><span class="pre">'cvarmckp'</span></code> for CVaR-based optimization.</p></li>
+</ul>
+</li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;solver&gt;</span></code>, string, <em>optional</em>
+Specifies the solver, e.g.:</p>
+<ul class="simple">
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'cbc'</span></code> from <code class="docutils literal notranslate"><span class="pre">https://github.com/coin-or/Cbc.git</span></code></p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'glpk'</span></code> from <code class="docutils literal notranslate"><span class="pre">https://www.gnu.org/software/glpk/</span></code></p></li>
+</ul>
+</li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;sense&gt;</span></code>, string, <em>optional</em>
+Specifies <code class="xml-string docutils literal notranslate"><span class="pre">'minimize'</span></code> or <code class="xml-string docutils literal notranslate"><span class="pre">'maximize'</span></code> for minimization
+or maximization, respectively.
+<strong>Default</strong>: <code class="xml-string docutils literal notranslate"><span class="pre">'minimize'</span></code>.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;mandatory&gt;</span></code>, comma/space-separated string, <em>optional</em>
+Specifies regulatorily mandated or must-do projects.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;nonSelection&gt;</span></code>, boolean, <em>optional</em>
+Indicates whether the investment options include a <em>DoNothing</em> option.
+<strong>Default</strong>: <code class="xml-string docutils literal notranslate"><span class="pre">'False'</span></code>.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;lowerBounds&gt;</span></code>, comma/space-separated integers, <em>optional</em>
+Specifies the lower bounds for decision variables.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;upperBounds&gt;</span></code>, comma/space-separated integers, <em>optional</em>
+Specifies the upper bounds for decision variables.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;consistentConstraintI&gt;</span></code>, string, <em>optional</em>
+Indicates whether this constraint is enabled.
+<strong>Default</strong>: <code class="xml-string docutils literal notranslate"><span class="pre">'True'</span></code>.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;consistentConstraintII&gt;</span></code>, string, <em>optional</em>
+Indicates whether this constraint is enabled.
+<strong>Default</strong>: <code class="xml-string docutils literal notranslate"><span class="pre">'False'</span></code>.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;solverOptions&gt;</span></code>, <em>optional</em>
+Accepts additional options for the solver provided in
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;solver&gt;</span></code>. A simple XML node containing only tags and text
+can be used to pass options, for example:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;solverOptions&gt;</span>
+<span class="w">  </span><span class="nt">&lt;threads&gt;</span>1<span class="nt">&lt;/threads&gt;</span>
+<span class="w">  </span><span class="nt">&lt;StochSolver&gt;</span>EF<span class="nt">&lt;/StochSolver&gt;</span>
+<span class="nt">&lt;/solverOptions&gt;</span>
+</pre></div>
+</div>
+<p>If the problem type is distributionally robust optimization, an
+additional option <code class="xml-node docutils literal notranslate"><span class="pre">&lt;radius_ambiguity&gt;</span></code> can be used to control
+the Wasserstein distance</p>
+<p>If the problem type uses conditional value-at-risk, additional options are available:</p>
+<ul class="simple">
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;risk_aversion&gt;</span></code>, float in <span class="math">[0,1]</span>, <em>optional</em>
+Indicates the weight on maximizing expected NPV versus penalizing
+solutions that yield low-NPV scenarios.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;confidence_level&gt;</span></code>, float in <span class="math">[0,1]</span>, <em>optional</em>
+Indicates the confidence level, i.e., the <span class="math">\alpha</span>-percentile
+of the loss.</p></li>
+</ul>
+</li>
+</ul>
+<p>Example XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Settings&gt;</span>
+<span class="w">  </span><span class="nt">&lt;mandatory&gt;</span>
+<span class="w">    </span>PresurizerReplacement
+<span class="w">    </span>...
+<span class="w">    </span>ReplaceInstrumentationAndControlCables
+<span class="w">  </span><span class="nt">&lt;/mandatory&gt;</span>
+<span class="w">  </span><span class="nt">&lt;nonSelection&gt;</span>True<span class="nt">&lt;/nonSelection&gt;</span>
+<span class="w">  </span><span class="nt">&lt;consistentConstraintI&gt;</span>True<span class="nt">&lt;/consistentConstraintI&gt;</span>
+<span class="w">  </span><span class="nt">&lt;consistentConstraintII&gt;</span>True<span class="nt">&lt;/consistentConstraintII&gt;</span>
+<span class="w">  </span><span class="nt">&lt;solver&gt;</span>cbc<span class="nt">&lt;/solver&gt;</span>
+<span class="w">  </span><span class="nt">&lt;solverOptions&gt;</span>
+<span class="w">    </span><span class="nt">&lt;threads&gt;</span>1<span class="nt">&lt;/threads&gt;</span>
+<span class="w">    </span><span class="nt">&lt;StochSolver&gt;</span>EF<span class="nt">&lt;/StochSolver&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/solverOptions&gt;</span>
+<span class="w">  </span><span class="nt">&lt;sense&gt;</span>maximize<span class="nt">&lt;/sense&gt;</span>
+<span class="w">  </span><span class="nt">&lt;problem_type&gt;</span>mckp<span class="nt">&lt;/problem_type&gt;</span>
+<span class="nt">&lt;/Settings&gt;</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../Introduction.html" class="btn btn-neutral float-left" title="Introduction" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="DeterministicCapitalBudgeting.html" class="btn btn-neutral float-right" title="Deterministic Capital Budgeting" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Copyright 2020, Battelle Energy Alliance, LLC ALL RIGHTS RESERVED.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

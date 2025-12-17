@@ -1,0 +1,413 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Resource-Constrained Project Scheduling Problem (RCPSP) &mdash; LOGOS 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Plugin for the RAVEN Code" href="PluginForRavenCode.html" />
+    <link rel="prev" title="Risk-Based Stochastic Capital Budgeting using Conditional Value-at-Risk" href="CVaR.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LOGOS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../Introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ModelingComponents.html">Overview of Capital Budgeting Modeling Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DeterministicCapitalBudgeting.html">Deterministic Capital Budgeting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="StochasticCapitalBudgeting.html">Prioritizing Project Selection to Hedge Against Uncertainty</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DRO.html">Distributionally Robust Optimization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CVaR.html">Risk-Based Stochastic Capital Budgeting using Conditional Value-at-Risk</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Resource-Constrained Project Scheduling Problem (RCPSP)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#indexes-and-parameters">Indexes and parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#decision-variables">Decision variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#mathematical-formulation">Mathematical formulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sets">Sets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#parameters">Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#settings">Settings</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="PluginForRavenCode.html">Plugin for the RAVEN Code</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CashflowAndNPVModels.html">SSC Cashflow and NPV Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Knapsack.html">Knapsack Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CPM.html">Critical Path Model (CPM)</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LOGOS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Resource-Constrained Project Scheduling Problem (RCPSP)</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/include/rcpsp.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="resource-constrained-project-scheduling-problem-rcpsp">
+<span id="sec-rcpsp"></span><h1>Resource-Constrained Project Scheduling Problem (RCPSP)<a class="headerlink" href="#resource-constrained-project-scheduling-problem-rcpsp" title="Link to this heading"></a></h1>
+<p>In this section, we consider the resource-constrained project scheduling
+problem (RCPSP). In RCPSP, the activities of a project have to be
+scheduled such that the makespan of the project is minimized. Thereby,
+technological precedence constraints must be observed, as well as
+limited capacities of the renewable resources that are required to
+accomplish the activities. The RCPSP for the scheduling of maintenance
+and surveillance activities of a nuclear power plant can be summarized
+as follows.</p>
+<p>We consider a project that consists of a set of <span class="math">J</span> jobs
+(or tasks). Due to technological requirements, precedence relations
+among some of the jobs enforce that job <span class="math">j = 2,3,\dots,J</span> may not
+be started before all its predecessors, denoted by <span class="math">P_j</span>, are
+finished. Here, <span class="math">j = 1</span> indexes an artificial job with zero
+duration, which precedes all jobs that can start at time zero, and
+<span class="math">j = J</span> indexes an artificial final job, again with zero
+duration, which represents the end of the project. Executing job
+<span class="math">j</span> takes <span class="math">d_j</span> time periods and is supported by a set,
+<span class="math">R</span>, of renewable resources.</p>
+<p>Consider a horizon with an upper bound <span class="math">T</span> on the project’s
+makespan, i.e., the time at which the final job is completed.
+We assume <span class="math">K_r^p</span> units of renewable resource <span class="math">r \in R</span>
+are available in each time period <span class="math">t = 1, 2, \dots, T</span>. Job
+<span class="math">j</span> requires <span class="math">k_{jr}^p</span> units of the renewable resource
+<span class="math">r \in R</span> for each period of the job’s duration, i.e., for time
+periods when the job is in process.</p>
+<p>The objective is to find a schedule that minimizes the project’s
+makespan while respecting the constraints imposed by the precedence
+relations and the limited resource availability.</p>
+<section id="indexes-and-parameters">
+<h2>Indexes and parameters<a class="headerlink" href="#indexes-and-parameters" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><span class="math">t = 1, 2, \dots, T</span>:
+time periods, where <span class="math">T</span> is an upper bound on the project’s
+makespan.</p></li>
+<li><p><span class="math">j = 1, 2, \dots, J</span>:
+jobs, with <span class="math">j = 1</span> and <span class="math">j = J</span> denoting artificial jobs.</p></li>
+<li><p><span class="math">r \in R</span>:
+set of renewable resources.</p></li>
+<li><p><span class="math">d_j</span>:
+duration of job <span class="math">j</span>.</p></li>
+<li><p><span class="math">K_r^p</span>:
+number of units of renewable resource <span class="math">r</span> available in period
+<span class="math">t</span>.</p></li>
+<li><p><span class="math">k_{jr}^p</span>:
+number of units of renewable resource <span class="math">r</span> consumed by job
+<span class="math">j</span> while in process.</p></li>
+<li><p><span class="math">P_j</span>:
+set of immediate predecessors of job <span class="math">j</span>.</p></li>
+</ul>
+</section>
+<section id="decision-variables">
+<h2>Decision variables<a class="headerlink" href="#decision-variables" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><span class="math">x_{jt}</span>:
+equals 1 if job <span class="math">j</span> completes in period <span class="math">t</span>; 0 otherwise.</p></li>
+</ul>
+</section>
+<section id="mathematical-formulation">
+<h2>Mathematical formulation<a class="headerlink" href="#mathematical-formulation" title="Link to this heading"></a></h2>
+<div class="math" id="equation-include-rcpsp-0">
+<p><span class="eqno">(48)<a class="headerlink" href="#equation-include-rcpsp-0" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\min \quad &amp; \sum_{t=1}^{T} (t-1)\,x_{Jt} \\
+\text{s.t.} \quad
+&amp; \sum_{t=1}^{T} x_{jt} = 1,
+  &amp;&amp; j = 1,\dots,J, \\
+&amp; \sum_{t' \le t} x_{jt'} \;\le\;
+  \sum_{t' \le t - d_j} x_{it'},
+  &amp;&amp; j = 2,\dots,J;\; t = 1,\dots,T;\; i \in P_j, \\
+&amp; \sum_{j=1}^{J} \sum_{t' = t}^{t + d_j - 1} k_{jr}^p\,x_{jt'}
+  \;\le\; K_r^p,
+  &amp;&amp; r \in R;\; t = 1,\dots,T, \\
+&amp; x_{jt} \in \{0,1\},
+  &amp;&amp; j = 1,\dots,J;\; t = 1,\dots,T.
+\end{aligned}</span></p>
+</div><p>The RCPSP model in LOGOS consists of the following modeling components:
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code>, <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Parameters&gt;</span></code>, and <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Settings&gt;</span></code>. Each of
+these components is illustrated in the following sections.</p>
+</section>
+<section id="sets">
+<span id="subsec-rcpsp-sets"></span><h2>Sets<a class="headerlink" href="#sets" title="Link to this heading"></a></h2>
+<p>This subsection contains information regarding the XML nodes used to
+define the <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code> of the RCPSP model being performed through
+LOGOS. <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code> specifies a collection of data, possibly
+including numeric data (e.g., real or integer values) as well as
+symbolic data (e.g., strings) typically used to specify the valid
+indices for indexed components.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Numeric data provided in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code> is treated as strings.</p>
+</div>
+<p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code> accepts the following sub-nodes:</p>
+<ul class="simple">
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;tasks&gt;</span></code>, comma/space-separated string, <strong>required</strong>
+Specifies the valid indices for tasks.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;resources&gt;</span></code>, comma/space-separated string, <strong>required</strong>
+Specifies the indices for renewable resources.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;predecessors&gt;</span></code>, comma/space-separated string, <strong>required</strong>
+Specifies the indices for preceding tasks.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;successors&gt;</span></code>, comma/space-separated string, <strong>required</strong>
+Specifies indices for successors. This sub-node accepts the following
+attribute:</p>
+<ul>
+<li><p><code class="xml-attr docutils literal notranslate"><span class="pre">index</span></code>, string, <strong>required</strong>
+Specifies the index dependence. The valid index is
+<code class="xml-string docutils literal notranslate"><span class="pre">'predecessors'</span></code>.</p></li>
+</ul>
+</li>
+</ul>
+<p>Example XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Sets&gt;</span>
+<span class="w">  </span><span class="nt">&lt;tasks&gt;</span>
+<span class="w">    </span>1,<span class="w"> </span>2,<span class="w"> </span>3,<span class="w"> </span>4,<span class="w"> </span>5,<span class="w"> </span>6,<span class="w"> </span>7,<span class="w"> </span>8,<span class="w"> </span>9,<span class="w"> </span>10,<span class="w"> </span>11,<span class="w"> </span>12
+<span class="w">  </span><span class="nt">&lt;/tasks&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;resources&gt;</span>
+<span class="w">    </span>r1<span class="w"> </span>r2<span class="w"> </span>r3<span class="w"> </span>r4
+<span class="w">  </span><span class="nt">&lt;/resources&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;predecessors&gt;</span>
+<span class="w">    </span>1,<span class="w"> </span>2,<span class="w"> </span>3,<span class="w"> </span>4,<span class="w"> </span>5,<span class="w"> </span>6,<span class="w"> </span>7,<span class="w"> </span>8,<span class="w"> </span>9,<span class="w"> </span>10,<span class="w"> </span>11
+<span class="w">  </span><span class="nt">&lt;/predecessors&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;successors</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;predecessors&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span>s1<span class="w"> </span>s2<span class="w"> </span>s3<span class="w"> </span>s4;
+<span class="w">    </span>s1;
+<span class="w">    </span>s1;
+<span class="w">    </span>s1;
+<span class="w">    </span>s1;
+<span class="w">    </span>s1;
+<span class="w">    </span>s1;
+<span class="w">    </span>s1;
+<span class="w">    </span>s1;
+<span class="w">    </span>s1;
+<span class="w">    </span>s1
+<span class="w">  </span><span class="nt">&lt;/successors&gt;</span>
+<span class="nt">&lt;/Sets&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="parameters">
+<span id="subsec-rcpsp-params"></span><h2>Parameters<a class="headerlink" href="#parameters" title="Link to this heading"></a></h2>
+<p>This subsection contains information regarding the XML nodes used to
+define the <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Parameters&gt;</span></code> of the RCPSP optimization model being
+performed through LOGOS:</p>
+<ul class="simple">
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;available_resources&gt;</span></code>, comma/space-separated string, <strong>required</strong>
+Specifies the available renewable resources. This node accepts the
+following attribute:</p>
+<ul>
+<li><p><code class="xml-attr docutils literal notranslate"><span class="pre">index</span></code>, string, <strong>required</strong>
+Specifies the indices of this parameter; keywords should be
+predefined in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code>. Valid keywords are
+<code class="xml-string docutils literal notranslate"><span class="pre">'resources'</span></code>.</p></li>
+</ul>
+</li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;task_resource_consumption&gt;</span></code>, comma/space-separated string, <strong>required</strong>
+Specifies the resource consumption for each task. This node accepts
+the following attribute:</p>
+<ul>
+<li><p><code class="xml-attr docutils literal notranslate"><span class="pre">index</span></code>, comma-separated string, <strong>required</strong>
+Specifies the indices of this parameter; keywords should be
+predefined in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code>. Valid keywords are
+<code class="xml-string docutils literal notranslate"><span class="pre">'tasks,</span> <span class="pre">resources'</span></code>.</p></li>
+</ul>
+</li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;task_duration&gt;</span></code>, comma/space-separated string, <strong>required</strong>
+Specifies the duration for each task. This node accepts the following
+attribute:</p>
+<ul>
+<li><p><code class="xml-attr docutils literal notranslate"><span class="pre">index</span></code>, string, <strong>required</strong>
+Specifies the indices of this parameter; keywords should be
+predefined in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code>. Valid keywords are
+<code class="xml-string docutils literal notranslate"><span class="pre">'tasks'</span></code>.</p></li>
+</ul>
+</li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;task_successors&gt;</span></code>, comma/space-separated string, <strong>required</strong>
+Specifies the successors for each predecessor. This node accepts the
+following attributes:</p>
+<ul>
+<li><p><code class="xml-attr docutils literal notranslate"><span class="pre">index</span></code>, string, <strong>required</strong>
+Specifies the indices of this parameter; keywords should be
+predefined in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code>. Valid keywords are
+<code class="xml-string docutils literal notranslate"><span class="pre">'successors'</span></code>.</p></li>
+<li><p><code class="xml-attr docutils literal notranslate"><span class="pre">type</span></code>, string, <em>optional</em>
+Specifies the text type of the provided node, i.e., integer, float,
+or string. Valid values are <code class="xml-string docutils literal notranslate"><span class="pre">'int'</span></code>, <code class="xml-string docutils literal notranslate"><span class="pre">'float'</span></code>,
+or <code class="xml-string docutils literal notranslate"><span class="pre">'str'</span></code>.
+<strong>Default</strong>: <code class="xml-string docutils literal notranslate"><span class="pre">'float'</span></code>.</p></li>
+</ul>
+</li>
+</ul>
+<p>Example XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Parameters&gt;</span>
+<span class="w">  </span><span class="nt">&lt;available_resources</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;resources&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span>13<span class="w"> </span>13<span class="w"> </span>13<span class="w"> </span>12
+<span class="w">  </span><span class="nt">&lt;/available_resources&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;task_resource_consumption</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;tasks, resources&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span>0<span class="w">  </span>0<span class="w">  </span>0<span class="w">  </span>0
+<span class="w">    </span>10<span class="w"> </span>0<span class="w">  </span>0<span class="w">  </span>0
+<span class="w">    </span>0<span class="w">  </span>7<span class="w">  </span>0<span class="w">  </span>0
+<span class="w">    </span>0<span class="w">  </span>9<span class="w">  </span>0<span class="w">  </span>0
+<span class="w">    </span>0<span class="w">  </span>4<span class="w">  </span>0<span class="w">  </span>0
+<span class="w">    </span>0<span class="w">  </span>0<span class="w">  </span>0<span class="w">  </span>6
+<span class="w">    </span>10<span class="w"> </span>0<span class="w">  </span>0<span class="w">  </span>0
+<span class="w">    </span>0<span class="w">  </span>0<span class="w">  </span>6<span class="w">  </span>0
+<span class="w">    </span>0<span class="w">  </span>0<span class="w">  </span>0<span class="w">  </span>8
+<span class="w">    </span>0<span class="w">  </span>6<span class="w">  </span>0<span class="w">  </span>0
+<span class="w">    </span>0<span class="w">  </span>0<span class="w">  </span>0<span class="w">  </span>5
+<span class="w">    </span>0<span class="w">  </span>0<span class="w">  </span>0<span class="w">  </span>0
+<span class="w">  </span><span class="nt">&lt;/task_resource_consumption&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;task_duration</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;tasks&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span>0
+<span class="w">    </span>8
+<span class="w">    </span>1
+<span class="w">    </span>10
+<span class="w">    </span>6
+<span class="w">    </span>5
+<span class="w">    </span>8
+<span class="w">    </span>9
+<span class="w">    </span>1
+<span class="w">    </span>9
+<span class="w">    </span>8
+<span class="w">    </span>0
+<span class="w">  </span><span class="nt">&lt;/task_duration&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;task_successors</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;successors&quot;</span><span class="w"> </span><span class="na">type=</span><span class="s">&quot;str&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span>2<span class="w"> </span>3<span class="w"> </span>4<span class="w"> </span>9
+<span class="w">    </span>5
+<span class="w">    </span>7
+<span class="w">    </span>8
+<span class="w">    </span>6
+<span class="w">    </span>10
+<span class="w">    </span>11
+<span class="w">    </span>10
+<span class="w">    </span>12
+<span class="w">    </span>9
+<span class="w">    </span>12
+<span class="w">  </span><span class="nt">&lt;/task_successors&gt;</span>
+<span class="nt">&lt;/Parameters&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="settings">
+<span id="subsec-rcpsp-settings"></span><h2>Settings<a class="headerlink" href="#settings" title="Link to this heading"></a></h2>
+<p>This subsection contains information regarding the XML nodes used to
+define the <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Settings&gt;</span></code> of the RCPSP optimization model being
+performed through LOGOS:</p>
+<ul class="simple">
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;problem_type&gt;</span></code>, string, <strong>required</strong>
+Specifies the type of optimization problem. Currently, the only
+available type is <code class="xml-string docutils literal notranslate"><span class="pre">'rcpsp'</span></code>.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;solver&gt;</span></code>, string, <em>optional</em>
+Represents available solvers including:</p>
+<ul>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'cbc'</span></code> from <code class="docutils literal notranslate"><span class="pre">https://github.com/coin-or/Cbc.git</span></code></p></li>
+<li><p><code class="xml-string docutils literal notranslate"><span class="pre">'glpk'</span></code> from <code class="docutils literal notranslate"><span class="pre">https://www.gnu.org/software/glpk/</span></code></p></li>
+</ul>
+</li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;sense&gt;</span></code>, string, <em>optional</em>
+Specifies <code class="xml-string docutils literal notranslate"><span class="pre">'minimize'</span></code> or <code class="xml-string docutils literal notranslate"><span class="pre">'maximize'</span></code> for
+minimization or maximization, respectively.
+<strong>Default</strong>: <code class="xml-string docutils literal notranslate"><span class="pre">'minimize'</span></code>.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;makespan_upperbound&gt;</span></code>, integer, <strong>required</strong>
+Specifies an upper bound on the makespan.</p></li>
+</ul>
+<p>Example LOGOS input XML for RCPSP model:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="cp">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;</span>
+<span class="nt">&lt;Logos&gt;</span>
+<span class="w">  </span>...
+<span class="w">  </span><span class="nt">&lt;Settings&gt;</span>
+<span class="w">    </span><span class="nt">&lt;makespan_upperbound&gt;</span>65<span class="nt">&lt;/makespan_upperbound&gt;</span>
+<span class="w">    </span><span class="nt">&lt;solver&gt;</span>cbc<span class="nt">&lt;/solver&gt;</span>
+<span class="w">    </span><span class="nt">&lt;sense&gt;</span>minimize<span class="nt">&lt;/sense&gt;</span>
+<span class="w">    </span><span class="nt">&lt;problem_type&gt;</span>rcpsp<span class="nt">&lt;/problem_type&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Settings&gt;</span>
+<span class="w">  </span>...
+<span class="nt">&lt;/Logos&gt;</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="CVaR.html" class="btn btn-neutral float-left" title="Risk-Based Stochastic Capital Budgeting using Conditional Value-at-Risk" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="PluginForRavenCode.html" class="btn btn-neutral float-right" title="Plugin for the RAVEN Code" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Copyright 2020, Battelle Energy Alliance, LLC ALL RIGHTS RESERVED.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

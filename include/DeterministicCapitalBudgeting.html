@@ -1,0 +1,612 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deterministic Capital Budgeting &mdash; LOGOS 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Prioritizing Project Selection to Hedge Against Uncertainty" href="StochasticCapitalBudgeting.html" />
+    <link rel="prev" title="Overview of Capital Budgeting Modeling Components" href="ModelingComponents.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LOGOS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../Introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ModelingComponents.html">Overview of Capital Budgeting Modeling Components</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Deterministic Capital Budgeting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#indices-sets-data-and-decision-variables">Indices, Sets, Data, and Decision Variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#model-formulation">Model Formulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#single-knapsack-problem-optimization">Single Knapsack Problem Optimization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#simple-knapsack-problem">Simple Knapsack Problem</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#bounded-knapsack-problem">Bounded Knapsack Problem</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#multi-dimensional-knapsack-problem-dkp">Multi-Dimensional Knapsack Problem (DKP)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#multiple-knapsack-problem-optimization">Multiple Knapsack Problem Optimization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multiple-choice-multi-dimensional-knapsack-problem-optimization">Multiple-Choice Multi-Dimensional Knapsack Problem Optimization</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="StochasticCapitalBudgeting.html">Prioritizing Project Selection to Hedge Against Uncertainty</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DRO.html">Distributionally Robust Optimization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CVaR.html">Risk-Based Stochastic Capital Budgeting using Conditional Value-at-Risk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rcpsp.html">Resource-Constrained Project Scheduling Problem (RCPSP)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="PluginForRavenCode.html">Plugin for the RAVEN Code</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CashflowAndNPVModels.html">SSC Cashflow and NPV Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Knapsack.html">Knapsack Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CPM.html">Critical Path Model (CPM)</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LOGOS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Deterministic Capital Budgeting</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/include/DeterministicCapitalBudgeting.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="deterministic-capital-budgeting">
+<span id="sec-deterministiccapitalbudgeting"></span><h1>Deterministic Capital Budgeting<a class="headerlink" href="#deterministic-capital-budgeting" title="Link to this heading"></a></h1>
+<p>We consider a capital budgeting problem for a nuclear generation station, with
+possible extension to a larger fleet of plants. Due to limited resources, we can
+select only a subset from a list of candidate capital projects. Our goal is to
+maximize the overall NPV associated with the selected subset. In doing so, we
+must respect resource limits and capture key structural and stochastic
+dependencies of the system, although in this section we start with the simpler
+deterministic case, ignoring randomness. Example projects include upgrading a
+steam turbine, refurbishing or replacing a set of reactor coolant pumps, and
+replacing a set of feed-water heaters.</p>
+<section id="indices-sets-data-and-decision-variables">
+<h2>Indices, Sets, Data, and Decision Variables<a class="headerlink" href="#indices-sets-data-and-decision-variables" title="Link to this heading"></a></h2>
+<p>We use the following notation.</p>
+<p><strong>Indexes and sets</strong></p>
+<ul class="simple">
+<li><p><span class="math">t \in T</span>: time periods (years)</p></li>
+<li><p><span class="math">i \in I</span>: investment candidate projects</p></li>
+<li><p><span class="math">j \in J_i</span>: options for selecting project <span class="math">i</span></p></li>
+<li><p><span class="math">k \in K</span>: types of resources</p></li>
+</ul>
+<p><strong>Data</strong></p>
+<ul class="simple">
+<li><p><span class="math">a_{ij}</span>: reward (revenue minus financial cost) of selecting project
+<span class="math">i</span> via option <span class="math">j</span></p></li>
+<li><p><span class="math">b_{kt}</span>: available budget for resource type <span class="math">k</span> in year
+<span class="math">t</span></p></li>
+<li><p><span class="math">c_{ijkt}</span>: consumption of resource of type <span class="math">k</span> in year
+<span class="math">t</span> if project <span class="math">i</span> is performed via option <span class="math">j</span></p></li>
+</ul>
+<p><strong>Decision variables</strong></p>
+<ul class="simple">
+<li><p><span class="math">x_{ij}</span>: equals 1 if project <span class="math">i</span> is selected via option
+<span class="math">j</span>, and 0 otherwise.</p></li>
+</ul>
+</section>
+<section id="model-formulation">
+<h2>Model Formulation<a class="headerlink" href="#model-formulation" title="Link to this heading"></a></h2>
+<p><em>Formulation.</em></p>
+<div class="math" id="equation-model-deter">
+<p><span class="eqno">(1)<a class="headerlink" href="#equation-model-deter" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\max_x \quad
+&amp; \sum_{i \in I} \sum_{j \in J_i} a_{ij} x_{ij} \\
+\text{s.t.} \quad
+&amp; \sum_{j \in J_i} x_{ij} = 1,
+  &amp;&amp; i \in I, \\
+&amp; \sum_{i \in I} \sum_{j \in J_i} c_{ijkt} x_{ij} \le b_{kt},
+  &amp;&amp; k \in K,\; t \in T, \\
+&amp; x_{ij} \in \{0,1\},
+  &amp;&amp; j \in J_i,\; i \in I.
+\end{aligned}</span></p>
+</div><p>The decision variables <span class="math">x_{ij}</span> indicate whether we choose to do project
+<span class="math">i</span> by means <span class="math">j</span>. Restated, if <span class="math">x_{ij} = 1</span>, then we recommend
+doing project <span class="math">i</span> via option <span class="math">j</span>; taken together, these decision
+variables produce both a portfolio of selected projects and a schedule for
+performing those projects over time.</p>
+<p>The set of available options <span class="math">j \in J_i</span> can explicitly include the
+“do-nothing” option. The first constraint ensures that we choose exactly one
+option from the available set for each project, including the possibility of
+selecting the do-nothing option. Even if we select the do-nothing option for a
+project, it induces an NPV <span class="math">a_{ij}</span>, which may be negative, representing
+growing O&amp;M costs, losses in plant efficiency, etc. The second structural
+constraint ensures that the budget of each resource <span class="math">k</span> is respected in
+each year <span class="math">t</span>. The objective function includes the NPV for each
+project–option pair, <span class="math">a_{ij}</span>, and the corresponding NPV is selected by
+the binary decision variable <span class="math">x_{ij}</span>.</p>
+<p>Projects that must be done (e.g., for safety or regulatory reasons) can be
+handled within the same mathematical formulation. The set <span class="math">J_i</span>
+typically includes a do-nothing option for each project, but when project
+<span class="math">i</span> must be done, we simply omit the do-nothing option from <span class="math">J_i</span>.
+Alternatively, one can remove the explicit do-nothing option, replace the first
+structural constraint with an inequality, and add an additional set of must-do
+projects with equality constraints. Both approaches are mathematically
+equivalent and represent modeling choices.</p>
+<p>In LOGOS, we use <code class="xml-node docutils literal notranslate"><span class="pre">&lt;mandatory&gt;</span></code> and <code class="xml-node docutils literal notranslate"><span class="pre">&lt;nonSelection&gt;</span></code> to handle
+these conditions:</p>
+<ul class="simple">
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;mandatory&gt;</span></code> specifies must-do projects.</p></li>
+<li><p><code class="xml-node docutils literal notranslate"><span class="pre">&lt;nonSelection&gt;</span></code> activates the do-nothing option.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If a project is listed under <code class="xml-node docutils literal notranslate"><span class="pre">&lt;mandatory&gt;</span></code>, the do-nothing option is
+not allowed for this project. Handling the do-nothing option implicitly
+leads to the NPV being calculated relative to that of the do-nothing option.</p>
+</div>
+<p>The objective of capital budgeting is to find the right combination of binary
+decisions for every investment so that overall profit is maximized. The output
+is a collection of projects to be carried out, which we refer to as a <em>project
+portfolio</em>. In practice, several optional constraints (resources/liabilities,
+dependencies/synergies, options, time windows, etc.) must often be fulfilled.
+This leads to various knapsack-type problem variants. In the following
+subsections, we present several variants of the above capital budgeting problem.</p>
+</section>
+<section id="single-knapsack-problem-optimization">
+<span id="subsec-skp"></span><h2>Single Knapsack Problem Optimization<a class="headerlink" href="#single-knapsack-problem-optimization" title="Link to this heading"></a></h2>
+<section id="simple-knapsack-problem">
+<h3>Simple Knapsack Problem<a class="headerlink" href="#simple-knapsack-problem" title="Link to this heading"></a></h3>
+<p>The simple knapsack problem (KP) for capital budgeting is defined as follows:
+we are given an investment set <span class="math">I</span>, consisting of investments
+<span class="math">i \in I</span> with profit <span class="math">a_i</span> (e.g., NPV), cost <span class="math">c_i</span>, and
+available budget <span class="math">b</span>. The objective is to select a subset of <span class="math">I</span>
+such that the total profit is maximized and the total cost does not exceed
+<span class="math">b</span>.</p>
+<p>The integer programming formulation is:</p>
+<div class="math" id="equation-simplekp">
+<p><span class="eqno">(2)<a class="headerlink" href="#equation-simplekp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\max_x \quad
+&amp; \sum_{i \in I} a_i x_i \\
+\text{s.t.} \quad
+&amp; \sum_{i \in I} c_i x_i \le b, \\
+&amp; x_i \in \{0,1\}, \quad i \in I.
+\end{aligned}</span></p>
+</div><p>Example LOGOS input XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
+<span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
+<span class="w">    </span><span class="nt">&lt;investments&gt;</span>
+<span class="w">      </span>1,2,3,4,5,6,7,8,9,10
+<span class="w">    </span><span class="nt">&lt;/investments&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Sets&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Parameters&gt;</span>
+<span class="w">    </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>18,20,17,19,25,21,27,23,25,24
+<span class="w">    </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">    </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>1,3,7,4,8,9,6,10,2,5
+<span class="w">    </span><span class="nt">&lt;/costs&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals&gt;</span>
+<span class="w">      </span>15
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Parameters&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Settings&gt;</span>
+<span class="w">    </span><span class="nt">&lt;solver&gt;</span>cbc<span class="nt">&lt;/solver&gt;</span>
+<span class="w">    </span><span class="nt">&lt;sense&gt;</span>maximize<span class="nt">&lt;/sense&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Settings&gt;</span>
+<span class="nt">&lt;/Logos&gt;</span>
+</pre></div>
+</div>
+<p>Example LOGOS output CSV:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>1,2,3,4,5,6,7,8,9,10,MaxNPV
+1.0,1.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,1.0,106.0
+</pre></div>
+</div>
+<p>In this case, projects <strong>1, 2, 4, 9, and 10</strong> are selected with a maximum
+profit of 106.0.</p>
+</section>
+<section id="bounded-knapsack-problem">
+<h3>Bounded Knapsack Problem<a class="headerlink" href="#bounded-knapsack-problem" title="Link to this heading"></a></h3>
+<p>In some cases, not all investments are distinct. For example, there may be
+<span class="math">n_i</span> identical pumps or valves to be replaced. Then the number of
+decision variables equals the number of distinct investments, rather than the
+total number of items. The constraint for decision variables becomes:</p>
+<div class="math" id="equation-include-deterministiccapitalbudgeting-0">
+<p><span class="eqno">(3)<a class="headerlink" href="#equation-include-deterministiccapitalbudgeting-0" title="Link to this equation"></a></span><span class="math">0 \le x_i \le n_i, \quad i \in I.</span></p>
+</div><p>The resulting bounded knapsack problem (BKP) is:</p>
+<div class="math" id="equation-boundedkp">
+<p><span class="eqno">(4)<a class="headerlink" href="#equation-boundedkp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\max_x \quad
+&amp; \sum_{i \in I} a_i x_i \\
+\text{s.t.} \quad
+&amp; \sum_{i \in I} c_i x_i \le b, \\
+&amp; x_i \in \{0, \dots, n_i\}, \quad i \in I.
+\end{aligned}</span></p>
+</div><p>Example LOGOS input XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
+<span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
+<span class="w">    </span><span class="nt">&lt;investments&gt;</span>
+<span class="w">      </span>1,<span class="w"> </span>2,<span class="w"> </span>3,<span class="w"> </span>4,<span class="w"> </span>5,<span class="w"> </span>6,<span class="w"> </span>7,<span class="w"> </span>8,<span class="w"> </span>9,<span class="w"> </span>10,<span class="w"> </span>11,<span class="w"> </span>12,<span class="w"> </span>13,
+<span class="w">      </span>14,<span class="w"> </span>15,<span class="w"> </span>16,<span class="w"> </span>17,<span class="w"> </span>18,<span class="w"> </span>19,<span class="w"> </span>20,<span class="w"> </span>21,<span class="w"> </span>22
+<span class="w">    </span><span class="nt">&lt;/investments&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Sets&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Parameters&gt;</span>
+<span class="w">    </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>150,35,200,60,60,45,60,40,30,10,70,
+<span class="w">      </span>30,15,10,40,70,75,80,20,12,50,10
+<span class="w">    </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">    </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>9,13,153,50,15,68,27,39,23,52,11,32,
+<span class="w">      </span>24,48,73,42,43,22,7,18,4,30
+<span class="w">    </span><span class="nt">&lt;/costs&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals&gt;</span>
+<span class="w">      </span>400
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Parameters&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Settings&gt;</span>
+<span class="w">    </span><span class="nt">&lt;lowerBounds&gt;</span>
+<span class="w">      </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,
+<span class="w">      </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0,<span class="w"> </span>0
+<span class="w">    </span><span class="nt">&lt;/lowerBounds&gt;</span>
+<span class="w">    </span><span class="nt">&lt;upperBounds&gt;</span>
+<span class="w">      </span>1,1,2,2,2,3,3,3,1,3,1,
+<span class="w">      </span>1,2,2,1,1,1,1,1,2,1,2
+<span class="w">    </span><span class="nt">&lt;/upperBounds&gt;</span>
+<span class="w">    </span><span class="nt">&lt;solver&gt;</span>glpk<span class="nt">&lt;/solver&gt;</span>
+<span class="w">    </span><span class="nt">&lt;sense&gt;</span>maximize<span class="nt">&lt;/sense&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Settings&gt;</span>
+<span class="nt">&lt;/Logos&gt;</span>
+</pre></div>
+</div>
+<p>Example LOGOS output CSV:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>1,2,...,21,22,MaxNPV
+1.0,1.0,...,1.0,0.0,1010.0
+</pre></div>
+</div>
+</section>
+<section id="multi-dimensional-knapsack-problem-dkp">
+<h3>Multi-Dimensional Knapsack Problem (DKP)<a class="headerlink" href="#multi-dimensional-knapsack-problem-dkp" title="Link to this heading"></a></h3>
+<p>We now account for limited commitments of multiple critical resources such as:</p>
+<ul class="simple">
+<li><p>capital costs,</p></li>
+<li><p>O&amp;M costs,</p></li>
+<li><p>time and labor-hours during outages,</p></li>
+<li><p>personnel, equipment, and workspace.</p></li>
+</ul>
+<p>Let <span class="math">c_{ik}</span> denote the cost of investment <span class="math">i</span> in resource
+dimension <span class="math">k</span> and <span class="math">b_k</span> the available amount of resource <span class="math">k</span>.
+The multi-dimensional knapsack problem is:</p>
+<div class="math" id="equation-dkp-static">
+<p><span class="eqno">(5)<a class="headerlink" href="#equation-dkp-static" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\max_x \quad
+&amp; \sum_{i \in I} a_i x_i \\
+\text{s.t.} \quad
+&amp; \sum_{i \in I} c_{ik} x_i \le b_k, &amp;&amp; k \in K, \\
+&amp; x_i \in \{0,1\}, &amp;&amp; i \in I.
+\end{aligned}</span></p>
+</div><p>If costs and available capital vary over time, we obtain a time-indexed DKP.
+Let <span class="math">c_{it}</span> be the cost of investment <span class="math">i</span> at time <span class="math">t</span> and
+<span class="math">b_t</span> the available capital at time <span class="math">t</span>. Then:</p>
+<div class="math" id="equation-dkp">
+<p><span class="eqno">(6)<a class="headerlink" href="#equation-dkp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\max_x \quad
+&amp; \sum_{i \in I} a_i x_i \\
+\text{s.t.} \quad
+&amp; \sum_{i \in I} c_{it} x_i \le b_t, &amp;&amp; t \in T, \\
+&amp; x_i \in \{0,1\}, &amp;&amp; i \in I.
+\end{aligned}</span></p>
+</div><p>Example LOGOS input XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
+<span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
+<span class="w">    </span><span class="nt">&lt;investments&gt;</span>
+<span class="w">      </span>1,2,3,4,5,6,7,8,9
+<span class="w">    </span><span class="nt">&lt;/investments&gt;</span>
+<span class="w">    </span><span class="nt">&lt;time_periods&gt;</span>
+<span class="w">      </span>1,2,3,4,5
+<span class="w">    </span><span class="nt">&lt;/time_periods&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Sets&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Parameters&gt;</span>
+<span class="w">    </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>2.315,0.824,22.459,60.589,0.667,5.173,4.003,0.582,0.122
+<span class="w">    </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">    </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments, time_periods&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>0.219,0.257,0.085,0.0,0.0,
+<span class="w">      </span>0.0,0.0,0.122,0.103,0.013,
+<span class="w">      </span>5.044,1.839,0.0,0.0,0.0,
+<span class="w">      </span>6.74,6.134,10.442,0.0,0.0,
+<span class="w">      </span>0.425,0.0,0.0,0.0,0.0,
+<span class="w">      </span>2.125,2.122,0.0,0.0,0.0,
+<span class="w">      </span>2.387,0.19,0.012,2.383,0.192,
+<span class="w">      </span>0.0,0.95,0.0,0.0,0.0,
+<span class="w">      </span>0.03,0.03,0.688,0.0,0.0
+<span class="w">    </span><span class="nt">&lt;/costs&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;time_periods&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>0.665,4.712,9.642,3.458,1.683
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Parameters&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Settings&gt;</span>
+<span class="w">    </span><span class="nt">&lt;solver&gt;</span>glpk<span class="nt">&lt;/solver&gt;</span>
+<span class="w">    </span><span class="nt">&lt;sense&gt;</span>maximize<span class="nt">&lt;/sense&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Settings&gt;</span>
+<span class="nt">&lt;/Logos&gt;</span>
+</pre></div>
+</div>
+<p>Example LOGOS output CSV:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>1,2,3,4,5,6,7,8,9,MaxNPV
+1.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,4.388
+</pre></div>
+</div>
+</section>
+</section>
+<section id="multiple-knapsack-problem-optimization">
+<h2>Multiple Knapsack Problem Optimization<a class="headerlink" href="#multiple-knapsack-problem-optimization" title="Link to this heading"></a></h2>
+<p id="subsec-mkp">Another variant arises when we consider maintenance for multiple units in a
+NPP in parallel; we must decide whether to accept a replacement and, if so, in
+which unit to conduct it. We introduce binary decision variables for each
+investment–unit pair:</p>
+<div class="math" id="equation-include-deterministiccapitalbudgeting-1">
+<p><span class="eqno">(7)<a class="headerlink" href="#equation-include-deterministiccapitalbudgeting-1" title="Link to this equation"></a></span><span class="math">x_{im} \in \{0,1\}, \quad i \in I,\; m \in M.</span></p>
+</div><p>The resulting multiple knapsack problem (MKP) is:</p>
+<div class="math" id="equation-mkp">
+<p><span class="eqno">(8)<a class="headerlink" href="#equation-mkp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\max_x \quad
+&amp; \sum_{m \in M} \sum_{i \in I} a_i x_{im} \\
+\text{s.t.} \quad
+&amp; \sum_{i \in I} c_i x_{im} \le b_m,
+  &amp;&amp; m \in M, \\
+&amp; \sum_{m \in M} x_{im} \le 1,
+  &amp;&amp; i \in I, \\
+&amp; x_{im} \in \{0,1\},
+  &amp;&amp; i \in I,\; m \in M.
+\end{aligned}</span></p>
+</div><p>Example LOGOS input XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
+<span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
+<span class="w">    </span><span class="nt">&lt;investments&gt;</span>
+<span class="w">      </span>1,2,3,4,5,6,7,8,9,10
+<span class="w">    </span><span class="nt">&lt;/investments&gt;</span>
+<span class="w">    </span><span class="nt">&lt;capitals&gt;</span>
+<span class="w">      </span>unit_1,<span class="w"> </span>unit_2
+<span class="w">    </span><span class="nt">&lt;/capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Sets&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Parameters&gt;</span>
+<span class="w">    </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>78,<span class="w"> </span>35,<span class="w"> </span>89,<span class="w"> </span>36,<span class="w"> </span>94,<span class="w"> </span>75,<span class="w"> </span>74,<span class="w"> </span>79,<span class="w"> </span>80,<span class="w"> </span>16
+<span class="w">    </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">    </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>18,<span class="w"> </span>9,<span class="w"> </span>23,<span class="w"> </span>20,<span class="w"> </span>59,<span class="w"> </span>61,<span class="w"> </span>70,<span class="w"> </span>75,<span class="w"> </span>76,<span class="w"> </span>30
+<span class="w">    </span><span class="nt">&lt;/costs&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;capitals&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>103,<span class="w"> </span>156
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Parameters&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Settings&gt;</span>
+<span class="w">    </span><span class="nt">&lt;solver&gt;</span>cbc<span class="nt">&lt;/solver&gt;</span>
+<span class="w">    </span><span class="nt">&lt;sense&gt;</span>maximize<span class="nt">&lt;/sense&gt;</span>
+<span class="w">    </span><span class="nt">&lt;problem_type&gt;</span>MultipleKnapsack<span class="nt">&lt;/problem_type&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Settings&gt;</span>
+<span class="nt">&lt;/Logos&gt;</span>
+</pre></div>
+</div>
+<p>Example LOGOS output CSV:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>1,2,3,4,5,6,7,8,9,10,capitals,MaxNPV
+0.0,0.0,1.0,1.0,1.0,0.0,0.0,0.0,0.0,0.0,unit_1,452.0
+1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,unit_2,452.0
+</pre></div>
+</div>
+</section>
+<section id="multiple-choice-multi-dimensional-knapsack-problem-optimization">
+<h2>Multiple-Choice Multi-Dimensional Knapsack Problem Optimization<a class="headerlink" href="#multiple-choice-multi-dimensional-knapsack-problem-optimization" title="Link to this heading"></a></h2>
+<p id="subsec-mckp">In some cases there may be multiple ways to carry out each project. For
+investment <span class="math">i</span>, option <span class="math">j</span> has cost <span class="math">c_{ij}</span> and profit
+<span class="math">a_{ij}</span>. Let <span class="math">J_i</span> be the set of options for investment <span class="math">i</span>.
+Using decision variables <span class="math">x_{ij}</span> (1 if option <span class="math">j</span> is chosen for
+investment <span class="math">i</span>), the multiple-choice knapsack problem (MCKP) is:</p>
+<div class="math" id="equation-mckp-basic">
+<p><span class="eqno">(9)<a class="headerlink" href="#equation-mckp-basic" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\max_x \quad
+&amp; \sum_{i \in I} \sum_{j \in J_i} a_{ij} x_{ij} \\
+\text{s.t.} \quad
+&amp; \sum_{j \in J_i} x_{ij} = 1,
+  &amp;&amp; i \in I, \\
+&amp; \sum_{i \in I} \sum_{j \in J_i} c_{ij} x_{ij} \le b, \\
+&amp; x_{ij} \in \{0,1\},
+  &amp;&amp; j \in J_i,\; i \in I.
+\end{aligned}</span></p>
+</div><p>Considering limited resources and multi-year investments, the MCKP can be
+extended to a D-dimensional MCKP (D-MCKP). Projects may span multiple years
+(e.g., <span class="math">t, t+1, t+2</span> or shifted windows), or have different sizes and
+benefits (e.g., 3% vs. 6% capacity uprates).</p>
+<p>A D-MCKP formulation is:</p>
+<div class="math" id="equation-dmckp-time">
+<p><span class="eqno">(10)<a class="headerlink" href="#equation-dmckp-time" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\max_x \quad
+&amp; \sum_{i \in I} \sum_{j \in J_i} a_{ij} x_{ij} \\
+\text{s.t.} \quad
+&amp; \sum_{j \in J_i} x_{ij} = 1,
+  &amp;&amp; i \in I, \\
+&amp; \sum_{i \in I} \sum_{j \in J_i} c_{ijt} x_{ij} \le b_t,
+  &amp;&amp; t \in T, \\
+&amp; x_{ij} \in \{0,1\},
+  &amp;&amp; j \in J_i,\; i \in I.
+\end{aligned}</span></p>
+</div><p>More generally, with multiple resource dimensions:</p>
+<div class="math" id="equation-dmckp-general">
+<p><span class="eqno">(11)<a class="headerlink" href="#equation-dmckp-general" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\max_x \quad
+&amp; \sum_{i \in I} \sum_{j \in J_i} a_{ij} x_{ij} \\
+\text{s.t.} \quad
+&amp; \sum_{j \in J_i} x_{ij} = 1,
+  &amp;&amp; i \in I, \\
+&amp; \sum_{i \in I} \sum_{j \in J_i} c_{ijkt} x_{ij} \le b_{kt},
+  &amp;&amp; k \in K,\; t \in T, \\
+&amp; x_{ij} \in \{0,1\},
+  &amp;&amp; j \in J_i,\; i \in I.
+\end{aligned}</span></p>
+</div><p>Example LOGOS input XML:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
+<span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
+<span class="w">    </span><span class="nt">&lt;investments&gt;</span>
+<span class="w">      </span>1,<span class="w"> </span>2,<span class="w"> </span>3,<span class="w"> </span>4,<span class="w"> </span>5,<span class="w"> </span>6,<span class="w"> </span>7,<span class="w"> </span>8,<span class="w"> </span>9,<span class="w"> </span>10,
+<span class="w">      </span>11,<span class="w"> </span>12,<span class="w"> </span>13,<span class="w"> </span>14,<span class="w"> </span>15,<span class="w"> </span>16,<span class="w"> </span>17
+<span class="w">    </span><span class="nt">&lt;/investments&gt;</span>
+<span class="w">    </span><span class="nt">&lt;options</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1,2,3;
+<span class="w">      </span>1,2,3,4;
+<span class="w">      </span>1,2,3,4,5,6,7;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1;
+<span class="w">      </span>1
+<span class="w">    </span><span class="nt">&lt;/options&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Sets&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Parameters&gt;</span>
+<span class="w">    </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;options&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>2.046<span class="w"> </span>2.679<span class="w"> </span>2.489<span class="w"> </span>2.61<span class="w"> </span>2.313<span class="w"> </span>1.02<span class="w"> </span>3.013<span class="w"> </span>2.55<span class="w"> </span>3.351<span class="w"> </span>3.423<span class="w"> </span>3.781<span class="w"> </span>2.525
+<span class="w">      </span>2.169<span class="w"> </span>2.267<span class="w"> </span>2.747<span class="w"> </span>4.309<span class="w"> </span>6.452<span class="w"> </span>2.849<span class="w"> </span>7.945<span class="w"> </span>2.538<span class="w"> </span>1.761<span class="w"> </span>3.002<span class="w"> </span>3.449
+<span class="w">      </span>2.865<span class="w"> </span>3.999<span class="w"> </span>2.283<span class="w"> </span>0.9<span class="w"> </span>8.608
+<span class="w">    </span><span class="nt">&lt;/net_present_values&gt;</span>
+<span class="w">    </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;options&quot;</span><span class="nt">&gt;</span>
+<span class="w">      </span>36538462
+<span class="w">      </span>83849038
+<span class="w">      </span>4615385
+<span class="w">      </span>2788461538
+<span class="w">      </span>2692307692
+<span class="w">      </span>5480769231
+<span class="w">      </span>1634615385
+<span class="w">      </span>2981730768
+<span class="w">      </span>7211538462
+<span class="w">      </span>9038461538
+<span class="w">      </span>649038462
+<span class="w">      </span>650000000
+<span class="w">      </span>216346154
+<span class="w">      </span>212500000
+<span class="w">      </span>3076923077
+<span class="w">      </span>3942307692
+<span class="w">      </span>1144230769
+<span class="w">      </span>675721154
+<span class="w">      </span>1442307692
+<span class="w">      </span>99711538
+<span class="w">      </span>4807692
+<span class="w">      </span>123076923
+<span class="w">      </span>138461538
+<span class="w">      </span>86538462
+<span class="w">      </span>108653846
+<span class="w">      </span>75092404
+<span class="w">      </span>6413462
+<span class="w">      </span>147932692
+<span class="w">    </span><span class="nt">&lt;/costs&gt;</span>
+<span class="w">    </span><span class="nt">&lt;available_capitals&gt;</span>
+<span class="w">      </span>15E9
+<span class="w">    </span><span class="nt">&lt;/available_capitals&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Parameters&gt;</span>
+
+<span class="w">  </span><span class="nt">&lt;Settings&gt;</span>
+<span class="w">    </span><span class="nt">&lt;solver&gt;</span>cbc<span class="nt">&lt;/solver&gt;</span>
+<span class="w">    </span><span class="nt">&lt;sense&gt;</span>maximize<span class="nt">&lt;/sense&gt;</span>
+<span class="w">    </span><span class="nt">&lt;problem_type&gt;</span>mckp<span class="nt">&lt;/problem_type&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/Settings&gt;</span>
+<span class="nt">&lt;/Logos&gt;</span>
+</pre></div>
+</div>
+<p>Example LOGOS output CSV:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>1__1,2__1,3__1,4__1,4__2,4__3,...,17__1,MaxNPV
+1.0,1.0,1.0,1.0,0.0,0.0,...,1.0,59.82600000000001
+</pre></div>
+</div>
+<p>In the output file, names of the form
+<code class="docutils literal notranslate"><span class="pre">&quot;investmentIndex&quot;__&quot;optionIndex&quot;</span></code> specify each decision variable. For
+example, <code class="docutils literal notranslate"><span class="pre">1__1</span></code> indicates that investment <strong>1</strong> with option <strong>1</strong> is
+selected.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="ModelingComponents.html" class="btn btn-neutral float-left" title="Overview of Capital Budgeting Modeling Components" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="StochasticCapitalBudgeting.html" class="btn btn-neutral float-right" title="Prioritizing Project Selection to Hedge Against Uncertainty" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Copyright 2020, Battelle Energy Alliance, LLC ALL RIGHTS RESERVED.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
