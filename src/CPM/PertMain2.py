@@ -794,8 +794,7 @@ class Pert:
     completed = self.convertListOfActToSymbolic(self.completed)
     logging.info('completed : ' + str(completed))
 
-    new_elem = pd.DataFrame([[time_index, wait, candidates, selected, ongoing, completed]], columns=self.optStatusDF.columns)
-    self.optStatusDF = pd.concat([self.optStatusDF, new_elem], ignore_index=True)
+    self.optStatusDF.loc[len(self.optStatusDF)] = [time_index, wait, candidates, selected, ongoing, completed]
 
   def printSchedulingProgression(self, fileName=None):
     """
@@ -934,7 +933,7 @@ class Pert:
         selected = selected_temp
       else:
         selected = []
-    elif choice=='max_use_res_act' or choice=='max_use_res_ranked' or choice=='max_use_res_shuffled':
+    elif choice in ['max_use_res_act','max_use_res_ranked','max_use_res_shuffled']:
       # select all activities that match available resources
       selected = []
       if choice=='max_use_res_act':
@@ -986,30 +985,35 @@ class Pert:
 
   def resourceUseProfile(self, selected):
     """
-      Method designed to rank set of candidates based on weightFunction calculated using acitivity'slack (i.e. float)
+      Method designed to assess the current and future resource usage given the selected acitvities
       @ In, selected, list, lis of selected activities
       @ Out, res_usage, dict, dictionary containing the forecasted resources required to complete the selected activities.
                               Dictionay format: res_usage = {'res1': np.array, 'res2': np.array, ...}
     """
     res_usage = {}
+
     if selected:
-      for act in selected:
-        res_dict = act.returnResources()
-        dur = int(act.returnDuration()-act.delay)
-        for res in res_dict.keys():
-          if res in res_usage.keys():
-            if dur==len(res_usage[res]):
-              res_usage[res] = res_usage[res] + np.ones([dur])*res_dict[res]
-            elif dur>len(res_usage[res]):
-              temp = np.ones([dur])*res_dict[res]
-              temp[0:len(res_usage[res])] = temp[0:len(res_usage[res])] + res_usage[res]
-              res_usage[res] = temp
-            else: # dur<len(res_usage[res])
-              temp = res_usage[res]
-              temp[0:dur] = temp[0:dur] + np.ones([dur])*res_dict[res]
-              res_usage[res] = temp
-          else:
-            res_usage[res] = np.ones([int(dur)])*res_dict[res]
+        for act in selected:
+            res_dict = act.returnResources()
+            dur = int(act.returnDuration() - act.delay)
+
+            for res, amount in res_dict.items():
+                usage = np.ones(dur) * amount
+
+                if res in res_usage:
+                    existing = res_usage[res]
+                    if dur > len(existing):
+                        # Extend and add
+                        extended = np.zeros(dur)
+                        extended[:len(existing)] = existing
+                        extended += usage
+                        res_usage[res] = extended
+                    else:
+                        # Add to existing slice
+                        existing[:dur] += usage
+                else:
+                    res_usage[res] = usage
+
     return res_usage
 
   def ranked(self, candidate_dict):
@@ -1068,9 +1072,7 @@ class Pert:
       # Set actual start time of selected activities to time_index
       for act in selectedActivities:
         act.setActualStartTime(time_index)
-
       # Remove selected activities from wait
-      for act in selectedActivities:
         self.wait.remove(act)
 
       # Move selected activities to ongoing
