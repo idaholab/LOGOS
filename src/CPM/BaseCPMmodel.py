@@ -177,6 +177,12 @@ class BaseCPMmodel(ExternalModelPluginBase):
           elem.updateDuration(inputDict[key.returnName()])
 
   def parsePriorityValues(self, container, inputDict):
+    """
+      This method updates the piority value of a subset of activities in self.graph when
+      the schedule graph is specified in a python class located in a separate file
+      @ In, container, object, self-like object where all the variables can be stored
+      @ In, inputDict, dict, dictionary of inputs from RAVEN
+    """
     priorityDict = {}
     inputDict = inputDict['SampledVars']
     for key in self.graph.keys():
