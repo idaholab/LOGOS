@@ -19,6 +19,7 @@
   <Models>
     <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
       <variables>start,b,c,d,end,f,g,h,end_time,CP</variables>
+      <analysis>activity_duration</analysis>
       <CPtime>end_time</CPtime>
       <CPid>CP</CPid>
       <map act='start' dur='10'>f,b,h</map>

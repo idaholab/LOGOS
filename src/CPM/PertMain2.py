@@ -5,11 +5,28 @@ import math
 import copy
 import networkx as nx
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib import patches
 import itertools
-import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
+import os, sys
+import plotly.express as px
+import plotly.io as pio
+import random
 import json
+import logging
+
+logging.basicConfig(format='%(message)s', level=logging.INFO)
+
+pertLoc = os.path.abspath(os.path.join(os.path.dirname(__file__)))
+if any(os.path.normcase(sp) == pertLoc for sp in sys.path):
+  print(f'WARNING: "{pertLoc}" already in system path. Skipping setup')
+else:
+  sys.path.append(pertLoc)
+
+from MDKoutage import mdkChoiceModel
 
 class Activity:
   """
@@ -22,7 +39,7 @@ class Activity:
       Constructor
       @ In, name, str, ID of the activity
       @ In, duration, float, planned activity duration
-      @ In, res, str, required resource to complete the activity
+      @ In, res, list, required resource to complete the activity
       @ In, child, list, list containing the names (str type) of the children (i.e., successors)
       @ Out, None
     """
@@ -30,10 +47,12 @@ class Activity:
     self.duration = duration    # planned duration of of the activity
     self.subActivities = []     # list of activities that have been clustered to this activity
     self.belongsToCP = False    # Boolean flag that indicates if the axctivity belongs to the CP
-    self.resources = res        #  required resource to complete the activity
+    self.resources = res        # resources required to complete the activity
 
     self.startTime = None       # activity actual start time
     self.endTime   = None       # activity actual completion time
+
+    self.delay = 0              # delay imposed to the activity by resource availability
 
     if childs is None:
       self.childs = []          # list containing the names (str type) of the children (i.e., successors)
@@ -89,6 +108,17 @@ class Activity:
     """
     self.duration = copy.deepcopy(newDuration)
 
+  def addDelay(self):
+    """
+      Methods that changes the duration of the activity. This function is used to
+      model the fact that when the RCPSP problem is being solved, an activity that
+      could start is post-poned because resources are not available.
+      @ In, None
+      @ Out, None
+    """
+    self.duration = self.duration + 1.
+    self.delay = self.delay + 1.
+
   def returnSubActivities(self):
     """
       Methods that returns the list of subactivities
@@ -106,7 +136,7 @@ class Activity:
     self.subActivities = subActivities
     tempDuration = 0.
     for act in subActivities:
-      tempDuration += act.returnDuration()
+      tempDuration += act.returnDuration() - act.delay
     self.duration = tempDuration
 
   def setOnCP(self):
@@ -125,15 +155,14 @@ class Activity:
     """
     return self.belongsToCP
 
-  def setTimes(self, Tin, Tfin):
+  def setActualStartTime(self, Tin):
     """
-      Set initial and final time of the activity based on CPM calculations
+      Set initial time of the activity based on CPM calculations
       @ In, Tin,  float, initial time of the activity
-      @ In, Tfin, float, final time of the activity
       @ Out, None
     """
     self.startTime = Tin
-    self.endTime   = Tfin
+    self.endTime   = Tin + timedelta(hours=self.duration-self.delay)
 
   def returnAbsTimes(self):
     """
@@ -142,6 +171,7 @@ class Activity:
       @ Out, (self.startTime,self.endTime), tuple, tuple containing initial and final time of the activity
     """
     return (self.startTime,self.endTime)
+
 
 
 
@@ -154,39 +184,80 @@ class Pert:
     Source https://github.com/nofaralfasi/PERT-CPM-graph
   """
 
-  def __init__(self, graph={}, startTime=None, resourcesTS=None):
+  def __init__(self, graph={}, jsonFile=None, startTime=None, resourcesTS=None, priorities=None, seed=2506178):
     """
       Constructor
-      @ In, graph, dict, dictionary containing the child acitivities for each activity
-      @ In, startTime, float, absolute initial time of schedule
+      @ In, graph, dict, dictionary containing the child activities for each activity
+      @ In, startTime, datetime, absolute initial time of schedule
       @ In, resourcesTS, dataframe, pandas dataframe containing resources availability
+      @ In, priorities, dict, dictionary containing the priority values for each activity
+      @ In, seed, int, integrer value representing the seed for the random elements used in this class
       @ Out, None
     """
-    self.forwardDict = graph   # list of out going nodes for every activity
-    self.resources = resourcesTS
-    self.startTime = startTime
+    if jsonFile is not None:
+      self.forwardDict = []
+    else:
+      self.forwardDict = graph    # list of out going nodes for every activity
+
+    self.resources = resourcesTS  # dataframe containing resources availability
+    self.startTime = startTime    # initial time/date of project schedule
+
+    self.priorities = priorities
 
     if resourcesTS is not None:
       self.checkResources()
+      self.resourcesTemporalCheck()
       if pd.infer_freq(resourcesTS.index) not in ['h','H']:
-        print("resourcesTS in PERT is set on the wrong index frequency: " + str(pd.infer_freq(resourcesTS.index)) + " instead of h or H")
+        raise ValueError("resourcesTS in PERT is set on the wrong index frequency: " + str(pd.infer_freq(resourcesTS.index)) + " instead of h or H")
 
     self.backwardDict = {}     # list of in going nodes for every activity
     self.infoDict = {}         # map of details for every activity
     self.startActivity = Activity
     self.endActivity = Activity
     self.resetInitialGraph()   # first reset of the graph
-    self.generateInfo()        # entering values into 'info_dict'
+    self.generateInfo()        # entering values into 'infoDict'
+
+    # Initialization of the seed used by the random shuffling choice strategy
+    self.seed = seed
+    random.seed(self.seed)
 
     for act in self.forwardDict.keys():
       act.updateChilds(self.forwardDict[act])
 
-    if startTime is not None:
-      self.setActivitiesAbsTimes()
 
-    if resourcesTS is not None:
-      self.resourcesTemporalCheck()
+  def parseInputFile(self, filename):
+    """
+      Parses a JSON file containing activity definitions and dependencies.
+      Validates unique activity IDs, instantiates Activity objects, and builds the graph.
+      @ In, filename, string, name of json file
+      @ Out, graph, dict mapping activity instances and their depedencies
+    """
+    with open(filename, 'r') as f:
+      data = json.load(f)
 
+    activitiesData = data.get("activities", [])
+    dependenciesData = data.get("dependencies", {})
+
+    # Validate unique IDs
+    ids = [activity['id'] for activity in activitiesData]
+    if len(ids) != len(set(ids)):
+      raise ValueError("Activity IDs must be unique.")
+
+    # Instantiate Activity objects
+    idToActivity = {}
+    for activity in activitiesData:
+        act = Activity(activity['id'], activity['duration'], activity['resources'])
+        idToActivity[activity['id']] = act
+
+    # Build graph using Activity instances
+    graph = {}
+    for srcId, destIds in dependenciesData.items():
+        srcActivity = idToActivity[srcId]
+        graph[srcActivity] = []
+        for destId in destIds:
+            graph[srcActivity].append(idToActivity[destId])
+
+    return graph
 
   def __str__(self):
     """
@@ -207,6 +278,15 @@ class Pert:
   def __iter__(self):
     return iter(self.forwardDict)
 
+  def reseed(self, seedValue):
+    """
+      Method designed to reseed the RNG
+      @ In, seedValue, int, new seed value
+      @ Out, None
+    """
+    self.seed = seedValue
+    random.seed(self.seed)
+
   def checkResources(self):
     """
       Method designed to check that the provided resource temporal profile contains allowed resource types
@@ -214,13 +294,13 @@ class Pert:
       @ Out, None
     """
     for act in self.forwardDict:
-      if act.returnResources() not in self.resources.columns:
+      if act.returnName() not in ['start','end'] and not set(act.returnResources().keys()).issubset(set(self.resources.columns)):
         raise IOError("Activity " + str(act.returnName()) + " requires a resource that is not allowed: " + str(act.returnResources()))
 
   def resetInitialGraph(self):
     """
       Method designed to reset the schedule graph:
-       * reseting 'backward_dict' for every activity
+       * reseting 'backwardDict' for every activity
        * setting 'startActivity' and 'endActivity'
       @ In, None
       @ Out, None
@@ -374,7 +454,6 @@ class Pert:
     self.resetInfo()
     self.generateInfo()
 
-  # find isolated activities
   def findIsolated(self):
     """
       Method designed to find isolated activities
@@ -400,7 +479,6 @@ class Pert:
     slackVals = sorted(slacks.items(), key=lambda kv: kv[1], reverse=True)
     return slackVals
 
-  # get the sum of all the slacks in the project
   def getSumOfSlacks(self):
     """
       Get sum of the slack values for all activities
@@ -411,7 +489,6 @@ class Pert:
     sumSlacks = sum(slacks)
     return sumSlacks
 
-  # get the critical path as list
   def getCriticalPath(self):
     """
       Get CP of the schedule as a list of activities
@@ -583,8 +660,8 @@ class Pert:
     G = nx.DiGraph()
     G.add_edges_from(listPairs)
 
-    subgraphs_of_G_ex, removed_edges = graphPartitioning(G, plotting=False)
-    listSeries = list(subgraphs_of_G_ex)
+    subgraphsOfGex, removed_edges = graphPartitioning(G, plotting=False)
+    listSeries = list(subgraphsOfGex)
 
     for series in listSeries:
         temp = list(nx.topological_sort(series))
@@ -644,24 +721,13 @@ class Pert:
       symbPath.append(act.name)
     return symbPath
 
-  def setActivitiesAbsTimes(self):
-    """
-      Method designed to assign, to each activity, its initial and final absolute time values
-      @ In, None
-      @ Out, None
-    """
-    for act in self.forwardDict:
-      Tin = self.startTime + datetime.timedelta(hours=self.infoDict[act]['es'])
-      Tfin = Tin + datetime.timedelta(hours=act.returnDuration())
-      act.setTimes(Tin,Tfin)
-
   def returnScheduleEndTime(self):
     """
-      Method designed to return the absolute end time of the aschdule
+      Method designed to return the absolute end time of the schedule
       @ In, None
-      @ Out, endTime, float, absolute end time of the aschdule
+      @ Out, endTime, float, absolute end time of the schedule
     """
-    startTime, endTime = self.getCriticalPath()[-1].returnAbsTimes()
+    endTime = self.startTime + timedelta(hours=self.infoDict[self.getCriticalPath()[-1]]['ef'])
     return endTime
 
   def saveScheduleToJsn(self, nameFile='schedule.json'):
@@ -677,7 +743,7 @@ class Pert:
 
   def resourcesTemporalCheck(self):
     """
-      Method designed to assess time depndendent resources requested by actual schedule
+      Method designed to assess time dependent resources requested by actual schedule
       @ In, None
       @ Out, None
     """
@@ -685,9 +751,441 @@ class Pert:
     self.reqResources = self.reqResources.replace(np.nan, 0)
     for act in self.forwardDict:
       absTimeVals = act.returnAbsTimes()
-      res = act.returnResources()
-      if res is not None:
-        self.reqResources.loc[absTimeVals[0]:absTimeVals[1],res] += 1
+      resDict = act.returnResources()
+      for res in resDict.keys():
+        self.reqResources.loc[absTimeVals[0]:absTimeVals[1],res] += resDict[res]
+
+  def convertListOfActToSymbolic(self, activitiesList):
+    """
+      Method designed to convert a list of activities into a list activity names
+      @ In, activitiesList, list, list of activities instances
+      @ Out, symbList, list, list of strings (i.e., activity names)
+    """
+    symbList = []
+    for act in activitiesList:
+      symbList.append(act.returnName())
+    return symbList
+
+  def localOptStatus(self, candidateActivities, timeIndex, selectedActivities):
+    """
+      Method designed to print on terminal the project scheduling process; this method has been added mainly
+      for debugging purposes
+      @ In, candidateActivities, dict, dictionary of candidate activities in the form:
+                                       {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
+      @ In, timeIndex, datetime, current time step in the analysis
+      @ In, selectedActivities, dict, dictionary of candidate activities in the form presented above
+      @ Out, None
+    """
+    logging.info('----------------')
+    logging.info(timeIndex)
+
+    wait = self.convertListOfActToSymbolic(self.wait)
+    logging.info('wait      : ' + str(wait))
+
+    candidates = self.convertListOfActToSymbolic(candidateActivities)
+    logging.info('candidates: ' + str(candidates))
+
+    selected = self.convertListOfActToSymbolic(selectedActivities)
+    logging.info('selected  : ' + str(selected))
+
+    ongoing = self.convertListOfActToSymbolic(self.ongoing)
+    logging.info('ongoing   : ' + str(ongoing))
+
+    completed = self.convertListOfActToSymbolic(self.completed)
+    logging.info('completed : ' + str(completed))
+
+    self.optStatusDF.loc[len(self.optStatusDF)] = [timeIndex, wait, candidates, selected, ongoing, completed]
+
+  def printSchedulingProgression(self, fileName=None):
+    """
+      Method designed to print on .csv file the project scheduling process
+      @ In,fileName, string, name of the file that will be generated
+      @ Out, None
+    """
+    if fileName is None:
+      fileName = 'scheduleProgression.csv'
+    else:
+      fileName = fileName + '.csv'
+    self.optStatusDF.to_csv(fileName, index=False)
+
+  def calculateScheduleWithResources(self, sgs):
+    """
+      Method designed to schedule activity actual start and end time based on available resources
+      @ In, sgs, string,  type of choice to select activities out of available candidates. Note that some types have been
+                          added only for testing purposes. Allowed types:
+                          * first: select the first activity in candidates
+                          * first_with_res: select the first activity in candidates only if present and future resources
+                            are available
+                          * max_use_res_act: select the first N activities in candidates only if present and future
+                            resources are available
+                          * max_use_res_ranked: rank activities based on float values and select the first N activities
+                            in candidates only if present and future resources are available
+                          * max_use_res_shuffled: randomly shuffle the initial list of activities and select the first
+                            N activities in candidates only if present and future resources are available
+                          * MD-Knapsack: select N activities through the multi-dimensional knapsack optimization model
+                                          in candidates only if present resources are available. This assumes that once a
+                                          resource has been tasked to an activty, that resource is assigned until the activity
+                                          has been completed. This might lead to negative resource availability
+      @ Out, None
+    """
+
+    Nactivities   = len(self.infoDict.keys())
+    self.wait      = list(self.forwardDict.keys())    # List of activities that needs to be completed
+    self.ongoing   = []                               # List of activities that are actually being performed
+    self.completed = []                               # List of activities that have been completed
+
+    Tmax = self.resources.index.max()
+
+    timeIndex = self.startTime
+
+    # Initialize dataframe that will contain calculation progression
+    self.optStatusDF = pd.DataFrame(columns=['time', 'wait', 'candidates', 'selected', 'ongoing', 'completed'])
+
+    while len(self.completed) != Nactivities and timeIndex<Tmax:
+      # select resources available at time t
+      resAtT = self.resources.loc[timeIndex].to_dict()
+
+      # Select set of activities that can potentially start from wait (criteria: early start (ES) values is <=timeIndex)
+      if self.priorities is None:
+        candidateActivities = self.selectCandidateActivities(timeIndex, 'TF_based')
+      else:
+        candidateActivities = self.selectCandidateActivities(timeIndex, 'external')
+
+      # If there are potential candidates
+      if candidateActivities:
+        # Select activities that will start at time t and generate the future usage profile of the resources of
+        # the selected actvities
+        selectedActivities, resUsage = self.scheduleGenerationScheme(candidateActivities, resAtT, timeIndex, sgs)
+
+        # update the lists self.wait and self.ongoing based on candidateActivities and selectedActivities
+        self.updateSetActivities(selectedActivities, candidateActivities, timeIndex)
+
+        # Update resource availability for time greater than timeIndex
+        self.updateResourceAvailability(resUsage, timeIndex)
+
+        # Run CPM model with update duration values
+        self.resetInitialGraph()
+        self.generateInfo()
+      else:
+        selectedActivities = []
+
+      # Update the self.ongoing and self.completed lists: the activities that are completed at time t
+      self.updateOngoingList(timeIndex)
+
+      # Save RCPSP calculation status outcome at each iteration
+      self.localOptStatus(candidateActivities, timeIndex, selectedActivities)
+
+      timeIndex = timeIndex + pd.Timedelta(hours=1)
+
+    self.summarizeSchedule()
+    self.printSchedulingProgression()
+    self.printSchedule()
+
+  def selectCandidateActivities(self, time, valueAssignment):
+    """
+      Method designed to:
+      1) select all activities in the wait list that can start at time t=time
+      2) assign a weigth value based on the slack
+      @ In, time, datetime, current time of project schedule progression
+      @ In, valueAssignment, string, method employ to assign a priority value to every activity
+                                     that can start at time t=time:
+                                     * TF_based: calcualted throught the weightFunction based
+                                                 on the activity float value
+                                     * external: provided externally by the the self.priorities var
+      @ Out, actReadyToGo, dict, dictionary of activities that can start
+    """
+    actReadyToGo = {}
+    for act in self.wait:
+      absES = self.startTime + pd.Timedelta(hours=self.infoDict[act]['es'])
+      if absES<=time:
+        actReadyToGo[act] = self.infoDict[act]
+
+    if valueAssignment == 'TF_based':
+      for act in actReadyToGo.keys():
+        actReadyToGo[act]['value'] = weightFunction(actReadyToGo[act]['slack'])
+    elif valueAssignment == 'external':
+      for act in actReadyToGo.keys():
+        actReadyToGo[act]['value'] = self.priorities[act]
+    return actReadyToGo
+
+  def scheduleGenerationScheme(self, candidates, res, timeIndex, choice):
+    """
+      Method that implement the chosen choice to select activities out of a set of candidate activities
+      @ In, candidates, dict, dictionary of candidate activities in the form:
+                              {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
+      @ In, res, pd.dataframe, resources availability at time timeIndex
+      @ In, timeIndex, datetime, current time of project schedule progression
+      @ In, choice, string, type of choice to select activities out of candidates
+      @ Out, selected, list, lis of selected activities out of candidatesthat have been chosen according to selected choice
+      @ Out, resUsage, dict, dictionary containing the forecasted resources required to complete the selected activities
+    """
+    if choice=='first':
+      # select first element in activities
+      selected = [next(iter(candidates))]
+    elif choice=='first_with_res':
+      # select first element in activities and check actual resources are available
+      selectedTemp = [next(iter(candidates))]
+      resUsageTemp = self.resourceUseProfile(selectedTemp)
+      # check resource availability
+      temp = copy.deepcopy(self.resources)
+      outcome = self.checkResourceAvailability(temp, resUsageTemp, timeIndex)
+      if outcome:
+        selected = selectedTemp
+      else:
+        selected = []
+    elif choice in ['max_use_res_act','max_use_res_ranked','max_use_res_shuffled']:
+      # select all activities that match available resources
+      selected = []
+      if choice=='max_use_res_act':
+        pass
+      if choice=='max_use_res_ranked':
+        candidates = self.ranked(candidates)
+      if choice=='max_use_res_shuffled':
+        candidates = self.shuffle(candidates)
+      for act in candidates:
+        temp = copy.deepcopy(self.resources)
+        tempSelected = copy.deepcopy(selected)
+        tempSelected.append(act)
+        resUsageTemp = self.resourceUseProfile(tempSelected)
+        # check resource availability
+        outcome = self.checkResourceAvailability(temp, resUsageTemp, timeIndex)
+        if outcome:
+          selected.append(act)
+    elif choice=='MD-Knapsack':
+      if self.priorities is None:
+        MDKmodel = mdkChoiceModel(candidates, self.resources.loc[timeIndex], 'uniform')
+      else:
+        MDKmodel = mdkChoiceModel(candidates, self.resources.loc[timeIndex], 'value_based')
+      selected = MDKmodel.run()
+    else:
+      raise IOError('Chosen choice method not allowed')
+
+    resUsage = self.resourceUseProfile(selected)
+
+    return selected, resUsage
+
+  def checkResourceAvailability(self, resProfile, resUsage, time):
+    """
+      Method designed to check that the forecasted resource availability is not negative (i.e., planned
+      resources exceed actual availability)
+      @ In, resProfile, pd.dataframe, temporal profile of resources availability
+      @ In, resUsage, dict, dictionary containing the forecasted resources required to complete the selected activities
+      @ In, time, datetime, current time of project schedule progression
+      @ Out, out, boolean, outcome of the check: resource availability < 0
+    """
+    for res in resUsage:
+      delta = pd.Timedelta(hours=len(resUsage[res])-1)
+      resProfile.loc[time:time+delta,res] = resProfile.loc[time:time+delta,res].values - resUsage[res]
+
+    if (resProfile.values<0).any():
+      out = False
+    else:
+      out = True
+    return out
+
+  def resourceUseProfile(self, selected):
+    """
+      Method designed to assess the current and future resource usage given the selected acitvities
+      @ In, selected, list, lis of selected activities
+      @ Out, resUsage, dict, dictionary containing the forecasted resources required to complete the selected activities.
+                              Dictionay format: resUsage = {'res1': np.array, 'res2': np.array, ...}
+    """
+    resUsage = {}
+
+    if selected:
+        for act in selected:
+            resDict = act.returnResources()
+            dur = int(act.returnDuration() - act.delay)
+
+            for res, amount in resDict.items():
+                usage = np.ones(dur) * amount
+
+                if res in resUsage:
+                    existing = resUsage[res]
+                    if dur > len(existing):
+                        # Extend and add
+                        extended = np.zeros(dur)
+                        extended[:len(existing)] = existing
+                        extended += usage
+                        resUsage[res] = extended
+                    else:
+                        # Add to existing slice
+                        existing[:dur] += usage
+                else:
+                    resUsage[res] = usage
+
+    return resUsage
+
+  def ranked(self, candidateDict):
+    """
+      Method designed to rank set of candidates based on 'value'
+      @ In, candidateDict, dict, dictionary of candidate activities in the form:
+                                  {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
+      @ Out, valueDictSorted.keys(), dict, dictionary of candidate activities sorted by weightFunction
+    """
+    valueDictSorted = dict(sorted(candidateDict.items(), key=lambda item: item[1]['value'], reverse=True))
+
+    return valueDictSorted.keys()
+
+  def shuffle(self, candidateDict):
+    """
+     Method designed to randomly shuffle the set of candidate activities
+     @ In, candidate_list, dict, dictionary of candidate activities in the form:
+                                  {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
+     @ Out, valueDictSorted.keys(), dict, dict of candidate activities sorted by weightFunction
+    """
+    valueDict = {}
+
+    for act in candidateDict:
+      valueDict[act] = random.random()
+
+    valueItemSorted = sorted(valueDict.items(), key=lambda item: item[1], reverse=True)
+    valueDictSorted = dict(valueItemSorted)
+
+    return valueDictSorted.keys()
+
+  def updateResourceAvailability(self, resUsage, time):
+    """
+      Method designed to update resources availability based on planned acitivities
+      @ In, resUsage, dict, dictionary containing planned resource use. Dictionay format:
+                             resUsage = {'res1': np.array, 'res2': np.array, ...}
+      @ In, time, datetime, current date and time value in the analysis process
+      @ Out, None
+    """
+    if resUsage:
+      for res in resUsage:
+        delta = pd.Timedelta(hours=len(resUsage[res])-1)
+        self.resources.loc[time:time+delta,res] = self.resources.loc[time:time+delta,res].values - resUsage[res]
+
+  def updateSetActivities(self, selectedActivities, candidateActivities, timeIndex):
+    """
+      Method designed to update the set of activities that at timeIndex were candidate to start (i.e., candidateActivities).
+      A subset got selected (i.e., selectedActivities) while the remaining are postponed.
+      Move the selected activities to self.ongoing, add delay to the ones that did not get selected
+      @ In, candidateActivities, dict, dictionary of candidate activities in the form:
+                                       {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
+      @ In, selectedActivities, list, list of activities that got selected to start
+      @ In, timeIndex, datetime, current time of project schedule progression
+      @ Out, None
+    """
+    if selectedActivities:
+      # Set actual start time of selected activities to timeIndex
+      for act in selectedActivities:
+        act.setActualStartTime(timeIndex)
+      # Remove selected activities from wait
+        self.wait.remove(act)
+
+      # Move selected activities to ongoing
+      self.ongoing = self.ongoing + selectedActivities
+
+      # Increment (i.e., +1) duration for set activities that have not been selected
+      postponedActivities = candidateActivities.keys() - selectedActivities
+      for act in postponedActivities:
+        act.addDelay()
+    else:
+      postponedActivities = candidateActivities.keys()
+      for act in postponedActivities:
+        act.addDelay()
+
+  def updateOngoingList(self, timeIndex):
+    """
+      Method designed to update the set of ongoing activities.
+      If they have been completed (i.e., timeIndex>= act.returnAbsTimes()[1]), the acitivity has been completed
+      and hence:
+      - move the activity out of self.ongoing
+      - move the activity into self.completed
+      @ In, timeIndex,
+      @ Out, None
+    """
+    # From ongoing identify completed activities
+    for act in self.ongoing:
+      if timeIndex>= act.returnAbsTimes()[1]:
+        # Move completed activities to completed
+        self.completed.append(act)
+        # Remove completed activities from ongoing
+        self.ongoing.remove(act)
+
+  def summarizeSchedule(self):
+    """
+      Method designed to save on dataframe the built project schedule
+      @ In, None
+      @ Out, None
+    """
+    actID     = []
+    startTime = []
+    endTime   = []
+    duration  = []
+    delay     = []
+
+    for act in self.infoDict:
+      actID.append(act.returnName())
+      tin, tfin = act.returnAbsTimes()
+      startTime.append(tin)
+      endTime.append(tfin)
+      delay.append(act.delay)
+      duration.append(act.returnDuration()-act.delay)
+
+    self.outageDF = pd.DataFrame({'actID': actID,
+                                  'start': startTime,
+                                  'end'  : endTime,
+                                  'delay': delay,
+                                  'duration': duration})
+
+  def printSchedule(self, fileName=None):
+    """
+      Print on file the built project schedule
+      @ In, fileName, string, name of the file where schedule info will be printed upon
+      @ Out, None
+    """
+    if fileName is None:
+      fileName = 'schedule.csv'
+    else:
+      fileName = fileName + '.csv'
+    self.outageDF.to_csv(fileName, index=False)
+
+  def plotGanttChart(self):
+    """
+      Method designed to plot the Gantt chart of the project schedule
+      @ In, None
+      @ Out, None
+    """
+    tin  = self.outageDF['start'].min()
+    tfin = self.outageDF['end'].max()
+
+    fig = px.timeline(self.outageDF, xStart="start", xEnd="end", y="actID")
+    fig.update_yaxes(autorange="reversed")
+    fig.update_xaxes(dtick=60*60*1000 ,tickangle=90, tickformat='%m/%d %H:%M')
+
+    fig.update_xaxes(range=[tin, tfin])
+    fileID = 'gantt.png'
+    pio.write_image(fig, fileID)
+
+  def plotResource(self, resID):
+    """
+      Method designed to plot the histogram temporal profile of the selected resource
+      @ In, resID, string, ID of the selected resource
+      @ Out, None
+    """
+    if resID not in self.resources.columns.tolist():
+      raise ValueError('Specified resource is not part of the predfined set of resources: ' + str(self.resources.columns.tolist()))
+    tin  = self.outageDF['start'].min()
+    tfin = self.outageDF['end'].max()
+    fig  = px.bar(self.resources[resID], x=self.resources.index, y=resID)
+    fig.update_xaxes(range=[tin, tfin])
+    fig.update_xaxes(dtick=60*60*1000 ,tickangle=90, tickformat='%m/%d %H:%M')
+    fig.update_xaxes(showgrid=True)
+    fileID = resID + str('.png')
+    pio.write_image(fig, fileID)
+
+
+def weightFunction(TF):
+  """
+    Method designed to return a weight value based on the float of an activity
+    @ In, TF, float, total float of the activity
+    @ Out, w, float, weight value
+  """
+  w=1.-1./(1.+math.exp(5.-TF))
+  return w
 
 def expandSubpaths(subpaths, path):
   """
@@ -814,56 +1312,3 @@ def graphPartitioning(G, plotting=True):
       H.subgraph(c).copy() for c in nx.connected_components(H.to_undirected())
   ]
   return subgraphs, GminusH
-
-
-'''
-# Example of usage of the pert class
-if __name__ == "__main__":
-    start = Activity("start", 5)
-    a = Activity("a", 2)
-    b = Activity("b", 3)
-    c = Activity("c", 3)
-    d = Activity("d", 4)
-    e = Activity("e", 3)
-    f = Activity("f", 6)
-    end = Activity("end", 2)
-    graph = {start: [a, d, f], a: [b], b: [c], c: [end], d: [e], e: [end], f:[end], end:[]}
-
-    print("initialize a graph:")
-    pert = Pert(graph)
-
-    # add activity
-    j = Activity("j", 16)
-    print("add activity to project:")
-    pert.addActivity(j, [start], [end])
-
-    # print activity with str
-    print("print activity:")
-    print(j)
-    print("critical path:")
-    print(pert.getCriticalPath())
-
-    # maximum shorting times
-    print("maximum shorting times:")
-    print(pert.shortenCriticalPath())
-
-    # slack time for each activity
-    print("slack time in descending order:")
-    print(pert.getSlackForEachActivity())
-
-    # sum of slack times
-    print("sum of slack times:")
-    print(pert.getSumOfSlacks())
-
-    # iterate on the nodes with iterator
-    print("iterate over all the activities with iterator:")
-    for activity in iter(pert):
-        print(activity)
-
-    # isolated activities
-    print("isolated activities:")
-    print(pert.findIsolated())
-    # print pert
-    print("print pert:")
-    print(pert)
-'''

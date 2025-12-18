@@ -1,12 +1,13 @@
 <Simulation verbosity="debug">
   <TestInfo>
-    <name>framework.BaseCPMmodel</name>
+    <name>framework.BaseCPMmodel_res</name>
     <author>mandd</author>
-    <created>2023-04-13</created>
+    <created>2025-12-17</created>
     <classesTested>Models.ExternalModel.LOGOS.BaseCPMmodel</classesTested>
     <description>
        This test is is designed to check the functionality of the CPM model when
-       project schedule is defined from file
+       project schedule is defined from file coupled with resource availability dataframe
+       and activity_priority are sample
     </description>
   </TestInfo>
 
@@ -23,44 +24,17 @@
   <Models>
     <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
       <variables>start,b,c,d,end,f,g,h,end_time,CP</variables>
-      <analysis>activity_duration</analysis>
+      <analysis>activity_priority</analysis> <!--activity_duration or activity_priority-->
+      <sgs>max_use_res_ranked</sgs>
       <CPtime>end_time</CPtime>
       <CPid>CP</CPid>
     </ExternalModel>
   </Models>
 
   <Distributions>
-    <Uniform name="dist_A">
-      <lowerBound>8</lowerBound>
-      <upperBound>12</upperBound>
-    </Uniform>
-    <Uniform name="dist_B">
-      <lowerBound>15</lowerBound>
-      <upperBound>25</upperBound>
-    </Uniform>
-    <Uniform name="dist_C">
-      <lowerBound>4</lowerBound>
-      <upperBound>8</upperBound>
-    </Uniform>
-    <Uniform name="dist_D">
-      <lowerBound>8</lowerBound>
-      <upperBound>12</upperBound>
-    </Uniform>
-    <Uniform name="dist_E">
-      <lowerBound>19</lowerBound>
-      <upperBound>25</upperBound>
-    </Uniform>
-    <Uniform name="dist_F">
-      <lowerBound>12</lowerBound>
-      <upperBound>20</upperBound>
-    </Uniform>
-    <Uniform name="dist_G">
-      <lowerBound>4</lowerBound>
-      <upperBound>12</upperBound>
-    </Uniform>
-    <Uniform name="dist_H">
-      <lowerBound>12</lowerBound>
-      <upperBound>21</upperBound>
+    <Uniform name="dist">
+      <lowerBound>0</lowerBound>
+      <upperBound>1</upperBound>
     </Uniform>
   </Distributions>
 
@@ -70,28 +44,28 @@
         <limit>10</limit>
       </samplerInit>
       <variable name="start">
-        <distribution>dist_A</distribution>
+        <distribution>dist</distribution>
       </variable>
       <variable name="b">
-        <distribution>dist_B</distribution>
+        <distribution>dist</distribution>
       </variable>
       <variable name="c">
-        <distribution>dist_C</distribution>
+        <distribution>dist</distribution>
       </variable>
       <variable name="d">
-        <distribution>dist_D</distribution>
+        <distribution>dist</distribution>
       </variable>
       <variable name="end">
-        <distribution>dist_E</distribution>
+        <distribution>dist</distribution>
       </variable>
       <variable name="f">
-        <distribution>dist_F</distribution>
+        <distribution>dist</distribution>
       </variable>
       <variable name="g">
-        <distribution>dist_G</distribution>
+        <distribution>dist</distribution>
       </variable>
       <variable name="h">
-        <distribution>dist_H</distribution>
+        <distribution>dist</distribution>
       </variable>
     </MonteCarlo>
   </Samplers>
@@ -121,7 +95,7 @@
     </PointSet>
     <PointSet name="sim_PS">
       <Input>start,b,c,d,end,f,g,h</Input>
-      <Output>end_time,CP</Output>
+      <Output>end_time</Output>
     </PointSet>
   </DataObjects>
 

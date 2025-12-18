@@ -87,7 +87,6 @@ class BaseKnapsackModel(ExternalModelPluginBase):
       elif name == 'variables':
         variables = val
 
-
   def initialize(self, container, runInfoDict, inputFiles):
     """
       Method to initialize the BaseKnapsack model
