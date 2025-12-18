@@ -867,7 +867,7 @@ class Pert:
         self.resetInitialGraph()
         self.generateInfo()
       else:
-        logging.info('no candidate acitivties has been found')
+        selectedActivities = []
 
       # Update the self.ongoing and self.completed lists: the activities that are completed at time t
       self.updateOngoingList(timeIndex)
