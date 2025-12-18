@@ -60,7 +60,9 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Critical Path Model (CPM)</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#graph-definition-via-xml-map-nodes">Graph Definition via XML <code class="docutils literal notranslate"><span class="pre">map</span></code> Nodes</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#graph-definition-via-python-project-class">Graph Definition via Python <code class="docutils literal notranslate"><span class="pre">project</span></code> Class</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#model-outputs">Model Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#resource-constrained-project-scheduling-problem-rcpsp">Resource-Constrained Project Scheduling Problem (RCPSP)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cpm-model-and-raven">CPM Model and RAVEN</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id1">CPM Model and RAVEN</a></li>
 </ul>
 </li>
 </ul>
@@ -97,6 +99,15 @@ RAVEN workflow where the activity duration values can be changed through a speci
 strategy (either sampling or optimization).</p>
 <p>The schedule requires a <code class="docutils literal notranslate"><span class="pre">start</span></code> and an <code class="docutils literal notranslate"><span class="pre">end</span></code> activity, and a list of additional
 activities with their corresponding duration values.</p>
+<p>Every activity is defined in an “Activity” class instance where these parameters are provided:</p>
+<ul class="simple">
+<li><p><strong>name</strong> (string): ID of the activity (required)</p></li>
+<li><p><strong>duration</strong> (float): planned activity duration (required)</p></li>
+<li><p><strong>res</strong> (list of dictionaries): resources required to complete the activity (optional). Each</p></li>
+</ul>
+<p>required resource is specified by a dictionary in the form of <code class="docutils literal notranslate"><span class="pre">{resource_ID:</span> <span class="pre">amount_required}</span></code>
+where <code class="docutils literal notranslate"><span class="pre">resource_ID</span></code> indicates the name of the required resource while “amount_required” indicates
+the required amount.</p>
 <p>There are two ways to specify the graph.</p>
 <section id="graph-definition-via-xml-map-nodes">
 <h2>Graph Definition via XML <code class="docutils literal notranslate"><span class="pre">map</span></code> Nodes<a class="headerlink" href="#graph-definition-via-xml-map-nodes" title="Link to this heading"></a></h2>
@@ -132,7 +143,9 @@ required:</p>
 <p>In the second way, the graph structure is defined in a <code class="docutils literal notranslate"><span class="pre">.py</span></code> file, in a
 <code class="docutils literal notranslate"><span class="pre">project()</span></code> class. In this class, each activity is defined by its ID and duration
 (through the <code class="docutils literal notranslate"><span class="pre">Activity</span></code> object). Then the graph structure is defined through a
-dictionary: for each activity, a list of outgoing activities is provided.</p>
+dictionary: for each activity, a list of outgoing activities is provided.
+As an example, the completion of activity <code class="docutils literal notranslate"><span class="pre">c</span></code> can enable the start of
+activities <code class="docutils literal notranslate"><span class="pre">g</span></code> and <code class="docutils literal notranslate"><span class="pre">d</span></code>.</p>
 <p>Example of schedule definition in an external <code class="docutils literal notranslate"><span class="pre">.py</span></code> file:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">LOGOS.src.CPM.PertMain2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pert</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">LOGOS.src.CPM.PertMain2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Activity</span>
@@ -157,17 +170,224 @@ dictionary: for each activity, a list of outgoing activities is provided.</p>
            <span class="n">end</span>  <span class="p">:</span> <span class="p">[]}</span>
 </pre></div>
 </div>
+<p>The project schedule can now be instantiated through the <code class="docutils literal notranslate"><span class="pre">Pert</span></code> class:</p>
+<p>where these parameteres are provided:
+- <strong>graph</strong> (dictionary): set of dependencies (required)
+- <strong>startTime</strong> (datetime): initial time of schedule (optional)
+- <strong>resourcesTS</strong> (pd.dataframe): resources availability (optional)
+- <strong>priorities</strong>: priority values assigne to each acitivty (optional)</p>
+<p>The resources availability time series is provided in form of a pandas dataframe indexed by the
+datetime array that needs to match defined startTime. The time series is required to be sample on an hourly basis.
+An example is provided below where resourcesTS and startTime are constructed.
+In this case, resourcesTS provides the availability temporal profile of one available crew (with skill res1)
+and two available crews (with skill res2).</p>
+<p>These are methods associated with the <code class="docutils literal notranslate"><span class="pre">Pert</span></code> class:</p>
+<ul class="simple">
+<li><p><strong>getCriticalPathSymbolic()</strong>: return critical path as an ordered list of activity indicates</p></li>
+<li><p><strong>eturnScheduleEndTime()</strong>: return end time of project schedule</p></li>
+</ul>
 </section>
-<section id="model-outputs">
-<h2>Model Outputs<a class="headerlink" href="#model-outputs" title="Link to this heading"></a></h2>
-<p>The CPM model returns two parameters:</p>
-<ol class="arabic simple">
-<li><p>The critical path time value (a float).</p></li>
-<li><p>The actual critical path, represented as a sequence of activity IDs that are
-part of the critical path, separated by underscores (a string).</p></li>
-</ol>
-<p>The RAVEN ID for the critical path time value is specified in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;CPtime&gt;</span></code>.
-The RAVEN ID for the critical path is specified in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;CPid&gt;</span></code>.</p>
+<section id="resource-constrained-project-scheduling-problem-rcpsp">
+<h2>Resource-Constrained Project Scheduling Problem (RCPSP)<a class="headerlink" href="#resource-constrained-project-scheduling-problem-rcpsp" title="Link to this heading"></a></h2>
+<p>If the resources are specified in the schedule problem, then it is possible to use the <code class="docutils literal notranslate"><span class="pre">Pert</span></code>
+class to solve the RCPSP optimization problem as follows</p>
+<p>where the parameter <code class="docutils literal notranslate"><span class="pre">sgs</span></code> indicates the strategy to select activities out of available candidates
+at each time step (indicated as schedule generation scheme - SGS).
+Allowed values for the <code class="docutils literal notranslate"><span class="pre">sgs</span></code>’’`` parameters are:</p>
+<ul class="simple">
+<li><p><strong>max_use_res_act</strong>: select the first N activities in candidates only if present and future</p></li>
+</ul>
+<p>resources are available
+- <strong>max_use_res_ranked</strong>: rank activities based on float values and select the first N activities
+in candidates only if present and future resources are available
+- <strong>max_use_res_shuffled</strong>: randomly shuffle the initial list of activities and select the
+first N activities in candidates only if present and future resources are available
+- <strong>MD-Knapsack</strong>: select N activities through the multi-dimensional knapsack optimization
+model in candidates only if present resources are available. This assumes that once a resource
+has been tasked to an activty, that resource is assigned until the activity has been completed.
+This might lead to negative resource availability.</p>
+</section>
+<section id="cpm-model-and-raven">
+<h2>CPM Model and RAVEN<a class="headerlink" href="#cpm-model-and-raven" title="Link to this heading"></a></h2>
+<p>In RAVEN the graph can be imported in two ways. In the first way, the graph is defined in the
+xmlNode{map} nodes. In each instance of the xmlNode{map} node, an activity is defined and the
+following information is required: activity ID (act attribute), activity duration (dur attribute),
+and the list of outgoing activities.</p>
+<p>Example of CPM input XML in RAVEN input file:
+begin{lstlisting}[style=XML]</p>
+<blockquote>
+<div><dl>
+<dt>&lt;Models&gt;</dt><dd><dl class="simple">
+<dt>&lt;ExternalModel name=”CPMmodel” subType=”LOGOS.BaseCPMm odel”&gt;</dt><dd><p>&lt;variables&gt;start,b,c,d,end,f,g,h,end_time,CP&lt;/variables&gt;
+&lt;analysis&gt;activity_duration&lt;/analysis&gt;
+&lt;CPtime&gt;end_time&lt;/CPtime&gt;
+&lt;CPid&gt;CP&lt;/CPid&gt;
+&lt;map act=’start’ dur=’10’&gt;f,b,h&lt;/map&gt;
+&lt;map act=’b’     dur=’20’&gt;c&lt;/map&gt;
+&lt;map act=’c’     dur=’5’ &gt;g,d&lt;/map&gt;
+&lt;map act=’d’     dur=’10’&gt;end&lt;/map&gt;
+&lt;map act=’f’     dur=’15’&gt;g&lt;/map&gt;
+&lt;map act=’g’     dur=’5’ &gt;end&lt;/map&gt;
+&lt;map act=’h’     dur=’15’&gt;end&lt;/map&gt;
+&lt;map act=’end’   dur=’20’&gt;&lt;/map&gt;</p>
+</dd>
+</dl>
+<p>&lt;/ExternalModel&gt;</p>
+</dd>
+</dl>
+<p>&lt;/Models&gt;</p>
+</div></blockquote>
+<p>end{lstlisting}</p>
+<p>In the second way, the graph structure can be define in a .py file and it is specified in a
+project() class (see below). In this class each activity is define in terms of ID and duration
+(see Activity object below).
+Then the graph structure is defined through a dictionary, for each activity, a list of list of
+outgoing activities is provided.</p>
+<p>Example of schedule definition in an external .py file:
+begin{lstlisting}[language=Python]</p>
+<blockquote>
+<div><p>from LOGOS.src.CPM.PertMain2 import Pert
+from LOGOS.src.CPM.PertMain2 import Activity</p>
+<dl>
+<dt>class project():</dt><dd><p>start = Activity(“start”, 10)
+b     = Activity(“b”,     20)
+c     = Activity(“c”,      5)
+d     = Activity(“d”,     10)
+f     = Activity(“f”,     15)
+g     = Activity(“g”,      5)
+h     = Activity(“h”,     15)
+end   = Activity(“end”,   20)</p>
+<dl class="simple">
+<dt>graph = {start: [f,b,h],</dt><dd><p>b    : [c],
+c    : [g,d],
+d    : [end],
+f    : [g],
+g    : [end],
+h    : [end],
+end  : []}</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p>end{lstlisting}</p>
+</div></blockquote>
+<p>The xmlNode{analysis} node indicates which type of analysis is performed with RAVEN:
+begin{itemize}</p>
+<blockquote>
+<div><p>item activity_duration: RAVEN sample acitivty duration values
+item activity_priority: RAVEN sample acitivty priority values</p>
+</div></blockquote>
+<p>end{itemize}</p>
+<p>If activity_priority is chosen, then it is required to provide an additional information: the
+chosen schedule generation scheme (SGS) as shown in the example below:</p>
+<dl>
+<dt>begin{lstlisting}[style=XML]</dt><dd><blockquote>
+<div><dl class="simple">
+<dt>&lt;ExternalModel name=”CPMmodel” subType=”LOGOS.BaseCPMmodel”&gt;</dt><dd><p>&lt;variables&gt;start,b,c,d,end,f,g,h,end_time,CP&lt;/variables&gt;
+&lt;analysis&gt;activity_duration&lt;/analysis&gt; &lt;!–activity_duration or activity_priority–&gt;
+&lt;sgs&gt;max_use_res_ranked&lt;/sgs&gt;
+&lt;CPtime&gt;end_time&lt;/CPtime&gt;
+&lt;CPid&gt;CP&lt;/CPid&gt;</p>
+</dd>
+</dl>
+<p>&lt;/ExternalModel&gt;</p>
+</div></blockquote>
+<p>&lt;/Models&gt;</p>
+</dd>
+</dl>
+<p>end{lstlisting}</p>
+<p>The xmlNode{sgs} node indicates which SGS has been chosen (see above):
+begin{itemize}</p>
+<blockquote>
+<div><p>item max_use_res_act
+item max_use_res_ranked
+item max_use_res_shuffled
+item MD-Knapsack</p>
+</div></blockquote>
+<p>end{itemize}</p>
+<p>The CPM model return two parameters. The first one is the critical path time value (i.e., a float),
+while the second one is the actual critical path which is represented as a sequence of activity ID
+that are part of the critial path (i.e., a string) separated by an underscore.
+The RAVEN ID for the critical path time value is specified in the xmlNode{CPtime}.
+The RAVEN ID for the critical path is specified in the xmlNode{CPid}.</p>
+</section>
+<section id="id1">
+<h2>CPM Model and RAVEN<a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<p>In RAVEN, the graph can be imported in two ways:</p>
+<p><strong>1. XML definition using xmlNode{map} nodes:</strong></p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Models&gt;</span>
+<span class="w">  </span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;CPMmodel&quot;</span><span class="w"> </span><span class="na">subType=</span><span class="s">&quot;LOGOS.BaseCPMmodel&quot;</span><span class="nt">&gt;</span>
+<span class="w">    </span><span class="nt">&lt;variables&gt;</span>start,b,c,d,end,f,g,h,end_time,CP<span class="nt">&lt;/variables&gt;</span>
+<span class="w">    </span><span class="nt">&lt;analysis&gt;</span>activity_duration<span class="nt">&lt;/analysis&gt;</span>
+<span class="w">    </span><span class="nt">&lt;CPtime&gt;</span>end_time<span class="nt">&lt;/CPtime&gt;</span>
+<span class="w">    </span><span class="nt">&lt;CPid&gt;</span>CP<span class="nt">&lt;/CPid&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;start&#39;</span><span class="w"> </span><span class="na">dur=</span><span class="s">&#39;10&#39;</span><span class="nt">&gt;</span>f,b,h<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;b&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;20&#39;</span><span class="nt">&gt;</span>c<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;c&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;5&#39;</span><span class="w"> </span><span class="nt">&gt;</span>g,d<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;d&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;10&#39;</span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;f&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;15&#39;</span><span class="nt">&gt;</span>g<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;g&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;5&#39;</span><span class="w"> </span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;h&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;15&#39;</span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;end&#39;</span><span class="w">   </span><span class="na">dur=</span><span class="s">&#39;20&#39;</span><span class="nt">&gt;&lt;/map&gt;</span>
+<span class="w">  </span><span class="nt">&lt;/ExternalModel&gt;</span>
+<span class="nt">&lt;/Models&gt;</span>
+</pre></div>
+</div>
+<p><strong>2. Python file using ``project()`` class:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">LOGOS.src.CPM.PertMain2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pert</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">LOGOS.src.CPM.PertMain2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Activity</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">project</span><span class="p">():</span>
+  <span class="n">start</span> <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;start&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+  <span class="n">b</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;b&quot;</span><span class="p">,</span>     <span class="mi">20</span><span class="p">)</span>
+  <span class="n">c</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;c&quot;</span><span class="p">,</span>      <span class="mi">5</span><span class="p">)</span>
+  <span class="n">d</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;d&quot;</span><span class="p">,</span>     <span class="mi">10</span><span class="p">)</span>
+  <span class="n">f</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;f&quot;</span><span class="p">,</span>     <span class="mi">15</span><span class="p">)</span>
+  <span class="n">g</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;g&quot;</span><span class="p">,</span>      <span class="mi">5</span><span class="p">)</span>
+  <span class="n">h</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;h&quot;</span><span class="p">,</span>     <span class="mi">15</span><span class="p">)</span>
+  <span class="n">end</span>   <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;end&quot;</span><span class="p">,</span>   <span class="mi">20</span><span class="p">)</span>
+
+  <span class="n">graph</span> <span class="o">=</span> <span class="p">{</span><span class="n">start</span><span class="p">:</span> <span class="p">[</span><span class="n">f</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">h</span><span class="p">],</span>
+           <span class="n">b</span>    <span class="p">:</span> <span class="p">[</span><span class="n">c</span><span class="p">],</span>
+           <span class="n">c</span>    <span class="p">:</span> <span class="p">[</span><span class="n">g</span><span class="p">,</span><span class="n">d</span><span class="p">],</span>
+           <span class="n">d</span>    <span class="p">:</span> <span class="p">[</span><span class="n">end</span><span class="p">],</span>
+           <span class="n">f</span>    <span class="p">:</span> <span class="p">[</span><span class="n">g</span><span class="p">],</span>
+           <span class="n">g</span>    <span class="p">:</span> <span class="p">[</span><span class="n">end</span><span class="p">],</span>
+           <span class="n">h</span>    <span class="p">:</span> <span class="p">[</span><span class="n">end</span><span class="p">],</span>
+           <span class="n">end</span>  <span class="p">:</span> <span class="p">[]}</span>
+</pre></div>
+</div>
+<p>The analysis xml node specifies the type of analysis:</p>
+<ul class="simple">
+<li><p><strong>activity_duration</strong>: RAVEN samples activity durations</p></li>
+<li><p><strong>activity_priority</strong>: RAVEN samples activity priorities</p></li>
+</ul>
+<p>If <code class="docutils literal notranslate"><span class="pre">activity_priority</span></code> is chosen, the schedule generation scheme must be specified:</p>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;CPMmodel&quot;</span><span class="w"> </span><span class="na">subType=</span><span class="s">&quot;LOGOS.BaseCPMmodel&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;variables&gt;</span>start,b,c,d,end,f,g,h,end_time,CP<span class="nt">&lt;/variables&gt;</span>
+<span class="w">  </span><span class="nt">&lt;analysis&gt;</span>activity_duration<span class="nt">&lt;/analysis&gt;</span>
+<span class="w">  </span><span class="nt">&lt;sgs&gt;</span>max_use_res_ranked<span class="nt">&lt;/sgs&gt;</span>
+<span class="w">  </span><span class="nt">&lt;CPtime&gt;</span>end_time<span class="nt">&lt;/CPtime&gt;</span>
+<span class="w">  </span><span class="nt">&lt;CPid&gt;</span>CP<span class="nt">&lt;/CPid&gt;</span>
+<span class="nt">&lt;/ExternalModel&gt;</span>
+</pre></div>
+</div>
+<p>Allowed SGS values:</p>
+<ul class="simple">
+<li><p><strong>max_use_res_act</strong></p></li>
+<li><p><strong>max_use_res_ranked</strong></p></li>
+<li><p><strong>max_use_res_shuffled</strong></p></li>
+<li><p><strong>MD-Knapsack</strong></p></li>
+</ul>
+<p>The CPM model returns:</p>
+<ul class="simple">
+<li><p><strong>Critical path time</strong> (float): The critical path time value (a float)</p></li>
+<li><p><strong>Critical path</strong> (string of activity IDs separated by underscores): The actual</p></li>
+</ul>
+<p>critical path, represented as a sequence of activity IDs that are part of the critical
+path, separated by underscores (a string)</p>
+<p>The RAVEN ID for critical path time is specified in <code class="docutils literal notranslate"><span class="pre">&lt;CPtime&gt;</span></code>.
+The RAVEN ID for critical path is specified in <code class="docutils literal notranslate"><span class="pre">&lt;CPid&gt;</span></code>.</p>
 </section>
 </section>
 
