@@ -1,0 +1,330 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Nuclear Outage Planning Data Model",
+  "description": "Schema for nuclear power plant outage planning optimization input data",
+  "type": "object",
+  "required": ["outage", "tasks", "resources", "equipment", "locations"],
+  "properties": {
+    "outage": {
+      "type": "object",
+      "description": "Outage configuration and metadata",
+      "required": ["outage_id", "start_date", "working_hours_per_day"],
+      "properties": {
+        "outage_id": {
+          "type": "string",
+          "description": "Unique identifier for this outage",
+          "minLength": 1,
+          "examples": ["OUTAGE_2025_SPRING", "RFO_25"]
+        },
+        "start_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Outage start date in YYYY-MM-DD format",
+          "examples": ["2025-03-15"]
+        },
+        "target_end_date": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Optional target completion date in YYYY-MM-DD format (for validation purposes)",
+          "examples": ["2025-04-10"]
+        },
+        "working_hours_per_day": {
+          "type": "number",
+          "description": "Number of working hours per day (typically 24 for round-the-clock outages)",
+          "minimum": 1,
+          "maximum": 24,
+          "examples": [24, 16, 8]
+        }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "description": "List of all tasks to be scheduled during the outage",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["task_id", "description", "duration", "successors", "required_resources", "required_equipment"],
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Unique task identifier",
+            "minLength": 1,
+            "examples": ["T001", "WO-12345"]
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable task description",
+            "minLength": 1,
+            "examples": ["Remove reactor vessel head", "Inspect steam generator tubes"]
+          },
+          "duration": {
+            "type": "number",
+            "description": "Task duration in hours",
+            "exclusiveMinimum": 0,
+            "examples": [8.0, 12.5, 24.0]
+          },
+          "successors": {
+            "type": "array",
+            "description": "List of task IDs that cannot start until this task completes (defines precedence relationships)",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true,
+            "default": [],
+            "examples": [["T002", "T003"], []]
+          },
+          "location_id": {
+            "type": ["string", "null"],
+            "description": "Reference to the physical location where this task occurs (null if no specific location)",
+            "examples": ["LOC_REACTOR_CAVITY", "LOC_SG1", null]
+          },
+          "is_hold_point": {
+            "type": "boolean",
+            "description": "True if this task represents a regulatory or QA hold point that gates other work",
+            "default": false
+          },
+          "hold_point_type": {
+            "type": ["string", "null"],
+            "description": "Type of hold point (only applicable if is_hold_point is true)",
+            "enum": ["NRC", "QA", "Engineering", "Operations", null],
+            "default": null
+          },
+          "blocks_tasks": {
+            "type": "array",
+            "description": "List of task IDs that are blocked/gated by this hold point (only applicable if is_hold_point is true)",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true,
+            "default": [],
+            "examples": [["T100", "T101", "T102"], []]
+          },
+          "required_resources": {
+            "type": "array",
+            "description": "List of skill types and crew counts required for this task",
+            "items": {
+              "type": "object",
+              "required": ["skill_type", "crew_count"],
+              "properties": {
+                "skill_type": {
+                  "type": "string",
+                  "description": "Type of skill/trade required (e.g., MECHANIC, I&C_TECH, HP_TECH, ELECTRICIAN)",
+                  "minLength": 1,
+                  "examples": ["MECHANIC", "I&C_TECH", "HP_TECH", "ELECTRICIAN", "QA_INSPECTOR"]
+                },
+                "crew_count": {
+                  "type": "integer",
+                  "description": "Number of workers with this skill required for the task",
+                  "minimum": 1,
+                  "examples": [2, 4, 1]
+                }
+              }
+            },
+            "default": []
+          },
+          "required_equipment": {
+            "type": "array",
+            "description": "List of equipment and quantities required for this task",
+            "items": {
+              "type": "object",
+              "required": ["equipment_id", "quantity_needed"],
+              "properties": {
+                "equipment_id": {
+                  "type": "string",
+                  "description": "Reference to equipment identifier",
+                  "minLength": 1,
+                  "examples": ["EQ_POLAR_CRANE", "EQ_WELDING_MACHINE"]
+                },
+                "quantity_needed": {
+                  "type": "integer",
+                  "description": "Number of units of this equipment needed",
+                  "minimum": 1,
+                  "examples": [1, 2]
+                }
+              }
+            },
+            "default": []
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "array",
+      "description": "Available workforce resources by skill type with time-based availability",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["skill_type", "availability_periods"],
+        "properties": {
+          "skill_type": {
+            "type": "string",
+            "description": "Type of skill/trade (must match skill_type values used in tasks)",
+            "minLength": 1,
+            "examples": ["MECHANIC", "I&C_TECH", "HP_TECH", "ELECTRICIAN"]
+          },
+          "availability_periods": {
+            "type": "array",
+            "description": "Time periods defining resource availability throughout the outage",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["start_date", "end_date", "available_count"],
+              "properties": {
+                "start_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Start date and time of availability period in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)",
+                  "examples": ["2025-03-15T00:00:00", "2025-03-20T08:00:00"]
+                },
+                "end_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "End date and time of availability period in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)",
+                  "examples": ["2025-03-20T00:00:00", "2025-03-25T17:00:00"]
+                },
+                "available_count": {
+                  "type": "integer",
+                  "description": "Number of workers with this skill available during this period",
+                  "minimum": 0,
+                  "examples": [20, 30, 0]
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Optional explanation for this availability period",
+                  "examples": ["Initial crew", "Contractor arrival", "Weekend reduced staffing"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "equipment": {
+      "type": "array",
+      "description": "Available equipment/tools inventory with time-based availability",
+      "items": {
+        "type": "object",
+        "required": ["equipment_id", "description", "availability_periods"],
+        "properties": {
+          "equipment_id": {
+            "type": "string",
+            "description": "Unique equipment identifier (must match equipment_id values used in tasks)",
+            "minLength": 1,
+            "examples": ["EQ_POLAR_CRANE", "EQ_WELDING_MACHINE"]
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable equipment description",
+            "minLength": 1,
+            "examples": ["Polar Crane", "Eddy Current Testing Machine"]
+          },
+          "availability_periods": {
+            "type": "array",
+            "description": "Time periods defining equipment availability throughout the outage",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["start_date", "end_date", "quantity_available"],
+              "properties": {
+                "start_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Start date and time of availability period in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)",
+                  "examples": ["2025-03-15T00:00:00", "2025-03-20T08:00:00"]
+                },
+                "end_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "End date and time of availability period in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)",
+                  "examples": ["2025-04-25T23:59:59", "2025-03-22T12:00:00"]
+                },
+                "quantity_available": {
+                  "type": "integer",
+                  "description": "Number of units available during this period (0 means unavailable)",
+                  "minimum": 0,
+                  "examples": [1, 2, 0]
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Optional explanation for this availability period",
+                  "examples": ["Normal operations", "Scheduled maintenance", "Equipment rental period"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "default": []
+    },
+    "locations": {
+      "type": "array",
+      "description": "Physical locations where work can occur, with time-based capacity constraints",
+      "items": {
+        "type": "object",
+        "required": ["location_id", "description", "availability_periods"],
+        "properties": {
+          "location_id": {
+            "type": "string",
+            "description": "Unique location identifier (must match location_id values used in tasks)",
+            "minLength": 1,
+            "examples": ["LOC_REACTOR_CAVITY", "LOC_SG1", "LOC_TURBINE_DECK"]
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable location description",
+            "minLength": 1,
+            "examples": ["Reactor Cavity", "Steam Generator 1 Channel Head"]
+          },
+          "is_confined_space": {
+            "type": "boolean",
+            "description": "True if this location is classified as a confined space (informational/metadata)",
+            "default": false
+          },
+          "availability_periods": {
+            "type": "array",
+            "description": "Time periods defining location capacity throughout the outage",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["start_date", "end_date", "max_concurrent_tasks"],
+              "properties": {
+                "start_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Start date and time of availability period in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)",
+                  "examples": ["2025-03-15T00:00:00", "2025-03-17T12:00:00"]
+                },
+                "end_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "End date and time of availability period in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)",
+                  "examples": ["2025-04-25T23:59:59", "2025-03-20T08:00:00"]
+                },
+                "max_concurrent_tasks": {
+                  "type": "integer",
+                  "description": "Maximum number of separate tasks that can occur simultaneously at this location during this period",
+                  "minimum": 0,
+                  "examples": [1, 2, 10, 0]
+                },
+                "max_concurrent_workers": {
+                  "type": ["integer", "null"],
+                  "description": "Optional: Maximum total number of workers allowed at this location simultaneously during this period",
+                  "minimum": 0,
+                  "examples": [2, 5, 50, 0, null]
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Optional explanation for this availability period",
+                  "examples": ["Cooldown period - no access", "Normal operations", "Scaffolding installed - increased capacity"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "default": []
+    }
+  }
+}
