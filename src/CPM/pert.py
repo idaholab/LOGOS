@@ -22,6 +22,7 @@ from typing import Dict, List, Optional, Tuple
 # Assuming these are imported from your modules
 from activity import Activity
 from outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, load_outage_data
+from validate_outage_data import OutageDataValidator
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -96,20 +97,38 @@ class Pert:
             self._update_activity_successors()
 
     @classmethod
-    def from_json_file(cls, filepath: str, priorities: Dict = None, seed: int = 2506178):
+    def from_json_file(cls, filepath: str, schema_path: str, priorities: Dict = None, seed: int = 2506178):
         """
         Create Pert object from JSON file.
-
         Args:
-            filepath (str): Path to JSON file
+            filepath (str): Path to outage input JSON
+            schema_path (str): Path to external JSON schema (required)
             priorities (dict, optional): Activity priorities
-            seed (int): Random seed
-
-        Returns:
-            Pert: Initialized Pert object
+            seed (int): RNG seed
         """
-        outage_data = load_outage_data(filepath)
+        # 1) Load raw JSON
+        import json
+        with open(filepath, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+
+        # 2) Validate against external schema
+        validator = OutageDataValidator(schema_path=schema_path)  # schema_path is mandatory in your design
+        is_valid, errors, warnings = validator.validate(raw)
+
+        if not is_valid:
+            msg = "Outage data failed schema/semantic validation:\n" + "\n".join(f"- {e}" for e in errors[:20])
+            # raise a hard error; caller can catch
+            raise ValueError(msg)
+
+        # (Optional) log warnings but proceed
+        if warnings:
+            for w in warnings[:20]:
+                print(f"[validation warning] {w}")
+
+        # 3) Construct OutageData only after validation passes
+        outage_data = load_outage_data(filepath)  # existing factory
         return cls(outage_data=outage_data, priorities=priorities, seed=seed)
+
 
 
     def _build_graph_from_outage_data(self):
@@ -1239,12 +1258,9 @@ class Pert:
 
         return max(ends) if ends else self.startTime
 
-
     def returnActualScheduleEndTime(self) -> datetime:
         """Convenience alias: return the actual schedule end time."""
         return self.get_project_finish_actual()
-
-
 
     def _compute_actual_tf_proxy(self, tol: float = 1e-6):
         """
@@ -1305,7 +1321,6 @@ class Pert:
 
         self.actual_tf = tf_actual
         self.actual_zero_tf_set = zero_tf
-
 
     def explain_idle_on_chain_detailed(self, tol: float = 1e-6):
         """
