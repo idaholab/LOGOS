@@ -62,39 +62,10 @@ class BaseCPMmodel(ExternalModelPluginBase):
       @ Out, None
     """
     for child in xmlNode:
-      if child.tag == 'CPtime':
-        self.CPtime = child.text.strip()
-      elif child.tag == 'CPid':
-        self.CPid = child.text.strip()
-      elif child.tag == 'variables':
-        variables = [str(var.strip()) for var in child.text.split(",")]
-      elif child.tag == 'analysis':
-        self.analysis = child.text.strip()
-      elif child.tag == 'sgs':
-        self.sgs = child.text.strip()
-      elif child.tag == 'map':
-        if child.text is None:
-          self.mapping[child.get('act')] = [child.get('dur'),[]]
-        else:
-          self.mapping[child.get('act')] = [child.get('dur'),child.text.split(",")]
+      if child.tag == 'project_file':
+        self.project_file = child.text.strip()
       else:
         raise IOError("CMPmodel: xml node " + str(child.tag) + " is not allowed")
-
-    if self.CPtime is None:
-      raise IOError("CMPmodel: xml node CPtime has not been specified")
-    if self.CPid is None:
-      raise IOError("CMPmodel: xml node CPid has not been specified")
-
-    # construction of the schedule graph from the RAVEN xml block
-    actDict = {}
-    if self.mapping:
-      self.graph = {}
-      for key in self.mapping.keys():
-        actDict[key] = Activity(key,self.mapping[key][0])
-        self.graph[actDict[key]] = []
-      for key in self.mapping.keys():
-        for elem in self.mapping[key][1]:
-          self.graph[actDict[key]].append(actDict[elem])
 
   def initialize(self, container, runInfoDict, inputFiles):
     """
