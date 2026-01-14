@@ -180,7 +180,6 @@ class Pert:
                     stack.append(nxt)
         return False
 
-
     def _update_activity_successors(self):
         """Update each activity's internal successor list."""
         for activity in self.forwardDict.keys():
@@ -318,6 +317,36 @@ class Pert:
         # Handle isolated activities
         self.generateInfoForIsolated()
     """
+
+    def set_priorities(self, new_priorities: Dict[str, float], mode: str = "replace"):
+        """
+        Update the external priority map used by _select_candidate_activities('external').
+        mode: 'replace' replaces the map; 'merge' updates keys and keeps existing ones.
+
+        Example priority map: task_id -> priority score
+        new_priorities = {
+            "T01": 0.9,
+            "T02": 0.8,
+            "T03": 0.3
+        }
+        pert.set_priorities(new_priorities, mode="replace")
+
+        """
+        # Basic validation
+        if not isinstance(new_priorities, dict):
+            raise ValueError("Priorities must be a dict of {task_id: float}.")
+        for k, v in new_priorities.items():
+            if not isinstance(k, str) or not isinstance(v, (int, float)):
+                raise ValueError(f"Invalid priority entry: {k} -> {v}")
+
+        if mode == "replace":
+            self.priorities = dict(new_priorities)
+        elif mode == "merge":
+            self.priorities = (self.priorities or {}).copy()
+            self.priorities.update(new_priorities)
+        else:
+            raise ValueError("mode must be 'replace' or 'merge'")
+
 
     def generateInfo(self):
         """
