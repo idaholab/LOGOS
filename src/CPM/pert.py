@@ -55,6 +55,8 @@ class Pert:
         self.backwardDict = {}
         self.infoDict = {}
 
+        self.task_to_activity = {} # dictionary in the form: {act_ID: act_instance}
+
         # Store outage data components
         self.outage_data = outage_data
         if outage_data:
@@ -139,32 +141,31 @@ class Pert:
         predecessor/successor relationships.
         """
         # Create Activity objects from tasks
-        task_to_activity = {}
         for task_dict in self.outage_data.tasks:
             activity = Activity.from_json(task_dict)
-            task_to_activity[task_dict['task_id']] = activity
+            self.task_to_activity[task_dict['task_id']] = activity
 
         # Build forward dictionary (activity -> successors)
         for task_dict in self.outage_data.tasks:
-            activity = task_to_activity[task_dict['task_id']]
+            activity = self.task_to_activity[task_dict['task_id']]
             successors = []
             for succ_id in task_dict.get('successors', []):
-                if succ_id in task_to_activity:
-                    successors.append(task_to_activity[succ_id])
+                if succ_id in self.task_to_activity:
+                    successors.append(self.task_to_activity[succ_id])
             self.forwardDict[activity] = successors
 
         # Handle hold points - add implicit dependencies (guard cycles)
         for task_dict in self.outage_data.tasks:
             if task_dict.get('is_hold_point', False):
-                hold_activity = task_to_activity[task_dict['task_id']]
+                hold_activity = self.task_to_activity[task_dict['task_id']]
 
                 # Ensure hold_activity has a list in forwardDict
                 if hold_activity not in self.forwardDict:
                     self.forwardDict[hold_activity] = []
 
                 for blocked_id in task_dict.get('blocks_tasks', []):
-                    if blocked_id in task_to_activity:
-                        blocked_activity = task_to_activity[blocked_id]
+                    if blocked_id in self.task_to_activity:
+                        blocked_activity = self.task_to_activity[blocked_id]
 
                         # Skip duplicates
                         already_present = blocked_activity in self.forwardDict[hold_activity]
@@ -365,7 +366,27 @@ class Pert:
             self.priorities.update(new_priorities)
         else:
             raise ValueError("mode must be 'replace' or 'merge'")
-
+        
+    def set_durations(self, new_durations: Dict[str, float]):
+        """
+        Update the external priority map used by _select_candidate_activities('external').
+        
+        Example dureation map: task_id -> duration
+        new_duration = {
+            "T01": 1,
+            "T02": 3,
+            "T03": 2
+        }
+        """
+        # Basic validation
+        if not isinstance(new_durations, dict):
+            raise ValueError("Priorities must be a dict of {task_id: float}.")
+        for k, v in new_durations.items():
+            if not isinstance(k, str) or not isinstance(v, (int, float)):
+                raise ValueError(f"Invalid priority entry: {k} -> {v}")
+        
+        for act in new_durations:
+            self.task_to_activity[act].updateDuration(new_durations[act])
 
     def generateInfo(self):
         """
