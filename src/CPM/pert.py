@@ -20,9 +20,9 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 # Assuming these are imported from your modules
-from activity import Activity
-from outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, load_outage_data
-from validate_outage_data import OutageDataValidator
+from .activity import Activity
+from .outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, load_outage_data
+from .validate_outage_data import OutageDataValidator
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -433,7 +433,7 @@ class Pert:
         Args:
             activity (Activity): Current activity in forward scan
         """
-        
+
         if visited is None:
             visited = set()
         if activity in visited:
@@ -783,7 +783,7 @@ class Pert:
         while len(self.completed) != n_activities and time_index < max_time:
             selected=None
             iteration += 1
-    
+
             # Update ongoing activities (move completed to completed list)
             self._update_ongoing_list(time_index)
 
@@ -819,7 +819,7 @@ class Pert:
             if candidates:
                 print(f"candidates={[a.name for a in candidates.keys()]}")
             if selected:
-                print(f"selected={[a.name for a in selected]}")            
+                print(f"selected={[a.name for a in selected]}")
             # Move to next hour
             time_index = time_index + timedelta(hours=1)
 
@@ -855,7 +855,7 @@ class Pert:
         #logging.info(f"Total Delay: {total_delay:.1f} hours")
 
         return results
-    
+
     def _select_candidate_activities(self, time: datetime, value_assignment: str) -> Dict[Activity, Dict]:
         """
         Select activities that can potentially start at given time.
@@ -899,11 +899,11 @@ class Pert:
             for act in candidates.keys():
                 act_name = act.returnName()
                 candidates[act]['value'] = self.priorities.get(act_name, 0.5)
-        
+
         return candidates
 
     # -----------------------------
-    # Selection helpers 
+    # Selection helpers
     # -----------------------------
     def _effective_duration(self, activity) -> float:
         """Clamped effective runtime used for scheduling."""
@@ -1516,7 +1516,7 @@ class Pert:
                 print(f"\n{act.returnName()} waited {idle:.1f}h after {prev.returnName()}")
                 blockers = []
                 for other in self.forwardDict.keys():
-                    if other == act: 
+                    if other == act:
                         continue
                     o_st, o_et = other.returnAbsTimes()
                     if o_st and o_et and o_st < st and o_et > prev_end:
@@ -2040,7 +2040,7 @@ class Pert:
             print("Cannot reach END:", sorted(not_to_end))
         print("=== End connectivity & ES ===")
 
-    
+
     def debug_candidates_and_capacity(self, hours_ahead=24):
         print("=== Candidates & capacity debug ===")
         t = self.startTime
@@ -2426,7 +2426,7 @@ class Pert:
                         showarrow=True, arrowhead=2, arrowsize=1.2, arrowwidth=1.5,
                         arrowcolor='#95a5a6', opacity=0.9
                     ))
-                """  
+                """
                 # Augmented arrows (red; line remains dashed)
                 for u, v in augmented_edges:
                     x0, y0 = pos[u]
@@ -2436,7 +2436,7 @@ class Pert:
                         xref='x', yref='y', axref='x', ayref='y',
                         showarrow=True, arrowhead=2, arrowsize=1.2, arrowwidth=1.5,
                         arrowcolor='#c0392b', opacity=0.9
-                    ))"""  
+                    ))"""
 
 
             data = [edge_trace, node_trace]
