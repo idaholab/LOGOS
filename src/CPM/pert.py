@@ -12,13 +12,15 @@ Source https://github.com/nofaralfasi/PERT-CPM-graph
 
 import json
 import copy
-import math
 import random
+import math
+import numpy as np
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import heapq
+import networkx as nx
 
 # Assuming these are imported from your modules
 from .activity import Activity
@@ -55,6 +57,7 @@ class Pert:
         self.forwardDict = graph if graph is not None else {}
         self.backwardDict = {}
         self.infoDict = {}
+        self.nxgraph = None
 
         self.task_to_activity = {} # dictionary in the form: {act_ID: act_instance}
 
@@ -98,6 +101,7 @@ class Pert:
             self.resetInitialGraph()
             self.generateInfo()
             self._update_activity_successors()
+            self.nxgraph = nx.DiGraph(self.forwardDict)
 
         self._availability_events: frozenset = frozenset()
         if self.resource_pool or self.equipment_pool or self.location_pool:
@@ -285,7 +289,15 @@ class Pert:
                 "ef": 0,
                 "ls": 0,
                 "lf": math.inf,
-                "slack": 0
+                "slack": 0,
+                "mts":0,
+                "mtp":0,
+                "grpw":0,
+                "grd":0,
+                "rr":0,
+                "avgrr":0,
+                "maxrr":0,
+                "minrr":0
             }
 
     def returnGraph(self):
@@ -503,6 +515,77 @@ class Pert:
         # 5) Isolated activities (keep your existing treatment)
         self.generateInfoForIsolated()
 
+        # 6) calculate most total successors and predecessors
+        self.calculate_total_successors()
+        self.calculate_total_predecessors()
+        # 7) calculate greatest rank position weight
+        self.calculate_greatest_rank_position_weight()
+        # 8) calculate greatest resource demand
+        self.calculate_greatest_resource_demand()
+        # 9) calculate resource requirement
+        self.calculate_resource_requirement()
+
+
+# ========================================
+    def calculate_total_successors(self):
+        for a in self.forwardDict.keys():
+            self.infoDict[a]['mts'] = len(nx.descendants(self.nxgraph, a))
+
+    def calculate_total_predecessors(self):
+        for a in self.backwardDict.keys():
+            self.infoDict[a]['mtp'] = len(nx.descendants(self.nxgraph, a))
+
+    def calculate_greatest_rank_position_weight(self):
+        for a in self.forwardDict.keys():
+            desc = nx.descendants(self.nxgraph, a)
+            self.infoDict[a]['grpw'] = self.infoDict[a]['duration'] + sum(self.infoDict[b]['duration'] for b in desc)
+
+    def calculate_greatest_resource_demand(self):
+        for a in self.forwardDict.keys():
+            res = a.getRequiredResources() # list of dict
+            equip = a.getRequiredEquipment() # list of dict
+            loc = a.getLocation() # str
+            dur = self.infoDict[a]['duration']
+            grd = dur
+            if res:
+                grd += sum(r['crew_count'] for r in res) * dur
+            if equip:
+                grd += sum(e['quantity_needed'] for e in equip) * dur
+            if loc is not None: # Assume only one location
+                grd += 1. * dur
+            self.infoDict[a]['grd'] = grd
+
+    def calculate_resource_requirement(self):
+        for a in self.forwardDict.keys():
+            res = a.getRequiredResources() # list of dict
+            eq = a.getRequiredEquipment() # list of dict
+            loc = a.getLocation() # str
+
+
+            skills = self.resource_pool.get_all_skills()
+            equips = self.equipment_pool.get_all_equipment_ids()
+            locs = self.location_pool.get_all_location_ids()
+            rr = dict.fromkeys(skills+equips+locs)
+            for r in res:
+                skill_type, crew_count = r['skill_type'], r['crew_count']
+                max_avail = self.resource_pool.resource[skill_type].get_max_availability()
+                rr[skill_type] = crew_count/max_avail if max_avail != 0 else 0
+            for e in eq:
+                e_id, quant = e['equipment_id'], e['quantity_needed']
+                max_avail = self.equipment_pool.equipment[e_id].get_max_availability()
+                rr[e_id] = quant/max_avail if max_avail !=0 else 0
+            if loc is not None:
+                rr[loc] = 1
+
+            num_res = len(rr)
+            rr_val = np.asarray(list(rr.values()))
+            num_req_res = np.count_nonzero(rr_val)
+            self.infoDict[a]['rr'] = num_req_res/num_res if num_res !=0 else 0
+            self.infoDict[a]['avgrr'] = np.sum(rr_val)/num_res
+            self.infoDict[a]['maxrr'] = np.max(rr_val)
+            self.infoDict[a]['minrr'] = np.min(rr_val)
+
+#=========================================
 
     def startToEndScan(self, activity, visited=None):
         """
@@ -2319,6 +2402,62 @@ class Pert:
         print("=== End candidates & capacity ===")
 
 # ============================================================================
+# PROJECT PRIORITY CALCULATION
+# ============================================================================
+
+    def priority_calculation(self, eligible, priority_rule='LF'):
+        """_summary_
+
+        Args:
+            eligible (list): list of activities
+            priority_rule (str, optional): priority rule. Defaults to 'LF'.
+                lf: latest finish
+                ls: latest start
+                ef: early finish
+                es: early start
+                duration: activity duration, or shortest processing time
+                random: random shuffle
+                mts: most total successors
+                mtp: most total predecessors
+                rr: resource required
+                avgrr: average resource requirement
+                maxrr: maximum resource requirement
+                minrr: minimum resource requirement
+                grpw: greatest rank position weight
+                grd: greatest resource demand
+
+                irsm: improved resource scheduling method
+                wcs: worst case slack
+                acs: average case slack
+
+        Raises:
+            IOError: Invalid priority rule
+
+        Returns:
+            list: list of ordered activity based on priority rule
+        """
+        rule = priority_rule.lower()
+        if rule in ['lf', 'ls', 'ef', 'es', 'duration']:
+            data = [(a, self.infoDict[a][rule]) for a in eligible]
+            priority = sorted(data, key=lambda x: x[1])
+        elif rule == 'random':
+            priority = eligible
+            random.shuffle(priority)
+        elif rule in ['mts', 'mtp', 'grpw', 'grd']:
+            data = [(a, self.infoDict[a][rule]) for a in eligible]
+            priority = sorted(data, key=lambda x: x[1], reverse=True)
+        elif rule in ['rr', 'avgrr', 'maxrr', 'minrr']:
+            data = [(a, self.infoDict[a][rule]) for a in eligible]
+            priority = sorted(data, key=lambda x: x[1], reverse=True)
+        elif rule in ['irsm', 'wcs', 'acs']:
+            # these are the dynamic priority rules
+            raise IOError("Not yet implemented!")
+        else:
+            raise IOError("Invalid priority rule")
+
+        return priority
+
+# ============================================================================
 # PROJECT SCHEDULE VISUALIZATION
 # ============================================================================
 
@@ -3144,6 +3283,13 @@ def plot_equipment_utilization(pert, equipment_id, filename=None, show_available
         fig.show()
 
     return fig
+
+
+
+
+
+
+
 
 # ============================================================================
 # MD-KNAPSACK OPTIMIZATION
