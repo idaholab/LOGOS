@@ -525,7 +525,6 @@ class Pert:
         # 9) calculate resource requirement
         self.calculate_resource_requirement()
 
-
 # ========================================
     def calculate_total_successors(self):
         for a in self.forwardDict.keys():
