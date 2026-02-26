@@ -20,6 +20,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import networkx as nx
+import heapq
+
 
 # Assuming these are imported from your modules
 from .activity import Activity
@@ -101,6 +103,12 @@ class Pert:
             self.generateInfo()
             self._update_activity_successors()
             self.nxgraph = nx.DiGraph(self.forwardDict)
+
+        self._availability_events: frozenset = frozenset()
+        if self.resource_pool or self.equipment_pool or self.location_pool:
+            self._precompute_availability_events()
+
+        self.schedule_log = []
 
     @classmethod
     def from_json_file(cls, filepath: str, schema_path: str, priorities: Dict = None, seed: int = 2506178):
@@ -378,27 +386,77 @@ class Pert:
             self.priorities.update(new_priorities)
         else:
             raise ValueError("mode must be 'replace' or 'merge'")
-        
+
+    def _sync_infodict_durations(self):
+        """
+        Synchronise the 'duration' field in infoDict with the current value stored
+        on each Activity object.
+
+        Why this is needed:
+            infoDict entries are populated by resetInfo(), which reads activity.duration
+            at the time of the call. If activity.duration is subsequently changed by
+            set_durations(), the infoDict 'duration' field becomes stale. generateInfo()
+            uses infoDict['duration'] (not activity.duration) during the forward/backward
+            pass, so all ES/EF/LS/LF values would be computed from the old durations
+            unless this sync is performed first.
+        """
+        for act in self.forwardDict.keys():
+            if act in self.infoDict:
+                self.infoDict[act]['duration'] = act.duration
+            else:
+                # Defensive: activity somehow missing from infoDict (shouldn't happen)
+                self.infoDict[act] = {
+                    'duration': act.duration,
+                    'es': 0.0, 'ef': 0.0,
+                    'ls': 0.0, 'lf': 0.0,
+                    'slack': 0.0
+                }
+
+
     def set_durations(self, new_durations: Dict[str, float]):
         """
-        Update the external priority map used by _select_candidate_activities('external').
-        
-        Example dureation map: task_id -> duration
-        new_duration = {
-            "T01": 1,
-            "T02": 3,
-            "T03": 2
-        }
+        Update activity durations and recompute all CPM values (ES, EF, LS, LF, slack).
+
+        This must be called before calculateScheduleWithResources() whenever durations
+        have changed (e.g. each RAVEN Monte-Carlo iteration), otherwise the scheduler
+        operates on a stale CPM solution:
+            - The safety time limit (max_time = cpm_duration * 2) is wrong
+            - Candidate selection uses stale ES values to gate activity eligibility
+            - getProjectDuration() returns the wrong reference duration
+
+        Args:
+            new_durations (dict): Mapping of {task_id: duration_in_hours}
+
+        Raises:
+            ValueError: If new_durations is not a dict or contains invalid entries
+            KeyError: If a task_id is not found in task_to_activity
         """
-        # Basic validation
         if not isinstance(new_durations, dict):
-            raise ValueError("Priorities must be a dict of {task_id: float}.")
+            raise ValueError("new_durations must be a dict of {task_id: float}.")
         for k, v in new_durations.items():
             if not isinstance(k, str) or not isinstance(v, (int, float)):
-                raise ValueError(f"Invalid priority entry: {k} -> {v}")
-        
-        for act in new_durations:
-            self.task_to_activity[act].updateDuration(new_durations[act])
+                raise ValueError(f"Invalid duration entry: {k!r} -> {v!r}")
+            if v < 0:
+                raise ValueError(f"Duration must be non-negative, got {k!r}: {v}")
+
+        # Step 1: update duration on each Activity object
+        for task_id, duration in new_durations.items():
+            if task_id not in self.task_to_activity:
+                raise KeyError(f"set_durations: task_id '{task_id}' not found in schedule")
+            self.task_to_activity[task_id].updateDuration(duration)
+
+        # Step 2: push the new durations into infoDict so generateInfo() sees them
+        self._sync_infodict_durations()
+
+        # Step 3: recompute ES, EF, LS, LF, slack for the whole network
+        self.generateInfo()
+
+        logging.debug(
+            "set_durations: updated %d activities and recomputed CPM. "
+            "New project duration = %.1f h",
+            len(new_durations),
+            self.getProjectDuration()
+        )
 
     def generateInfo(self):
         """
@@ -705,7 +763,6 @@ class Pert:
 
         return path
 
-
     def getCriticalPathSymbolic(self):
         """
         Get critical path as a list of activity names.
@@ -830,89 +887,311 @@ class Pert:
         duration = self.getProjectDuration()
         return f"Pert({n_activities} activities, duration={duration:.2f} hours)"
 
-    # ========================================================================
-    # RESOURCE-CONSTRAINED PROJECT SCHEDULING (RCPSP) METHODS
-    # ========================================================================
 
-    def calculateScheduleWithResources(self, sgs='max_use_res_ranked',
-                                       max_time_hours=None):
+    def _reset_scheduling_state(self):
         """
-        Schedule activities considering resource, equipment, and location constraints.
+        Reset all mutable scheduling state on activities and on the Pert instance
+        so that calculateScheduleWithResources() produces a clean result each time
+        it is called (e.g. across successive RAVEN Monte-Carlo iterations).
 
-        Serial SGS:
-        1. Identify candidates (predecessors complete, ES <= current time)
-        2. Select activities based on strategy and remaining availability
-        3. Start selected activities and move time forward
+        What is reset:
+            Activity level:
+                - startTime, endTime  (set by setActualStartTime)
+                - delay               (incremented by addDelay)
+                - belongsToCP         (flagged by getCriticalPath)
+
+            Pert level:
+                - wait / ongoing / completed  (scheduling queues)
+                - schedule_log                (step-by-step log)
+                - actual_tf                   (post-schedule analytics)
+                - actual_zero_tf_set          (post-schedule analytics)
+                - constrained_chain_list      (post-schedule analytics)
+                - constrained_chain_set       (post-schedule analytics)
+
+        What is NOT reset:
+            - activity durations   (already updated by set_durations for this run)
+            - infoDict (ES/EF/LS/LF)   (regenerated by generateInfo in Issue-2 fix)
+            - graph structure      (forwardDict / backwardDict)
+            - priorities           (set by set_priorities for this run)
         """
-        if not self.resource_pool or not self.equipment_pool or not self.location_pool:
-            raise ValueError("Resource, equipment, and location pools must be initialized")
+        # Reset every activity's scheduling state
+        for act in self.forwardDict.keys():
+            act.reset()  # calls the new Activity.reset() method
 
-        if not self.startTime:
-            raise ValueError("Start time must be set")
-
-        # Get CPM duration for reference
-        cpm_duration = self.getProjectDuration()
-
-        # Set maximum time window (safety limit to prevent infinite loops)
-        if max_time_hours is None:
-            max_time_hours = cpm_duration * 2  # 2x CPM duration as safety
-
-        max_time = self.startTime + timedelta(hours=max_time_hours)
-
-        # Initialize activity tracking
-        n_activities = len(self.infoDict.keys())
+        # Reset Pert-level scheduling queues
         self.wait = list(self.forwardDict.keys())
         self.ongoing = []
         self.completed = []
 
-        # Bootstrap: start the START activity immediately (if present)
+        # Reset step-by-step log
+        self.schedule_log = []
+
+        # Reset post-schedule analytics (they will be recomputed at end of run)
+        self.actual_tf = {}
+        self.actual_zero_tf_set = set()
+        self.constrained_chain_list = []
+        self.constrained_chain_set = set()
+
+
+    # ========================================================================
+    # RESOURCE-CONSTRAINED PROJECT SCHEDULING (RCPSP) METHODS
+    # ========================================================================
+
+    def _precompute_availability_events(self) -> None:
+        """
+        Collect every availability-period boundary datetime from the resource,
+        equipment, and location pools and store them as a frozenset.
+
+        Called once at construction time (__init__ / from_json_file).  Because
+        the pools are read-only after loading, the result never becomes stale
+        and does not need to be recomputed between RAVEN iterations.
+
+        Storing boundaries as a frozenset gives O(1) membership tests and
+        makes the set trivially hashable / loggable.
+
+        Standalone usage note:
+            Works identically whether the object is created via from_json_file()
+            or constructed manually, because __init__ always runs.  If no pools
+            are present (graph-only construction) the frozenset remains empty
+            and the event-driven scheduler falls back to activity-based events.
+        """
+        events: set = set()
+
+        if self.resource_pool:
+            for skill in self.resource_pool.get_all_skills():
+                for period in self.resource_pool.resources[skill].get_all_periods():
+                    events.add(period['start_date'])
+                    events.add(period['end_date'])
+
+        if self.equipment_pool:
+            for eq_id in self.equipment_pool.get_all_equipment_ids():
+                for period in self.equipment_pool.equipment[eq_id].get_all_periods():
+                    events.add(period['start_date'])
+                    events.add(period['end_date'])
+
+        if self.location_pool:
+            for loc_id in self.location_pool.get_all_location_ids():
+                for period in self.location_pool.locations[loc_id].get_all_periods():
+                    events.add(period['start_date'])
+                    events.add(period['end_date'])
+
+        self._availability_events = frozenset(events)
+        logging.debug(
+            "_precompute_availability_events: collected %d boundary events",
+            len(self._availability_events)
+        )
+
+
+# ── New method 2 ─────────────────────────────────────────────────────────────
+
+    def _build_event_queue(self) -> list:
+        """
+        Build the initial event min-heap for the event-driven scheduling loop.
+
+        The heap is seeded with three categories of events:
+
+        1. Project start time — guarantees the loop always has a first step.
+
+        2. Pre-computed availability boundaries (>= startTime) — ensures the
+           scheduler wakes up whenever resource/equipment/location capacity
+           changes, even if no activity completes at that exact moment.
+           These are free to add because _precompute_availability_events()
+           already did the scanning work at construction time.
+
+        3. Absolute ES of every waiting activity — ensures the scheduler wakes
+           up exactly when each activity first becomes time-eligible, avoiding
+           spinning through empty periods.
+
+        Activity completion times are NOT seeded here; they are pushed onto
+        the heap dynamically inside calculateScheduleWithResources() as each
+        activity is started, because completion times depend on the actual
+        start time (which is determined by resource availability, not just ES).
+
+        Returns:
+            list: A valid heapq (min-heap) of datetime objects.
+        """
+        events: set = set()
+
+        # 1) Always include the project start
+        events.add(self.startTime)
+
+        # 2) Availability boundaries that lie at or after project start
+        for dt in self._availability_events:
+            if dt >= self.startTime:
+                events.add(dt)
+
+        # 3) Absolute ES of all activities currently in the wait list
+        for act in self.wait:
+            abs_es = self.startTime + timedelta(hours=self.infoDict[act]['es'])
+            if abs_es >= self.startTime:
+                events.add(abs_es)
+
+        heap = list(events)
+        heapq.heapify(heap)
+
+        logging.debug(
+            "_build_event_queue: heap seeded with %d events "
+            "(%d availability boundaries + start + ES times)",
+            len(heap),
+            sum(1 for dt in self._availability_events if dt >= self.startTime)
+        )
+        return heap
+    
+
+    # Epsilon for merging near-simultaneous events into one scheduling step.
+    # 1 minute is tight enough to catch genuine coincident events (e.g. two
+    # activities ending at the same time) while ignoring floating-point jitter
+    # in duration arithmetic.
+    _EVENT_EPSILON = timedelta(minutes=1)
+
+    def calculateScheduleWithResources(self, sgs: str = 'max_use_res_ranked',
+                                       max_time_hours: float = None) -> dict:
+        """
+        Schedule activities considering resource, equipment, and location
+        constraints using an event-driven scheduling loop.
+
+        The scheduler advances time only to the next meaningful event rather
+        than stepping hour-by-hour.  Events are:
+          - Activity completions  (pushed dynamically as activities start)
+          - Availability-period boundaries (pre-computed at construction)
+          - Absolute early-start times of waiting activities (seeded at run start)
+
+        Near-simultaneous events within _EVENT_EPSILON (1 minute) are merged
+        into a single scheduling step to avoid redundant iterations caused by
+        floating-point duration arithmetic.
+
+        Works in both standalone and RAVEN (BaseCPMmodel) modes.
+
+        Args:
+            sgs (str): Schedule Generation Scheme strategy name.
+            max_time_hours (float, optional): Safety cutoff in hours from
+                startTime.  Defaults to 3× the CPM duration.
+
+        Returns:
+            dict: {
+                'scheduled_duration': float,   # hours from startTime to last end
+                'cpm_duration':        float,   # unconstrained CPM duration
+                'delay_hours':         float,   # total accumulated delay
+                'n_activities':        int,
+                'n_completed':         int,
+                'iterations':          int      # number of event-loop steps
+            }
+        """
+        if not self.resource_pool or not self.equipment_pool or not self.location_pool:
+            raise ValueError(
+                "Resource, equipment, and location pools must be initialised"
+            )
+        if not self.startTime:
+            raise ValueError("startTime must be set before scheduling")
+
+        # ── Clean slate (Issue 3 fix) ────────────────────────────────────────
+        self._reset_scheduling_state()   # resets activities + wait/ongoing/completed
+
+        # ── Reference values ────────────────────────────────────────────────
+        cpm_duration  = self.getProjectDuration()
+        n_activities  = len(self.infoDict)
+        if max_time_hours is None:
+            max_time_hours = cpm_duration * 3   # generous safety margin
+        max_time = self.startTime + timedelta(hours=max_time_hours)
+
+        logging.info(
+            "Starting event-driven RCPSP | activities=%d | CPM=%.1fh | "
+            "strategy=%s | max_time=%.1fh",
+            n_activities, cpm_duration, sgs, max_time_hours
+        )
+
+        # ── Bootstrap START activity ─────────────────────────────────────────
         if self.startActivity and self.startActivity in self.wait:
             self.startActivity.setActualStartTime(self.startTime)
             self.wait.remove(self.startActivity)
             self.ongoing.append(self.startActivity)
-            logging.info(f"Bootstrapped START at {self.startTime.strftime('%Y-%m-%d %H:%M')}")
+            # Push START's completion time so the loop wakes up when it finishes
+            _, start_end = self.startActivity.returnAbsTimes()
+            event_heap = []
+            heapq.heappush(event_heap, start_end)
+        else:
+            event_heap = []
 
-        # Initialize scheduling log
-        self.schedule_log = []
+        # ── Seed the event heap ──────────────────────────────────────────────
+        for dt in self._build_event_queue():
+            heapq.heappush(event_heap, dt)
 
-        # Current time
-        time_index = self.startTime
+        # ── Main event-driven loop ───────────────────────────────────────────
+        iteration   = 0
+        time_index  = self.startTime
 
-        logging.info(f"Starting RCPSP scheduling at {time_index}")
-        logging.info(f"Total activities to schedule: {n_activities}")
-        logging.info(f"Strategy: {sgs}")
+        while len(self.completed) != n_activities:
 
-        # Main scheduling loop
-        iteration = 0
-        while len(self.completed) != n_activities and time_index < max_time:
-            selected=None
+            # ── Deadlock / exhaustion guard ──────────────────────────────────
+            if not event_heap:
+                if self.wait and not self.ongoing:
+                    logging.warning(
+                        "Event queue exhausted with %d activities still waiting "
+                        "and nothing ongoing — possible deadlock. "
+                        "Completed %d/%d.",
+                        len(self.wait), len(self.completed), n_activities
+                    )
+                break
+
+            # ── Pop next event, merge events within epsilon ──────────────────
+            time_index = heapq.heappop(event_heap)
+            while event_heap and (event_heap[0] - time_index) <= self._EVENT_EPSILON:
+                heapq.heappop(event_heap)   # discard near-duplicate
+
+            # ── Safety cutoff ────────────────────────────────────────────────
+            if time_index > max_time:
+                logging.warning(
+                    "Scheduling reached safety cutoff at %s. "
+                    "Completed %d/%d activities.",
+                    time_index.strftime('%Y-%m-%d %H:%M'),
+                    len(self.completed), n_activities
+                )
+                break
+
             iteration += 1
 
             # Update ongoing activities (move completed to completed list)
+            # ── Move finished activities to completed ────────────────────────
             self._update_ongoing_list(time_index)
 
-            # Select candidate activities (predecessors complete, ES <= time)
-            if self.priorities is None:
-                candidates = self._select_candidate_activities(time_index, 'TF_based')
-            else:
-                candidates = self._select_candidate_activities(time_index, 'external')
+            if len(self.completed) == n_activities:
+                break   # finished exactly on this event
 
-            # If there are candidates, try to schedule them
+            # ── Find candidates eligible at time_index ───────────────────────
+            value_mode = 'TF_based' if self.priorities is None else 'external'
+            candidates = self._select_candidate_activities(time_index, value_mode)
+
+            # ── Determine elapsed time to next event (for delay accounting) ──
+            # Peek at the heap without popping; used by _update_activity_sets
+            # to record how long postponed activities will wait.
+            next_event: datetime | None = event_heap[0] if event_heap else None
+            elapsed_hours: float = (
+                (next_event - time_index).total_seconds() / 3600.0
+                if next_event and next_event > time_index
+                else 0.0
+            )
+
+            selected = []
             if candidates:
                 selected = self._schedule_generation_scheme(
                     candidates, time_index, sgs
                 )
+                self._update_activity_sets(
+                    selected, candidates, time_index, elapsed_hours
+                )
 
-                # Update activity lists and set start times
-                self._update_activity_sets(selected, candidates, time_index)
+                # Push completion times of newly started activities
+                for act in selected:
+                    _, end_time = act.returnAbsTimes()
+                    if end_time:
+                        heapq.heappush(event_heap, end_time)
 
-                # Log this step
                 self.schedule_log.append({
-                    'time': time_index,
-                    'candidates': [a.name for a in candidates.keys()],
-                    'selected': [a.name for a in selected],
-                    'ongoing': [a.name for a in self.ongoing],
-                    'completed': [a.name for a in self.completed]
+                    'time':       time_index,
+                    'candidates': [a.name for a in candidates],
+                    'selected':   [a.name for a in selected],
+                    'ongoing':    [a.name for a in self.ongoing],
+                    'completed':  [a.name for a in self.completed],
                 })
 
             print('==============')
@@ -924,42 +1203,80 @@ class Pert:
                 print(f"candidates={[a.name for a in candidates.keys()]}")
             if selected:
                 print(f"selected={[a.name for a in selected]}")
-            # Move to next hour
-            time_index = time_index + timedelta(hours=1)
 
-        # Check if we finished successfully
-        if len(self.completed) != n_activities:
-            logging.warning(
-                f"Scheduling stopped at max time. "
-                f"Completed {len(self.completed)}/{n_activities} activities"
+            logging.debug(
+                "t=%s | iter=%d | completed=%d/%d | ongoing=%d | "
+                "waiting=%d | candidates=%d | selected=%d | heap_size=%d",
+                time_index.strftime('%Y-%m-%d %H:%M'),
+                iteration,
+                len(self.completed), n_activities,
+                len(self.ongoing),
+                len(self.wait),
+                len(candidates),
+                len(selected),
+                len(event_heap),
             )
 
-        # Calculate final statistics
-        actual_duration = (time_index - self.startTime).total_seconds() / 3600
-        total_delay = sum(act.delay for act in self.forwardDict.keys())
+        # ── Post-schedule analytics ──────────────────────────────────────────
+        self._compute_actual_tf_proxy()
+        self._compute_resource_constrained_chain()
+
+        actual_end      = self.get_project_finish_actual()
+        actual_duration = (actual_end - self.startTime).total_seconds() / 3600.0
+        total_delay     = sum(act.delay for act in self.forwardDict)
 
         results = {
             'scheduled_duration': actual_duration,
-            'cpm_duration': cpm_duration,
-            'delay_hours': total_delay,
-            'n_activities': n_activities,
-            'n_completed': len(self.completed),
-            'iterations': iteration
+            'cpm_duration':       cpm_duration,
+            'delay_hours':        total_delay,
+            'n_activities':       n_activities,
+            'n_completed':        len(self.completed),
+            'iterations':         iteration,
         }
 
-
-        # --- Post-schedule analytics (for annotation in exports/plots) ---
-        self._compute_actual_tf_proxy(tol=1e-6)
-        self._compute_resource_constrained_chain()
-
-
-        #logging.info(f"Scheduling complete in {iteration} iterations")
-        #logging.info(f"CPM Duration: {cpm_duration:.1f} hours")
-        #logging.info(f"Actual Duration: {actual_duration:.1f} hours")
-        #logging.info(f"Total Delay: {total_delay:.1f} hours")
-
+        logging.info(
+            "Scheduling complete | iterations=%d | CPM=%.1fh | "
+            "actual=%.1fh | delay=%.1fh | completed=%d/%d",
+            iteration, cpm_duration, actual_duration,
+            total_delay, len(self.completed), n_activities
+        )
         return results
 
+
+    def _update_activity_sets(self, selected: list, candidates: dict,
+                               time_index: datetime,
+                               elapsed_hours: float = 0.0) -> None:
+        """
+        Update activity tracking lists after the SGS has made its selection.
+
+        - Selected activities move from wait → ongoing with their start time set.
+        - Postponed candidates (candidates not selected) accumulate delay equal
+          to elapsed_hours — the time until the next scheduling event — rather
+          than a fixed 1-hour increment, matching the variable step size of the
+          event-driven loop.
+
+        Args:
+            selected (list):      Activities chosen to start at time_index.
+            candidates (dict):    Full candidate set considered this step.
+            time_index (datetime): Current event time.
+            elapsed_hours (float): Hours to the next event; used for delay
+                                   accounting on postponed activities.
+                                   Defaults to 0.0 if no next event exists.
+        """
+        if selected:
+            for act in selected:
+                act.setActualStartTime(time_index)
+                self.wait.remove(act)
+                self.ongoing.append(act)
+
+            postponed = set(candidates.keys()) - set(selected)
+            for act in postponed:
+                act.addDelay(elapsed_hours)
+        else:
+            # No activity could be started this step
+            for act in candidates.keys():
+                act.addDelay(elapsed_hours)
+    
     def _select_candidate_activities(self, time: datetime, value_assignment: str) -> Dict[Activity, Dict]:
         """
         Select activities that can potentially start at given time.
@@ -1221,101 +1538,45 @@ class Pert:
 
     def _can_schedule_activity(self, activity, start_time: datetime) -> bool:
         """
-        Check if activity can be scheduled at given time.
+        Check if a single activity can be scheduled at start_time, considering
+        only currently ongoing activities (no tentative selections).
 
-        Checks REMAINING availability (after accounting for ongoing tasks):
-        1. Resource availability for entire duration
-        2. Equipment availability for entire duration
-        3. Location capacity for entire duration
+        This is a stateless convenience wrapper around _fits_with_tentative.
+        It builds a fresh capacity snapshot from self.ongoing for the activity's
+        time window and delegates all constraint logic to _fits_with_tentative,
+        ensuring there is a single source of truth for feasibility checking.
+
+        Use this method when evaluating one activity in isolation:
+            - LookAheadScheduler.select_activities()
+            - debug_candidates_and_capacity()
+
+        For evaluating multiple candidates within the same scheduling step
+        (where tentative selections must reduce available capacity for subsequent
+        checks), use _fits_with_tentative() directly with shared snapshot dicts
+        managed by _schedule_generation_scheme(), as is already the case for the
+        'max_use_res_ranked', 'max_use_res_shuffled', 'md_knapsack', and
+        'look_ahead' strategies.
+
+        Args:
+            activity (Activity): The activity to check.
+            start_time (datetime): Proposed start time.
+
+        Returns:
+            bool: True if the activity can feasibly start at start_time given
+                currently ongoing activities.
         """
-        # Calculate activity duration and end time (clamped)
-        duration_hours = self._effective_duration(activity)
-        end_time = start_time + timedelta(hours=duration_hours)
+        end_time = start_time + timedelta(hours=self._effective_duration(activity))
 
-        # Check resource availability for entire duration
-        for res_req in activity.getRequiredResources():
-            skill = res_req['skill_type']
-            needed = res_req['crew_count']
+        # Build a capacity snapshot for this activity's window from self.ongoing.
+        # This is the same snapshot _schedule_generation_scheme builds before
+        # calling _fits_with_tentative, keeping the logic identical.
+        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem = \
+            self._build_capacity_snapshots(start_time, end_time)
 
-            # Check minimum remaining availability over the entire duration
-            min_remaining = self._get_min_remaining_resources(
-                skill, start_time, end_time
-            )
-
-            if min_remaining < needed:
-                logging.debug(
-                    f"Activity {activity.name} blocked: "
-                    f"need {needed} {skill}, only {min_remaining} remaining "
-                    f"(some already allocated to ongoing tasks)"
-                )
-                return False
-
-        # Check equipment availability for entire duration
-        for eq_req in activity.getRequiredEquipment():
-            eq_id = eq_req['equipment_id']
-            needed = eq_req['quantity_needed']
-
-            # Check minimum remaining availability over the entire duration
-            min_remaining = self._get_min_remaining_equipment(
-                eq_id, start_time, end_time
-            )
-
-            if min_remaining < needed:
-                logging.debug(
-                    f"Activity {activity.name} blocked: "
-                    f"need {needed} {eq_id}, only {min_remaining} remaining "
-                    f"(some already allocated to ongoing tasks)"
-                )
-                return False
-
-        # Check location capacity
-        location_id = activity.getLocation()
-        if location_id:
-            # Check if location is accessible for entire duration
-            min_capacity = self._get_min_remaining_location_capacity(
-                location_id, start_time, end_time
-            )
-
-            if min_capacity['max_tasks'] == 0:
-                logging.debug(
-                    f"Activity {activity.name} blocked: "
-                    f"location {location_id} not accessible during required period"
-                )
-                return False
-
-            # Check if we would exceed task capacity (based on ongoing)
-            max_concurrent = 0
-            current_time = start_time
-            while current_time < end_time:
-                concurrent = self._get_tasks_at_location(location_id, current_time)
-                max_concurrent = max(max_concurrent, concurrent)
-                current_time += timedelta(hours=1)
-
-            if max_concurrent >= min_capacity['max_tasks']:
-                logging.debug(
-                    f"Activity {activity.name} blocked: "
-                    f"location {location_id} at capacity "
-                    f"({max_concurrent}/{min_capacity['max_tasks']})"
-                )
-                return False
-
-            # NEW: enforce location worker capacity across duration
-            if min_capacity['max_workers'] is not None:
-                workers_needed = sum(req['crew_count'] for req in activity.getRequiredResources())
-                current_time = start_time
-                while current_time < end_time:
-                    workers_now = self._get_workers_at_location(location_id, current_time)
-                    if workers_now + workers_needed > min_capacity['max_workers']:
-                        logging.debug(
-                            f"Activity {activity.name} blocked: "
-                            f"location {location_id} would exceed worker capacity at "
-                            f"{current_time.strftime('%Y-%m-%d %H:%M')} "
-                            f"({workers_now + workers_needed}/{min_capacity['max_workers']})"
-                        )
-                        return False
-                    current_time += timedelta(hours=1)
-
-        return True
+        return self._fits_with_tentative(
+            activity, start_time,
+            res_rem, eq_rem, loc_tasks_rem, loc_workers_rem
+        )
 
     def _get_consumed_resources(self, skill_type: str, time_point: datetime) -> int:
         """
@@ -1768,37 +2029,6 @@ class Pert:
         activities = list(candidates.keys())
         random.shuffle(activities)
         return activities
-
-    def _update_activity_sets(self, selected: List, candidates: Dict,
-                              time_index: datetime):
-        """
-        Update activity tracking lists after selection.
-
-        - Move selected activities from wait to ongoing
-        - Set actual start times for selected activities
-        - Add delay to postponed activities
-        """
-        if selected:
-            # Set start times and move to ongoing
-            for act in selected:
-                act.setActualStartTime(time_index)
-                self.wait.remove(act)
-                self.ongoing.append(act)
-
-                #logging.info(
-                #    f"Started: {act.name} at {time_index.strftime('%Y-%m-%d %H:%M')}"
-                #)
-
-            # Add delay to postponed candidates
-            postponed = set(candidates.keys()) - set(selected)
-            for act in postponed:
-                act.addDelay()
-                #logging.debug(f"Delayed: {act.name} (total delay: {act.delay}h)")
-        else:
-            # All candidates postponed
-            for act in candidates.keys():
-                act.addDelay()
-                #logging.debug(f"Delayed: {act.name} (total delay: {act.delay}h)")
 
     def _update_ongoing_list(self, time_index: datetime):
         """
@@ -3194,26 +3424,64 @@ class LookAheadScheduler:
 
     def select_activities(self, candidates: Dict, time_point: datetime) -> List:
         """
-        Rank candidates by immediate value + expected future opportunities after they finish,
-        then greedily select those that pass feasibility at time_point.
+        Rank candidates by immediate value + expected future opportunities after
+        they finish, then greedily select those that are feasible at time_point.
+
+        Feasibility is evaluated using shared capacity snapshots that are
+        decremented as each activity is tentatively selected, preventing
+        overbooking within a single scheduling step.  This mirrors the approach
+        used by _schedule_generation_scheme for all other SGS strategies.
+
+        Args:
+            candidates (dict): {Activity: info_dict} from _select_candidate_activities.
+            time_point (datetime): Current scheduling event time.
+
+        Returns:
+            list: Activities selected to start at time_point, in selection order.
         """
-        # Compute scores
+        # ── Step 1: score all candidates ────────────────────────────────────────
         scored = []
         for act, info in candidates.items():
             immediate_value = info.get('value', 1.0)
-            future_value = self._evaluate_future_opportunities(act, time_point)
-            # You can tune the weight; 0.3 is a reasonable start
-            total_score = immediate_value + 0.3 * future_value
+            future_value    = self._evaluate_future_opportunities(act, time_point)
+            total_score     = immediate_value + 0.3 * future_value
             scored.append((act, total_score))
 
-        # Sort by combined score descending
+        # Sort by combined score descending so highest-value activities get
+        # first pick of the shared capacity pool.
         scored.sort(key=lambda x: x[1], reverse=True)
 
-        # Greedy selection with basic feasibility at current time
+        # ── Step 2: build ONE shared snapshot covering all candidates' windows ──
+        # The snapshot must span the longest candidate duration so that
+        # _fits_with_tentative has valid entries for every hour any candidate
+        # might run.  _build_capacity_snapshots already subtracts self.ongoing,
+        # so the snapshots reflect truly remaining capacity.
+        if not scored:
+            return []
+
+        max_end = time_point
+        for act, _ in scored:
+            cand_end = time_point + timedelta(hours=self.pert._effective_duration(act))
+            if cand_end > max_end:
+                max_end = cand_end
+
+        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem = \
+            self.pert._build_capacity_snapshots(time_point, max_end)
+
+        # ── Step 3: greedy selection with tentative capacity decrement ───────────
         selected = []
         for act, score in scored:
-            if self.pert._can_schedule_activity(act, time_point):
+            if self.pert._fits_with_tentative(
+                act, time_point,
+                res_rem, eq_rem, loc_tasks_rem, loc_workers_rem
+            ):
                 selected.append(act)
+                # Decrement shared snapshots so the next candidate in the loop
+                # sees reduced capacity — preventing overbooking.
+                self.pert._apply_tentative(
+                    act, time_point,
+                    res_rem, eq_rem, loc_tasks_rem, loc_workers_rem
+                )
 
         return selected
 

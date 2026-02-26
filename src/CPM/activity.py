@@ -289,14 +289,23 @@ class Activity:
         """
         self.duration = copy.deepcopy(newDuration)
     
-    def addDelay(self):
+
+    def addDelay(self, hours: float = 1.0):
         """
-        Increases the activity duration by 1 hour due to resource unavailability.
-        This models the case where an activity that could start is postponed 
-        because resources are not available.
+        Accumulate resource-wait time on this activity.
+
+        In the event-driven scheduler the time between consecutive events is
+        variable, so the caller passes the actual elapsed hours rather than a
+        fixed 1-hour increment.  The default of 1.0 preserves backward
+        compatibility with any code that still calls addDelay() without arguments.
+
+        Args:
+            hours (float): Elapsed hours to add to the delay accumulator.
+                        Must be >= 0.
         """
-        #self.duration = self.duration + 1.
-        self.delay = self.delay + 1.
+        if hours < 0:
+            raise ValueError(f"addDelay: hours must be >= 0, got {hours}")
+        self.delay += hours
     
     def returnSubActivities(self):
         """
@@ -372,3 +381,22 @@ class Activity:
             str: Readable string with key activity information
         """
         return f"{self.name} - {self.description} ({self.duration}h)"
+    
+    def reset(self):
+        """
+        Reset all scheduling state so the activity is ready for a new scheduling run.
+        Must be called between successive RAVEN/RCPSP iterations to avoid stale state.
+
+        Resets:
+            - startTime / endTime: set during setActualStartTime()
+            - delay: accumulated by addDelay() each time a candidate is postponed
+            - belongsToCP: marked during critical path analysis
+        
+        Does NOT reset:
+            - duration: may have been updated by set_durations() for this run
+            - required_resources / required_equipment / childs: structural data
+        """
+        self.startTime = None
+        self.endTime = None
+        self.delay = 0.0
+        self.belongsToCP = False

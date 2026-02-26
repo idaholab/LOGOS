@@ -110,18 +110,24 @@ class BaseCPMmodel(ExternalModelPluginBase):
     """
 
     try:
-        inputDict_durations = dict(zip(self.duration_vars, itemgetter(*self.duration_vars)(inputDict)))
+        inputDict_durations = dict(
+            zip(self.duration_vars, itemgetter(*self.duration_vars)(inputDict))
+        )
+        # ↓ now also calls _sync_infodict_durations() + generateInfo() internally
         self.pert.set_durations(inputDict_durations)
     except KeyError as e:
-        raise IOError(f"CPM Model: One of the duration varswas not found. {e}")
-    
-    try:
-        inputDict_priorities = dict(zip(self.priority_vars, itemgetter(*self.priority_vars)(inputDict)))
-        self.pert.set_priorities(inputDict_priorities,'replace')
-    except KeyError as e:
-        raise IOError(f"CPM Model: One of the priority vars was not found. {e}")
+        raise IOError(f"CPM Model: duration variable not found: {e}")
 
+    try:
+        inputDict_priorities = dict(
+            zip(self.priority_vars, itemgetter(*self.priority_vars)(inputDict))
+        )
+        self.pert.set_priorities(inputDict_priorities, 'replace')
+    except KeyError as e:
+        raise IOError(f"CPM Model: priority variable not found: {e}")
+
+    # ↓ _reset_scheduling_state() is called as the first thing inside here
     self.pert.calculateScheduleWithResources(self.sgs)
+
     endTime = self.pert.getProjectDuration()
     container.__dict__[self.CPtime] = np.asarray(float(endTime))
-
