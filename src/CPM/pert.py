@@ -100,9 +100,10 @@ class Pert:
         # Initialize graph structure
         if self.forwardDict:
             self.resetInitialGraph()
+            self.nxgraph = nx.DiGraph(self.forwardDict)
             self.generateInfo()
             self._update_activity_successors()
-            self.nxgraph = nx.DiGraph(self.forwardDict)
+            
 
         self._availability_events: frozenset = frozenset()
         if self.resource_pool or self.equipment_pool or self.location_pool:
@@ -534,7 +535,7 @@ class Pert:
 
     def calculate_total_predecessors(self):
         for a in self.backwardDict.keys():
-            self.infoDict[a]['mtp'] = len(nx.descendants(self.nxgraph, a))
+            self.infoDict[a]['mtp'] = len(nx.ancestors(self.nxgraph, a))
 
     def calculate_greatest_rank_position_weight(self):
         for a in self.forwardDict.keys():
@@ -558,33 +559,36 @@ class Pert:
 
     def calculate_resource_requirement(self):
         for a in self.forwardDict.keys():
-            res = a.getRequiredResources() # list of dict
-            eq = a.getRequiredEquipment() # list of dict
-            loc = a.getLocation() # str
-
+            res = a.getRequiredResources()
+            eq  = a.getRequiredEquipment()
+            loc = a.getLocation()
 
             skills = self.resource_pool.get_all_skills()
             equips = self.equipment_pool.get_all_equipment_ids()
-            locs = self.location_pool.get_all_location_ids()
-            rr = dict.fromkeys(skills+equips+locs)
+            locs   = self.location_pool.get_all_location_ids()
+            rr = dict.fromkeys(skills + equips + locs, 0.0)  # default 0 not None
+
             for r in res:
                 skill_type, crew_count = r['skill_type'], r['crew_count']
-                max_avail = self.resource_pool.resource[skill_type].get_max_availability()
-                rr[skill_type] = crew_count/max_avail if max_avail != 0 else 0
+                max_avail = self.resource_pool.resources[skill_type].get_max_availability()  # ← 'resources' not 'resource'
+                rr[skill_type] = crew_count / max_avail if max_avail != 0 else 0.0
+
             for e in eq:
                 e_id, quant = e['equipment_id'], e['quantity_needed']
                 max_avail = self.equipment_pool.equipment[e_id].get_max_availability()
-                rr[e_id] = quant/max_avail if max_avail !=0 else 0
-            if loc is not None:
-                rr[loc] = 1
+                rr[e_id] = quant / max_avail if max_avail != 0 else 0.0
 
-            num_res = len(rr)
-            rr_val = np.asarray(list(rr.values()))
-            num_req_res = np.count_nonzero(rr_val)
-            self.infoDict[a]['rr'] = num_req_res/num_res if num_res !=0 else 0
-            self.infoDict[a]['avgrr'] = np.sum(rr_val)/num_res
-            self.infoDict[a]['maxrr'] = np.max(rr_val)
-            self.infoDict[a]['minrr'] = np.min(rr_val)
+            if loc is not None:
+                rr[loc] = 1.0
+
+            rr_val      = np.asarray(list(rr.values()), dtype=float)
+            num_res     = len(rr_val)
+            num_req_res = int(np.count_nonzero(rr_val))
+
+            self.infoDict[a]['rr']    = num_req_res / num_res if num_res != 0 else 0.0
+            self.infoDict[a]['avgrr'] = float(np.sum(rr_val)) / num_res if num_res != 0 else 0.0
+            self.infoDict[a]['maxrr'] = float(np.max(rr_val)) if num_res != 0 else 0.0
+            self.infoDict[a]['minrr'] = float(np.min(rr_val)) if num_res != 0 else 0.0
 
 #=========================================
 
@@ -1513,25 +1517,12 @@ class Pert:
             return selected
 
         elif choice == 'look_ahead':
-            # Look-ahead heuristic (tentative), then re-validate to avoid overbooking
+            # LookAheadScheduler.select_activities() is fully tentative-aware:
+            # it builds shared capacity snapshots, calls _fits_with_tentative,
+            # and decrements via _apply_tentative for each selected activity.
+            # No second validation pass is needed here.
             scheduler = LookAheadScheduler(self, look_ahead_hours=48)
-            tentative = scheduler.select_activities(candidates, time_index)
-
-            max_end = time_index
-            for act in tentative:
-                eff = self._effective_duration(act)
-                cand_end = time_index + timedelta(hours=eff)
-                if cand_end > max_end:
-                    max_end = cand_end
-
-            res_rem, eq_rem, loc_tasks_rem, loc_workers_rem = self._build_capacity_snapshots(time_index, max_end)
-
-            selected = []
-            for act in tentative:
-                if self._fits_with_tentative(act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem):
-                    selected.append(act)
-                    self._apply_tentative(act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem)
-            return selected
+            return scheduler.select_activities(candidates, time_index)
 
         else:
             raise ValueError(f"Unknown scheduling strategy: {choice}")
