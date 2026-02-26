@@ -898,7 +898,7 @@ class Pert:
         )
 
 
-# ── New method 2 ─────────────────────────────────────────────────────────────
+    # ── New method 2 ─────────────────────────────────────────────────────────────
 
     def _build_event_queue(self) -> list:
         """
@@ -1506,21 +1506,6 @@ class Pert:
                         in_use += res_req['crew_count']
         return in_use
 
-    def _get_remaining_resources(self, skill_type: str, time_point: datetime) -> int:
-        """
-        Get remaining (available) resources at time_point after ongoing consumption.
-        """
-        original = self.resource_pool.get_availability(skill_type, time_point)
-        consumed = self._get_consumed_resources(skill_type, time_point)
-        remaining = original - consumed
-
-        logging.debug(
-            f"Resources at {time_point.strftime('%Y-%m-%d %H:%M')} - "
-            f"{skill_type}: original={original}, consumed={consumed}, remaining={remaining}"
-        )
-
-        return remaining
-
 
     def get_project_finish_actual(self) -> datetime:
         """
@@ -1825,23 +1810,6 @@ class Pert:
         print(f"CPM-only:                {len(only_cpm)} -> {only_cpm[:10]}{' ...' if len(only_cpm) > 10 else ''}")
         print(f"Constrained-only:        {len(only_constrained)} -> {only_constrained[:10]}{' ...' if len(only_constrained) > 10 else ''}")
 
-    def _get_min_remaining_resources(self, skill_type: str,
-                                     start_time: datetime,
-                                     end_time: datetime) -> int:
-        """
-        Get minimum remaining resources over a time range.
-        """
-        min_remaining = float('inf')
-
-        # Check each hour in the range
-        current_time = start_time
-        while current_time < end_time:
-            remaining = self._get_remaining_resources(skill_type, current_time)
-            min_remaining = min(min_remaining, remaining)
-            current_time += timedelta(hours=1)
-
-        return min_remaining if min_remaining != float('inf') else 0
-
     def _get_consumed_equipment(self, equipment_id: str, time_point: datetime) -> int:
         """
         Calculate how many units of equipment are in use at time_point.
@@ -1854,30 +1822,6 @@ class Pert:
                     if eq_req['equipment_id'] == equipment_id:
                         in_use += eq_req['quantity_needed']
         return in_use
-
-    def _get_remaining_equipment(self, equipment_id: str, time_point: datetime) -> int:
-        """
-        Get remaining (available) equipment at time_point.
-        """
-        original = self.equipment_pool.get_availability(equipment_id, time_point)
-        consumed = self._get_consumed_equipment(equipment_id, time_point)
-        return original - consumed
-
-    def _get_min_remaining_equipment(self, equipment_id: str,
-                                     start_time: datetime,
-                                     end_time: datetime) -> int:
-        """
-        Get minimum remaining equipment over a time range.
-        """
-        min_remaining = float('inf')
-
-        current_time = start_time
-        while current_time < end_time:
-            remaining = self._get_remaining_equipment(equipment_id, current_time)
-            min_remaining = min(min_remaining, remaining)
-            current_time += timedelta(hours=1)
-
-        return min_remaining if min_remaining != float('inf') else 0
 
     def _get_tasks_at_location(self, location_id: str, time_point: datetime) -> int:
         """
@@ -1903,28 +1847,6 @@ class Pert:
                     for res_req in act.getRequiredResources():
                         total_workers += res_req['crew_count']
         return total_workers
-
-    def _get_min_remaining_location_capacity(self, location_id: str,
-                                             start_time: datetime,
-                                             end_time: datetime) -> Dict:
-        """
-        Get minimum location capacity over a time range.
-        """
-        min_tasks = float('inf')
-        min_workers = float('inf')
-
-        current_time = start_time
-        while current_time < end_time:
-            capacity = self.location_pool.get_capacity(location_id, current_time)
-            min_tasks = min(min_tasks, capacity['max_tasks'])
-            if capacity['max_workers'] is not None:
-                min_workers = min(min_workers, capacity['max_workers'])
-            current_time += timedelta(hours=1)
-
-        return {
-            'max_tasks': min_tasks if min_tasks != float('inf') else 0,
-            'max_workers': min_workers if min_workers != float('inf') else None
-        }
 
     def _rank_by_value(self, candidates: Dict) -> List:
         """
