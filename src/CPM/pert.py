@@ -103,6 +103,8 @@ class Pert:
         if self.resource_pool or self.equipment_pool or self.location_pool:
             self._precompute_availability_events()
 
+        self.schedule_log = []
+
     @classmethod
     def from_json_file(cls, filepath: str, schema_path: str, priorities: Dict = None, seed: int = 2506178):
         """
@@ -952,7 +954,7 @@ class Pert:
         return heap
     
 
-# Epsilon for merging near-simultaneous events into one scheduling step.
+    # Epsilon for merging near-simultaneous events into one scheduling step.
     # 1 minute is tight enough to catch genuine coincident events (e.g. two
     # activities ending at the same time) while ignoring floating-point jitter
     # in duration arithmetic.
@@ -1021,7 +1023,8 @@ class Pert:
             self.ongoing.append(self.startActivity)
             # Push START's completion time so the loop wakes up when it finishes
             _, start_end = self.startActivity.returnAbsTimes()
-            heapq.heappush(event_heap := [], start_end)
+            event_heap = []
+            heapq.heappush(event_heap, start_end)
         else:
             event_heap = []
 
@@ -1450,101 +1453,45 @@ class Pert:
 
     def _can_schedule_activity(self, activity, start_time: datetime) -> bool:
         """
-        Check if activity can be scheduled at given time.
+        Check if a single activity can be scheduled at start_time, considering
+        only currently ongoing activities (no tentative selections).
 
-        Checks REMAINING availability (after accounting for ongoing tasks):
-        1. Resource availability for entire duration
-        2. Equipment availability for entire duration
-        3. Location capacity for entire duration
+        This is a stateless convenience wrapper around _fits_with_tentative.
+        It builds a fresh capacity snapshot from self.ongoing for the activity's
+        time window and delegates all constraint logic to _fits_with_tentative,
+        ensuring there is a single source of truth for feasibility checking.
+
+        Use this method when evaluating one activity in isolation:
+            - LookAheadScheduler.select_activities()
+            - debug_candidates_and_capacity()
+
+        For evaluating multiple candidates within the same scheduling step
+        (where tentative selections must reduce available capacity for subsequent
+        checks), use _fits_with_tentative() directly with shared snapshot dicts
+        managed by _schedule_generation_scheme(), as is already the case for the
+        'max_use_res_ranked', 'max_use_res_shuffled', 'md_knapsack', and
+        'look_ahead' strategies.
+
+        Args:
+            activity (Activity): The activity to check.
+            start_time (datetime): Proposed start time.
+
+        Returns:
+            bool: True if the activity can feasibly start at start_time given
+                currently ongoing activities.
         """
-        # Calculate activity duration and end time (clamped)
-        duration_hours = self._effective_duration(activity)
-        end_time = start_time + timedelta(hours=duration_hours)
+        end_time = start_time + timedelta(hours=self._effective_duration(activity))
 
-        # Check resource availability for entire duration
-        for res_req in activity.getRequiredResources():
-            skill = res_req['skill_type']
-            needed = res_req['crew_count']
+        # Build a capacity snapshot for this activity's window from self.ongoing.
+        # This is the same snapshot _schedule_generation_scheme builds before
+        # calling _fits_with_tentative, keeping the logic identical.
+        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem = \
+            self._build_capacity_snapshots(start_time, end_time)
 
-            # Check minimum remaining availability over the entire duration
-            min_remaining = self._get_min_remaining_resources(
-                skill, start_time, end_time
-            )
-
-            if min_remaining < needed:
-                logging.debug(
-                    f"Activity {activity.name} blocked: "
-                    f"need {needed} {skill}, only {min_remaining} remaining "
-                    f"(some already allocated to ongoing tasks)"
-                )
-                return False
-
-        # Check equipment availability for entire duration
-        for eq_req in activity.getRequiredEquipment():
-            eq_id = eq_req['equipment_id']
-            needed = eq_req['quantity_needed']
-
-            # Check minimum remaining availability over the entire duration
-            min_remaining = self._get_min_remaining_equipment(
-                eq_id, start_time, end_time
-            )
-
-            if min_remaining < needed:
-                logging.debug(
-                    f"Activity {activity.name} blocked: "
-                    f"need {needed} {eq_id}, only {min_remaining} remaining "
-                    f"(some already allocated to ongoing tasks)"
-                )
-                return False
-
-        # Check location capacity
-        location_id = activity.getLocation()
-        if location_id:
-            # Check if location is accessible for entire duration
-            min_capacity = self._get_min_remaining_location_capacity(
-                location_id, start_time, end_time
-            )
-
-            if min_capacity['max_tasks'] == 0:
-                logging.debug(
-                    f"Activity {activity.name} blocked: "
-                    f"location {location_id} not accessible during required period"
-                )
-                return False
-
-            # Check if we would exceed task capacity (based on ongoing)
-            max_concurrent = 0
-            current_time = start_time
-            while current_time < end_time:
-                concurrent = self._get_tasks_at_location(location_id, current_time)
-                max_concurrent = max(max_concurrent, concurrent)
-                current_time += timedelta(hours=1)
-
-            if max_concurrent >= min_capacity['max_tasks']:
-                logging.debug(
-                    f"Activity {activity.name} blocked: "
-                    f"location {location_id} at capacity "
-                    f"({max_concurrent}/{min_capacity['max_tasks']})"
-                )
-                return False
-
-            # NEW: enforce location worker capacity across duration
-            if min_capacity['max_workers'] is not None:
-                workers_needed = sum(req['crew_count'] for req in activity.getRequiredResources())
-                current_time = start_time
-                while current_time < end_time:
-                    workers_now = self._get_workers_at_location(location_id, current_time)
-                    if workers_now + workers_needed > min_capacity['max_workers']:
-                        logging.debug(
-                            f"Activity {activity.name} blocked: "
-                            f"location {location_id} would exceed worker capacity at "
-                            f"{current_time.strftime('%Y-%m-%d %H:%M')} "
-                            f"({workers_now + workers_needed}/{min_capacity['max_workers']})"
-                        )
-                        return False
-                    current_time += timedelta(hours=1)
-
-        return True
+        return self._fits_with_tentative(
+            activity, start_time,
+            res_rem, eq_rem, loc_tasks_rem, loc_workers_rem
+        )
 
     def _get_consumed_resources(self, skill_type: str, time_point: datetime) -> int:
         """
@@ -3329,26 +3276,64 @@ class LookAheadScheduler:
 
     def select_activities(self, candidates: Dict, time_point: datetime) -> List:
         """
-        Rank candidates by immediate value + expected future opportunities after they finish,
-        then greedily select those that pass feasibility at time_point.
+        Rank candidates by immediate value + expected future opportunities after
+        they finish, then greedily select those that are feasible at time_point.
+
+        Feasibility is evaluated using shared capacity snapshots that are
+        decremented as each activity is tentatively selected, preventing
+        overbooking within a single scheduling step.  This mirrors the approach
+        used by _schedule_generation_scheme for all other SGS strategies.
+
+        Args:
+            candidates (dict): {Activity: info_dict} from _select_candidate_activities.
+            time_point (datetime): Current scheduling event time.
+
+        Returns:
+            list: Activities selected to start at time_point, in selection order.
         """
-        # Compute scores
+        # ── Step 1: score all candidates ────────────────────────────────────────
         scored = []
         for act, info in candidates.items():
             immediate_value = info.get('value', 1.0)
-            future_value = self._evaluate_future_opportunities(act, time_point)
-            # You can tune the weight; 0.3 is a reasonable start
-            total_score = immediate_value + 0.3 * future_value
+            future_value    = self._evaluate_future_opportunities(act, time_point)
+            total_score     = immediate_value + 0.3 * future_value
             scored.append((act, total_score))
 
-        # Sort by combined score descending
+        # Sort by combined score descending so highest-value activities get
+        # first pick of the shared capacity pool.
         scored.sort(key=lambda x: x[1], reverse=True)
 
-        # Greedy selection with basic feasibility at current time
+        # ── Step 2: build ONE shared snapshot covering all candidates' windows ──
+        # The snapshot must span the longest candidate duration so that
+        # _fits_with_tentative has valid entries for every hour any candidate
+        # might run.  _build_capacity_snapshots already subtracts self.ongoing,
+        # so the snapshots reflect truly remaining capacity.
+        if not scored:
+            return []
+
+        max_end = time_point
+        for act, _ in scored:
+            cand_end = time_point + timedelta(hours=self.pert._effective_duration(act))
+            if cand_end > max_end:
+                max_end = cand_end
+
+        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem = \
+            self.pert._build_capacity_snapshots(time_point, max_end)
+
+        # ── Step 3: greedy selection with tentative capacity decrement ───────────
         selected = []
         for act, score in scored:
-            if self.pert._can_schedule_activity(act, time_point):
+            if self.pert._fits_with_tentative(
+                act, time_point,
+                res_rem, eq_rem, loc_tasks_rem, loc_workers_rem
+            ):
                 selected.append(act)
+                # Decrement shared snapshots so the next candidate in the loop
+                # sees reduced capacity — preventing overbooking.
+                self.pert._apply_tentative(
+                    act, time_point,
+                    res_rem, eq_rem, loc_tasks_rem, loc_workers_rem
+                )
 
         return selected
 
