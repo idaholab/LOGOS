@@ -17,6 +17,7 @@ import inspect
 from datetime import datetime
 import pandas as pd
 import numpy as np
+from operator import itemgetter
 
 #External Modules End-----------------------------------------------------------
 
@@ -53,6 +54,10 @@ class BaseCPMmodel(ExternalModelPluginBase):
       @ In, xmlNode, xml.etree.ElementTree.Element, XML node that needs to be read
       @ Out, None
     """
+    self.mapping = {}
+    self.duration_vars = []
+    self.priority_vars = []
+
     for child in xmlNode:
       if child.tag == 'project_file':
         self.project_file = child.text.strip()
@@ -62,6 +67,18 @@ class BaseCPMmodel(ExternalModelPluginBase):
         self.sgs = child.text.strip()
       elif child.tag == 'schema':
         self.schema = child.text.strip()
+      elif child.tag == 'map':
+        # <map activity='activity_ID' attribute='duration/priority'>raven_var_ID</map>
+        raven_var_ID = child.text.strip()
+        act_ID       = child.get('activity')
+        attribute    = child.get('attribute')
+        self.mapping[raven_var_ID] = (act_ID,attribute)
+        if attribute=='duration':
+          self.duration_vars.append(raven_var_ID)
+        elif attribute=='priority':
+          self.priority_vars.append(raven_var_ID)
+        else:
+          raise IOError("CMPmodel: attribute " + str(attribute) + " is not allowed")
       else:
         raise IOError("CMPmodel: xml node " + str(child.tag) + " is not allowed")
 
@@ -74,6 +91,7 @@ class BaseCPMmodel(ExternalModelPluginBase):
       @ In, inputFiles, list, list of input files (if any)
       @ Out, None
     """
+    #Initialized once
     # 1) Load data & build schedule graph
     self.pert = Pert.from_json_file(self.project_file, schema_path=self.schema)
 
@@ -90,36 +108,20 @@ class BaseCPMmodel(ExternalModelPluginBase):
       @ In, container, object, self-like object where all the variables can be stored
       @ In, inputDict, dict, dictionary of inputs from RAVEN
     """
-    if self.analysis == 'activity_duration':
-      pass
-    elif self.analysis == 'activity_priority':
-      priorityDict = self.parsePriorityValues(container, inputDict)
-      self.pert.set_priorities(priorityDict, mode= "replace")
-      self.pert.calculateScheduleWithResources(self.sgs)
-      endTime = self.pert.getProjectDuration()
-      container.__dict__[self.CPtime] = np.asarray(float(endTime))
-    else:
-      raise IOError("CPMmodel: Only activity_duration or activity_priority can be specified in the analysis node")
 
-  def updateGraphValues(self, container, inputDict):
-    """
-      This method updates the duration value of a subset of activities in self.graph when
-      the schedule graph is specified in a python class located in a separate file
-      @ In, container, object, self-like object where all the variables can be stored
-      @ In, inputDict, dict, dictionary of inputs from RAVEN
-    """
-    # To be modified
+    try:
+        inputDict_durations = dict(zip(self.duration_vars, itemgetter(*self.duration_vars)(inputDict)))
+        self.pert.set_durations(inputDict_durations)
+    except KeyError as e:
+        raise IOError(f"CPM Model: One of the duration varswas not found. {e}")
+    
+    try:
+        inputDict_priorities = dict(zip(self.priority_vars, itemgetter(*self.priority_vars)(inputDict)))
+        self.pert.set_priorities(inputDict_priorities,'replace')
+    except KeyError as e:
+        raise IOError(f"CPM Model: One of the priority vars was not found. {e}")
 
-  def parsePriorityValues(self, container, inputDict):
-    """
-      This method updates the piority value of a subset of activities in self.graph when
-      the schedule graph is specified in a python class located in a separate file
-      @ In, container, object, self-like object where all the variables can be stored
-      @ In, inputDict, dict, dictionary of inputs from RAVEN
-    """
-    priorityDict = {}
-    inputDict = inputDict['SampledVars']
-    for key in self.pert.returnGraphSymbolic.keys():
-      if key in inputDict.keys():
-        priorityDict[key] = inputDict[key.returnName()]
-    return priorityDict
+    self.pert.calculateScheduleWithResources(self.sgs)
+    endTime = self.pert.getProjectDuration()
+    container.__dict__[self.CPtime] = np.asarray(float(endTime))
+

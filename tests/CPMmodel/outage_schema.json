@@ -1,0 +1,197 @@
+
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Nuclear Outage Planning Data Model",
+  "description": "Schema for nuclear power plant outage planning optimization input data",
+  "type": "object",
+  "required": ["outage", "tasks", "resources", "equipment", "locations"],
+  "properties": {
+    "outage": {
+      "type": "object",
+      "description": "Outage configuration and metadata",
+      "required": ["outage_id", "start_date", "working_hours_per_day"],
+      "properties": {
+        "outage_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique identifier for this outage"
+        },
+        "start_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Outage start date in YYYY-MM-DD format"
+        },
+        "target_end_date": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Optional target completion date"
+        },
+        "working_hours_per_day": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 24,
+          "description": "Number of working hours per day"
+        }
+      },
+      "additionalProperties": false
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["task_id", "description", "duration", "successors", "required_resources", "required_equipment"],
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "duration": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "successors": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "location_id": {
+            "type": ["string", "null"]
+          },
+          "is_hold_point": {
+            "type": "boolean",
+            "default": false
+          },
+          "hold_point_type": {
+            "type": ["string", "null"],
+            "enum": ["NRC", "QA", "Engineering", "Operations", null]
+          },
+          "blocks_tasks": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "required_resources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["skill_type", "crew_count"],
+              "properties": {
+                "skill_type": { "type": "string", "minLength": 1 },
+                "crew_count": { "type": "integer", "minimum": 1 }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required_equipment": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["equipment_id", "quantity_needed"],
+              "properties": {
+                "equipment_id": { "type": "string", "minLength": 1 },
+                "quantity_needed": { "type": "integer", "minimum": 1 }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": { "properties": { "is_hold_point": { "const": true } } },
+            "then": { "required": ["hold_point_type"] }
+          }
+        ]
+      }
+    },
+    "resources": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["skill_type", "availability_periods"],
+        "properties": {
+          "skill_type": { "type": "string", "minLength": 1 },
+          "availability_periods": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["start_date", "end_date", "available_count"],
+              "properties": {
+                "start_date": { "type": "string", "format": "date-time" },
+                "end_date": { "type": "string", "format": "date-time" },
+                "available_count": { "type": "integer", "minimum": 0 },
+                "reason": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "equipment": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["equipment_id", "description", "availability_periods"],
+        "properties": {
+          "equipment_id": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "availability_periods": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["start_date", "end_date", "quantity_available"],
+              "properties": {
+                "start_date": { "type": "string", "format": "date-time" },
+                "end_date": { "type": "string", "format": "date-time" },
+                "quantity_available": { "type": "integer", "minimum": 0 },
+                "reason": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "locations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["location_id", "description", "availability_periods"],
+        "properties": {
+          "location_id": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "is_confined_space": { "type": "boolean", "default": false },
+          "availability_periods": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["start_date", "end_date", "max_concurrent_tasks"],
+              "properties": {
+                "start_date": { "type": "string", "format": "date-time" },
+                "end_date": { "type": "string", "format": "date-time" },
+                "max_concurrent_tasks": { "type": "integer", "minimum": 0 },
+                "max_concurrent_workers": { "type": ["integer", "null"], "minimum": 0 },
+                "reason": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

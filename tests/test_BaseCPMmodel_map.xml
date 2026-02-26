@@ -18,53 +18,29 @@
 
   <Models>
     <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
-      <variables>start,b,c,d,end,f,g,h,end_time,CP</variables>
-      <analysis>activity_duration</analysis>
+      <variables>R_C101,R_C102,R_C103,R_C104,R_C105,R_C106,R_C107,R_C109,R_C110,R_C111,end_time</variables>
       <CPtime>end_time</CPtime>
-      <CPid>CP</CPid>
-      <map act='start' dur='10'>f,b,h</map>
-      <map act='b'     dur='20'>c</map>
-      <map act='c'     dur='5' >g,d</map>
-      <map act='d'     dur='10'>end</map>
-      <map act='f'     dur='15'>g</map>
-      <map act='g'     dur='5' >end</map>
-      <map act='h'     dur='15'>end</map>
-      <map act='end'   dur='20'></map>
+      <schema>outage_schema.json</schema>
+      <sgs>max_use_res_ranked</sgs>
+      <project_file>example_10.json</project_file>
+      <!-- How to automate construction of this mapping block?????-->
+      <map act='C101' attr='duration'>R_C101</map>
+      <map act='C102' attr='duration'>R_C102</map>
+      <map act='C103' attr='duration'>R_C103</map>
+      <map act='C104' attr='duration'>R_C104</map>
+      <map act='C105' attr='duration'>R_C105</map>
+      <map act='C106' attr='duration'>R_C106</map>
+      <map act='C107' attr='duration'>R_C107</map>
+      <map act='C109' attr='duration'>R_C109</map>
+      <map act='C110' attr='duration'>R_C110</map>
+      <map act='C111' attr='duration'>R_C111</map>
     </ExternalModel>
   </Models>
 
   <Distributions>
-    <Uniform name="dist_A">
+    <Uniform name="dist_test">
       <lowerBound>8</lowerBound>
       <upperBound>12</upperBound>
-    </Uniform>
-    <Uniform name="dist_B">
-      <lowerBound>15</lowerBound>
-      <upperBound>25</upperBound>
-    </Uniform>
-    <Uniform name="dist_C">
-      <lowerBound>4</lowerBound>
-      <upperBound>8</upperBound>
-    </Uniform>
-    <Uniform name="dist_D">
-      <lowerBound>8</lowerBound>
-      <upperBound>12</upperBound>
-    </Uniform>
-    <Uniform name="dist_E">
-      <lowerBound>19</lowerBound>
-      <upperBound>25</upperBound>
-    </Uniform>
-    <Uniform name="dist_F">
-      <lowerBound>12</lowerBound>
-      <upperBound>20</upperBound>
-    </Uniform>
-    <Uniform name="dist_G">
-      <lowerBound>4</lowerBound>
-      <upperBound>12</upperBound>
-    </Uniform>
-    <Uniform name="dist_H">
-      <lowerBound>12</lowerBound>
-      <upperBound>21</upperBound>
     </Uniform>
   </Distributions>
 
@@ -73,29 +49,35 @@
       <samplerInit>
         <limit>10</limit>
       </samplerInit>
-      <variable name="start">
-        <distribution>dist_A</distribution>
+      <variable name="R_C101">
+        <distribution>dist_test</distribution>
       </variable>
-      <variable name="b">
-        <distribution>dist_B</distribution>
+      <variable name="R_C102">
+        <distribution>dist_test</distribution>
       </variable>
-      <variable name="c">
-        <distribution>dist_C</distribution>
+      <variable name="R_C103">
+        <distribution>dist_test</distribution>
       </variable>
-      <variable name="d">
-        <distribution>dist_D</distribution>
+      <variable name="R_C104">
+        <distribution>dist_test</distribution>
       </variable>
-      <variable name="end">
-        <distribution>dist_E</distribution>
+      <variable name="R_C105">
+        <distribution>dist_test</distribution>
       </variable>
-      <variable name="f">
-        <distribution>dist_F</distribution>
+      <variable name="R_C106">
+        <distribution>dist_test</distribution>
       </variable>
-      <variable name="g">
-        <distribution>dist_G</distribution>
+      <variable name="R_C107">
+        <distribution>dist_test</distribution>
       </variable>
-      <variable name="h">
-        <distribution>dist_H</distribution>
+      <variable name="R_C109">
+        <distribution>dist_test</distribution>
+      </variable>
+      <variable name="R_C110">
+        <distribution>dist_test</distribution>
+      </variable>
+      <variable name="R_C111">
+        <distribution>dist_test</distribution>
       </variable>
     </MonteCarlo>
   </Samplers>
@@ -120,11 +102,11 @@
 
   <DataObjects>
     <PointSet name="inputPlaceHolder">
-      <Input>start,b,c,d,end,f,g,h</Input>
+      <Input>R_C101,R_C102,R_C103,R_C104,R_C105,R_C106,R_C107,R_C109,R_C110,R_C111</Input>
       <Output>OutputPlaceHolder</Output>
     </PointSet>
     <PointSet name="sim_PS_map">
-      <Input>start,b,c,d,end,f,g,h</Input>
+      <Input>R_C101,R_C102,R_C103,R_C104,R_C105,R_C106,R_C107,R_C109,R_C110,R_C111</Input>
       <Output>end_time,CP</Output>
     </PointSet>
   </DataObjects>

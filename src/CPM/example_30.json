@@ -1,0 +1,974 @@
+{
+  "outage": {
+    "outage_id": "RFO_2025_SPRING",
+    "start_date": "2025-03-15",
+    "target_end_date": "2025-04-25",
+    "working_hours_per_day": 24
+  },
+  
+  "tasks": [
+    {
+      "task_id": "START",
+      "description": "Outage start (fictitious activity)",
+      "duration": 1.0,
+      "successors": ["T001"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [],
+      "required_equipment": []
+    },
+    {
+      "task_id": "T001",
+      "description": "Shutdown reactor and achieve hot standby",
+      "duration": 4.0,
+      "successors": ["T002"],
+      "location_id": "LOC_CONTROL_ROOM",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "REACTOR_OPERATOR", "crew_count": 2},
+        {"skill_type": "SHIFT_SUPERVISOR", "crew_count": 1}
+      ],
+      "required_equipment": []
+    },
+    {
+      "task_id": "T002",
+      "description": "Cool down reactor to cold shutdown",
+      "duration": 48.0,
+      "successors": ["T003"],
+      "location_id": "LOC_REACTOR_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "REACTOR_OPERATOR", "crew_count": 2}
+      ],
+      "required_equipment": []
+    },
+    {
+      "task_id": "T003",
+      "description": "Remove reactor vessel head",
+      "duration": 12.0,
+      "successors": ["T004"],
+      "location_id": "LOC_REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 6},
+        {"skill_type": "HP_TECH", "crew_count": 2}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_POLAR_CRANE", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T004",
+      "description": "NRC witness vessel head removal and inspection",
+      "duration": 6.0,
+      "successors": [],
+      "location_id": "LOC_REACTOR_CAVITY",
+      "is_hold_point": true,
+      "hold_point_type": "NRC",
+      "blocks_tasks": ["T005", "T006", "T007"],
+      "required_resources": [
+        {"skill_type": "QA_INSPECTOR", "crew_count": 2},
+        {"skill_type": "NRC_INSPECTOR", "crew_count": 1}
+      ],
+      "required_equipment": []
+    },
+    {
+      "task_id": "T005",
+      "description": "Inspect reactor vessel internals",
+      "duration": 24.0,
+      "successors": ["T008"],
+      "location_id": "LOC_REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "I&C_TECH", "crew_count": 3},
+        {"skill_type": "HP_TECH", "crew_count": 1}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_INSPECTION_CAMERA", "quantity_needed": 2}
+      ]
+    },
+    {
+      "task_id": "T006",
+      "description": "Remove and inspect control rod drive mechanisms",
+      "duration": 36.0,
+      "successors": ["T009"],
+      "location_id": "LOC_REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 4},
+        {"skill_type": "I&C_TECH", "crew_count": 2}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_TORQUE_WRENCH", "quantity_needed": 2}
+      ]
+    },
+    {
+      "task_id": "T007",
+      "description": "Refuel reactor core (1/3 core reload)",
+      "duration": 72.0,
+      "successors": ["T010"],
+      "location_id": "LOC_REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "REACTOR_OPERATOR", "crew_count": 2},
+        {"skill_type": "HP_TECH", "crew_count": 2},
+        {"skill_type": "FUEL_HANDLER", "crew_count": 3}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_REFUELING_MACHINE", "quantity_needed": 1},
+        {"equipment_id": "EQ_POLAR_CRANE", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T008",
+      "description": "Reinstall control rod drive mechanisms",
+      "duration": 30.0,
+      "successors": ["T010"],
+      "location_id": "LOC_REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 4},
+        {"skill_type": "I&C_TECH", "crew_count": 2}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_TORQUE_WRENCH", "quantity_needed": 2}
+      ]
+    },
+    {
+      "task_id": "T009",
+      "description": "QA inspection of CRDM installation",
+      "duration": 4.0,
+      "successors": ["T010"],
+      "location_id": "LOC_REACTOR_CAVITY",
+      "is_hold_point": true,
+      "hold_point_type": "QA",
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "QA_INSPECTOR", "crew_count": 2}
+      ],
+      "required_equipment": []
+    },
+    {
+      "task_id": "T010",
+      "description": "Reinstall reactor vessel head",
+      "duration": 12.0,
+      "successors": ["T028"],
+      "location_id": "LOC_REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 6},
+        {"skill_type": "HP_TECH", "crew_count": 2}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_POLAR_CRANE", "quantity_needed": 1},
+        {"equipment_id": "EQ_TORQUE_WRENCH", "quantity_needed": 3}
+      ]
+    },
+    {
+      "task_id": "T011",
+      "description": "Eddy current testing Steam Generator A",
+      "duration": 96.0,
+      "successors": ["T012"],
+      "location_id": "LOC_SG_A_CHANNEL_HEAD",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "I&C_TECH", "crew_count": 4}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_EDDY_CURRENT_MACHINE", "quantity_needed": 2}
+      ]
+    },
+    {
+      "task_id": "T012",
+      "description": "Analyze and report SG-A eddy current results",
+      "duration": 16.0,
+      "successors": ["T013"],
+      "location_id": "LOC_ENGINEERING_OFFICE",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "ENGINEER", "crew_count": 2}
+      ],
+      "required_equipment": []
+    },
+    {
+      "task_id": "T013",
+      "description": "Engineering hold point - SG-A tube plugging decision",
+      "duration": 2.0,
+      "successors": [],
+      "location_id": "LOC_ENGINEERING_OFFICE",
+      "is_hold_point": true,
+      "hold_point_type": "Engineering",
+      "blocks_tasks": ["T014"],
+      "required_resources": [
+        {"skill_type": "ENGINEER", "crew_count": 1}
+      ],
+      "required_equipment": []
+    },
+    {
+      "task_id": "T014",
+      "description": "Plug degraded tubes in SG-A",
+      "duration": 48.0,
+      "successors": ["T015"],
+      "location_id": "LOC_SG_A_CHANNEL_HEAD",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 3},
+        {"skill_type": "HP_TECH", "crew_count": 1}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_TUBE_PLUGGING_TOOL", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T015",
+      "description": "Pressure test SG-A after tube plugging",
+      "duration": 8.0,
+      "successors": [],
+      "location_id": "LOC_SG_A_CHANNEL_HEAD",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 2},
+        {"skill_type": "I&C_TECH", "crew_count": 1}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_PRESSURE_TEST_PUMP", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T016",
+      "description": "Eddy current testing Steam Generator B",
+      "duration": 96.0,
+      "successors": ["T017"],
+      "location_id": "LOC_SG_B_CHANNEL_HEAD",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "I&C_TECH", "crew_count": 4}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_EDDY_CURRENT_MACHINE", "quantity_needed": 2}
+      ]
+    },
+    {
+      "task_id": "T017",
+      "description": "Plug degraded tubes in SG-B",
+      "duration": 36.0,
+      "successors": ["T018"],
+      "location_id": "LOC_SG_B_CHANNEL_HEAD",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 3},
+        {"skill_type": "HP_TECH", "crew_count": 1}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_TUBE_PLUGGING_TOOL", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T018",
+      "description": "Pressure test SG-B after tube plugging",
+      "duration": 8.0,
+      "successors": [],
+      "location_id": "LOC_SG_B_CHANNEL_HEAD",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 2},
+        {"skill_type": "I&C_TECH", "crew_count": 1}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_PRESSURE_TEST_PUMP", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T019",
+      "description": "Turbine rotor removal",
+      "duration": 16.0,
+      "successors": ["T020"],
+      "location_id": "LOC_TURBINE_DECK",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 8},
+        {"skill_type": "MILLWRIGHT", "crew_count": 4}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_TURBINE_CRANE", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T020",
+      "description": "Inspect turbine blades and journals",
+      "duration": 24.0,
+      "successors": ["T021"],
+      "location_id": "LOC_TURBINE_DECK",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MILLWRIGHT", "crew_count": 4},
+        {"skill_type": "QA_INSPECTOR", "crew_count": 1}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_INSPECTION_CAMERA", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T021",
+      "description": "Replace turbine seals and bearings",
+      "duration": 32.0,
+      "successors": ["T022"],
+      "location_id": "LOC_TURBINE_DECK",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MILLWRIGHT", "crew_count": 6}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_HYDRAULIC_PRESS", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T022",
+      "description": "Reinstall turbine rotor",
+      "duration": 16.0,
+      "successors": ["T023"],
+      "location_id": "LOC_TURBINE_DECK",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 8},
+        {"skill_type": "MILLWRIGHT", "crew_count": 4}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_TURBINE_CRANE", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T023",
+      "description": "Balance and align turbine",
+      "duration": 12.0,
+      "successors": [],
+      "location_id": "LOC_TURBINE_DECK",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MILLWRIGHT", "crew_count": 4},
+        {"skill_type": "I&C_TECH", "crew_count": 2}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_ALIGNMENT_LASER", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T024",
+      "description": "Replace main coolant pump A seals",
+      "duration": 48.0,
+      "successors": ["T025"],
+      "location_id": "LOC_RCP_A_ROOM",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 4},
+        {"skill_type": "HP_TECH", "crew_count": 1}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_SEAL_INSTALLATION_TOOL", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T025",
+      "description": "Test main coolant pump A",
+      "duration": 8.0,
+      "successors": [],
+      "location_id": "LOC_RCP_A_ROOM",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "ELECTRICIAN", "crew_count": 2},
+        {"skill_type": "I&C_TECH", "crew_count": 2}
+      ],
+      "required_equipment": []
+    },
+    {
+      "task_id": "T026",
+      "description": "Replace emergency diesel generator batteries",
+      "duration": 16.0,
+      "successors": ["T027"],
+      "location_id": "LOC_EDG_ROOM",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "ELECTRICIAN", "crew_count": 4}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_FORKLIFT", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T027",
+      "description": "Test emergency diesel generator",
+      "duration": 12.0,
+      "successors": [],
+      "location_id": "LOC_EDG_ROOM",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "ELECTRICIAN", "crew_count": 3},
+        {"skill_type": "I&C_TECH", "crew_count": 2}
+      ],
+      "required_equipment": []
+    },
+    {
+      "task_id": "T028",
+      "description": "Pressurize primary system",
+      "duration": 24.0,
+      "successors": ["T029"],
+      "location_id": "LOC_REACTOR_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "REACTOR_OPERATOR", "crew_count": 2},
+        {"skill_type": "MECHANIC", "crew_count": 2}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_PRESSURE_TEST_PUMP", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "T029",
+      "description": "Heat up reactor to hot standby",
+      "duration": 36.0,
+      "successors": ["T030"],
+      "location_id": "LOC_REACTOR_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "REACTOR_OPERATOR", "crew_count": 2}
+      ],
+      "required_equipment": []
+    },
+    {
+      "task_id": "T030",
+      "description": "Final NRC inspection and startup authorization",
+      "duration": 8.0,
+      "successors": ["END"],
+      "location_id": "LOC_CONTROL_ROOM",
+      "is_hold_point": true,
+      "hold_point_type": "NRC",
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "NRC_INSPECTOR", "crew_count": 2},
+        {"skill_type": "SHIFT_SUPERVISOR", "crew_count": 1}
+      ],
+      "required_equipment": []
+    },
+    {
+      "task_id": "END",
+      "description": "Outage completion (fictitious activity)",
+      "duration": 1.0,
+      "successors": [],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [],
+      "required_equipment": []
+    }
+  ],
+  
+  "resources": [
+    {
+      "skill_type": "REACTOR_OPERATOR",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "available_count": 8,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "skill_type": "SHIFT_SUPERVISOR",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "available_count": 3,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "skill_type": "MECHANIC",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-03-20T23:59:59",
+          "available_count": 20,
+          "reason": "Initial crew"
+        },
+        {
+          "start_date": "2025-03-21T00:00:00",
+          "end_date": "2025-04-10T23:59:59",
+          "available_count": 30,
+          "reason": "Contractor mechanics arrive"
+        },
+        {
+          "start_date": "2025-04-11T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "available_count": 20,
+          "reason": "Contractors depart"
+        }
+      ]
+    },
+    {
+      "skill_type": "ELECTRICIAN",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "available_count": 15,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "skill_type": "I&C_TECH",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-03-25T23:59:59",
+          "available_count": 15,
+          "reason": "Initial crew"
+        },
+        {
+          "start_date": "2025-03-26T00:00:00",
+          "end_date": "2025-04-15T23:59:59",
+          "available_count": 22,
+          "reason": "Additional I&C techs for SG inspections"
+        },
+        {
+          "start_date": "2025-04-16T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "available_count": 15,
+          "reason": "Return to normal staffing"
+        }
+      ]
+    },
+    {
+      "skill_type": "HP_TECH",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "available_count": 10,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "skill_type": "MILLWRIGHT",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "available_count": 12,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "skill_type": "QA_INSPECTOR",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "available_count": 6,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "skill_type": "NRC_INSPECTOR",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-03-17T23:59:59",
+          "available_count": 0,
+          "reason": "NRC not on site yet"
+        },
+        {
+          "start_date": "2025-03-18T08:00:00",
+          "end_date": "2025-04-22T17:00:00",
+          "available_count": 3,
+          "reason": "NRC inspection period"
+        },
+        {
+          "start_date": "2025-04-22T17:00:01",
+          "end_date": "2025-04-25T23:59:59",
+          "available_count": 0,
+          "reason": "NRC departed"
+        }
+      ]
+    },
+    {
+      "skill_type": "ENGINEER",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "available_count": 8,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "skill_type": "FUEL_HANDLER",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "available_count": 5,
+          "reason": "Full outage period"
+        }
+      ]
+    }
+  ],
+  
+  "equipment": [
+    {
+      "equipment_id": "EQ_POLAR_CRANE",
+      "description": "Polar Crane (Reactor Building)",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "quantity_available": 1,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EQ_TURBINE_CRANE",
+      "description": "Turbine Building Crane",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "quantity_available": 1,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EQ_REFUELING_MACHINE",
+      "description": "Refueling Machine",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "quantity_available": 1,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EQ_EDDY_CURRENT_MACHINE",
+      "description": "Eddy Current Testing Equipment",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-03-25T23:59:59",
+          "quantity_available": 2,
+          "reason": "Initial equipment"
+        },
+        {
+          "start_date": "2025-03-26T00:00:00",
+          "end_date": "2025-04-15T23:59:59",
+          "quantity_available": 4,
+          "reason": "Additional rental units for parallel SG inspections"
+        },
+        {
+          "start_date": "2025-04-16T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "quantity_available": 2,
+          "reason": "Rental units returned"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EQ_INSPECTION_CAMERA",
+      "description": "Remote Inspection Camera System",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "quantity_available": 3,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EQ_TORQUE_WRENCH",
+      "description": "Hydraulic Torque Wrench",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "quantity_available": 6,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EQ_TUBE_PLUGGING_TOOL",
+      "description": "Steam Generator Tube Plugging Tool",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "quantity_available": 2,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EQ_PRESSURE_TEST_PUMP",
+      "description": "Hydrostatic Pressure Test Pump",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "quantity_available": 2,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EQ_HYDRAULIC_PRESS",
+      "description": "Hydraulic Press",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "quantity_available": 2,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EQ_ALIGNMENT_LASER",
+      "description": "Laser Alignment System",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "quantity_available": 2,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EQ_SEAL_INSTALLATION_TOOL",
+      "description": "RCP Seal Installation Tool",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "quantity_available": 1,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EQ_FORKLIFT",
+      "description": "Forklift",
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "quantity_available": 4,
+          "reason": "Full outage period"
+        }
+      ]
+    }
+  ],
+  
+  "locations": [
+    {
+      "location_id": "LOC_CONTROL_ROOM",
+      "description": "Main Control Room",
+      "is_confined_space": false,
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "max_concurrent_tasks": 5,
+          "max_concurrent_workers": 15,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "location_id": "LOC_REACTOR_BUILDING",
+      "description": "Reactor Building (General Area)",
+      "is_confined_space": false,
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "max_concurrent_tasks": 10,
+          "max_concurrent_workers": 50,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "location_id": "LOC_REACTOR_CAVITY",
+      "description": "Reactor Cavity",
+      "is_confined_space": false,
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-03-17T11:59:59",
+          "max_concurrent_tasks": 0,
+          "max_concurrent_workers": 0,
+          "reason": "Cooldown period - no access allowed (48 hours)"
+        },
+        {
+          "start_date": "2025-03-17T12:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "max_concurrent_tasks": 1,
+          "max_concurrent_workers": 8,
+          "reason": "Normal operations after cooldown"
+        }
+      ]
+    },
+    {
+      "location_id": "LOC_SG_A_CHANNEL_HEAD",
+      "description": "Steam Generator A Channel Head",
+      "is_confined_space": true,
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "max_concurrent_tasks": 1,
+          "max_concurrent_workers": 4,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "location_id": "LOC_SG_B_CHANNEL_HEAD",
+      "description": "Steam Generator B Channel Head",
+      "is_confined_space": true,
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "max_concurrent_tasks": 1,
+          "max_concurrent_workers": 4,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "location_id": "LOC_TURBINE_DECK",
+      "description": "Turbine Deck",
+      "is_confined_space": false,
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "max_concurrent_tasks": 8,
+          "max_concurrent_workers": 40,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "location_id": "LOC_RCP_A_ROOM",
+      "description": "Reactor Coolant Pump A Room",
+      "is_confined_space": false,
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "max_concurrent_tasks": 2,
+          "max_concurrent_workers": 8,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "location_id": "LOC_EDG_ROOM",
+      "description": "Emergency Diesel Generator Room",
+      "is_confined_space": false,
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "max_concurrent_tasks": 3,
+          "max_concurrent_workers": 12,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "location_id": "LOC_ENGINEERING_OFFICE",
+      "description": "Engineering Office",
+      "is_confined_space": false,
+      "availability_periods": [
+        {
+          "start_date": "2025-03-15T00:00:00",
+          "end_date": "2025-04-25T23:59:59",
+          "max_concurrent_tasks": 10,
+          "max_concurrent_workers": 20,
+          "reason": "Full outage period"
+        }
+      ]
+    }
+  ]
+}
