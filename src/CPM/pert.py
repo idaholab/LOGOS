@@ -19,8 +19,10 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
+import networkx as nx
 import heapq
 import networkx as nx
+
 
 # Assuming these are imported from your modules
 from .activity import Activity
@@ -1148,7 +1150,7 @@ class Pert:
 
             iteration += 1
 
-            # ── Move finished activities to completed
+            # ── Move finished activities to completed ────────────────────────
             self._update_ongoing_list(time_index)
 
             if len(self.completed) == n_activities:
