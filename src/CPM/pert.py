@@ -1148,7 +1148,7 @@ class Pert:
 
             iteration += 1
 
-            # Update ongoing activities (move completed to completed list)
+            # ── Move finished activities to completed
             self._update_ongoing_list(time_index)
 
             if len(self.completed) == n_activities:
@@ -1200,8 +1200,6 @@ class Pert:
                 print(f"candidates={[a.name for a in candidates.keys()]}")
             if selected:
                 print(f"selected={[a.name for a in selected]}")
-            # Move to next hour
-            time_index = time_index + timedelta(hours=1)
 
             logging.debug(
                 "t=%s | iter=%d | completed=%d/%d | ongoing=%d | "
