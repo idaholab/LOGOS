@@ -246,31 +246,52 @@ class Pert:
         self.seed = seedValue
         random.seed(self.seed)
 
+
+    def _get_sources(self) -> List['Activity']:
+        """
+        Return activities with no predecessors (in-degree zero).
+
+        When a START node is present it will be the sole result.
+        When no START node exists, all activities that have no predecessors
+        in the graph are returned, allowing the scheduler and CPM to work
+        without a mandatory dummy start node.
+        """
+        return [a for a in self.forwardDict
+                if not self.backwardDict.get(a)]
+
+    def _get_sinks(self) -> List['Activity']:
+        """
+        Return activities with no successors (out-degree zero).
+
+        When an END node is present it will be the sole result.
+        When no END node exists, all activities that have no successors
+        in the graph are returned, enabling multi-sink CPM and duration
+        calculation.
+        """
+        return [a for a in self.forwardDict
+                if not self.forwardDict.get(a)]
+
+
     def resetInitialGraph(self):
-        """
-        Reset the schedule graph structure.
+            """
+            Reset the schedule graph structure.
 
-        - Resets backwardDict for every activity
-        - Sets startActivity and endActivity
-        - Resets info dictionary
-        """
-        # Initialize backward dictionary
-        for activity in self.forwardDict:
-            self.backwardDict[activity] = []
+            Sets startActivity and endActivity if nodes named START/END are found;
+            otherwise leaves them as None and the scheduler/CPM will use
+            _get_sources() / _get_sinks() instead.
+            """
+            for activity in self.forwardDict:
+                self.backwardDict[activity] = []
 
-        # Build backward relationships and identify start/end
-        for activity in self.forwardDict:
-            # Identify start and end activities
-            if activity.name.upper() == "START":
-                self.startActivity = activity
-            if activity.name.upper() == "END":
-                self.endActivity = activity
+            for activity in self.forwardDict:
+                if activity.name.upper() == "START":
+                    self.startActivity = activity
+                if activity.name.upper() == "END":
+                    self.endActivity = activity
+                for node in self.forwardDict[activity]:
+                    self.backwardDict[node].append(activity)
 
-            # Build backward links
-            for node in self.forwardDict[activity]:
-                self.backwardDict[node].append(activity)
-
-        self.resetInfo()
+            self.resetInfo()
 
     def resetInfo(self):
         """
@@ -459,22 +480,37 @@ class Pert:
             self.getProjectDuration()
         )
 
+
     def generateInfo(self):
         """
-        Calculate es, ef, ls, lf, and slack for all activities using topological order.
+        Calculate es, ef, ls, lf, and slack for all activities using
+        topological order.
+
+        Works with or without explicit START/END nodes:
+        - Sources (in-degree 0) are seeded with es=0 in the forward pass.
+        - Project duration is the maximum ef across all sink nodes.
+        - The backward pass propagates lf=project_duration from every sink.
         """
         if not self.forwardDict:
             return
-        if not self.startActivity or not self.endActivity:
-            raise ValueError("Start and End activities must be defined")
+
+        sources = self._get_sources() if not self.startActivity else [self.startActivity]
+        sinks   = self._get_sinks()   if not self.endActivity   else [self.endActivity]
+
+        # Guard: malformed graph
+        if not sources:
+            raise ValueError("generateInfo: no source activities found (cycle or empty graph)")
+        if not sinks:
+            raise ValueError("generateInfo: no sink activities found (cycle or empty graph)")
 
         # 1) Topological order (Kahn)
-        indeg = {a: 0 for a in self.forwardDict.keys()}
+        indeg = {a: 0 for a in self.forwardDict}
         for u, succs in self.forwardDict.items():
             for v in succs:
                 indeg[v] = indeg.get(v, 0) + 1
-        queue = [self.startActivity] if self.startActivity in indeg else [a for a, d in indeg.items() if d == 0]
-        topo = []
+
+        queue = [a for a in sources if a in indeg]
+        topo  = []
         while queue:
             u = queue.pop(0)
             topo.append(u)
@@ -483,13 +519,15 @@ class Pert:
                 if indeg[v] == 0:
                     queue.append(v)
 
-        # 2) Forward pass: ES/EF
-        for a in self.forwardDict.keys():
+        # 2) Forward pass: ES / EF
+        # All activities start at 0; sources keep es=0 and ef=duration.
+        for a in self.forwardDict:
             self.infoDict[a]["es"] = 0.0
             self.infoDict[a]["ef"] = 0.0
-        # Start ES/EF
-        self.infoDict[self.startActivity]["es"] = 0.0
-        self.infoDict[self.startActivity]["ef"] = self.infoDict[self.startActivity]["duration"]
+
+        for src in sources:
+            self.infoDict[src]["es"] = 0.0
+            self.infoDict[src]["ef"] = self.infoDict[src]["duration"]
 
         for u in topo:
             u_ef = self.infoDict[u]["ef"]
@@ -498,35 +536,33 @@ class Pert:
                     self.infoDict[v]["es"] = u_ef
                     self.infoDict[v]["ef"] = self.infoDict[v]["es"] + self.infoDict[v]["duration"]
 
-        # 3) Backward pass: LS/LF (reverse topo)
-        project_duration = self.infoDict[self.endActivity]["ef"]
-        for a in self.forwardDict.keys():
+        # 3) Project duration = maximum EF across all sinks
+        project_duration = max(self.infoDict[s]["ef"] for s in sinks)
+
+        # 4) Backward pass: LS / LF
+        # Initialise every activity with lf = project_duration.
+        for a in self.forwardDict:
             self.infoDict[a]["lf"] = project_duration
             self.infoDict[a]["ls"] = self.infoDict[a]["lf"] - self.infoDict[a]["duration"]
 
         for u in reversed(topo):
             for v in self.forwardDict.get(u, []):
-                # LF(u) = min over successors' LS(v)
                 if self.infoDict[u]["lf"] > self.infoDict[v]["ls"]:
                     self.infoDict[u]["lf"] = self.infoDict[v]["ls"]
                     self.infoDict[u]["ls"] = self.infoDict[u]["lf"] - self.infoDict[u]["duration"]
 
-        # 4) Slack
+        # 5) Slack
         self.calculateSlack()
 
-        # 5) Isolated activities (keep your existing treatment)
+        # 6) Isolated activities
         self.generateInfoForIsolated()
 
-        # 6) calculate most total successors and predecessors
+        # 7-9) Priority metrics
         self.calculate_total_successors()
         self.calculate_total_predecessors()
-        # 7) calculate greatest rank position weight
         self.calculate_greatest_rank_position_weight()
-        # 8) calculate greatest resource demand
         self.calculate_greatest_resource_demand()
-        # 9) calculate resource requirement
         self.calculate_resource_requirement()
-
 
 # ========================================
     def calculate_total_successors(self):
@@ -688,94 +724,116 @@ class Pert:
     def _eq_with_tol(self, a: float, b: float, tol: float = 1e-6) -> bool:
         return abs(a - b) <= tol
 
-    def getCriticalPath(self) -> List[Activity]:
+    def getCriticalPath(self, return_all: bool = False):
         """
-        Return a list of Activity objects forming the critical path.
+        Return the critical path(s) of the schedule.
 
-        Method:
-        - Build a subgraph of edges (u -> v) that satisfy:
-            slack(v) ~ 0  AND  ef(u) == es(v) (within tolerance)
-        - DFS from START to END to find the path with maximum total planned duration.
-        - Fallback: if no path reaches END, walk by repeatedly choosing the successor
-        with minimum slack that also best aligns EF/ES.
+        A critical path is a maximal path from a source to a sink along which
+        every activity has zero slack and consecutive EF/ES values align.
+
+        Works with or without explicit START/END nodes.  When START/END are
+        absent the search is performed from every zero-indegree node to every
+        zero-outdegree node.
+
+        Args:
+            return_all (bool): If False (default) return the single longest
+                critical path as List[Activity].  If True return all critical
+                paths as List[List[Activity]], sorted longest-first.
+
+        Returns:
+            List[Activity]           when return_all=False
+            List[List[Activity]]     when return_all=True  (may be empty list
+                                     if no strict critical path exists, in which
+                                     case the fallback heuristic is used for
+                                     the return_all=False case only)
         """
-        if not self.startActivity or not self.endActivity:
-            # Defensive: return empty instead of None
-            return []
+        sources = [self.startActivity] if self.startActivity else self._get_sources()
+        sinks   = [self.endActivity]   if self.endActivity   else self._get_sinks()
+
+        if not sources or not sinks:
+            return [] if not return_all else [[]]
 
         # Build zero-slack, EF/ES-aligned subgraph
-        crit_successors = {}
-        for u in self.forwardDict.keys():
+        crit_successors: Dict = {}
+        for u in self.forwardDict:
             crit_successors[u] = []
             u_ef = self.infoDict[u]["ef"]
             for v in self.forwardDict[u]:
-                v_es = self.infoDict[v]["es"]
-                v_slack = self.infoDict[v]["slack"]
-                if self._is_zero(v_slack) and self._eq_with_tol(u_ef, v_es):
+                if (self._is_zero(self.infoDict[v]["slack"]) and
+                        self._eq_with_tol(u_ef, self.infoDict[v]["es"])):
                     crit_successors[u].append(v)
 
-        # DFS to find the longest (by planned duration) route to END
-        best_path: List[Activity] = []
-        best_len: float = -float('inf')
+        # DFS from every source to every sink collecting all zero-slack paths
+        all_paths: List[List[Activity]] = []
 
         def dfs(u: Activity, path: List[Activity], length: float):
-            nonlocal best_path, best_len
-            if u == self.endActivity:
-                if length > best_len:
-                    best_len = length
-                    best_path = path[:]
+            if u in sinks:
+                all_paths.append((path[:], length))
                 return
             for v in crit_successors.get(u, []):
-                # Add planned duration of v (do not subtract delay; work content is planned duration)
-                dfs(v, path + [v], length + self.infoDict[v]['duration'])
+                path.append(v)
+                dfs(v, path, length + self.infoDict[v]["duration"])
+                path.pop()
 
-        # Start with START (include its planned duration)
-        dfs(self.startActivity, [self.startActivity], self.infoDict[self.startActivity]['duration'])
+        for src in sources:
+            dfs(src, [src], self.infoDict[src]["duration"])
 
-        if best_path:
-            return best_path
+        # Sort longest-first
+        all_paths.sort(key=lambda t: t[1], reverse=True)
+        paths_only = [p for p, _ in all_paths]
 
-        # Fallback heuristic:
-        # If the strict critical subgraph doesn't connect START -> END,
-        # greedily walk by picking the successor with minimum slack AND closest EF/ES alignment.
-        current = self.startActivity
-        path = [current]
-        visited = set([current])  # avoid cycles defensively
+        if return_all:
+            return paths_only  # may be empty if no strict critical path found
 
-        while current != self.endActivity:
+        if paths_only:
+            return paths_only[0]  # single longest path
+
+        # ── Fallback heuristic (return_all=False only) ───────────────────────
+        # When the strict subgraph is disconnected, greedily walk from the
+        # source with the highest EF, choosing successors by minimum slack and
+        # closest EF/ES alignment.
+        best_src = max(sources, key=lambda s: self.infoDict[s]["ef"])
+        current  = best_src
+        path     = [current]
+        visited  = {current}
+
+        while current not in sinks:
             succs = self.forwardDict.get(current, [])
             if not succs:
-                # Dead end; break defensively (no infinite loop)
                 break
-
-            # Rank successors: first by abs(ef(current) - es(successor)), then by slack
-            cur_ef = self.infoDict[current]['ef']
+            cur_ef = self.infoDict[current]["ef"]
             ranked = sorted(
                 succs,
                 key=lambda v: (
-                    abs(cur_ef - self.infoDict[v]['es']),
-                    self.infoDict[v]['slack']
+                    abs(cur_ef - self.infoDict[v]["es"]),
+                    self.infoDict[v]["slack"]
                 )
             )
-            next_act = ranked[0]
-            if next_act in visited:
-                # Cycle detected defensively
+            nxt = ranked[0]
+            if nxt in visited:
                 break
-            path.append(next_act)
-            visited.add(next_act)
-            current = next_act
+            path.append(nxt)
+            visited.add(nxt)
+            current = nxt
 
         return path
 
-    def getCriticalPathSymbolic(self):
+
+    def getCriticalPathSymbolic(self, return_all: bool = False):
         """
-        Get critical path as a list of activity names.
+        Return critical path(s) as activity name strings.
+
+        Args:
+            return_all (bool): Mirrors getCriticalPath(return_all).
 
         Returns:
-            list: List of activity names on critical path
+            List[str]            when return_all=False
+            List[List[str]]      when return_all=True
         """
-
-        path = self.getCriticalPath()
+        if return_all:
+            paths = self.getCriticalPath(return_all=True)
+            return [[a.returnName() for a in path] for path in paths]
+        path = self.getCriticalPath(return_all=False)
         return [a.returnName() for a in path] if path else []
 
 
@@ -788,16 +846,20 @@ class Pert:
         """
         return {activity: activity.duration for activity in self.getCriticalPath()}
 
-    def getProjectDuration(self):
-        """
-        Get total project duration from critical path.
 
-        Returns:
-            float: Project duration in hours
+    def getProjectDuration(self) -> float:
+        """
+        Return the project duration in hours.
+
+        Uses endActivity.ef when an END node is present; otherwise returns
+        the maximum ef across all sink nodes.
         """
         if self.endActivity:
-            return self.infoDict[self.endActivity]['ef']
-        return 0
+            return self.infoDict[self.endActivity]["ef"]
+        sinks = self._get_sinks()
+        if not sinks:
+            return 0.0
+        return max(self.infoDict[s]["ef"] for s in sinks)
 
     def returnScheduleEndTime(self):
         """
