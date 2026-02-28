@@ -680,27 +680,28 @@ class Pert:
                 self.infoDict[activity]["ef"]
             )
 
+
     def generateInfoForIsolated(self):
         """
-        Calculate timing for isolated activities.
+        Calculate timing for isolated activities (no predecessors AND no successors).
 
-        Assumption: activity duration shorter than project duration
+        Uses the maximum LF across all sinks so the method works whether or not
+        an explicit END node is present.
         """
         isolated = self.findIsolated()
+        if not isolated:
+            return
+
+        sinks = [self.endActivity] if self.endActivity else self._get_sinks()
+        project_lf = max(self.infoDict[s]["lf"] for s in sinks) if sinks else 0.0
+
         for activity in isolated:
             self.infoDict[activity]["ef"] = (
-                self.infoDict[activity]["es"] +
-                self.infoDict[activity]["duration"]
+                self.infoDict[activity]["es"] + self.infoDict[activity]["duration"]
             )
-            self.infoDict[activity]["lf"] = self.infoDict[self.endActivity]["lf"]
-            self.infoDict[activity]["ls"] = (
-                self.infoDict[activity]["lf"] -
-                self.infoDict[activity]["duration"]
-            )
-            self.infoDict[activity]["slack"] = (
-                self.infoDict[activity]["lf"] -
-                self.infoDict[activity]["ef"]
-            )
+            self.infoDict[activity]["lf"]    = project_lf
+            self.infoDict[activity]["ls"]    = project_lf - self.infoDict[activity]["duration"]
+            self.infoDict[activity]["slack"] = project_lf - self.infoDict[activity]["ef"]
 
     def findIsolated(self):
         """
@@ -2431,6 +2432,352 @@ class Pert:
             raise IOError("Invalid priority rule")
 
         return priority
+    
+
+    # =========================================================================
+    # SERIAL SGS
+    # =========================================================================
+
+    def _serial_check_feasibility(
+        self,
+        activity:          'Activity',
+        start_time:        datetime,
+        schedule_profile:  List[tuple],
+    ) -> bool:
+        """
+        Point-in-time feasibility check for Serial SGS.
+
+        Unlike _fits_with_tentative (which uses pre-built snapshot dicts),
+        this method computes consumed capacity on-the-fly from the
+        schedule_profile — the list of activities already committed in the
+        current serial scheduling pass.  It is intentionally lightweight:
+        no dicts are built or mutated, making it cheap to call repeatedly
+        during the forward scan in _find_earliest_feasible_start_serial.
+
+        Args:
+            activity:         Candidate activity to evaluate.
+            start_time:       Proposed absolute start time.
+            schedule_profile: List of (act, abs_start, abs_end) tuples for
+                              every activity already scheduled this pass.
+
+        Returns:
+            True if the activity can start at start_time without violating
+            any resource, equipment, or location constraint.
+        """
+        duration = self._effective_duration(activity)
+        end_time = start_time + timedelta(hours=duration)
+
+        # Pre-compute which scheduled activities overlap [start_time, end_time)
+        # to avoid re-scanning the full profile at every hour.
+        overlapping = [
+            (a, s, e) for (a, s, e) in schedule_profile
+            if s < end_time and e > start_time
+        ]
+
+        for h in self._iter_hours(start_time, end_time):
+
+            # ── Resources ────────────────────────────────────────────────────
+            for req in activity.getRequiredResources():
+                skill, need = req['skill_type'], req['crew_count']
+                avail = self.resource_pool.get_availability(skill, h)
+                consumed = sum(
+                    r['crew_count']
+                    for (a, s, e) in overlapping
+                    if s <= h < e
+                    for r in a.getRequiredResources()
+                    if r['skill_type'] == skill
+                )
+                if avail - consumed < need:
+                    return False
+
+            # ── Equipment ────────────────────────────────────────────────────
+            for req in activity.getRequiredEquipment():
+                eq_id, need = req['equipment_id'], req['quantity_needed']
+                avail = self.equipment_pool.get_availability(eq_id, h)
+                consumed = sum(
+                    e_req['quantity_needed']
+                    for (a, s, e) in overlapping
+                    if s <= h < e
+                    for e_req in a.getRequiredEquipment()
+                    if e_req['equipment_id'] == eq_id
+                )
+                if avail - consumed < need:
+                    return False
+
+            # ── Location ─────────────────────────────────────────────────────
+            loc_id = activity.getLocation()
+            if loc_id:
+                cap = self.location_pool.get_capacity(loc_id, h)
+
+                # Task slots
+                tasks_in_use = sum(
+                    1 for (a, s, e) in overlapping
+                    if s <= h < e and a.getLocation() == loc_id
+                )
+                if cap['max_tasks'] - tasks_in_use < 1:
+                    return False
+
+                # Worker slots (optional)
+                if cap.get('max_workers') is not None:
+                    workers_needed = sum(
+                        r['crew_count'] for r in activity.getRequiredResources()
+                    )
+                    workers_in_use = sum(
+                        r['crew_count']
+                        for (a, s, e) in overlapping
+                        if s <= h < e and a.getLocation() == loc_id
+                        for r in a.getRequiredResources()
+                    )
+                    if cap['max_workers'] - workers_in_use < workers_needed:
+                        return False
+
+        return True
+
+    def _find_earliest_feasible_start_serial(
+        self,
+        activity:          'Activity',
+        min_start:         datetime,
+        schedule_profile:  List[tuple],
+    ) -> datetime:
+        """
+        Event-driven forward scan to find the earliest feasible start time
+        for an activity in the Serial SGS, at or after min_start.
+
+        Candidate times are drawn from three event categories:
+          1. min_start itself (precedence-derived lower bound).
+          2. Pre-computed availability boundaries (pool period edges) that
+             lie at or after min_start — captures moments where a previously
+             unavailable resource/equipment/location becomes available.
+          3. Completion times of already-scheduled activities that lie at or
+             after min_start — captures moments where a competing activity
+             finishes and releases capacity.
+
+        The scan tries each candidate time in ascending order and returns
+        the first one that passes _serial_check_feasibility.  Because every
+        meaningful capacity-change event is represented in the candidate set,
+        no feasible window can be missed.
+
+        Args:
+            activity:         Activity to schedule.
+            min_start:        Earliest permissible start (from precedence).
+            schedule_profile: Already-committed (act, start, end) tuples.
+
+        Returns:
+            datetime: Earliest feasible absolute start time >= min_start.
+        """
+        # Build the candidate event set
+        candidates: set = {min_start}
+
+        # Availability boundary events at or after min_start
+        for dt in self._availability_events:
+            if dt >= min_start:
+                candidates.add(dt)
+
+        # Completion times of scheduled activities at or after min_start
+        for (_, _, end_t) in schedule_profile:
+            if end_t >= min_start:
+                candidates.add(end_t)
+
+        # Scan in ascending order
+        for t in sorted(candidates):
+            if self._serial_check_feasibility(activity, t, schedule_profile):
+                return t
+
+        # Fallback: should not be reached for a feasible problem, but return
+        # the last candidate to avoid an infinite loop in degenerate cases.
+        logging.warning(
+            "_find_earliest_feasible_start_serial: no feasible slot found "
+            "for %s from %s — returning last candidate.",
+            activity.name,
+            min_start.strftime('%Y-%m-%d %H:%M')
+        )
+        return max(candidates)
+
+    def calculateSerialScheduleWithResources(
+        self,
+        priority_rule: str = 'lf',
+        max_time_hours: float = None,
+    ) -> dict:
+        """
+        Schedule activities using a Serial Schedule Generation Scheme (Serial SGS).
+
+        In Serial SGS each activity is scheduled exactly once, in the order
+        defined by the priority rule.  For each activity the scheduler:
+          1. Computes the precedence-based earliest start (ES) from the actual
+             finish times of all already-scheduled predecessors.
+          2. Performs an event-driven forward scan from that ES to find the
+             earliest time at which resource, equipment, and location constraints
+             are simultaneously satisfied for the full activity duration.
+          3. Commits the activity to that start time and adds it to the
+             schedule profile so subsequent activities see its resource usage.
+
+        Unlike the Parallel SGS (calculateScheduleWithResources), this method:
+          - Processes exactly N activities in N decision points (one per
+            activity in the priority list).
+          - Never advances a global time clock; each activity finds its own
+            earliest feasible window independently.
+          - Uses _serial_check_feasibility (lightweight, profile-based) rather
+            than the snapshot-dict machinery used by the parallel scheduler.
+
+        Works in both standalone and RAVEN modes.  Compatible with the same
+        post-schedule analytics (Gantt, constrained chain, TF, etc.).
+
+        Args:
+            priority_rule (str): Any rule accepted by priority_calculation().
+                Common choices:
+                  'lf'       — Latest Finish (default, most common in literature)
+                  'ls'       — Latest Start
+                  'mts'      — Most Total Successors
+                  'grpw'     — Greatest Rank Position Weight
+                  'grd'      — Greatest Resource Demand
+                  'random'   — Random shuffle
+                  (see priority_calculation docstring for full list)
+            max_time_hours (float, optional): Safety cutoff in hours from
+                startTime.  Defaults to 3× the CPM duration.  Any activity
+                whose computed start exceeds this limit is left unscheduled
+                and triggers a warning.
+
+        Returns:
+            dict: {
+                'scheduled_duration': float,  # hours, startTime → last end
+                'cpm_duration':        float,  # unconstrained CPM duration
+                'delay_hours':         float,  # total accumulated wait time
+                'n_activities':        int,
+                'n_completed':         int,    # activities successfully placed
+                'priority_rule':       str,
+            }
+        """
+        if not self.resource_pool or not self.equipment_pool or not self.location_pool:
+            raise ValueError(
+                "Resource, equipment, and location pools must be initialised"
+            )
+        if not self.startTime:
+            raise ValueError("startTime must be set before scheduling")
+
+        # ── Clean slate ───────────────────────────────────────────────────────
+        self._reset_scheduling_state()
+
+        cpm_duration = self.getProjectDuration()
+        n_activities = len(self.infoDict)
+        if max_time_hours is None:
+            max_time_hours = cpm_duration * 3
+        max_time = self.startTime + timedelta(hours=max_time_hours)
+
+        logging.info(
+            "Starting Serial SGS | activities=%d | CPM=%.1fh | rule=%s",
+            n_activities, cpm_duration, priority_rule
+        )
+
+        # ── Build priority-ordered list ───────────────────────────────────────
+        # priority_calculation returns either List[Activity] (random) or
+        # List[(Activity, value)] for all other rules.  Normalise to List[Activity].
+        all_acts = list(self.forwardDict.keys())
+        raw_priority = self.priority_calculation(all_acts, priority_rule)
+
+        if raw_priority and isinstance(raw_priority[0], tuple):
+            ordered: List['Activity'] = [a for (a, _) in raw_priority]
+        else:
+            ordered: List['Activity'] = list(raw_priority)
+
+        # ── Schedule profile: committed (activity, abs_start, abs_end) ────────
+        schedule_profile: List[tuple] = []
+
+        # Map activity → actual end time for fast precedence lookup
+        actual_end: Dict['Activity', datetime] = {}
+
+        n_scheduled = 0
+
+        for act in ordered:
+            # ── Step 1: precedence-based earliest start ───────────────────────
+            preds = self.backwardDict.get(act, [])
+            if preds:
+                pred_end = max(
+                    actual_end.get(p, self.startTime) for p in preds
+                )
+            else:
+                pred_end = self.startTime
+
+            # Also respect CPM early start (converts hours offset to absolute)
+            cpm_es_abs = self.startTime + timedelta(hours=self.infoDict[act]['es'])
+            min_start = max(pred_end, cpm_es_abs)
+
+            # ── Step 2: event-driven feasibility scan ─────────────────────────
+            if min_start > max_time:
+                logging.warning(
+                    "Serial SGS: activity %s min_start %s exceeds cutoff — skipped.",
+                    act.name, min_start.strftime('%Y-%m-%d %H:%M')
+                )
+                continue
+
+            feasible_start = self._find_earliest_feasible_start_serial(
+                act, min_start, schedule_profile
+            )
+
+            if feasible_start > max_time:
+                logging.warning(
+                    "Serial SGS: activity %s feasible start %s exceeds cutoff — skipped.",
+                    act.name, feasible_start.strftime('%Y-%m-%d %H:%M')
+                )
+                continue
+
+            # ── Step 3: commit ────────────────────────────────────────────────
+            act.setActualStartTime(feasible_start)
+            abs_end = feasible_start + timedelta(hours=self._effective_duration(act))
+            actual_end[act] = abs_end
+
+            schedule_profile.append((act, feasible_start, abs_end))
+
+            # Delay = gap between precedence-driven min_start and actual start
+            wait_hours = (feasible_start - min_start).total_seconds() / 3600.0
+            if wait_hours > 0:
+                act.addDelay(wait_hours)
+
+            # Move through queues so post-schedule analytics work correctly
+            if act in self.wait:
+                self.wait.remove(act)
+            self.completed.append(act)
+
+            self.schedule_log.append({
+                'activity':   act.name,
+                'start':      feasible_start,
+                'end':        abs_end,
+                'min_start':  min_start,
+                'delay_h':    wait_hours,
+            })
+
+            n_scheduled += 1
+            logging.debug(
+                "Serial SGS: scheduled %s | start=%s | end=%s | delay=%.1fh",
+                act.name,
+                feasible_start.strftime('%Y-%m-%d %H:%M'),
+                abs_end.strftime('%Y-%m-%d %H:%M'),
+                wait_hours,
+            )
+
+        # ── Post-schedule analytics ───────────────────────────────────────────
+        self._compute_actual_tf_proxy()
+        self._compute_resource_constrained_chain()
+
+        actual_project_end = self.get_project_finish_actual()
+        actual_duration    = (actual_project_end - self.startTime).total_seconds() / 3600.0
+        total_delay        = sum(act.delay for act in self.forwardDict)
+
+        results = {
+            'scheduled_duration': actual_duration,
+            'cpm_duration':       cpm_duration,
+            'delay_hours':        total_delay,
+            'n_activities':       n_activities,
+            'n_completed':        n_scheduled,
+            'priority_rule':      priority_rule,
+        }
+
+        logging.info(
+            "Serial SGS complete | rule=%s | CPM=%.1fh | actual=%.1fh | "
+            "delay=%.1fh | scheduled=%d/%d",
+            priority_rule, cpm_duration, actual_duration,
+            total_delay, n_scheduled, n_activities
+        )
+        return results
 
 # ============================================================================
 # PROJECT SCHEDULE VISUALIZATION
