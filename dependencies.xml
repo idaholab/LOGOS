@@ -12,6 +12,7 @@
     <networkx source='pip'/>
     <plotly source='pip'/>
     <pandas source='pip'/>
+    <networkx source='pip'/>
   </main>
 
   <alternate name="pip">

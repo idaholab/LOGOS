@@ -103,7 +103,7 @@ class Pert:
             self.nxgraph = nx.DiGraph(self.forwardDict)
             self.generateInfo()
             self._update_activity_successors()
-            
+
 
         self._availability_events: frozenset = frozenset()
         if self.resource_pool or self.equipment_pool or self.location_pool:
@@ -1103,7 +1103,7 @@ class Pert:
             sum(1 for dt in self._availability_events if dt >= self.startTime)
         )
         return heap
-    
+
 
     # Epsilon for merging near-simultaneous events into one scheduling step.
     # 1 minute is tight enough to catch genuine coincident events (e.g. two
@@ -1343,7 +1343,7 @@ class Pert:
             # No activity could be started this step
             for act in candidates.keys():
                 act.addDelay(elapsed_hours)
-    
+
     def _select_candidate_activities(self, time: datetime, value_assignment: str) -> Dict[Activity, Dict]:
         """
         Select activities that can potentially start at given time.
@@ -2432,7 +2432,7 @@ class Pert:
             raise IOError("Invalid priority rule")
 
         return priority
-    
+
 
     # =========================================================================
     # SERIAL SGS
@@ -2649,7 +2649,7 @@ class Pert:
         """
         if not self.resource_pool or not self.equipment_pool or not self.location_pool:
             raise ValueError(
-                "Resource, equipment, and location pools must be initialised"
+                "Resource, equipment, and location pools must be initialized"
             )
         if not self.startTime:
             raise ValueError("startTime must be set before scheduling")
