@@ -575,7 +575,8 @@ class Pert:
 
     def calculate_greatest_rank_position_weight(self):
         for a in self.forwardDict.keys():
-            desc = nx.descendants(self.nxgraph, a)
+            # desc = nx.descendants(self.nxgraph, a)
+            desc = nx.ancestors(self.nxgraph, a)
             self.infoDict[a]['grpw'] = self.infoDict[a]['duration'] + sum(self.infoDict[b]['duration'] for b in desc)
 
     def calculate_greatest_resource_demand(self):
