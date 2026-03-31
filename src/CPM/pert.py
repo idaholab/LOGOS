@@ -27,6 +27,7 @@ import heapq
 from .activity import Activity
 from .outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, load_outage_data
 from .validate_outage_data import OutageDataValidator
+from .cpm_utils import CUSTOM_PRIORITY_FUNCS
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -563,6 +564,7 @@ class Pert:
         self.calculate_greatest_rank_position_weight()
         self.calculate_greatest_resource_demand()
         self.calculate_resource_requirement()
+        self.calculate_gp_rules()
 
 # ========================================
     def calculate_total_successors(self):
@@ -626,6 +628,23 @@ class Pert:
             self.infoDict[a]['avgrr'] = float(np.sum(rr_val)) / num_res if num_res != 0 else 0.0
             self.infoDict[a]['maxrr'] = float(np.max(rr_val)) if num_res != 0 else 0.0
             self.infoDict[a]['minrr'] = float(np.min(rr_val)) if num_res != 0 else 0.0
+
+# (ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, MinRReq)
+    def calculate_gp_rules(self):
+        for a in self.forwardDict.keys():
+            for key, func in CUSTOM_PRIORITY_FUNCS.items():
+                self.infoDict[a][key] = func(
+                    self.infoDict[a]['es'],
+                    self.infoDict[a]['ef'],
+                    self.infoDict[a]['ls'],
+                    self.infoDict[a]['lf'],
+                    self.infoDict[a]['mtp'],
+                    self.infoDict[a]['mts'],
+                    self.infoDict[a]['rr'],
+                    self.infoDict[a]['avgrr'],
+                    self.infoDict[a]['maxrr'],
+                    self.infoDict[a]['minrr']
+                    )
 
 #=========================================
 
@@ -2426,6 +2445,9 @@ class Pert:
         elif rule in ['rr', 'avgrr', 'maxrr', 'minrr']:
             data = [(a, self.infoDict[a][rule]) for a in eligible]
             priority = sorted(data, key=lambda x: x[1], reverse=True)
+        elif rule in CUSTOM_PRIORITY_FUNCS.keys():
+            data = [(a, self.infoDict[a][rule]) for a in eligible]
+            priority = sorted(data, key=lambda x: x[1])
         elif rule in ['irsm', 'wcs', 'acs']:
             # these are the dynamic priority rules
             raise IOError("Not yet implemented!")
