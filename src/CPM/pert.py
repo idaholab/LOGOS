@@ -1563,7 +1563,9 @@ class Pert:
         """
         if choice == 'first':
             # Select first candidate
-            return [next(iter(candidates))]
+            # Need to rank by value since Dict is not ordered
+            ordered = self._rank_by_value(candidates)
+            return [next(iter(ordered))]
 
         if choice in ('max_use_res_ranked', 'max_use_res_shuffled'):
             # Order candidates
