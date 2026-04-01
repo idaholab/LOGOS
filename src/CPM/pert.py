@@ -61,6 +61,12 @@ class Pert:
         self.infoDict = {}
         self.nxgraph = None
         self._max_time_factor = 10
+        self._list_priority_names = [
+            'lf', 'ls', 'ef', 'es', 'duration', 'random',
+            'mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr',
+            'maxrr', 'minrr','mehh_8000_b','mehh_3375_b',
+            'mehh_1000_b','mehh_125_b','gphh_b'
+            ]
 
         self.task_to_activity = {} # dictionary in the form: {act_ID: act_instance}
 
@@ -1133,7 +1139,7 @@ class Pert:
     _EVENT_EPSILON = timedelta(minutes=1)
 
     def calculateScheduleWithResources(self, sgs: str = 'max_use_res_ranked',
-                                       max_time_hours: float = None) -> dict:
+                                       max_time_hours: float = None, priority_rule: str = '') -> dict:
         """
         Schedule activities considering resource, equipment, and location
         constraints using an event-driven scheduling loop.
@@ -1246,7 +1252,13 @@ class Pert:
                 break   # finished exactly on this event
 
             # ── Find candidates eligible at time_index ───────────────────────
-            value_mode = 'TF_based' if self.priorities is None else 'external'
+            if self.priorities is not None:
+                value_mode = 'external'
+            else:
+                if not priority_rule:
+                    value_mode = 'TF_based'
+                else:
+                    value_mode = priority_rule
             candidates = self._select_candidate_activities(time_index, value_mode)
 
             # ── Determine elapsed time to next event (for delay accounting) ──
@@ -1409,7 +1421,7 @@ class Pert:
                 act_name = act.returnName()
                 candidates[act]['value'] = self.priorities.get(act_name, 0.5)
         # use priority rules to compute candidate
-        elif value_assignment == 'ls':
+        elif value_assignment.lower() in self._list_priority_names:
             acts = list(candidates.keys())
             priority = self.priority_calculation(acts, value_assignment)
             for (a, _, val) in priority:
