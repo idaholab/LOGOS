@@ -27,7 +27,7 @@ import heapq
 from .activity import Activity
 from .outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, load_outage_data
 from .validate_outage_data import OutageDataValidator
-from .cpm_utils import CUSTOM_PRIORITY_FUNCS
+from .cpm_utils import CUSTOM_PRIORITY_FUNCS, sigmoid_bipolar, sigmoid_inv
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -60,6 +60,7 @@ class Pert:
         self.backwardDict = {}
         self.infoDict = {}
         self.nxgraph = None
+        self._max_time_factor = 10
 
         self.task_to_activity = {} # dictionary in the form: {act_ID: act_instance}
 
@@ -1152,7 +1153,7 @@ class Pert:
         Args:
             sgs (str): Schedule Generation Scheme strategy name.
             max_time_hours (float, optional): Safety cutoff in hours from
-                startTime.  Defaults to 3× the CPM duration.
+                startTime.  Defaults to self._max_time_factor x the CPM duration.
 
         Returns:
             dict: {
@@ -1178,7 +1179,7 @@ class Pert:
         cpm_duration  = self.getProjectDuration()
         n_activities  = len(self.infoDict)
         if max_time_hours is None:
-            max_time_hours = cpm_duration * 3   # generous safety margin
+            max_time_hours = cpm_duration * self._max_time_factor   # generous safety margin
         max_time = self.startTime + timedelta(hours=max_time_hours)
 
         logging.info(
@@ -1407,7 +1408,12 @@ class Pert:
             for act in candidates.keys():
                 act_name = act.returnName()
                 candidates[act]['value'] = self.priorities.get(act_name, 0.5)
-
+        # use priority rules to compute candidate
+        elif value_assignment == 'ls':
+            acts = list(candidates.keys())
+            priority = self.priority_calculation(acts, value_assignment)
+            for (a, _, val) in priority:
+                candidates[a]['value'] = val
         return candidates
 
     # -----------------------------
@@ -2434,26 +2440,29 @@ class Pert:
         """
         rule = priority_rule.lower()
         if rule in ['lf', 'ls', 'ef', 'es', 'duration']:
-            data = [(a, self.infoDict[a][rule]) for a in eligible]
-            priority = sorted(data, key=lambda x: x[1])
+            data = [(a, self.infoDict[a][rule], 1./(1.+self.infoDict[a][rule])) for a in eligible]
         elif rule == 'random':
-            priority = eligible
-            random.shuffle(priority)
+            random.shuffle(eligible)
+            data = [(a, i, 1./(1.+i)) for i, a in enumerate(eligible)]
         elif rule in ['mts', 'mtp', 'grpw', 'grd']:
-            data = [(a, self.infoDict[a][rule]) for a in eligible]
-            priority = sorted(data, key=lambda x: x[1], reverse=True)
+            data = [(a, self.infoDict[a][rule], self.infoDict[a][rule]) for a in eligible]
         elif rule in ['rr', 'avgrr', 'maxrr', 'minrr']:
-            data = [(a, self.infoDict[a][rule]) for a in eligible]
-            priority = sorted(data, key=lambda x: x[1], reverse=True)
+            data = [(a, self.infoDict[a][rule], self.infoDict[a][rule]) for a in eligible]
         elif rule in CUSTOM_PRIORITY_FUNCS.keys():
-            data = [(a, self.infoDict[a][rule]) for a in eligible]
-            priority = sorted(data, key=lambda x: x[1])
+            # There are tie values in the list which will cause the difference in priority orders
+            data = []
+            for a in eligible:
+                if self.infoDict[a][rule] == 0:
+                    val = 0
+                else:
+                    val = 1./self.infoDict[a][rule]
+                data.append((a, self.infoDict[a][rule], val))
         elif rule in ['irsm', 'wcs', 'acs']:
             # these are the dynamic priority rules
             raise IOError("Not yet implemented!")
         else:
             raise IOError("Invalid priority rule")
-
+        priority = sorted(data, key=lambda x: x[2], reverse=True)
         return priority
 
 
@@ -2683,7 +2692,7 @@ class Pert:
         cpm_duration = self.getProjectDuration()
         n_activities = len(self.infoDict)
         if max_time_hours is None:
-            max_time_hours = cpm_duration * 3
+            max_time_hours = cpm_duration * self._max_time_factor
         max_time = self.startTime + timedelta(hours=max_time_hours)
 
         logging.info(
@@ -2698,7 +2707,7 @@ class Pert:
         raw_priority = self.priority_calculation(all_acts, priority_rule)
 
         if raw_priority and isinstance(raw_priority[0], tuple):
-            ordered: List['Activity'] = [a for (a, _) in raw_priority]
+            ordered: List['Activity'] = [a for (a, _, _) in raw_priority]
         else:
             ordered: List['Activity'] = list(raw_priority)
 

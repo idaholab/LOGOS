@@ -1,5 +1,15 @@
+import math
+
 def safe_div(a, b):
     return a / b if b != 0 else 1
+
+def sigmoid_bipolar(x):
+    """Maps x to (-1, 1): 2/(1+exp(-x)) - 1"""
+    return 2 / (1 + math.exp(-x)) - 1
+
+def sigmoid_inv(x):
+    """Maps x to (0, 2): 2/(1+exp(x))"""
+    return 2 / (1 + math.exp(0.001*x))
 
 def custom_priority_mehh_8000_b(ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, MinRReq):
     return (
