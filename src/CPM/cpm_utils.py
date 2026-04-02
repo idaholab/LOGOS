@@ -1,5 +1,39 @@
 import math
 
+def normalized(arr,norm=0):
+    if(norm==0):
+        newarr=[i/max(arr) for i in arr]
+    else:
+        newarr=[i/norm for i in arr]
+    return newarr
+
+def normalize_tuples(data):
+    """
+    Normalize the second value in each tuple by dividing by the max value.
+
+    Args:
+        data (list of tuples): [(key, value), ...]
+
+    Returns:
+        list of tuples: [(key, normalized_value), ...]
+    """
+    if not data:
+        return []
+
+    # Extract the second values
+    values = [v for _, v in data]
+
+    max_val = max(values)
+
+    # Avoid division by zero
+    if max_val == 0:
+        return [(k, 0) for k, _ in data]
+
+    # Normalize
+    normalized = [(k, v / max_val) for k, v in data]
+
+    return normalized
+
 def safe_div(a, b):
     return a / b if b != 0 else 1
 
