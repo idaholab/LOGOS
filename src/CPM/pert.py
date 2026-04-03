@@ -608,9 +608,9 @@ class Pert:
             eq  = a.getRequiredEquipment()
             loc = a.getLocation()
 
-            skills = self.resource_pool.get_all_skills()
-            equips = self.equipment_pool.get_all_equipment_ids()
-            locs   = self.location_pool.get_all_location_ids()
+            skills = self.resource_pool.get_all_skills() if self.resource_pool else []
+            equips = self.equipment_pool.get_all_equipment_ids() if self.equipment_pool else []
+            locs   = self.location_pool.get_all_location_ids() if self.location_pool else []
             rr = dict.fromkeys(skills + equips + locs, 0.0)  # default 0 not None
 
             for r in res:
