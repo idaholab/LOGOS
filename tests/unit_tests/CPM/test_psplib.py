@@ -26,9 +26,9 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.CPM.pert import Pert  # noqa: E402
 
 # JSON input and schema paths (PSPLIB j30 instance 1)
-CPM_DIR = REPO_ROOT / 'src' / 'CPM'
+CPM_DIR = REPO_ROOT / 'tests' / 'unit_tests'/ 'CPM'
 JSON_PATH   = str(CPM_DIR / 'j301_1.json')
-SCHEMA_PATH = str(CPM_DIR / 'outage_schema.json')
+SCHEMA_PATH = str(REPO_ROOT / 'src' / 'CPM' / 'outage_schema.json')
 
 results = {"pass": 0, "fail": 0}
 
