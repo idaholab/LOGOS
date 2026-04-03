@@ -29,7 +29,7 @@ from .outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, 
 from .validate_outage_data import OutageDataValidator
 from .cpm_utils import CUSTOM_PRIORITY_FUNCS, sigmoid_bipolar, sigmoid_inv, normalize_tuples
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 class Pert:
     """
