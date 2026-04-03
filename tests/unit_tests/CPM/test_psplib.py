@@ -14,6 +14,7 @@
 
 import sys
 import warnings
+from datetime import timedelta
 from pathlib import Path
 
 warnings.simplefilter('default', DeprecationWarning)
@@ -668,6 +669,191 @@ checkAnswer("j120 DataFrame: all durations > 0",
             float((df_j120['duration'] > 0).all()), expected=1.0)
 checkAnswer("j120 DataFrame: start_time < end_time",
             float((df_j120['start_time'] < df_j120['end_time']).all()), expected=1.0)
+
+
+# ===========================================================================
+# Dependency Violation Checks  (check_dependency_violations)
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# 20. Unscheduled instance raises ValueError
+# ---------------------------------------------------------------------------
+
+print("\n=== Dependency Violations: unscheduled guard ===")
+
+pert_unscheduled = load_pert()
+try:
+    pert_unscheduled.check_dependency_violations()
+    # Should never reach here
+    print("FAIL  check_dependency_violations: expected ValueError before scheduling")
+    results["fail"] += 1
+except ValueError:
+    results["pass"] += 1
+
+
+# ---------------------------------------------------------------------------
+# 21. Feasible schedules – no violations expected
+#     Covers both SGS modes and all four PSPLIB instances.
+# ---------------------------------------------------------------------------
+
+print("\n=== Dependency Violations: feasible schedules ===")
+
+FEASIBLE_CASES = [
+    # (loader,         sgs/rule,                     label)
+    (load_pert,        ('serial',   'lf'),            "j30  serial  lf"),
+    (load_pert,        ('serial',   'mts'),           "j30  serial  mts"),
+    (load_pert,        ('parallel', 'max_use_res_ranked'), "j30  parallel max_use_res_ranked"),
+    (load_pert,        ('parallel', 'first'),         "j30  parallel first"),
+    (load_pert_j60,    ('serial',   'lf'),            "j60  serial  lf"),
+    (load_pert_j60,    ('parallel', 'max_use_res_ranked'), "j60  parallel max_use_res_ranked"),
+    (load_pert_j90,    ('serial',   'lf'),            "j90  serial  lf"),
+    (load_pert_j90,    ('parallel', 'look_ahead'),    "j90  parallel look_ahead"),
+    (load_pert_j120,   ('serial',   'lf'),            "j120 serial  lf"),
+    (load_pert_j120,   ('parallel', 'max_use_res_ranked'), "j120 parallel max_use_res_ranked"),
+]
+
+for loader, (mode, rule), label in FEASIBLE_CASES:
+    p = loader()
+    if mode == 'serial':
+        p.calculateSerialScheduleWithResources(priority_rule=rule)
+    else:
+        p.calculateScheduleWithResources(sgs=rule)
+    violations, is_feasible = p.check_dependency_violations()
+    checkAnswer(
+        f"Feasible [{label}]: no violations",
+        float(len(violations)),
+        expected=0.0
+    )
+    checkAnswer(
+        f"Feasible [{label}]: is_feasible=True",
+        float(is_feasible),
+        expected=1.0
+    )
+
+
+# ---------------------------------------------------------------------------
+# 22. Artificially injected violation – single edge
+#     Schedule j30 normally, then shift J2's start time back so it overlaps
+#     with predecessor J1 (which ends at t+1 h).  Expect exactly one
+#     violation entry with correct predecessor/successor names and overlap.
+# ---------------------------------------------------------------------------
+
+print("\n=== Dependency Violations: single injected violation ===")
+
+pert_viol = load_pert()
+pert_viol.calculateSerialScheduleWithResources(priority_rule='lf')
+
+# Locate J1 (the START dummy) and J2 in the activity graph
+act_j1 = pert_viol.task_to_activity['J1']
+act_j2 = pert_viol.task_to_activity['J2']
+
+_, j1_end = act_j1.returnAbsTimes()
+# Move J2 to start 2 h *before* J1 ends  →  2 h overlap
+injected_start = j1_end - timedelta(hours=2)
+act_j2.startTime = injected_start
+act_j2.endTime   = injected_start + timedelta(hours=act_j2.duration)
+
+violations_viol, is_feasible_viol = pert_viol.check_dependency_violations()
+
+checkAnswer(
+    "Injected violation: is_feasible=False",
+    float(is_feasible_viol),
+    expected=0.0
+)
+checkAnswer(
+    "Injected violation: exactly 1 violation found",
+    float(len(violations_viol)),
+    expected=1.0
+)
+
+if violations_viol:
+    v = violations_viol[0]
+    checkAnswerString(
+        "Injected violation: predecessor is J1",
+        v['predecessor'],
+        expected='J1'
+    )
+    checkAnswerString(
+        "Injected violation: successor is J2",
+        v['successor'],
+        expected='J2'
+    )
+    checkAnswer(
+        "Injected violation: overlap_hours == 2.0",
+        v['overlap_hours'],
+        expected=2.0
+    )
+    checkAnswer(
+        "Injected violation: pred_end_time correct",
+        float((v['pred_end_time'] - j1_end).total_seconds()),
+        expected=0.0
+    )
+    checkAnswer(
+        "Injected violation: succ_start_time correct",
+        float((v['succ_start_time'] - injected_start).total_seconds()),
+        expected=0.0
+    )
+
+
+# ---------------------------------------------------------------------------
+# 23. Multiple injected violations
+#     Break two independent edges simultaneously and verify both are reported.
+# ---------------------------------------------------------------------------
+
+print("\n=== Dependency Violations: multiple injected violations ===")
+
+pert_multi = load_pert()
+pert_multi.calculateSerialScheduleWithResources(priority_rule='lf')
+
+# Break J1→J2 (overlap 1 h) and J1→J3 (overlap 0.5 h)
+act_j1m  = pert_multi.task_to_activity['J1']
+act_j2m  = pert_multi.task_to_activity['J2']
+act_j3m  = pert_multi.task_to_activity['J3']
+_, j1m_end = act_j1m.returnAbsTimes()
+
+act_j2m.startTime = j1m_end - timedelta(hours=1)
+act_j2m.endTime   = act_j2m.startTime + timedelta(hours=act_j2m.duration)
+
+act_j3m.startTime = j1m_end - timedelta(hours=0.5)
+act_j3m.endTime   = act_j3m.startTime + timedelta(hours=act_j3m.duration)
+
+violations_multi, is_feasible_multi = pert_multi.check_dependency_violations()
+
+checkAnswer(
+    "Multi-violation: is_feasible=False",
+    float(is_feasible_multi),
+    expected=0.0
+)
+checkAnswer(
+    "Multi-violation: exactly 2 violations found",
+    float(len(violations_multi)),
+    expected=2.0
+)
+
+if len(violations_multi) == 2:
+    violated_pairs = {(v['predecessor'], v['successor']) for v in violations_multi}
+    checkAnswer(
+        "Multi-violation: J1→J2 reported",
+        float(('J1', 'J2') in violated_pairs),
+        expected=1.0
+    )
+    checkAnswer(
+        "Multi-violation: J1→J3 reported",
+        float(('J1', 'J3') in violated_pairs),
+        expected=1.0
+    )
+
+    by_succ = {v['successor']: v for v in violations_multi}
+    checkAnswer(
+        "Multi-violation: J1→J2 overlap_hours == 1.0",
+        by_succ['J2']['overlap_hours'],
+        expected=1.0
+    )
+    checkAnswer(
+        "Multi-violation: J1→J3 overlap_hours == 0.5",
+        by_succ['J3']['overlap_hours'],
+        expected=0.5
+    )
 
 
 # ---------------------------------------------------------------------------

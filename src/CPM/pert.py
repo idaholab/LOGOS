@@ -2121,6 +2121,61 @@ class Pert:
         return df
 
 
+    def check_dependency_violations(self):
+        """
+        Check whether the computed schedule violates any job-precedence
+        constraints defined in forwardDict.
+
+        A violation occurs when a successor activity starts before its
+        predecessor has finished, i.e.:
+
+            successor.start_time < predecessor.end_time
+
+        Returns
+        -------
+        violations : list[dict]
+            One entry per violated edge, each with keys:
+                - 'predecessor'   : activity_id of the predecessor
+                - 'successor'     : activity_id of the successor
+                - 'pred_end_time' : scheduled end time of the predecessor
+                - 'succ_start_time': scheduled start time of the successor
+                - 'overlap_hours' : how many hours the overlap spans
+                  (pred_end_time - succ_start_time)
+        is_feasible : bool
+            True when no violations were found.
+        """
+        if not self.completed:
+            raise ValueError(
+                "No schedule calculated yet. "
+                "Run calculateScheduleWithResources() or "
+                "calculateSerialScheduleWithResources() first."
+            )
+
+        violations = []
+
+        for pred, successors in self.forwardDict.items():
+            pred_start, pred_end = pred.returnAbsTimes()
+            if pred_end is None:
+                continue
+
+            for succ in successors:
+                succ_start, succ_end = succ.returnAbsTimes()
+                if succ_start is None:
+                    continue
+
+                if succ_start < pred_end:
+                    overlap = (pred_end - succ_start).total_seconds() / 3600.0
+                    violations.append({
+                        'predecessor':    pred.returnName(),
+                        'successor':      succ.returnName(),
+                        'pred_end_time':  pred_end,
+                        'succ_start_time': succ_start,
+                        'overlap_hours':  overlap,
+                    })
+
+        is_feasible = len(violations) == 0
+        return violations, is_feasible
+
     def export_schedule_to_csv(self, filename: str = 'schedule.csv'):
         """
         Export schedule to CSV file.
