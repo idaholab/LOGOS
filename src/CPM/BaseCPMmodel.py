@@ -40,7 +40,7 @@ class BaseCPMmodel(ExternalModelPluginBase):
     """
     ExternalModelPluginBase.__init__(self)
 
-    self.project_file = None 
+    self.project_file = None
 
     self.analysis = None # type of analysis to be performed in raven:
                          # 1) activity_duration: RAVEN sample acitivty duration values
