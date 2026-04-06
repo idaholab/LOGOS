@@ -27,8 +27,9 @@ import heapq
 from .activity import Activity
 from .outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, load_outage_data
 from .validate_outage_data import OutageDataValidator
+from .cpm_utils import CUSTOM_PRIORITY_FUNCS, sigmoid_bipolar, sigmoid_inv, normalize_tuples
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 class Pert:
     """
@@ -59,6 +60,13 @@ class Pert:
         self.backwardDict = {}
         self.infoDict = {}
         self.nxgraph = None
+        self._max_time_factor = 10
+        self._list_priority_names = [
+            'lf', 'ls', 'ef', 'es', 'duration', 'random',
+            'mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr',
+            'maxrr', 'minrr','mehh_8000_b','mehh_3375_b',
+            'mehh_1000_b','mehh_125_b','gphh_b'
+            ]
 
         self.task_to_activity = {} # dictionary in the form: {act_ID: act_instance}
 
@@ -103,7 +111,7 @@ class Pert:
             self.nxgraph = nx.DiGraph(self.forwardDict)
             self.generateInfo()
             self._update_activity_successors()
-            
+
 
         self._availability_events: frozenset = frozenset()
         if self.resource_pool or self.equipment_pool or self.location_pool:
@@ -563,7 +571,7 @@ class Pert:
         self.calculate_greatest_rank_position_weight()
         self.calculate_greatest_resource_demand()
         self.calculate_resource_requirement()
-
+        self.calculate_gp_rules()
 # ========================================
     def calculate_total_successors(self):
         for a in self.forwardDict.keys():
@@ -575,8 +583,8 @@ class Pert:
 
     def calculate_greatest_rank_position_weight(self):
         for a in self.forwardDict.keys():
-            desc = nx.descendants(self.nxgraph, a)
-            self.infoDict[a]['grpw'] = self.infoDict[a]['duration'] + sum(self.infoDict[b]['duration'] for b in desc)
+            pred = nx.ancestors(self.nxgraph, a)
+            self.infoDict[a]['grpw'] = self.infoDict[a]['duration'] + sum(self.infoDict[b]['duration'] for b in pred)
 
     def calculate_greatest_resource_demand(self):
         for a in self.forwardDict.keys():
@@ -584,7 +592,8 @@ class Pert:
             equip = a.getRequiredEquipment() # list of dict
             loc = a.getLocation() # str
             dur = self.infoDict[a]['duration']
-            grd = dur
+            grd = 0
+            # grd = dur
             if res:
                 grd += sum(r['crew_count'] for r in res) * dur
             if equip:
@@ -599,9 +608,9 @@ class Pert:
             eq  = a.getRequiredEquipment()
             loc = a.getLocation()
 
-            skills = self.resource_pool.get_all_skills()
-            equips = self.equipment_pool.get_all_equipment_ids()
-            locs   = self.location_pool.get_all_location_ids()
+            skills = self.resource_pool.get_all_skills() if self.resource_pool else []
+            equips = self.equipment_pool.get_all_equipment_ids() if self.equipment_pool else []
+            locs   = self.location_pool.get_all_location_ids() if self.location_pool else []
             rr = dict.fromkeys(skills + equips + locs, 0.0)  # default 0 not None
 
             for r in res:
@@ -625,6 +634,30 @@ class Pert:
             self.infoDict[a]['avgrr'] = float(np.sum(rr_val)) / num_res if num_res != 0 else 0.0
             self.infoDict[a]['maxrr'] = float(np.max(rr_val)) if num_res != 0 else 0.0
             self.infoDict[a]['minrr'] = float(np.min(rr_val)) if num_res != 0 else 0.0
+
+# (ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, MinRReq)
+    def calculate_gp_rules(self):
+        max_es = max([self.infoDict[a]['es'] for a in self.forwardDict.keys()])
+        max_ef = max([self.infoDict[a]['ef'] for a in self.forwardDict.keys()])
+        max_ls = max([self.infoDict[a]['ls'] for a in self.forwardDict.keys()])
+        max_lf = max([self.infoDict[a]['lf'] for a in self.forwardDict.keys()])
+        max_mtp = max([self.infoDict[a]['mtp'] for a in self.forwardDict.keys()])
+        max_mts = max([self.infoDict[a]['mts'] for a in self.forwardDict.keys()])
+
+        for a in self.forwardDict.keys():
+            for key, func in CUSTOM_PRIORITY_FUNCS.items():
+                self.infoDict[a][key] = func(
+                    self.infoDict[a]['es']/max_es,
+                    self.infoDict[a]['ef']/max_ef,
+                    self.infoDict[a]['ls']/max_ls,
+                    self.infoDict[a]['lf']/max_lf,
+                    self.infoDict[a]['mtp']/max_mtp,
+                    self.infoDict[a]['mts']/max_mts,
+                    self.infoDict[a]['rr'],
+                    self.infoDict[a]['avgrr'],
+                    self.infoDict[a]['maxrr'],
+                    self.infoDict[a]['minrr']
+                    )
 
 #=========================================
 
@@ -1103,7 +1136,7 @@ class Pert:
             sum(1 for dt in self._availability_events if dt >= self.startTime)
         )
         return heap
-    
+
 
     # Epsilon for merging near-simultaneous events into one scheduling step.
     # 1 minute is tight enough to catch genuine coincident events (e.g. two
@@ -1112,7 +1145,7 @@ class Pert:
     _EVENT_EPSILON = timedelta(minutes=1)
 
     def calculateScheduleWithResources(self, sgs: str = 'max_use_res_ranked',
-                                       max_time_hours: float = None) -> dict:
+                                       max_time_hours: float = None, priority_rule: str = '') -> dict:
         """
         Schedule activities considering resource, equipment, and location
         constraints using an event-driven scheduling loop.
@@ -1132,7 +1165,7 @@ class Pert:
         Args:
             sgs (str): Schedule Generation Scheme strategy name.
             max_time_hours (float, optional): Safety cutoff in hours from
-                startTime.  Defaults to 3× the CPM duration.
+                startTime.  Defaults to self._max_time_factor x the CPM duration.
 
         Returns:
             dict: {
@@ -1158,7 +1191,7 @@ class Pert:
         cpm_duration  = self.getProjectDuration()
         n_activities  = len(self.infoDict)
         if max_time_hours is None:
-            max_time_hours = cpm_duration * 3   # generous safety margin
+            max_time_hours = cpm_duration * self._max_time_factor   # generous safety margin
         max_time = self.startTime + timedelta(hours=max_time_hours)
 
         logging.info(
@@ -1225,7 +1258,13 @@ class Pert:
                 break   # finished exactly on this event
 
             # ── Find candidates eligible at time_index ───────────────────────
-            value_mode = 'TF_based' if self.priorities is None else 'external'
+            if self.priorities is not None:
+                value_mode = 'external'
+            else:
+                if not priority_rule:
+                    value_mode = 'TF_based'
+                else:
+                    value_mode = priority_rule
             candidates = self._select_candidate_activities(time_index, value_mode)
 
             # ── Determine elapsed time to next event (for delay accounting) ──
@@ -1343,7 +1382,7 @@ class Pert:
             # No activity could be started this step
             for act in candidates.keys():
                 act.addDelay(elapsed_hours)
-    
+
     def _select_candidate_activities(self, time: datetime, value_assignment: str) -> Dict[Activity, Dict]:
         """
         Select activities that can potentially start at given time.
@@ -1387,7 +1426,12 @@ class Pert:
             for act in candidates.keys():
                 act_name = act.returnName()
                 candidates[act]['value'] = self.priorities.get(act_name, 0.5)
-
+        # use priority rules to compute candidate
+        elif value_assignment.lower() in self._list_priority_names:
+            acts = list(candidates.keys())
+            priority = self.priority_calculation(acts, value_assignment)
+            for (a, _, val) in priority:
+                candidates[a]['value'] = val
         return candidates
 
     # -----------------------------
@@ -1525,7 +1569,9 @@ class Pert:
         """
         if choice == 'first':
             # Select first candidate
-            return [next(iter(candidates))]
+            # Need to rank by value since Dict is not ordered
+            ordered = self._rank_by_value(candidates)
+            return [next(iter(ordered))]
 
         if choice in ('max_use_res_ranked', 'max_use_res_shuffled'):
             # Order candidates
@@ -2075,6 +2121,61 @@ class Pert:
         return df
 
 
+    def check_dependency_violations(self):
+        """
+        Check whether the computed schedule violates any job-precedence
+        constraints defined in forwardDict.
+
+        A violation occurs when a successor activity starts before its
+        predecessor has finished, i.e.:
+
+            successor.start_time < predecessor.end_time
+
+        Returns
+        -------
+        violations : list[dict]
+            One entry per violated edge, each with keys:
+                - 'predecessor'   : activity_id of the predecessor
+                - 'successor'     : activity_id of the successor
+                - 'pred_end_time' : scheduled end time of the predecessor
+                - 'succ_start_time': scheduled start time of the successor
+                - 'overlap_hours' : how many hours the overlap spans
+                  (pred_end_time - succ_start_time)
+        is_feasible : bool
+            True when no violations were found.
+        """
+        if not self.completed:
+            raise ValueError(
+                "No schedule calculated yet. "
+                "Run calculateScheduleWithResources() or "
+                "calculateSerialScheduleWithResources() first."
+            )
+
+        violations = []
+
+        for pred, successors in self.forwardDict.items():
+            pred_start, pred_end = pred.returnAbsTimes()
+            if pred_end is None:
+                continue
+
+            for succ in successors:
+                succ_start, succ_end = succ.returnAbsTimes()
+                if succ_start is None:
+                    continue
+
+                if succ_start < pred_end:
+                    overlap = (pred_end - succ_start).total_seconds() / 3600.0
+                    violations.append({
+                        'predecessor':    pred.returnName(),
+                        'successor':      succ.returnName(),
+                        'pred_end_time':  pred_end,
+                        'succ_start_time': succ_start,
+                        'overlap_hours':  overlap,
+                    })
+
+        is_feasible = len(violations) == 0
+        return violations, is_feasible
+
     def export_schedule_to_csv(self, filename: str = 'schedule.csv'):
         """
         Export schedule to CSV file.
@@ -2413,26 +2514,99 @@ class Pert:
             list: list of ordered activity based on priority rule
         """
         rule = priority_rule.lower()
-        if rule in ['lf', 'ls', 'ef', 'es', 'duration']:
+        if rule in ['lf', 'ls', 'ef', 'es', 'duration'] + list(CUSTOM_PRIORITY_FUNCS.keys()):
+            # There are tie values in the list which will cause the difference in priority orders
             data = [(a, self.infoDict[a][rule]) for a in eligible]
-            priority = sorted(data, key=lambda x: x[1])
+            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=lambda x:self.infoDict[x[0]]['mehh_8000_b'])
         elif rule == 'random':
-            priority = eligible
-            random.shuffle(priority)
-        elif rule in ['mts', 'mtp', 'grpw', 'grd']:
+            random.shuffle(eligible)
+            data = [(a, i) for i, a in enumerate(eligible)]
+            priority = data
+        elif rule in ['mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr', 'maxrr', 'minrr']:
             data = [(a, self.infoDict[a][rule]) for a in eligible]
-            priority = sorted(data, key=lambda x: x[1], reverse=True)
-        elif rule in ['rr', 'avgrr', 'maxrr', 'minrr']:
-            data = [(a, self.infoDict[a][rule]) for a in eligible]
-            priority = sorted(data, key=lambda x: x[1], reverse=True)
+            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=lambda x:self.infoDict[x[0]]['mehh_8000_b'],reverse=True)
         elif rule in ['irsm', 'wcs', 'acs']:
             # these are the dynamic priority rules
             raise IOError("Not yet implemented!")
         else:
             raise IOError("Invalid priority rule")
+        # normalize
+        if rule in ['lf', 'ls', 'ef', 'es', 'duration', 'mts', 'mtp', 'grpw', 'grd', 'random'] + list(CUSTOM_PRIORITY_FUNCS.keys()):
+            priority = normalize_tuples(priority)
+        # update priority based on dependencies
+        new_priority = self.reorder_by_dependencies(priority, self.forwardDict)
+        new_priority = [(a, v, 1./(1.+i)) for i, (a, v) in enumerate(new_priority)]
+        return new_priority
 
-        return priority
-    
+
+    def sort_with_tie_rule(self, data, key_func, tie_breaker=None, reverse=False):
+        """
+        Sort a list with a primary key and an optional tie-breaker rule.
+
+        Args:
+            data (list): Input list
+            key_func (callable): Function to extract primary sort key
+            tie_breaker (callable, optional): Function for tie-breaking
+            reverse (bool): Whether to reverse the sort
+
+        Returns:
+            list: Sorted list
+        """
+        if tie_breaker is None:
+            return sorted(data, key=key_func, reverse=reverse)
+
+        return sorted(data, key=lambda x: (key_func(x), tie_breaker(x)), reverse=reverse)
+
+    def reorder_by_dependencies(self, ordered_vars, dependency_dict):
+        """
+        Reorder (key, value) tuples based on dependency constraints on keys,
+        preserving order as much as possible (based on value order).
+
+        Parameters
+        ----------
+        ordered_vars : list[tuple[str, float]]
+            List of (key, value), sorted by value.
+        dependency_dict : dict[str, list[str]]
+            {predecessor_key: [successor_keys]}
+
+        Returns
+        -------
+        list[tuple[str, float]]
+            Reordered list of tuples.
+        """
+        # Extract keys and mapping
+        keys = [k for k, _ in ordered_vars]
+        allowed = set(keys)
+
+        # Map key -> tuple
+        key_to_tuple = {k: (k, v) for k, v in ordered_vars}
+
+        # Use index as stable ordering (since already sorted by value)
+        pos = {k: i for i, k in enumerate(keys)}
+
+        G = nx.DiGraph()
+        G.add_nodes_from(keys)
+
+        # Add only valid dependencies
+        for pred, succs in dependency_dict.items():
+            if pred not in allowed:
+                continue
+            for succ in succs:
+                if succ not in allowed:
+                    continue
+                G.add_edge(pred, succ)
+
+        try:
+            sorted_keys = list(
+                nx.lexicographical_topological_sort(G, key=lambda x: pos[x])
+            )
+        except nx.NetworkXUnfeasible:
+            raise ValueError("Dependency graph contains a cycle; no valid ordering exists.")
+
+        # Map back to tuples
+        return [key_to_tuple[k] for k in sorted_keys]
+
+
 
     # =========================================================================
     # SERIAL SGS
@@ -2649,7 +2823,7 @@ class Pert:
         """
         if not self.resource_pool or not self.equipment_pool or not self.location_pool:
             raise ValueError(
-                "Resource, equipment, and location pools must be initialised"
+                "Resource, equipment, and location pools must be initialized"
             )
         if not self.startTime:
             raise ValueError("startTime must be set before scheduling")
@@ -2660,7 +2834,7 @@ class Pert:
         cpm_duration = self.getProjectDuration()
         n_activities = len(self.infoDict)
         if max_time_hours is None:
-            max_time_hours = cpm_duration * 3
+            max_time_hours = cpm_duration * self._max_time_factor
         max_time = self.startTime + timedelta(hours=max_time_hours)
 
         logging.info(
@@ -2675,7 +2849,7 @@ class Pert:
         raw_priority = self.priority_calculation(all_acts, priority_rule)
 
         if raw_priority and isinstance(raw_priority[0], tuple):
-            ordered: List['Activity'] = [a for (a, _) in raw_priority]
+            ordered: List['Activity'] = [a for (a, _, _) in raw_priority]
         else:
             ordered: List['Activity'] = list(raw_priority)
 

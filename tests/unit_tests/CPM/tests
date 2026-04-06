@@ -3,4 +3,8 @@
   type = 'RavenPython'
   input = 'CPM.py'
  [../]
+  [./test_psplib]
+  type = 'RavenPython'
+  input = 'test_psplib.py'
+ [../]
 []
