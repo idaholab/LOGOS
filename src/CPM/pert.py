@@ -2197,7 +2197,11 @@ class Pert:
 
         # Overall statistics
         cpm_duration = self.getProjectDuration()
-        actual_end = max(act.returnAbsTimes()[1] for act in self.forwardDict.keys() if act.returnAbsTimes()[1] is not None)
+        actual_ends = [act.returnAbsTimes()[1] for act in self.forwardDict.keys() if act.returnAbsTimes()[1] is not None]
+        if not actual_ends:
+            logger.debug("No scheduled activities found — run calculateScheduleWithResources first.")
+            return
+        actual_end = max(actual_ends)
         actual_duration = (actual_end - self.startTime).total_seconds() / 3600
         total_delay = sum(act.delay for act in self.forwardDict.keys())
 
@@ -2205,7 +2209,10 @@ class Pert:
         logger.debug(f"  CPM (no constraints): {cpm_duration:.1f} hours")
         logger.debug(f"  Actual (with constraints): {actual_duration:.1f} hours")
         logger.debug(f"  Total delay: {total_delay:.1f} hours")
-        logger.debug(f"  Schedule efficiency: {(cpm_duration/actual_duration)*100:.1f}%")
+        if actual_duration > 0:
+            logger.debug(f"  Schedule efficiency: {(cpm_duration/actual_duration)*100:.1f}%")
+        else:
+            logger.debug("  Schedule efficiency: N/A")
 
         logger.debug(f"\nSchedule Timeline:")
         logger.debug(f"  Start: {self.startTime.strftime('%Y-%m-%d %H:%M')}")
@@ -3427,7 +3434,10 @@ def plot_resource_utilization(pert, resource_type, filename=None,
 
     # Get time range
     start_time = pert.startTime
-    end_time = max(act.returnAbsTimes()[1] for act in pert.forwardDict.keys() if act.returnAbsTimes()[1] is not None)
+    end_times = [act.returnAbsTimes()[1] for act in pert.forwardDict.keys() if act.returnAbsTimes()[1] is not None]
+    if not end_times:
+        raise ValueError("No activities have actual end times — run calculateScheduleWithResources first.")
+    end_time = max(end_times)
 
     # Create hourly time index
     time_range = pd.date_range(start=start_time, end=end_time, freq='h')
@@ -3512,7 +3522,10 @@ def plot_location_utilization(pert, location_id, filename=None):
 
     # Get time range
     start_time = pert.startTime
-    end_time = max(act.returnAbsTimes()[1] for act in pert.forwardDict.keys() if act.returnAbsTimes()[1] is not None)
+    end_times = [act.returnAbsTimes()[1] for act in pert.forwardDict.keys() if act.returnAbsTimes()[1] is not None]
+    if not end_times:
+        raise ValueError("No activities have actual end times — run calculateScheduleWithResources first.")
+    end_time = max(end_times)
     time_range = pd.date_range(start=start_time, end=end_time, freq='h')
 
     # Calculate usage and capacity

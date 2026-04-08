@@ -422,7 +422,6 @@ class OutageDataValidator:
             logger.info(f"\n⚠ {len(self.warnings)} warning(s):")
             for i, warn in enumerate(self.warnings, 1):
                 logger.info(f" {i}. {warn}")
-            logger.info()
 
         return len(self.errors) == 0, self.errors, self.warnings
 
