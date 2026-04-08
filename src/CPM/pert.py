@@ -30,6 +30,7 @@ from .validate_outage_data import OutageDataValidator
 from .cpm_utils import CUSTOM_PRIORITY_FUNCS, sigmoid_bipolar, sigmoid_inv, normalize_tuples
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class Pert:
     """
@@ -146,7 +147,7 @@ class Pert:
         # (Optional) log warnings but proceed
         if warnings:
             for w in warnings[:20]:
-                print(f"[validation warning] {w}")
+                logger.debug(f"[validation warning] {w}")
 
         # 3) Construct OutageData only after validation passes
         outage_data = load_outage_data(filepath)  # existing factory
@@ -198,7 +199,7 @@ class Pert:
                         if not already_present and not creates_cycle:
                             self.forwardDict[hold_activity].append(blocked_activity)
                         elif creates_cycle:
-                            logging.warning(
+                            logger.warning(
                                 "Skipping hold edge %s -> %s to avoid cycle.",
                                 hold_activity.name, blocked_activity.name
                             )
@@ -481,7 +482,7 @@ class Pert:
         # Step 3: recompute ES, EF, LS, LF, slack for the whole network
         self.generateInfo()
 
-        logging.debug(
+        logger.debug(
             "set_durations: updated %d activities and recomputed CPM. "
             "New project duration = %.1f h",
             len(new_durations),
@@ -959,27 +960,27 @@ class Pert:
 
     def print_summary(self):
         """Print summary of the schedule."""
-        print("=" * 70)
-        print("PERT SCHEDULE SUMMARY")
-        print("=" * 70)
-        print(f"Total Activities: {len(self.forwardDict)}")
-        print(f"Project Duration: {self.getProjectDuration():.2f} hours")
+        logger.debug("=" * 70)
+        logger.debug("PERT SCHEDULE SUMMARY")
+        logger.debug("=" * 70)
+        logger.debug(f"Total Activities: {len(self.forwardDict)}")
+        logger.debug(f"Project Duration: {self.getProjectDuration():.2f} hours")
 
         if self.startTime:
             end_time = self.returnScheduleEndTime()
-            print(f"Start Time: {self.startTime.strftime('%Y-%m-%d %H:%M')}")
-            print(f"End Time: {end_time.strftime('%Y-%m-%d %H:%M')}")
+            logger.debug(f"Start Time: {self.startTime.strftime('%Y-%m-%d %H:%M')}")
+            logger.debug(f"End Time: {end_time.strftime('%Y-%m-%d %H:%M')}")
 
-        print(f"\nCritical Path ({len(self.getCriticalPath())} activities):")
+        logger.debug(f"\nCritical Path ({len(self.getCriticalPath())} activities):")
         cp_symbolic = self.getCriticalPathSymbolic()
-        print(" -> ".join(cp_symbolic))
+        logger.debug(" -> ".join(cp_symbolic))
 
-        print("\nCritical Path Durations:")
+        logger.debug("\nCritical Path Durations:")
         for activity in self.getCriticalPath():
             if activity.name not in ['START', 'END']:
-                print(f"  {activity.name}: {activity.duration:.1f} hours - {activity.description}")
+                logger.debug(f"  {activity.name}: {activity.duration:.1f} hours - {activity.description}")
 
-        print("=" * 70)
+        logger.debug("=" * 70)
 
     def __repr__(self):
         """String representation of Pert object."""
@@ -1076,7 +1077,7 @@ class Pert:
                     events.add(period['end_date'])
 
         self._availability_events = frozenset(events)
-        logging.debug(
+        logger.debug(
             "_precompute_availability_events: collected %d boundary events",
             len(self._availability_events)
         )
@@ -1129,7 +1130,7 @@ class Pert:
         heap = list(events)
         heapq.heapify(heap)
 
-        logging.debug(
+        logger.debug(
             "_build_event_queue: heap seeded with %d events "
             "(%d availability boundaries + start + ES times)",
             len(heap),
@@ -1194,7 +1195,7 @@ class Pert:
             max_time_hours = cpm_duration * self._max_time_factor   # generous safety margin
         max_time = self.startTime + timedelta(hours=max_time_hours)
 
-        logging.info(
+        logger.info(
             "Starting event-driven RCPSP | activities=%d | CPM=%.1fh | "
             "strategy=%s | max_time=%.1fh",
             n_activities, cpm_duration, sgs, max_time_hours
@@ -1225,7 +1226,7 @@ class Pert:
             # ── Deadlock / exhaustion guard ──────────────────────────────────
             if not event_heap:
                 if self.wait and not self.ongoing:
-                    logging.warning(
+                    logger.warning(
                         "Event queue exhausted with %d activities still waiting "
                         "and nothing ongoing — possible deadlock. "
                         "Completed %d/%d.",
@@ -1240,7 +1241,7 @@ class Pert:
 
             # ── Safety cutoff ────────────────────────────────────────────────
             if time_index > max_time:
-                logging.warning(
+                logger.warning(
                     "Scheduling reached safety cutoff at %s. "
                     "Completed %d/%d activities.",
                     time_index.strftime('%Y-%m-%d %H:%M'),
@@ -1300,17 +1301,17 @@ class Pert:
                     'completed':  [a.name for a in self.completed],
                 })
 
-            print('==============')
-            print(f"t={time_index.strftime('%Y-%m-%d %H:%M')}")
-            print(f"completed={[a.name for a in self.completed]}")
-            print(f"ongoing={[a.name for a in self.ongoing]}")
-            print(f"waiting={[a.name for a in self.wait]}")
+            logger.debug('==============')
+            logger.debug(f"t={time_index.strftime('%Y-%m-%d %H:%M')}")
+            logger.debug(f"completed={[a.name for a in self.completed]}")
+            logger.debug(f"ongoing={[a.name for a in self.ongoing]}")
+            logger.debug(f"waiting={[a.name for a in self.wait]}")
             if candidates:
-                print(f"candidates={[a.name for a in candidates.keys()]}")
+                logger.debug(f"candidates={[a.name for a in candidates.keys()]}")
             if selected:
-                print(f"selected={[a.name for a in selected]}")
+                logger.debug(f"selected={[a.name for a in selected]}")
 
-            logging.debug(
+            logger.debug(
                 "t=%s | iter=%d | completed=%d/%d | ongoing=%d | "
                 "waiting=%d | candidates=%d | selected=%d | heap_size=%d",
                 time_index.strftime('%Y-%m-%d %H:%M'),
@@ -1340,11 +1341,11 @@ class Pert:
             'iterations':         iteration,
         }
 
-        logging.info(
-            "Scheduling complete | iterations=%d | CPM=%.1fh | "
-            "actual=%.1fh | delay=%.1fh | completed=%d/%d",
-            iteration, cpm_duration, actual_duration,
-            total_delay, len(self.completed), n_activities
+        logger.info(
+            "Scheduling complete | CPM=%.1fh | actual=%.1fh | "
+            "delay=%.1fh | completed=%d/%d | iterations=%d",
+            cpm_duration, actual_duration,
+            total_delay, len(self.completed), n_activities, iteration
         )
         return results
 
@@ -1792,7 +1793,7 @@ class Pert:
 
         # Must have computed the constrained chain
         if not hasattr(self, 'constrained_chain_list') or not self.constrained_chain_list:
-            print("Run RCPSP first (calculateScheduleWithResources) to compute constrained chain.")
+            logger.debug("Run RCPSP first (calculateScheduleWithResources) to compute constrained chain.")
             return
 
         # Helper: iterate hours in a half-open interval [start, end)
@@ -1820,7 +1821,7 @@ class Pert:
             prev_st, prev_et = prev.returnAbsTimes()
             if prev_et is None:
                 # Cannot compute idle if predecessor lacks end time
-                print(f"\n⤺ Skipping detailed idle analysis for {act.returnName()} "
+                logger.debug(f"\n⤺ Skipping detailed idle analysis for {act.returnName()} "
                     f"(missing prev_end for {prev.returnName()}).")
                 continue
 
@@ -1830,15 +1831,15 @@ class Pert:
                 # No meaningful idle
                 continue
 
-            print("\n========================================")
-            print(f"{act.returnName()} waited {idle_h:.1f}h after {prev.returnName()}")
-            print(f"Idle window: [{prev_et.strftime('%Y-%m-%d %H:%M')} -> {st.strftime('%Y-%m-%d %H:%M')}]")
+            logger.debug("\n========================================")
+            logger.debug(f"{act.returnName()} waited {idle_h:.1f}h after {prev.returnName()}")
+            logger.debug(f"Idle window: [{prev_et.strftime('%Y-%m-%d %H:%M')} -> {st.strftime('%Y-%m-%d %H:%M')}]")
 
             # (1) Precedence gate (CPM ES vs prev_end)
             abs_es = self.startTime + timedelta(hours=self.infoDict[act]['es'])
             if abs_es > prev_et + timedelta(seconds=tol):
                 gap_h = (abs_es - prev_et).total_seconds() / 3600.0
-                print(f"• Precedence gate: ES not reached until {abs_es.strftime('%Y-%m-%d %H:%M')} (+{gap_h:.1f}h)")
+                logger.debug(f"• Precedence gate: ES not reached until {abs_es.strftime('%Y-%m-%d %H:%M')} (+{gap_h:.1f}h)")
                 # List predecessors of 'act' that were not completed by prev_et
                 blocking_preds = []
                 for pred in self.backwardDict.get(act, []):
@@ -1847,7 +1848,7 @@ class Pert:
                     if p_et is None or p_et > prev_et + timedelta(seconds=tol):
                         blocking_preds.append(pred.returnName())
                 if blocking_preds:
-                    print(f"  Other predecessor(s) not complete by idle start: {blocking_preds}")
+                    logger.debug(f"  Other predecessor(s) not complete by idle start: {blocking_preds}")
 
             # Prepare 'act' demands
             skill_demands = {req['skill_type']: req['crew_count'] for req in act.getRequiredResources()}
@@ -1878,9 +1879,9 @@ class Pert:
                     remaining = avail - consumed
                     if remaining < need:
                         found_blockers = True
-                        print(f"• {hour_str} | RESOURCE {skill}: need {need}, avail {avail}, "
+                        logger.debug(f"• {hour_str} | RESOURCE {skill}: need {need}, avail {avail}, "
                             f"consumed {consumed}, remaining {remaining} -> BLOCKED")
-                        print(f"  Consumers at {hour_str}: {consumers or 'None (calendar blackout?)'}")
+                        logger.debug(f"  Consumers at {hour_str}: {consumers or 'None (calendar blackout?)'}")
 
                 # (2b) Equipment: remaining = availability - consumption
                 for eq_id, need in eq_demands.items():
@@ -1898,9 +1899,9 @@ class Pert:
                     remaining = avail - consumed
                     if remaining < need:
                         found_blockers = True
-                        print(f"• {hour_str} | EQUIPMENT {eq_id}: need {need}, avail {avail}, "
+                        logger.debug(f"• {hour_str} | EQUIPMENT {eq_id}: need {need}, avail {avail}, "
                             f"consumed {consumed}, remaining {remaining} -> BLOCKED")
-                        print(f"  Equipment consumers at {hour_str}: {consumers or 'None (calendar blackout?)'}")
+                        logger.debug(f"  Equipment consumers at {hour_str}: {consumers or 'None (calendar blackout?)'}")
 
                 # (2c) Location capacity: task slots and worker slots
                 if loc_id:
@@ -1920,21 +1921,21 @@ class Pert:
                     # Task slot deficit
                     if cap['max_tasks'] - tasks_now < 1:
                         found_blockers = True
-                        print(f"• {hour_str} | LOCATION {loc_id} tasks: "
+                        logger.debug(f"• {hour_str} | LOCATION {loc_id} tasks: "
                             f"max_tasks {cap['max_tasks']}, in_use {tasks_now} -> BLOCKED")
-                        print(f"  Location tasks at {hour_str}: {loc_tasks}")
+                        logger.debug(f"  Location tasks at {hour_str}: {loc_tasks}")
 
                     # Worker slot deficit
                     if cap.get('max_workers') is not None and (cap['max_workers'] - workers_now) < need_workers:
                         found_blockers = True
-                        print(f"• {hour_str} | LOCATION {loc_id} workers: "
+                        logger.debug(f"• {hour_str} | LOCATION {loc_id} workers: "
                             f"max_workers {cap['max_workers']}, in_use {workers_now}, "
                             f"need {need_workers} -> BLOCKED")
 
             if not found_blockers:
-                print("• No capacity deficits detected in idle window.")
-                print("  If ES gate above isn’t the cause, this likely indicates calendar unavailability, off-hours,")
-                print("  or non-modeled constraints (e.g., shift rules).")
+                logger.debug("• No capacity deficits detected in idle window.")
+                logger.debug("  If ES gate above isn’t the cause, this likely indicates calendar unavailability, off-hours,")
+                logger.debug("  or non-modeled constraints (e.g., shift rules).")
 
 
 
@@ -1945,7 +1946,7 @@ class Pert:
         """
 
         if not hasattr(self, 'constrained_chain_list'):
-            print("Run RCPSP first.")
+            logger.debug("Run RCPSP first.")
             return
 
         chain = self.constrained_chain_list
@@ -1957,13 +1958,13 @@ class Pert:
             prev_st, prev_end = prev.returnAbsTimes()
 
             if st is None or prev_end is None:
-                print(f"\n⤺ Skipping idle analysis between {prev.returnName()} and {act.returnName()} "
+                logger.debug(f"\n⤺ Skipping idle analysis between {prev.returnName()} and {act.returnName()} "
                     f"(missing times: prev_end={prev_end}, act_start={st}).")
                 continue
 
             idle = (st - prev_end).total_seconds() / 3600.0
             if idle > 0.01:
-                print(f"\n{act.returnName()} waited {idle:.1f}h after {prev.returnName()}")
+                logger.debug(f"\n{act.returnName()} waited {idle:.1f}h after {prev.returnName()}")
                 blockers = []
                 for other in self.forwardDict.keys():
                     if other == act:
@@ -1987,13 +1988,13 @@ class Pert:
         only_constrained = sorted(list(constrained_set_names - cpm_cp))
         both = sorted(list(cpm_cp & constrained_set_names))
 
-        print("=== Chain Sets Summary ===")
-        print(f"CPM Critical Path count: {len(cpm_cp)}")
-        print(f"Constrained Chain count: {len(constrained_set_names)}")
-        print(f"Zero-TF Actual count:    {len(zero_tf_set_names)}")
-        print(f"Overlap (both):          {len(both)} -> {both[:10]}{' ...' if len(both) > 10 else ''}")
-        print(f"CPM-only:                {len(only_cpm)} -> {only_cpm[:10]}{' ...' if len(only_cpm) > 10 else ''}")
-        print(f"Constrained-only:        {len(only_constrained)} -> {only_constrained[:10]}{' ...' if len(only_constrained) > 10 else ''}")
+        logger.debug("=== Chain Sets Summary ===")
+        logger.debug(f"CPM Critical Path count: {len(cpm_cp)}")
+        logger.debug(f"Constrained Chain count: {len(constrained_set_names)}")
+        logger.debug(f"Zero-TF Actual count:    {len(zero_tf_set_names)}")
+        logger.debug(f"Overlap (both):          {len(both)} -> {both[:10]}{' ...' if len(both) > 10 else ''}")
+        logger.debug(f"CPM-only:                {len(only_cpm)} -> {only_cpm[:10]}{' ...' if len(only_cpm) > 10 else ''}")
+        logger.debug(f"Constrained-only:        {len(only_constrained)} -> {only_constrained[:10]}{' ...' if len(only_constrained) > 10 else ''}")
 
     def _get_consumed_equipment(self, equipment_id: str, time_point: datetime) -> int:
         """
@@ -2064,7 +2065,7 @@ class Pert:
             start_time, end_time = act.returnAbsTimes()
             if time_index >= end_time:
                 completed_now.append(act)
-                #logging.info(
+                #logger.info(
                 #    f"Completed: {act.name} at {time_index.strftime('%Y-%m-%d %H:%M')} "
                 #    f"(duration: {max(0.0, act.duration):.1f}h, delay: {act.delay:.1f}h)"
                 #)
@@ -2182,17 +2183,17 @@ class Pert:
         """
         df = self.get_schedule_dataframe()
         df.to_csv(filename, index=False)
-        logging.info(f"Schedule exported to {filename}")
+        logger.info(f"Schedule exported to {filename}")
 
     def print_schedule_summary(self):
         """Print a summary of the calculated schedule."""
         if not self.completed:
-            print("No schedule calculated yet.")
+            logger.debug("No schedule calculated yet.")
             return
 
-        print("\n" + "=" * 70)
-        print("SCHEDULE SUMMARY")
-        print("=" * 70)
+        logger.debug("\n" + "=" * 70)
+        logger.debug("SCHEDULE SUMMARY")
+        logger.debug("=" * 70)
 
         # Overall statistics
         cpm_duration = self.getProjectDuration()
@@ -2200,22 +2201,22 @@ class Pert:
         actual_duration = (actual_end - self.startTime).total_seconds() / 3600
         total_delay = sum(act.delay for act in self.forwardDict.keys())
 
-        print(f"\nProject Duration:")
-        print(f"  CPM (no constraints): {cpm_duration:.1f} hours")
-        print(f"  Actual (with constraints): {actual_duration:.1f} hours")
-        print(f"  Total delay: {total_delay:.1f} hours")
-        print(f"  Schedule efficiency: {(cpm_duration/actual_duration)*100:.1f}%")
+        logger.debug(f"\nProject Duration:")
+        logger.debug(f"  CPM (no constraints): {cpm_duration:.1f} hours")
+        logger.debug(f"  Actual (with constraints): {actual_duration:.1f} hours")
+        logger.debug(f"  Total delay: {total_delay:.1f} hours")
+        logger.debug(f"  Schedule efficiency: {(cpm_duration/actual_duration)*100:.1f}%")
 
-        print(f"\nSchedule Timeline:")
-        print(f"  Start: {self.startTime.strftime('%Y-%m-%d %H:%M')}")
-        print(f"  End:   {actual_end.strftime('%Y-%m-%d %H:%M')}")
+        logger.debug(f"\nSchedule Timeline:")
+        logger.debug(f"  Start: {self.startTime.strftime('%Y-%m-%d %H:%M')}")
+        logger.debug(f"  End:   {actual_end.strftime('%Y-%m-%d %H:%M')}")
 
         # Activity statistics
         activities_with_delay = sum(1 for act in self.forwardDict.keys() if act.delay > 0)
-        print(f"\nActivities:")
-        print(f"  Total: {len(self.forwardDict)}")
-        print(f"  Delayed: {activities_with_delay}")
-        print(f"  On critical path: {len(self.getCriticalPath())}")
+        logger.debug(f"\nActivities:")
+        logger.debug(f"  Total: {len(self.forwardDict)}")
+        logger.debug(f"  Delayed: {activities_with_delay}")
+        logger.debug(f"  On critical path: {len(self.getCriticalPath())}")
 
         # Top delayed activities
         delayed_acts = [
@@ -2226,11 +2227,11 @@ class Pert:
 
         if delayed_acts:
             delayed_acts.sort(key=lambda x: x[1], reverse=True)
-            print(f"\nTop 5 Most Delayed Activities:")
+            logger.debug(f"\nTop 5 Most Delayed Activities:")
             for name, delay, desc in delayed_acts[:5]:
-                print(f"  {name}: {delay:.1f}h - {desc}")
+                logger.debug(f"  {name}: {delay:.1f}h - {desc}")
 
-        print("=" * 70 + "\n")
+        logger.debug("=" * 70 + "\n")
 
 
     def _build_augmented_graph(self):
@@ -2404,20 +2405,20 @@ class Pert:
     # ============================================================================
 
     def debug_connectivity_and_es(self):
-        print("=== Connectivity & ES debug ===")
+        logger.debug("=== Connectivity & ES debug ===")
         if not self.startActivity or not self.endActivity:
-            print("Missing START or END in graph.")
+            logger.debug("Missing START or END in graph.")
             return
 
         # Successors of START
         succ_names = [s.returnName() for s in self.forwardDict.get(self.startActivity, [])]
-        print(f"START successors: {succ_names}")
+        logger.debug(f"START successors: {succ_names}")
 
         # List first-level successors with their ES
         for s in self.forwardDict.get(self.startActivity, []):
             es = self.infoDict[s]["es"]
             ef = self.infoDict[s]["ef"]
-            print(f"  {s.returnName()} ES={es:.1f}h, EF={ef:.1f}h")
+            logger.debug(f"  {s.returnName()} ES={es:.1f}h, EF={ef:.1f}h")
 
         # Connectivity check: who is not reachable from START or cannot reach END
         not_from_start, not_to_end = [], []
@@ -2446,14 +2447,14 @@ class Pert:
                 not_to_end.append(a.returnName())
 
         if not_from_start:
-            print("Not reachable from START:", sorted(not_from_start))
+            logger.debug("Not reachable from START:", sorted(not_from_start))
         if not_to_end:
-            print("Cannot reach END:", sorted(not_to_end))
-        print("=== End connectivity & ES ===")
+            logger.debug("Cannot reach END:", sorted(not_to_end))
+        logger.debug("=== End connectivity & ES ===")
 
 
     def debug_candidates_and_capacity(self, hours_ahead=24):
-        print("=== Candidates & capacity debug ===")
+        logger.debug("=== Candidates & capacity debug ===")
         t = self.startTime
         for k in range(hours_ahead + 1):
             time_index = t + timedelta(hours=k)
@@ -2463,20 +2464,20 @@ class Pert:
                 'TF_based' if self.priorities is None else 'external'
             )
             cand_names = [a.returnName() for a in candidates.keys()]
-            print(f"[{time_index.strftime('%Y-%m-%d %H:%M')}] candidates: {cand_names}")
+            logger.debug(f"[{time_index.strftime('%Y-%m-%d %H:%M')}] candidates: {cand_names}")
 
             if cand_names:
                 # Try feasibility check one by one
                 for a in candidates.keys():
                     can = self._can_schedule_activity(a, time_index)
-                    print(f"  - {a.returnName()} feasible? {can}")
+                    logger.debug(f"  - {a.returnName()} feasible? {can}")
             else:
                 # If no candidates, show a likely gate for a few key tasks
                 # (first successors of START)
                 for s in self.forwardDict.get(self.startActivity, [])[:3]:
                     abs_es = self.startTime + timedelta(hours=self.infoDict[s]['es'])
-                    print(f"  Note: {s.returnName()} abs ES is {abs_es.strftime('%Y-%m-%d %H:%M')}")
-        print("=== End candidates & capacity ===")
+                    logger.debug(f"  Note: {s.returnName()} abs ES is {abs_es.strftime('%Y-%m-%d %H:%M')}")
+        logger.debug("=== End candidates & capacity ===")
 
 # ============================================================================
 # PROJECT PRIORITY CALCULATION
@@ -2759,7 +2760,7 @@ class Pert:
 
         # Fallback: should not be reached for a feasible problem, but return
         # the last candidate to avoid an infinite loop in degenerate cases.
-        logging.warning(
+        logger.warning(
             "_find_earliest_feasible_start_serial: no feasible slot found "
             "for %s from %s — returning last candidate.",
             activity.name,
@@ -2837,7 +2838,7 @@ class Pert:
             max_time_hours = cpm_duration * self._max_time_factor
         max_time = self.startTime + timedelta(hours=max_time_hours)
 
-        logging.info(
+        logger.info(
             "Starting Serial SGS | activities=%d | CPM=%.1fh | rule=%s",
             n_activities, cpm_duration, priority_rule
         )
@@ -2877,7 +2878,7 @@ class Pert:
 
             # ── Step 2: event-driven feasibility scan ─────────────────────────
             if min_start > max_time:
-                logging.warning(
+                logger.warning(
                     "Serial SGS: activity %s min_start %s exceeds cutoff — skipped.",
                     act.name, min_start.strftime('%Y-%m-%d %H:%M')
                 )
@@ -2888,7 +2889,7 @@ class Pert:
             )
 
             if feasible_start > max_time:
-                logging.warning(
+                logger.warning(
                     "Serial SGS: activity %s feasible start %s exceeds cutoff — skipped.",
                     act.name, feasible_start.strftime('%Y-%m-%d %H:%M')
                 )
@@ -2920,7 +2921,7 @@ class Pert:
             })
 
             n_scheduled += 1
-            logging.debug(
+            logger.debug(
                 "Serial SGS: scheduled %s | start=%s | end=%s | delay=%.1fh",
                 act.name,
                 feasible_start.strftime('%Y-%m-%d %H:%M'),
@@ -2945,11 +2946,11 @@ class Pert:
             'priority_rule':      priority_rule,
         }
 
-        logging.info(
-            "Serial SGS complete | rule=%s | CPM=%.1fh | actual=%.1fh | "
-            "delay=%.1fh | scheduled=%d/%d",
-            priority_rule, cpm_duration, actual_duration,
-            total_delay, n_scheduled, n_activities
+        logger.info(
+            "Serial SGS complete | CPM=%.1fh | actual=%.1fh | "
+            "delay=%.1fh | scheduled=%d/%d | rule=%s",
+            cpm_duration, actual_duration,
+            total_delay, n_scheduled, n_activities, priority_rule
         )
         return results
 
@@ -3219,7 +3220,7 @@ class Pert:
                     net.add_edge(u, v, arrows="to", color="#c0392b", dashes=True)
 
             net.show(filename)
-            print(f"DAG graph saved to {filename}")
+            logger.debug(f"DAG graph saved to {filename}")
             return net
 
         # --- Renderer: Plotly ---
@@ -3340,7 +3341,7 @@ class Pert:
                 annotations=annotations     # ← REQUIRED: this displays arrowheads
             )
             fig.write_html(filename)
-            print(f"DAG graph saved to {filename}")
+            logger.debug(f"DAG graph saved to {filename}")
             return fig
 
         else:
@@ -3401,7 +3402,7 @@ def plot_gantt_chart(pert, filename='gantt_chart.html', show_delays=True, tol: f
     fig.update_xaxes(title="Timeline", tickangle=45, tickformat='%Y-%m-%d %H:%M')
     fig.update_layout(height=max(600, len(df) * 25), showlegend=True, hovermode='closest')
     fig.write_html(filename)
-    print(f"Gantt chart saved to {filename}")
+    logger.debug(f"Gantt chart saved to {filename}")
     return fig
 
 
@@ -3486,7 +3487,7 @@ def plot_resource_utilization(pert, resource_type, filename=None,
 
     if filename:
         fig.write_html(filename)
-        print(f"Resource utilization chart saved to {filename}")
+        logger.debug(f"Resource utilization chart saved to {filename}")
     else:
         fig.show()
 
@@ -3568,7 +3569,7 @@ def plot_location_utilization(pert, location_id, filename=None):
 
     if filename:
         fig.write_html(filename)
-        print(f"Location utilization chart saved to {filename}")
+        logger.debug(f"Location utilization chart saved to {filename}")
     else:
         fig.show()
 
@@ -3670,7 +3671,7 @@ def plot_equipment_utilization(pert, equipment_id, filename=None, show_available
         fig.update_xaxes(tickangle=45, tickformat='%Y-%m-%d %H:%M')
         if filename:
             fig.write_html(filename)
-            print(f"Equipment utilization chart saved to {filename}")
+            logger.debug(f"Equipment utilization chart saved to {filename}")
         else:
             fig.show()
         return fig
@@ -3720,10 +3721,10 @@ def plot_equipment_utilization(pert, equipment_id, filename=None, show_available
         for act, st, et, qty in scheduled_acts_using_eq:
             if st <= peak_time < et:
                 peak_consumers.append(act.returnName())
-        print(f"[{equipment_id}] Peak in-use: {peak_val} at {peak_time.strftime('%Y-%m-%d %H:%M')}")
-        print(f"  Consumers at peak: {sorted(peak_consumers)}")
+        logger.debug(f"[{equipment_id}] Peak in-use: {peak_val} at {peak_time.strftime('%Y-%m-%d %H:%M')}")
+        logger.debug(f"  Consumers at peak: {sorted(peak_consumers)}")
     else:
-        print(f"[{equipment_id}] No scheduled usage detected.")
+        logger.debug(f"[{equipment_id}] No scheduled usage detected.")
 
     # --- Build figure ---
     fig = go.Figure()
@@ -3774,7 +3775,7 @@ def plot_equipment_utilization(pert, equipment_id, filename=None, show_available
     # Output
     if filename:
         fig.write_html(filename)
-        print(f"Equipment utilization chart saved to {filename}")
+        logger.debug(f"Equipment utilization chart saved to {filename}")
     else:
         fig.show()
 

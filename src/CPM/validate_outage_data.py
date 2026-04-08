@@ -15,16 +15,19 @@ Requirements:
 """
 
 import json
+import logging
 import sys
 import argparse
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Any
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
 try:
     from jsonschema import Draft7Validator, ValidationError
 except ImportError:
-    print("Error: jsonschema library not found. Install it with: pip install jsonschema")
+    logger.info("Error: jsonschema library not found. Install it with: pip install jsonschema")
     sys.exit(1)
 
 
@@ -41,7 +44,7 @@ class OutageDataValidator:
                                          if not found, use embedded DEFAULT_SCHEMA.
         """
         if not schema_path:
-            print("Error: --schema argument is required.")
+            logger.info("Error: --schema argument is required.")
             sys.exit(1)
         self.schema = self._load_schema(schema_path)
         self.errors: List[str] = []
@@ -54,7 +57,7 @@ class OutageDataValidator:
         if schema_path:
             p = Path(schema_path)
             if not p.exists():
-                print(f"⚠ Schema file '{schema_path}' not found. Falling back to defaults.")
+                logger.info(f"⚠ Schema file '{schema_path}' not found. Falling back to defaults.")
                 return DEFAULT_SCHEMA
             with p.open("r", encoding="utf-8") as f:
                 return json.load(f)
@@ -67,13 +70,13 @@ class OutageDataValidator:
         validator = Draft7Validator(self.schema)
         errors = sorted(validator.iter_errors(data), key=lambda e: e.path)
         if not errors:
-            print("✓ Schema validation passed")
+            logger.info("✓ Schema validation passed")
             return True
 
         for err in errors:
             path = "/" + "/".join(str(p) for p in err.path)
             self.errors.append(f"Schema error at {path or '/'}: {err.message}")
-        print("✗ Schema validation failed")
+        logger.info("✗ Schema validation failed")
         return False
 
     # ----------------------- Referential Integrity -----------------------
@@ -137,9 +140,9 @@ class OutageDataValidator:
         dup = self._duplicates(ids)
         if dup:
             self.errors.append(f"Duplicate task IDs found: {sorted(list(dup))}")
-            print("✗ Duplicate task IDs found")
+            logger.info("✗ Duplicate task IDs found")
             return False
-        print("✓ All task IDs are unique")
+        logger.info("✓ All task IDs are unique")
         return True
 
     def _validate_unique_ids_by_field(self, items: List[Dict], field: str, label: str) -> bool:
@@ -147,9 +150,9 @@ class OutageDataValidator:
         dup = self._duplicates(ids)
         if dup:
             self.errors.append(f"Duplicate {label} IDs found: {sorted(list(dup))}")
-            print(f"✗ Duplicate {label} IDs found")
+            logger.info(f"✗ Duplicate {label} IDs found")
             return False
-        print(f"✓ All {label} IDs are unique")
+        logger.info(f"✓ All {label} IDs are unique")
         return True
 
     @staticmethod
@@ -184,7 +187,7 @@ class OutageDataValidator:
                         f"Task '{tid}' blocks itself (self-reference)"
                     )
                     valid = False
-        print("✓ Task references checked")
+        logger.info("✓ Task references checked")
         return valid
 
     def _validate_location_references(self, tasks: List[Dict], location_ids: Set[str]) -> bool:
@@ -197,7 +200,7 @@ class OutageDataValidator:
                 )
                 valid = False
         if valid:
-            print("✓ Location references are valid")
+            logger.info("✓ Location references are valid")
         return valid
 
     def _validate_equipment_references(self, tasks: List[Dict], equipment_ids: Set[str]) -> bool:
@@ -211,7 +214,7 @@ class OutageDataValidator:
                     )
                     valid = False
         if valid:
-            print("✓ Equipment references are valid")
+            logger.info("✓ Equipment references are valid")
         return valid
 
     def _validate_skill_references(self, tasks: List[Dict], skill_types: Set[str]) -> bool:
@@ -225,7 +228,7 @@ class OutageDataValidator:
                     )
                     valid = False
         if valid:
-            print("✓ Skill type references are valid")
+            logger.info("✓ Skill type references are valid")
         return valid
 
     def _validate_hold_points(self, tasks: List[Dict], task_ids: Set[str]) -> bool:
@@ -265,7 +268,7 @@ class OutageDataValidator:
                     valid = False
 
         if valid:
-            print("✓ Hold-point logic is valid")
+            logger.info("✓ Hold-point logic is valid")
         return valid
 
     def _validate_no_cycles(self, tasks: List[Dict]) -> bool:
@@ -301,10 +304,10 @@ class OutageDataValidator:
             if n not in visited:
                 if dfs(n):
                     self.errors.append(f"Circular dependency detected involving '{n}'")
-                    print("✗ Circular dependencies found in task network")
+                    logger.info("✗ Circular dependencies found in task network")
                     return False
 
-        print("✓ No circular dependencies found")
+        logger.info("✓ No circular dependencies found")
         return True
 
     # ----------------------- Availability Periods -----------------------
@@ -395,10 +398,7 @@ class OutageDataValidator:
         """
         self.errors = []
         self.warnings = []
-
-        print("\n" + "=" * 60)
-        print("OUTAGE DATA VALIDATION")
-        print("=" * 60 + "\n")
+        logger.info("OUTAGE DATA VALIDATION")
 
         schema_ok = self.validate_schema(data)
 
@@ -408,24 +408,21 @@ class OutageDataValidator:
             )
         else:
             integrity_ok = False
-            print("\n⚠ Skipping referential integrity checks due to schema errors")
+            logger.info("\n⚠ Skipping referential integrity checks due to schema errors")
 
-        print("\n" + "=" * 60)
         if self.errors:
-            print(f"✗ VALIDATION FAILED - {len(self.errors)} error(s)")
-            print("=" * 60)
-            print("\nErrors:")
+            logger.info(f"✗ VALIDATION FAILED - {len(self.errors)} error(s)")
+            logger.info("\nErrors:")
             for i, err in enumerate(self.errors, 1):
-                print(f" {i}. {err}")
+                logger.info(f" {i}. {err}")
         else:
-            print("✓ VALIDATION PASSED")
-            print("=" * 60)
+            logger.info("✓ VALIDATION PASSED")
 
         if self.warnings:
-            print(f"\n⚠ {len(self.warnings)} warning(s):")
+            logger.info(f"\n⚠ {len(self.warnings)} warning(s):")
             for i, warn in enumerate(self.warnings, 1):
-                print(f" {i}. {warn}")
-            print()
+                logger.info(f" {i}. {warn}")
+            logger.info()
 
         return len(self.errors) == 0, self.errors, self.warnings
 
@@ -450,17 +447,17 @@ def main():
     # Load data
     input_path = Path(args.input_file)
     if not input_path.exists():
-        print(f"Error: File '{args.input_file}' not found")
+        logger.info(f"Error: File '{args.input_file}' not found")
         sys.exit(1)
 
     try:
         with input_path.open("r", encoding="utf-8") as f:
             data = json.load(f)
     except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON file - {e}")
+        logger.info(f"Error: Invalid JSON file - {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"Error reading file: {e}")
+        logger.info(f"Error reading file: {e}")
         sys.exit(1)
 
     # Validate
@@ -476,7 +473,7 @@ def main():
             "errors": errors,
             "warnings": warnings,
         }
-        print(json.dumps(report, indent=2, default=str))
+        logger.info(json.dumps(report, indent=2, default=str))
 
     # Exit code policy
     if not is_valid:
