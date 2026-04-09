@@ -66,7 +66,8 @@ class Pert:
             'lf', 'ls', 'ef', 'es', 'duration', 'random',
             'mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr',
             'maxrr', 'minrr','mehh_8000_b','mehh_3375_b',
-            'mehh_1000_b','mehh_125_b','gphh_b'
+            'mehh_1000_b','mehh_125_b','gphh_b',
+            'wcs', 'acs', 'irsm',
             ]
 
         self.task_to_activity = {} # dictionary in the form: {act_ID: act_instance}
@@ -1430,7 +1431,7 @@ class Pert:
         # use priority rules to compute candidate
         elif value_assignment.lower() in self._list_priority_names:
             acts = list(candidates.keys())
-            priority = self.priority_calculation(acts, value_assignment)
+            priority = self.priority_calculation(acts, value_assignment, current_time=time)
             for (a, _, val) in priority:
                 candidates[a]['value'] = val
         return candidates
@@ -2490,8 +2491,50 @@ class Pert:
 # PROJECT PRIORITY CALCULATION
 # ============================================================================
 
-    def priority_calculation(self, eligible, priority_rule='LF'):
-        """_summary_
+    def _compute_pairwise_E(self, act_i, act_j, t_n: datetime) -> datetime:
+        """
+        Compute E(i, j): the earliest feasible absolute start time of act_i
+        given that act_j starts at t_n (Kolisch 1996, eq. 12-13).
+
+        Cases
+        -----
+        - Schedulable (SP): i and j can run simultaneously at t_n without
+          violating any resource/equipment/location constraint → E(i,j) = t_n.
+        - Temporarily forbidden (TFP): conflict now but will resolve as other
+          activities complete → scan forward hour-by-hour.
+        - Generally forbidden (GFP): combined demand always exceeds some
+          resource capacity → E(i,j) = t_n + d_j (i must wait for j to finish).
+        """
+        d_j = timedelta(hours=self._effective_duration(act_j))
+        d_i = timedelta(hours=self._effective_duration(act_i))
+        j_end = t_n + d_j
+
+        # Build capacity snapshots covering the full window we may need.
+        # Include one extra hour past j_end + d_i to ensure _fits_with_tentative
+        # can always find valid data for any candidate start in the window.
+        scan_end = j_end + d_i + timedelta(hours=1)
+        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem = \
+            self._build_capacity_snapshots(t_n, scan_end)
+
+        # Commit j into the capacity snapshots
+        self._apply_tentative(act_j, t_n, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem)
+
+        # Check simultaneous start (SP case)
+        if self._fits_with_tentative(act_i, t_n, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem):
+            return t_n
+
+        # Scan hour-by-hour up through j's completion (TFP case)
+        t = t_n + timedelta(hours=1)
+        while t < j_end:
+            if self._fits_with_tentative(act_i, t, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem):
+                return t
+            t += timedelta(hours=1)
+
+        # GFP: i must start no earlier than when j finishes
+        return j_end
+
+    def priority_calculation(self, eligible, priority_rule='LF', current_time: datetime = None):
+        """Calculate activity priorities based on a named rule.
 
         Args:
             eligible (list): list of activities
@@ -2510,16 +2553,16 @@ class Pert:
                 minrr: minimum resource requirement
                 grpw: greatest rank position weight
                 grd: greatest resource demand
-
-                irsm: improved resource scheduling method
-                wcs: worst case slack
-                acs: average case slack
+                wcs: worst case slack — LS_j - t; lower = higher urgency
+                acs: average case slack — (ES_j + LS_j) / 2 - t; lower = higher urgency
+                irsm: improved resource scheduling method — rr_j / (LS_j - t + 1); higher = higher urgency
+            current_time (datetime, optional): current scheduling time; required for wcs/acs/irsm.
 
         Raises:
             IOError: Invalid priority rule
 
         Returns:
-            list: list of ordered activity based on priority rule
+            list: [(Activity, raw_value, normalized_value), ...]
         """
         rule = priority_rule.lower()
         if rule in ['lf', 'ls', 'ef', 'es', 'duration'] + list(CUSTOM_PRIORITY_FUNCS.keys()):
@@ -2533,13 +2576,70 @@ class Pert:
         elif rule in ['mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr', 'maxrr', 'minrr']:
             data = [(a, self.infoDict[a][rule]) for a in eligible]
             priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=lambda x:self.infoDict[x[0]]['mehh_8000_b'],reverse=True)
-        elif rule in ['irsm', 'wcs', 'acs']:
-            # these are the dynamic priority rules
-            raise IOError("Not yet implemented!")
+        elif rule == 'wcs':
+            # Worst Case Slack (Kolisch 1996, eq. 19):
+            #   v(j) = LS_j - max{ E(i,j) | i ∈ D_n, i ≠ j }
+            # Minimum v(j) → most urgent → sort ascending.
+            # When |D_n|=1 or no resource conflicts, reduces to classic MSLK (LS_j - t_n).
+            t_n = current_time if current_time else self.startTime
+            data = []
+            for j in eligible:
+                ls_j = self.infoDict[j]['ls']
+                others = [i for i in eligible if i is not j]
+                if others:
+                    worst = max(
+                        (self._compute_pairwise_E(j, i, t_n) - self.startTime).total_seconds() / 3600.0
+                        for i in others
+                    )
+                else:
+                    worst = (t_n - self.startTime).total_seconds() / 3600.0
+                data.append((j, ls_j - worst))
+            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1],
+                                               tie_breaker=lambda x: self.infoDict[x[0]]['lf'])
+        elif rule == 'acs':
+            # Average Case Slack (Kolisch 1996, eq. 23):
+            #   v(j) = LS_j - (1/|D_n|) * Σ_{i≠j} E(i,j)
+            # Minimum v(j) → most urgent → sort ascending.
+            t_n = current_time if current_time else self.startTime
+            data = []
+            for j in eligible:
+                ls_j = self.infoDict[j]['ls']
+                others = [i for i in eligible if i is not j]
+                if others:
+                    avg_displacement = sum(
+                        (self._compute_pairwise_E(j, i, t_n) - self.startTime).total_seconds() / 3600.0
+                        for i in others
+                    ) / len(eligible)   # divide by |D_n| per the paper
+                else:
+                    avg_displacement = (t_n - self.startTime).total_seconds() / 3600.0
+                data.append((j, ls_j - avg_displacement))
+            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1],
+                                               tie_breaker=lambda x: self.infoDict[x[0]]['lf'])
+        elif rule == 'irsm':
+            # Improved Resource Scheduling Method (Kolisch 1996, eq. 14):
+            #   v(j) = max{ 0, E(j,i) - LS_i | i ∈ D_n, i ≠ j }
+            # Minimum v(j) → least disruptive to others → sort ascending.
+            t_n = current_time if current_time else self.startTime
+            data = []
+            for j in eligible:
+                others = [i for i in eligible if i is not j]
+                if others:
+                    v = max(
+                        max(0.0,
+                            (self._compute_pairwise_E(i, j, t_n) - self.startTime).total_seconds() / 3600.0
+                            - self.infoDict[i]['ls'])
+                        for i in others
+                    )
+                else:
+                    v = 0.0
+                data.append((j, v))
+            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1],
+                                               tie_breaker=lambda x: self.infoDict[x[0]]['lf'])
         else:
             raise IOError("Invalid priority rule")
         # normalize
-        if rule in ['lf', 'ls', 'ef', 'es', 'duration', 'mts', 'mtp', 'grpw', 'grd', 'random'] + list(CUSTOM_PRIORITY_FUNCS.keys()):
+        if rule in ['lf', 'ls', 'ef', 'es', 'duration', 'mts', 'mtp', 'grpw', 'grd', 'random',
+                    'wcs', 'acs', 'irsm'] + list(CUSTOM_PRIORITY_FUNCS.keys()):
             priority = normalize_tuples(priority)
         # update priority based on dependencies
         new_priority = self.reorder_by_dependencies(priority, self.forwardDict)

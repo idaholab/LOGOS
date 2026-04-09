@@ -856,6 +856,134 @@ if len(violations_multi) == 2:
     )
 
 
+# ===========================================================================
+# WCS / ACS / IRSM Dynamic Priority Rules  (Kolisch 1996)
+# ===========================================================================
+
+print("\n=== Serial SGS: WCS / ACS / IRSM (j30) ===")
+
+SERIAL_GOLDEN_DYNAMIC_J30 = {
+    'wcs':  47.0,
+    'acs':  46.0,
+    'irsm': 51.0,
+}
+for rule, expected_duration in SERIAL_GOLDEN_DYNAMIC_J30.items():
+    pert_s = load_pert()
+    out = pert_s.calculateSerialScheduleWithResources(priority_rule=rule)
+    checkAnswer(
+        f"j30 Serial SGS [{rule}]: scheduled_duration",
+        out['scheduled_duration'] - 2.0,
+        expected=expected_duration
+    )
+
+print("\n=== Serial SGS: WCS / ACS / IRSM (j60) ===")
+
+SERIAL_GOLDEN_DYNAMIC_J60 = {
+    'wcs':  77.0,
+    'acs':  77.0,
+    'irsm': 81.0,
+}
+for rule, expected_duration in SERIAL_GOLDEN_DYNAMIC_J60.items():
+    pert_s = load_pert_j60()
+    out = pert_s.calculateSerialScheduleWithResources(priority_rule=rule)
+    checkAnswer(
+        f"j60 Serial SGS [{rule}]: scheduled_duration",
+        out['scheduled_duration'] - 2.0,
+        expected=expected_duration
+    )
+
+print("\n=== Serial SGS: WCS / ACS / IRSM (j90) ===")
+
+SERIAL_GOLDEN_DYNAMIC_J90 = {
+    'wcs':  81.0,
+    'acs':  83.0,
+    'irsm': 82.0,
+}
+for rule, expected_duration in SERIAL_GOLDEN_DYNAMIC_J90.items():
+    pert_s = load_pert_j90()
+    out = pert_s.calculateSerialScheduleWithResources(priority_rule=rule)
+    checkAnswer(
+        f"j90 Serial SGS [{rule}]: scheduled_duration",
+        out['scheduled_duration'] - 2.0,
+        expected=expected_duration
+    )
+
+print("\n=== Serial SGS: WCS / ACS / IRSM (j120) ===")
+
+SERIAL_GOLDEN_DYNAMIC_J120 = {
+    'wcs':  124.0,
+    'acs':  119.0,
+    'irsm': 154.0,
+}
+for rule, expected_duration in SERIAL_GOLDEN_DYNAMIC_J120.items():
+    pert_s = load_pert_j120()
+    out = pert_s.calculateSerialScheduleWithResources(priority_rule=rule)
+    checkAnswer(
+        f"j120 Serial SGS [{rule}]: scheduled_duration",
+        out['scheduled_duration'] - 2.0,
+        expected=expected_duration
+    )
+
+print("\n=== Parallel SGS (max_use_res_ranked): WCS / ACS / IRSM (all instances) ===")
+
+PARALLEL_DYNAMIC_GOLDEN = {
+    # (loader_func, instance_label): {rule: expected_duration}
+    ('j30',  load_pert):     {'wcs': 43.0, 'acs': 46.0, 'irsm': 43.0},
+    ('j60',  load_pert_j60): {'wcs': 86.0, 'acs': 86.0, 'irsm': 86.0},
+    ('j90',  load_pert_j90): {'wcs': 81.0, 'acs': 81.0, 'irsm': 89.0},
+    ('j120', load_pert_j120):{'wcs': 124.0,'acs': 125.0,'irsm': 124.0},
+}
+for (label, loader), rule_map in PARALLEL_DYNAMIC_GOLDEN.items():
+    for rule, expected_duration in rule_map.items():
+        pert_p = loader()
+        out = pert_p.calculateScheduleWithResources(sgs='max_use_res_ranked', priority_rule=rule)
+        checkAnswer(
+            f"{label} Parallel SGS (max_use_res_ranked) [{rule}]: scheduled_duration",
+            out['scheduled_duration'] - 2.0,
+            expected=expected_duration
+        )
+
+print("\n=== WCS/ACS/IRSM: return dict keys and completion ===")
+
+pert_wcs = load_pert()
+out_wcs = pert_wcs.calculateScheduleWithResources(sgs='max_use_res_ranked', priority_rule='wcs')
+checkSubset(
+    "WCS parallel: return dict has required keys",
+    {'scheduled_duration', 'cpm_duration', 'delay_hours', 'n_activities', 'n_completed', 'iterations'},
+    out_wcs
+)
+checkAnswer(
+    "WCS parallel: all activities completed",
+    float(out_wcs['n_completed']),
+    expected=float(out_wcs['n_activities'])
+)
+
+pert_acs = load_pert()
+out_acs = pert_acs.calculateScheduleWithResources(sgs='max_use_res_ranked', priority_rule='acs')
+checkAnswer(
+    "ACS parallel: all activities completed",
+    float(out_acs['n_completed']),
+    expected=float(out_acs['n_activities'])
+)
+
+pert_irsm = load_pert()
+out_irsm = pert_irsm.calculateScheduleWithResources(sgs='max_use_res_ranked', priority_rule='irsm')
+checkAnswer(
+    "IRSM parallel: all activities completed",
+    float(out_irsm['n_completed']),
+    expected=float(out_irsm['n_activities'])
+)
+
+print("\n=== WCS/ACS/IRSM: no dependency violations ===")
+
+for rule in ['wcs', 'acs', 'irsm']:
+    p = load_pert()
+    p.calculateScheduleWithResources(sgs='max_use_res_ranked', priority_rule=rule)
+    violations, is_feasible = p.check_dependency_violations()
+    checkAnswer(f"WCS/ACS/IRSM [{rule}]: no violations", float(len(violations)), expected=0.0)
+    checkAnswer(f"WCS/ACS/IRSM [{rule}]: is_feasible", float(is_feasible), expected=1.0)
+
+
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
