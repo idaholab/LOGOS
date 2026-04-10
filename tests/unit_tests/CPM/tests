@@ -3,8 +3,12 @@
   type = 'RavenPython'
   input = 'CPM.py'
  [../]
-  [./test_psplib]
+ [./test_psplib]
   type = 'RavenPython'
   input = 'test_psplib.py'
+ [../]
+ [./test_ga]
+  type = 'RavenPython'
+  input = 'test_ga.py'
  [../]
 []

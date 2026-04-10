@@ -70,8 +70,8 @@ class BaseCPMmodel(ExternalModelPluginBase):
       elif child.tag == 'map':
         # <map activity='activity_ID' attribute='duration/priority'>raven_var_ID</map>
         raven_var_ID = child.text.strip()
-        act_ID       = child.get('activity')
-        attribute    = child.get('attribute')
+        act_ID       = child.get('act')
+        attribute    = child.get('attr')
         self.mapping[raven_var_ID] = (act_ID,attribute)
         if attribute=='duration':
           self.duration_vars.append(raven_var_ID)
@@ -79,6 +79,7 @@ class BaseCPMmodel(ExternalModelPluginBase):
           self.priority_vars.append(raven_var_ID)
         else:
           raise IOError("CMPmodel: attribute " + str(attribute) + " is not allowed")
+
       elif child.tag.lower() in ['variables', 'inputs', 'outputs']:
         continue
       else:
