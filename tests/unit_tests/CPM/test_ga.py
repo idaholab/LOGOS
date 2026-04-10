@@ -52,6 +52,7 @@ def ga(pert):
         pop_size=5,
         n_gen=3,
         cxpb=0.8,
+        mutpb=0.1,
         seed=0,
         verbose=False,
     )
@@ -247,6 +248,7 @@ class TestRun:
             pop_size=5,
             n_gen=3,
             cxpb=0.8,
+            mutpb=0.2,
             seed=7,
             verbose=False,
         )

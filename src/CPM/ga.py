@@ -61,9 +61,23 @@ precedence-feasible parents is itself precedence-feasible.
 
 Two children are produced symmetrically (roles of mother and father swapped).
 
-Mutation
---------
-Disabled as per design specification.
+Mutation — swap mutation with topological repair
+-------------------------------------------------
+A single individual is mutated by:
+
+1. Picking two random distinct positions i and j.
+2. Swapping the activities at those positions (potentially violating
+   precedence constraints).
+3. Reconstructing ``(Activity, rank)`` pairs from the perturbed ordering
+   (rank = position index).
+4. Calling ``pert.reorder_by_dependencies(ranked, pert.forwardDict)`` which
+   performs a lexicographic topological sort that preserves the perturbed
+   order as closely as possible while restoring precedence feasibility.
+5. Mapping the repaired activity sequence back to the index chromosome.
+
+This keeps the swap when it is already feasible and makes the minimum
+necessary adjustment when it is not, so the mutation injects genuine
+diversity while always producing a valid chromosome.
 
 Requirements
 ------------
@@ -137,6 +151,7 @@ class RCPSPGeneticAlgorithm:
         pop_size: int = 50,
         n_gen: int = 100,
         cxpb: float = 0.8,
+        mutpb: float = 0.1,
         seed: int = 42,
         hof_size: int = 5,
         verbose: bool = True,
@@ -145,6 +160,7 @@ class RCPSPGeneticAlgorithm:
         self.pop_size = pop_size
         self.n_gen = n_gen
         self.cxpb = cxpb
+        self.mutpb = mutpb
         self.hof_size = hof_size
         self.verbose = verbose
 
@@ -179,7 +195,7 @@ class RCPSPGeneticAlgorithm:
         tb = base.Toolbox()
         tb.register("evaluate", self._evaluate)
         tb.register("mate", self._crossover_one_point)
-        # Mutation is intentionally omitted.
+        tb.register("mutate", self._mutate_swap)
         tb.register("select", tools.selTournament, tournsize=3)
         self.toolbox = tb
 
@@ -418,6 +434,57 @@ class RCPSPGeneticAlgorithm:
         return ind1, ind2
 
     # ---------------------------------------------------------------------- #
+    # Mutation — swap with topological repair                                  #
+    # ---------------------------------------------------------------------- #
+
+    def _mutate_swap(self, individual: List[int]) -> Tuple[List[int]]:
+        """
+        Swap mutation with topological repair via ``reorder_by_dependencies``.
+
+        Algorithm
+        ---------
+        1. Choose two distinct positions i and j uniformly at random.
+        2. Swap the activity indices at those positions (may violate precedence).
+        3. Convert the perturbed chromosome to ``(Activity, rank)`` pairs where
+           rank = position index in the perturbed ordering.
+        4. Call ``pert.reorder_by_dependencies(ranked, pert.forwardDict)`` which
+           performs a lexicographic topological sort that keeps the perturbed
+           order intact wherever it is already feasible and makes the minimum
+           adjustment where it is not.
+        5. Map the repaired activity sequence back to integer indices.
+
+        The operator modifies ``individual`` **in place** per DEAP convention.
+
+        Parameters
+        ----------
+        individual : list of int
+            Precedence-feasible permutation of activity indices.
+
+        Returns
+        -------
+        tuple
+            ``(individual,)`` — single-element tuple per DEAP convention.
+        """
+        n = len(individual)
+        if n < 2:
+            return (individual,)
+
+        i, j = random.sample(range(n), 2)
+        individual[i], individual[j] = individual[j], individual[i]
+
+        # Build (Activity, rank) pairs from the perturbed ordering.
+        # rank = position index so reorder_by_dependencies preserves the swap
+        # wherever precedence allows it.
+        acts = self._chromosome_to_activities(individual)
+        ranked = [(a, pos) for pos, a in enumerate(acts)]
+
+        # Repair to topological feasibility.
+        repaired = self.pert.reorder_by_dependencies(ranked, self.pert.forwardDict)
+
+        individual[:] = [self._act_to_idx[a] for a, _ in repaired]
+        return (individual,)
+
+    # ---------------------------------------------------------------------- #
     # Main optimisation loop                                                   #
     # ---------------------------------------------------------------------- #
 
@@ -431,8 +498,9 @@ class RCPSPGeneticAlgorithm:
         2. Evaluate fitness for every individual in generation 0.
         3. For each of ``n_gen`` generations:
            a. Tournament selection.
-           b. Pairwise crossover with probability ``cxpb`` (no mutation).
-           c. Re-evaluate invalidated offspring.
+           b. Pairwise crossover with probability ``cxpb``.
+           c. Swap mutation with probability ``mutpb``.
+           d. Re-evaluate invalidated offspring.
            d. Generational replacement.
            e. Update Hall of Fame and statistics logbook.
 
@@ -473,12 +541,18 @@ class RCPSPGeneticAlgorithm:
                 map(self.toolbox.clone, self.toolbox.select(pop, len(pop)))
             )
 
-            # Crossover (mutation disabled)
+            # Crossover
             for child1, child2 in zip(offspring[::2], offspring[1::2]):
                 if random.random() < self.cxpb:
                     self.toolbox.mate(child1, child2)
                     del child1.fitness.values
                     del child2.fitness.values
+
+            # Mutation
+            for mutant in offspring:
+                if random.random() < self.mutpb:
+                    self.toolbox.mutate(mutant)
+                    del mutant.fitness.values
 
             # Evaluate invalidated individuals
             invalid = [ind for ind in offspring if not ind.fitness.valid]

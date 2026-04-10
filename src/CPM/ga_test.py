@@ -50,9 +50,10 @@ CASES = [
 def run_ga_case(
     case_name: str,
     json_file: str,
-    pop_size: int = 50,
-    n_gen: int = 100,
+    pop_size: int = 30,
+    n_gen: int = 500,
     cxpb: float = 0.8,
+    mutpb: float = 0.1,
     seed: int = 42,
     verbose: bool = True,
 ) -> dict:
@@ -66,7 +67,7 @@ def run_ga_case(
        serial and parallel SGS (these are the same evaluations used to seed
        the GA's initial population).
     3. Run the GA (Activity List representation, Hartmann one-point crossover,
-       serial SGS decoder).
+       swap mutation with topological repair, serial SGS decoder).
     4. Print per-case results and return a summary dict.
 
     Parameters
@@ -81,6 +82,8 @@ def run_ga_case(
         Number of GA generations.
     cxpb : float
         Crossover probability.
+    mutpb : float
+        Per-individual mutation probability.
     seed : int
         RNG seed.
     verbose : bool
@@ -146,12 +149,13 @@ def run_ga_case(
         print()
 
     # ── Run GA ───────────────────────────────────────────────────────────────
-    print("Running GA (Activity List + Hartmann one-point crossover + Serial SGS)...")
+    print("Running GA (Activity List + one-point crossover + swap mutation + Serial SGS)...")
     ga = RCPSPGeneticAlgorithm(
         pert,
         pop_size=pop_size,
         n_gen=n_gen,
         cxpb=cxpb,
+        mutpb=mutpb,
         seed=seed,
         verbose=verbose,
     )
@@ -197,9 +201,10 @@ def main() -> None:
         result = run_ga_case(
             case_name=case_name,
             json_file=json_file,
-            pop_size=22,
+            pop_size=50,
             n_gen=100,
-            cxpb=0.8,
+            cxpb=0.9,
+            mutpb=0.1,
             seed=42,
             verbose=True,
         )
@@ -207,7 +212,7 @@ def main() -> None:
 
     # ── Summary table ─────────────────────────────────────────────────────────
     print("\n" + "=" * 80)
-    print("SUMMARY — GA (Activity List, Hartmann 1998 one-point crossover, Serial SGS)")
+    print("SUMMARY — GA (Activity List, one-point crossover, swap mutation, Serial SGS)")
     print("=" * 80)
     print(
         f"  {'Case':<8} {'N':>6} {'CPM (h)':>10} "
