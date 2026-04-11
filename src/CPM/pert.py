@@ -960,6 +960,109 @@ class Pert:
         self.resetInfo()
         self.generateInfo()
 
+    # -------------------------------------------------------------------------
+    # Emergent-activity analysis support
+    # The two methods below (insert_task, clone_for_analysis) were added to
+    # support DACKAR's unexpected-activity workflow (outage Stage E).  They
+    # provide a first-class API for topology mutation and clean what-if copies
+    # so that external callers do not need to manipulate Pert internals directly.
+    # -------------------------------------------------------------------------
+
+    def insert_task(
+        self,
+        task_dict: dict,
+        after_task_id: Optional[str] = None,
+        before_task_id: Optional[str] = None,
+    ) -> 'Activity':
+        """Insert a new task into the schedule network between two existing tasks.
+
+        Added to support DACKAR emergent-activity analysis (outage Stage E):
+        allows an unexpected activity to be spliced into the live schedule
+        graph without manually touching forwardDict / backwardDict / nxgraph.
+
+        Compared with addActivity(), this method:
+          - Accepts a task_dict (same format as outage JSON tasks) rather than
+            an Activity object, so callers do not need to construct Activity.
+          - Removes the direct edge after_task → before_task when it exists,
+            preserving finish-to-start ordering (A → NEW → B, not A → B too).
+          - Updates task_to_activity and nxgraph consistently.
+          - Does NOT call resetInfo() / generateInfo() — the caller decides
+            when to recompute CPM state (allows batching multiple insertions).
+
+        Args:
+            task_dict:      Task definition dict following the outage JSON schema
+                            (keys: task_id, duration, successors, …).
+            after_task_id:  ID of the predecessor task (new task starts after this).
+                            None means the new task has no predecessor (new source).
+            before_task_id: ID of the successor task (new task finishes before this).
+                            None means the new task has no successor (new sink).
+
+        Returns:
+            The newly created Activity object.
+
+        Raises:
+            ValueError: If task_dict['task_id'] already exists in the network.
+        """
+        task_id: str = task_dict['task_id']
+        if task_id in self.task_to_activity:
+            raise ValueError(
+                f"Task '{task_id}' already exists in the schedule network."
+            )
+
+        new_activity = Activity.from_json(task_dict)
+
+        # Register so callers can look up the Activity by ID
+        self.task_to_activity[task_id] = new_activity
+
+        # Locate predecessor / successor Activity objects
+        after_act = self.task_to_activity.get(after_task_id) if after_task_id else None
+        before_act = self.task_to_activity.get(before_task_id) if before_task_id else None
+
+        # Initialise new node in graph dicts
+        self.forwardDict[new_activity] = [before_act] if before_act else []
+        self.backwardDict[new_activity] = [after_act] if after_act else []
+
+        # Wire predecessor: after_act → new_activity
+        if after_act is not None:
+            self.forwardDict.setdefault(after_act, []).append(new_activity)
+            # Remove the now-bypassed direct edge after_act → before_act
+            if before_act is not None:
+                try:
+                    self.forwardDict[after_act].remove(before_act)
+                except ValueError:
+                    pass  # edge did not exist; nothing to remove
+
+        # Wire successor: new_activity → before_act (backward direction)
+        if before_act is not None:
+            self.backwardDict.setdefault(before_act, []).append(new_activity)
+            # Remove the now-bypassed backward edge before_act ← after_act
+            if after_act is not None:
+                try:
+                    self.backwardDict[before_act].remove(after_act)
+                except ValueError:
+                    pass
+
+        # Keep NetworkX graph in sync
+        if self.nxgraph is not None:
+            self.nxgraph.add_node(new_activity)
+            if after_act is not None:
+                self.nxgraph.add_edge(after_act, new_activity)
+            if before_act is not None:
+                self.nxgraph.add_edge(new_activity, before_act)
+            if after_act is not None and before_act is not None:
+                if self.nxgraph.has_edge(after_act, before_act):
+                    self.nxgraph.remove_edge(after_act, before_act)
+
+        # Seed infoDict entry with zeros; actual values set by generateInfo()
+        self.infoDict[new_activity] = {
+            "duration": new_activity.duration,
+            "es": 0, "ef": 0, "ls": 0, "lf": math.inf,
+            "slack": 0, "mts": 0, "mtp": 0, "grpw": 0,
+            "grd": 0, "rr": 0, "avgrr": 0, "maxrr": 0, "minrr": 0,
+        }
+
+        return new_activity
+
     def print_summary(self):
         """Print summary of the schedule."""
         logger.debug("=" * 70)
@@ -1035,6 +1138,93 @@ class Pert:
         self.constrained_chain_list = []
         self.constrained_chain_set = set()
 
+
+    def clone_for_analysis(self) -> 'Pert':
+        """Return a copy of this Pert suitable for what-if schedule analysis.
+
+        Added to support DACKAR emergent-activity analysis (outage Stage E):
+        provides a clean graph copy for deterministic or Monte-Carlo what-if
+        runs without copying scheduling history or mutating the baseline Pert.
+
+        Compared with copy.deepcopy(pert):
+          - Scheduling state (wait / ongoing / completed / schedule_log /
+            actual_tf / constrained_chain) is initialised fresh rather than
+            copied.  The clone starts as if no run has been executed yet.
+          - Resource, equipment, and location pools are shared by reference
+            (read-only during CPM analysis), avoiding expensive duplication.
+          - The NetworkX graph is rebuilt from the copied forwardDict so that
+            node identity is consistent across all topology structures.
+
+        The caller is responsible for calling resetInfo() + generateInfo() (or
+        only generateInfo() if infoDict is already initialised) after any
+        topology mutations before reading CPM results.
+
+        Returns:
+            A new Pert instance with independent topology and fresh scheduling
+            state, sharing immutable config and resource-pool references.
+        """
+        # Deep copy all topology structures in a single call so that Activity
+        # object identity is preserved across forwardDict, backwardDict,
+        # infoDict, and task_to_activity (they all key/reference the same
+        # Activity instances in the copy).
+        topology = copy.deepcopy({
+            'forwardDict':    self.forwardDict,
+            'backwardDict':   self.backwardDict,
+            'infoDict':       self.infoDict,
+            'task_to_activity': self.task_to_activity,
+        })
+
+        # Build clone without triggering __init__ graph construction
+        clone = object.__new__(Pert)
+
+        # Topology (deep copied — independent from baseline)
+        clone.forwardDict      = topology['forwardDict']
+        clone.backwardDict     = topology['backwardDict']
+        clone.infoDict         = topology['infoDict']
+        clone.task_to_activity = topology['task_to_activity']
+
+        # Rebuild NetworkX graph from copied forwardDict so node identity
+        # matches the copied Activity objects (not the originals)
+        clone.nxgraph = nx.DiGraph(clone.forwardDict)
+
+        # START / END sentinels (locate in copied topology)
+        clone.startActivity = None
+        clone.endActivity   = None
+        for act in clone.forwardDict:
+            if act.name.upper() == 'START':
+                clone.startActivity = act
+            elif act.name.upper() == 'END':
+                clone.endActivity = act
+
+        # Config — shallow copy (scalar / immutable values)
+        clone.startTime             = self.startTime
+        clone.working_hours_per_day = self.working_hours_per_day
+        clone.seed                  = self.seed
+        clone._max_time_factor      = self._max_time_factor
+        clone._list_priority_names  = self._list_priority_names
+        clone.priorities = copy.copy(self.priorities) if self.priorities else None
+
+        # Resource / equipment / location pools — shared reference (read-only
+        # during CPM analysis; no mutation occurs in Stage E what-if runs)
+        clone.resource_pool   = self.resource_pool
+        clone.equipment_pool  = self.equipment_pool
+        clone.location_pool   = self.location_pool
+        clone.outage_data     = self.outage_data
+
+        # Fresh scheduling state — not inherited from the baseline run
+        clone.wait       = list(clone.forwardDict.keys())
+        clone.ongoing    = []
+        clone.completed  = []
+        clone.schedule_log           = []
+        clone.actual_tf              = {}
+        clone.actual_zero_tf_set     = set()
+        clone.constrained_chain_list = []
+        clone.constrained_chain_set  = set()
+
+        # Availability events will be recomputed on demand if scheduling runs
+        clone._availability_events = frozenset()
+
+        return clone
 
     # ========================================================================
     # RESOURCE-CONSTRAINED PROJECT SCHEDULING (RCPSP) METHODS
