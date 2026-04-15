@@ -51,8 +51,18 @@ class Activity:
         else:
             self.childs = childs
 
-        # Location
+        # Lag mapping: {successor_task_id: lag_hours}
+        # Populated by from_json() when successors are given as dicts with a
+        # 'lag_hours' field.  Plain-string successors receive zero lag.
+        self.successor_lags: dict = {}
+
+        # Location — primary single zone (backward-compatible).
         self.location_id = location_id
+        # Multi-zone membership (Option C).  When non-empty, the activity must
+        # simultaneously occupy all listed zones (e.g. a physical room and a
+        # regulatory work-permit zone).  Populated by from_json() from the JSON
+        # 'zone_ids' field; falls back to [location_id] via getZoneIds().
+        self.zone_ids: list = []
 
         # Resources - support both old and new format
         # Old format: simple list (backward compatible)
@@ -66,10 +76,100 @@ class Activity:
         self.required_equipment = required_equipment if required_equipment is not None else []
         # Expected format: [{'equipment_id': 'EQ_CRANE', 'quantity_needed': 1}, ...]
 
+        # Consumable requirements — items permanently depleted when the activity starts.
+        # Expected format: [{'item_id': 'AC_SUIT', 'quantity_needed': 4}, ...]
+        # Structural data — not cleared by reset().
+        self.required_consumables: list = []
+
+        # Plant-system isolation state requirements.
+        # Each entry declares a system ID and the state that system must be in
+        # for this activity to run.  Activities holding the same state on a
+        # system can coexist; activities requiring a different state are blocked
+        # until all current holders complete.
+        # Expected format: [{'system_id': 'VALVE_V1', 'required_state': 'CLOSED'}, ...]
+        # Structural data — not cleared by reset().
+        self.required_system_states: list = []
+
         # Hold point properties (new)
         self.is_hold_point = is_hold_point
         self.hold_point_type = hold_point_type
         self.blocks_tasks = blocks_tasks if blocks_tasks is not None else []
+
+        # Mobilization lead time: hours of advance preparation required before
+        # this activity can start.  When > 0, the scheduler cannot begin the
+        # activity until (last_predecessor_EF + mobilization_lead_hours) has
+        # elapsed, because a vendor specialist or specialist crew must be
+        # called and travel to the site.
+        # The lead time is baked into CPM ES during generateInfo() so every
+        # downstream priority metric (slack, GRPW, etc.) already accounts for it.
+        # It is NOT reset by reset() — it is structural data like duration.
+        self.mobilization_lead_hours: float = 0.0
+
+        # Radiation dose rate for consumable resource tracking.
+        # Represents the dose each assigned worker accumulates per hour on this
+        # task, in mRem/hour.  Zero means no dose exposure (default for most tasks).
+        self.dose_rate_mrem_per_hour: float = 0.0
+
+        # Regulatory time-window constraints (hours from outage start).
+        # window_earliest_start_hours: activity cannot start before this offset.
+        # window_latest_finish_hours:  activity must complete by this offset.
+        # Both are None by default (no window constraint).  A negative window
+        # (latest_finish < earliest_start + duration) is detected by generateInfo()
+        # and flagged as an infeasible window.
+        self.window_earliest_start_hours: float | None = None
+        self.window_latest_finish_hours: float | None = None
+
+        # Buffer type for CCPM proactive robustness buffering.
+        # Set by insert_project_buffer() / insert_feeding_buffers() when this
+        # activity is a scheduler-generated time buffer, not real work.
+        # Values: 'project' (end-of-chain project buffer),
+        #         'feeding' (merge-point feeding buffer), or None (real task).
+        # Buffer activities consume no resources and are excluded from
+        # compute_fitness() criticality metrics.
+        # Structural — not cleared by reset().
+        self.buffer_type: str | None = None
+
+        # WBS group membership for aggregate priority roll-up.
+        # When set, _compute_wbs_slack() uses the minimum slack across all
+        # activities sharing the same wbs_group as the effective scheduling
+        # priority.  This ensures that when any member of a package is on the
+        # system critical path, every member is elevated simultaneously.
+        # None = no WBS grouping; this activity is prioritised solely by its
+        # individual CPM slack.  Structural data — not cleared by reset().
+        self.wbs_group: str | None = None
+
+        # Multi-mode support (MMRCPSP).
+        # Each mode is a dict with keys:
+        #   mode_id (str), duration (float),
+        #   required_resources (list), required_equipment (list),
+        #   and optionally dose_rate_mrem_per_hour (float),
+        #                  mobilization_lead_hours (float).
+        # When non-empty, set_mode(mode_id) writes the named mode's values into
+        # self.duration / self.required_resources / self.required_equipment etc.
+        # When empty the activity has a single implicit mode — all existing code
+        # paths remain unchanged (backward compatible).
+        self.modes: list = []
+        self.selected_mode_id: str | None = None
+
+        # Substitution-resolved skill breakdown set by the scheduler when an
+        # activity is started.  Maps skill_type -> workers_actually_assigned.
+        # None until _update_activity_sets commits the assignment.
+        self._actual_resources: dict | None = None
+
+        # Remaining duration (hours) for in-progress activities at replan time.
+        # Set by _partial_reset(); used by _effective_duration() and
+        # _generate_info_from() to anchor the activity's EF correctly.
+        # None for activities that have never been replanned mid-execution.
+        self._remaining_duration: float | None = None
+
+        # Activity status for replanning.
+        # Tracks where the activity sits in a live or simulated outage:
+        #   'pending'     — not yet started
+        #   'in_progress' — started but not finished
+        #   'completed'   — finished
+        # Set by the scheduler (_update_activity_sets / _update_ongoing_list)
+        # and reset to 'pending' by reset().
+        self.status: str = 'pending'
 
         # Critical path tracking
         self.belongsToCP = False
@@ -108,11 +208,28 @@ class Activity:
             ... }
             >>> activity = Activity.from_json(task_data)
         """
-        return cls(
+        # Parse successors: each entry is either a plain task-ID string or a dict
+        # {"task_id": "T3", "lag_hours": 2.0}.  Both forms are normalised here so
+        # the rest of the code only ever sees a plain list of task-ID strings in
+        # self.childs, while lag information lives in self.successor_lags.
+        raw_successors = task_dict.get('successors', [])
+        childs_list: list = []
+        lag_map: dict = {}
+        for entry in raw_successors:
+            if isinstance(entry, dict):
+                tid = entry['task_id']
+                childs_list.append(tid)
+                lag_h = float(entry.get('lag_hours', 0.0))
+                if lag_h != 0.0:
+                    lag_map[tid] = lag_h
+            else:
+                childs_list.append(str(entry))
+
+        instance = cls(
             name=task_dict['task_id'],
             duration=task_dict['duration'],
             description=task_dict.get('description'),
-            childs=task_dict.get('successors', []),
+            childs=childs_list,
             location_id=task_dict.get('location_id'),
             required_resources=task_dict.get('required_resources', []),
             required_equipment=task_dict.get('required_equipment', []),
@@ -120,6 +237,24 @@ class Activity:
             hold_point_type=task_dict.get('hold_point_type'),
             blocks_tasks=task_dict.get('blocks_tasks', [])
         )
+        instance.successor_lags = lag_map
+        instance.mobilization_lead_hours = float(
+            task_dict.get('mobilization_lead_hours', 0.0)
+        )
+        instance.dose_rate_mrem_per_hour = float(
+            task_dict.get('dose_rate_mrem_per_hour', 0.0)
+        )
+        raw_west = task_dict.get('window_earliest_start_hours')
+        raw_wlf  = task_dict.get('window_latest_finish_hours')
+        instance.window_earliest_start_hours = float(raw_west) if raw_west is not None else None
+        instance.window_latest_finish_hours  = float(raw_wlf)  if raw_wlf  is not None else None
+        raw_modes = task_dict.get('modes', [])
+        instance.modes = list(raw_modes) if raw_modes else []
+        instance.wbs_group = task_dict.get('wbs_group') or None
+        instance.required_consumables    = list(task_dict.get('required_consumables', []))
+        instance.required_system_states  = list(task_dict.get('required_system_states', []))
+        instance.zone_ids = list(task_dict.get('zone_ids', []))
+        return instance
 
     def to_json_dict(self):
         """
@@ -128,18 +263,56 @@ class Activity:
         Returns:
             dict: Dictionary in the standard JSON format for tasks
         """
-        return {
+        # Serialise successors: use plain strings when lag is 0, dicts otherwise.
+        lags = getattr(self, 'successor_lags', {})
+        successors_out = []
+        for tid in self.childs:
+            lag = lags.get(tid, 0.0)
+            if lag:
+                successors_out.append({'task_id': tid, 'lag_hours': lag})
+            else:
+                successors_out.append(tid)
+
+        d = {
             'task_id': self.name,
             'description': self.description,
             'duration': self.duration,
-            'successors': self.childs,
+            'successors': successors_out,
             'location_id': self.location_id,
             'required_resources': self.required_resources,
             'required_equipment': self.required_equipment,
             'is_hold_point': self.is_hold_point,
             'hold_point_type': self.hold_point_type,
-            'blocks_tasks': self.blocks_tasks
+            'blocks_tasks': self.blocks_tasks,
         }
+        lead = getattr(self, 'mobilization_lead_hours', 0.0)
+        if lead:
+            d['mobilization_lead_hours'] = lead
+        dose_rate = getattr(self, 'dose_rate_mrem_per_hour', 0.0)
+        if dose_rate:
+            d['dose_rate_mrem_per_hour'] = dose_rate
+        west = getattr(self, 'window_earliest_start_hours', None)
+        wlf  = getattr(self, 'window_latest_finish_hours',  None)
+        if west is not None:
+            d['window_earliest_start_hours'] = west
+        if wlf is not None:
+            d['window_latest_finish_hours'] = wlf
+        modes = getattr(self, 'modes', [])
+        if modes:
+            d['modes'] = modes
+        wbs = getattr(self, 'wbs_group', None)
+        if wbs is not None:
+            d['wbs_group'] = wbs
+        consumables = getattr(self, 'required_consumables', [])
+        if consumables:
+            d['required_consumables'] = consumables
+        sys_states = getattr(self, 'required_system_states', [])
+        if sys_states:
+            d['required_system_states'] = sys_states
+        zone_ids = getattr(self, 'zone_ids', [])
+        if zone_ids:
+            d['zone_ids'] = zone_ids
+        return d
 
     def printToJson(self):
         """
@@ -244,6 +417,24 @@ class Activity:
         """
         return self.required_equipment
 
+    def getRequiredConsumables(self):
+        """
+        Returns the consumable requirements.
+
+        Returns:
+            list: List of dicts with 'item_id' and 'quantity_needed'
+        """
+        return getattr(self, 'required_consumables', [])
+
+    def getRequiredSystemStates(self):
+        """
+        Returns the plant-system isolation state requirements.
+
+        Returns:
+            list: List of dicts with 'system_id' and 'required_state'
+        """
+        return getattr(self, 'required_system_states', [])
+
     def getLocation(self):
         """
         Returns the location ID where this activity occurs.
@@ -252,6 +443,24 @@ class Activity:
             str or None: Location ID or None if no specific location
         """
         return self.location_id
+
+    def getZoneIds(self) -> list:
+        """
+        Return all zone IDs this activity must occupy simultaneously.
+
+        When ``zone_ids`` is explicitly set (Option C multi-zone), that list is
+        returned as-is.  Otherwise falls back to ``[location_id]`` for full
+        backward compatibility with single-location activities.
+
+        Returns:
+            list: Ordered list of zone ID strings, or ``[]`` if the activity
+                  has no zone constraints at all.
+        """
+        if self.zone_ids:
+            return list(self.zone_ids)
+        if self.location_id:
+            return [self.location_id]
+        return []
 
     def isHoldPoint(self):
         """
@@ -289,6 +498,56 @@ class Activity:
         """
         self.duration = copy.deepcopy(newDuration)
 
+
+    def set_mode(self, mode_id: str) -> None:
+        """Apply one of the activity's pre-defined execution modes.
+
+        Writes the named mode's ``duration``, ``required_resources``,
+        ``required_equipment``, and (if present) ``dose_rate_mrem_per_hour``
+        and ``mobilization_lead_hours`` into the activity's live fields.
+        The caller is responsible for calling ``Pert.generateInfo()`` (or
+        ``Pert.set_modes()``, which does it automatically) so that CPM values
+        reflect the new duration.
+
+        Args:
+            mode_id: Identifier of the mode to activate.
+
+        Raises:
+            ValueError: If the activity has no modes defined or if mode_id is
+                        not found among the defined modes.
+        """
+        if not self.modes:
+            raise ValueError(
+                f"set_mode: activity '{self.name}' has no modes defined. "
+                "Add a 'modes' array to its JSON definition."
+            )
+        mode = next((m for m in self.modes if m['mode_id'] == mode_id), None)
+        if mode is None:
+            available = [m['mode_id'] for m in self.modes]
+            raise ValueError(
+                f"set_mode: mode '{mode_id}' not found for activity '{self.name}'. "
+                f"Available modes: {available}"
+            )
+        self.duration             = float(mode['duration'])
+        self.required_resources   = list(mode.get('required_resources', []))
+        self.required_equipment   = list(mode.get('required_equipment', []))
+        # Optional per-mode overrides for dose and mobilization lead
+        if 'dose_rate_mrem_per_hour' in mode:
+            self.dose_rate_mrem_per_hour = float(mode['dose_rate_mrem_per_hour'])
+        if 'mobilization_lead_hours' in mode:
+            self.mobilization_lead_hours = float(mode['mobilization_lead_hours'])
+        if 'required_consumables' in mode:
+            self.required_consumables = list(mode['required_consumables'])
+        if 'required_system_states' in mode:
+            self.required_system_states = list(mode['required_system_states'])
+        self.selected_mode_id = mode_id
+
+    def get_available_modes(self) -> list:
+        """Return the list of mode IDs defined for this activity.
+
+        Returns an empty list for single-mode (legacy) activities.
+        """
+        return [m['mode_id'] for m in self.modes]
 
     def addDelay(self, hours: float = 1.0):
         """
@@ -400,3 +659,6 @@ class Activity:
         self.endTime = None
         self.delay = 0.0
         self.belongsToCP = False
+        self.status = 'pending'
+        self._actual_resources = None
+        self._remaining_duration = None

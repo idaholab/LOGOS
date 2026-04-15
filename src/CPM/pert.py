@@ -72,6 +72,11 @@ class Pert:
 
         self.task_to_activity = {} # dictionary in the form: {act_ID: act_instance}
 
+        # Lag table: {(predecessor_Activity, successor_Activity): lag_hours}
+        # Populated by _build_graph_from_outage_data().  Zero-lag edges are
+        # absent (treat missing key as 0.0).
+        self.lag_dict: dict = {}
+
         # Store outage data components
         self.outage_data = outage_data
         if outage_data:
@@ -86,6 +91,41 @@ class Pert:
             self.location_pool = None
             self.startTime = None
             self.working_hours_per_day = 24
+
+        # Shift calendar: hour-of-day at which each work shift begins.
+        # Default 0 keeps 24/7 behaviour unchanged when working_hours_per_day=24.
+        # For partial-day operations (e.g. working_hours_per_day=12, shift_start_hour=6)
+        # activities are prevented from starting during off-shift hours and the
+        # event queue is seeded with shift-start boundaries.
+        self.shift_start_hour: int = getattr(outage_data, 'shift_start_hour', 0) if outage_data else 0
+
+        # Dose budget trackers: one DoseBudgetTracker per consumable skill type.
+        # Empty dict when no resource pool is attached or when no resources are
+        # typed as 'consumable' — zero cost to existing code paths.
+        self.dose_trackers: dict = (
+            self.resource_pool.build_dose_trackers()
+            if self.resource_pool else {}
+        )
+
+        # ConsumablePool: scalar-inventory items permanently depleted on start
+        # (AC suits, gaskets, nitrogen cylinders, etc.).  None when outage_data
+        # carries no consumable pool — all `if self.consumable_pool:` guards
+        # make this safe.
+        self.consumable_pool = (
+            getattr(outage_data, 'consumable_pool', None)
+            if outage_data else None
+        )
+
+        # SystemStatePool: shared-state locks for plant systems.
+        # Activities requiring the same state on a system can coexist;
+        # activities requiring a different state are blocked until all
+        # current holders complete.  None when outage_data carries no
+        # system state pool — all `if self.system_state_pool:` guards make
+        # this safe.
+        self.system_state_pool = (
+            getattr(outage_data, 'system_state_pool', None)
+            if outage_data else None
+        )
 
         # Priority values for activities
         self.priorities = priorities
@@ -120,6 +160,8 @@ class Pert:
             self._precompute_availability_events()
 
         self.schedule_log = []
+        self._last_schedule_result: dict = {}
+        self._window_violations: list = []
 
     @classmethod
     def from_json_file(cls, filepath: str, schema_path: str, priorities: Dict = None, seed: int = 2506178):
@@ -168,13 +210,19 @@ class Pert:
             activity = Activity.from_json(task_dict)
             self.task_to_activity[task_dict['task_id']] = activity
 
-        # Build forward dictionary (activity -> successors)
+        # Build forward dictionary (activity -> successors) and populate lag_dict.
+        # Each successor entry is normalised by Activity.from_json() to a plain
+        # task-ID string; lag information is stored in activity.successor_lags.
         for task_dict in self.outage_data.tasks:
             activity = self.task_to_activity[task_dict['task_id']]
             successors = []
-            for succ_id in task_dict.get('successors', []):
+            for succ_id in activity.childs:   # already normalised by from_json
                 if succ_id in self.task_to_activity:
-                    successors.append(self.task_to_activity[succ_id])
+                    succ_act = self.task_to_activity[succ_id]
+                    successors.append(succ_act)
+                    lag_h = activity.successor_lags.get(succ_id, 0.0)
+                    if lag_h:
+                        self.lag_dict[(activity, succ_act)] = lag_h
             self.forwardDict[activity] = successors
 
         # Handle hold points - add implicit dependencies (guard cycles)
@@ -323,6 +371,7 @@ class Pert:
                 "ls": 0,
                 "lf": math.inf,
                 "slack": 0,
+                "wbs_slack": 0,
                 "mts":0,
                 "mtp":0,
                 "grpw":0,
@@ -330,7 +379,8 @@ class Pert:
                 "rr":0,
                 "avgrr":0,
                 "maxrr":0,
-                "minrr":0
+                "minrr":0,
+                "window_infeasible": False,
             }
 
     def returnGraph(self):
@@ -471,7 +521,12 @@ class Pert:
             if v < 0:
                 raise ValueError(f"Duration must be non-negative, got {k!r}: {v}")
 
-        # Step 1: update duration on each Activity object
+        # Step 1: update duration on each Activity object.
+        # Pre-sync task_to_activity for graph-built Pert objects that don't
+        # populate it during construction (same pattern as set_modes).
+        for existing in self.forwardDict:
+            self.task_to_activity.setdefault(existing.name, existing)
+
         for task_id, duration in new_durations.items():
             if task_id not in self.task_to_activity:
                 raise KeyError(f"set_durations: task_id '{task_id}' not found in schedule")
@@ -487,6 +542,54 @@ class Pert:
             "set_durations: updated %d activities and recomputed CPM. "
             "New project duration = %.1f h",
             len(new_durations),
+            self.getProjectDuration()
+        )
+
+
+    def set_modes(self, mode_assignments: Dict[str, str]):
+        """
+        Apply execution modes to activities and recompute all CPM values.
+
+        Each entry in *mode_assignments* maps a ``task_id`` to the ``mode_id``
+        to activate for that activity.  Calling this is equivalent to calling
+        ``activity.set_mode(mode_id)`` for each entry and then running
+        ``_sync_infodict_durations()`` + ``generateInfo()`` — which is exactly
+        what :meth:`set_durations` does after applying durations.
+
+        This is the GP entry point for Multi-Mode RCPSP: the GP evolves a mode
+        assignment vector, passes it here, then calls
+        ``calculateScheduleWithResources()`` and ``compute_fitness()`` to
+        evaluate the schedule.
+
+        Args:
+            mode_assignments (dict): ``{task_id: mode_id}`` pairs.
+
+        Raises:
+            ValueError: If *mode_assignments* is not a dict, or if
+                ``activity.set_mode()`` raises (activity has no modes or
+                mode_id is not found).
+            KeyError: If a task_id is not found.
+        """
+        if not isinstance(mode_assignments, dict):
+            raise ValueError("mode_assignments must be a dict of {task_id: mode_id}.")
+
+        # Graph-built Pert objects don't populate task_to_activity; sync it first.
+        for existing in self.forwardDict:
+            self.task_to_activity.setdefault(existing.name, existing)
+
+        for task_id, mode_id in mode_assignments.items():
+            if task_id not in self.task_to_activity:
+                raise KeyError(f"set_modes: task_id '{task_id}' not found in schedule")
+            self.task_to_activity[task_id].set_mode(mode_id)
+
+        # Push updated durations into infoDict and recompute CPM
+        self._sync_infodict_durations()
+        self.generateInfo()
+
+        logger.debug(
+            "set_modes: applied %d mode assignments and recomputed CPM. "
+            "New project duration = %.1f h",
+            len(mode_assignments),
             self.getProjectDuration()
         )
 
@@ -536,14 +639,28 @@ class Pert:
             self.infoDict[a]["ef"] = 0.0
 
         for src in sources:
-            self.infoDict[src]["es"] = 0.0
-            self.infoDict[src]["ef"] = self.infoDict[src]["duration"]
+            # Source activities may themselves carry a mobilization lead time.
+            # They have no predecessors so the lead is counted from t=0.
+            src_lead = getattr(src, 'mobilization_lead_hours', 0.0)
+            self.infoDict[src]["es"] = src_lead
+            self.infoDict[src]["ef"] = src_lead + self.infoDict[src]["duration"]
 
         for u in topo:
             u_ef = self.infoDict[u]["ef"]
             for v in self.forwardDict.get(u, []):
-                if u_ef > self.infoDict[v]["es"]:
-                    self.infoDict[v]["es"] = u_ef
+                # Apply finish-to-start lag (default 0) PLUS any mobilization
+                # lead time on the successor.  The lead is the advance-notice
+                # period required before v can start: once u finishes, v cannot
+                # begin until lag + mobilization_lead_hours have elapsed.
+                lag  = self.lag_dict.get((u, v), 0.0)
+                lead = getattr(v, 'mobilization_lead_hours', 0.0)
+                earliest = u_ef + lag + lead
+                # Use >= so that when a zero-duration source (e.g. START) has
+                # EF=0 and a successor initialised to ES=0, we still propagate
+                # and set EF = ES + duration correctly.  A strict > would
+                # silently skip this update, leaving EF=0 for those activities.
+                if earliest >= self.infoDict[v]["es"]:
+                    self.infoDict[v]["es"] = earliest
                     self.infoDict[v]["ef"] = self.infoDict[v]["es"] + self.infoDict[v]["duration"]
 
         # 3) Project duration = maximum EF across all sinks
@@ -557,8 +674,18 @@ class Pert:
 
         for u in reversed(topo):
             for v in self.forwardDict.get(u, []):
-                if self.infoDict[u]["lf"] > self.infoDict[v]["ls"]:
-                    self.infoDict[u]["lf"] = self.infoDict[v]["ls"]
+                # LF(u) must be no later than LS(v) − lag − mobilization_lead.
+                # The mobilization lead shifts v's effective start to the right,
+                # so u's latest finish must also shift left by the same amount.
+                lag  = self.lag_dict.get((u, v), 0.0)
+                lead = getattr(v, 'mobilization_lead_hours', 0.0)
+                constrained_lf = self.infoDict[v]["ls"] - lag - lead
+                # Strict > is correct here: lf is already initialised to
+                # project_duration for every activity before this loop runs,
+                # so we only need to tighten it when a successor imposes a
+                # stricter (smaller) deadline.
+                if self.infoDict[u]["lf"] > constrained_lf:
+                    self.infoDict[u]["lf"] = constrained_lf
                     self.infoDict[u]["ls"] = self.infoDict[u]["lf"] - self.infoDict[u]["duration"]
 
         # 5) Slack
@@ -567,32 +694,98 @@ class Pert:
         # 6) Isolated activities
         self.generateInfoForIsolated()
 
+        # 5b) Time-window post-processing.
+        # Applied after the standard CPM pass so that window constraints further
+        # restrict the ES/LF derived from network topology.  Infeasible windows
+        # (window width < duration) are logged as warnings; the infoDict value
+        # 'window_infeasible' is set True so callers can inspect them.
+        self._apply_time_windows()
+
         # 7-9) Priority metrics
-        self.calculate_total_successors()
-        self.calculate_total_predecessors()
-        self.calculate_greatest_rank_position_weight()
+        self.calculate_total_successors(topo=topo)
+        self.calculate_total_predecessors(topo=topo)
+        self.calculate_greatest_rank_position_weight(topo=topo)
         self.calculate_greatest_resource_demand()
         self.calculate_resource_requirement()
         self.calculate_gp_rules()
+
+        # 10) WBS aggregate float roll-up
+        self._compute_wbs_slack()
 # ========================================
-    def calculate_total_successors(self):
-        for a in self.forwardDict.keys():
-            self.infoDict[a]['mts'] = len(nx.descendants(self.nxgraph, a))
+    def calculate_total_successors(self, topo: list | None = None):
+        """Compute MTS (number of reachable successors) for every activity.
 
-    def calculate_total_predecessors(self):
-        for a in self.backwardDict.keys():
-            self.infoDict[a]['mtp'] = len(nx.ancestors(self.nxgraph, a))
+        When *topo* is supplied (the topological order already computed by
+        ``generateInfo``), a single O(V+E) backward-DP pass is used instead
+        of calling ``nx.descendants()`` once per activity (O(n²) total).
+        Without *topo* the old O(n²) path is kept for backward compatibility
+        with direct callers.
 
-    def calculate_greatest_rank_position_weight(self):
-        for a in self.forwardDict.keys():
-            pred = nx.ancestors(self.nxgraph, a)
-            self.infoDict[a]['grpw'] = self.infoDict[a]['duration'] + sum(self.infoDict[b]['duration'] for b in pred)
+        Note: the DP counts successor paths rather than unique reachable nodes,
+        so it over-counts when successors share common descendants.  This is
+        acceptable for a scheduling priority heuristic.
+        """
+        if topo is not None:
+            # Backward pass: mts[u] = Σ (1 + mts[v]) for each direct successor v
+            mts: dict = {a: 0 for a in self.forwardDict}
+            for u in reversed(topo):
+                for v in self.forwardDict.get(u, []):
+                    mts[u] += 1 + mts.get(v, 0)
+            for a in self.forwardDict:
+                self.infoDict[a]['mts'] = mts[a]
+        else:
+            for a in self.forwardDict.keys():
+                self.infoDict[a]['mts'] = len(nx.descendants(self.nxgraph, a))
+
+    def calculate_total_predecessors(self, topo: list | None = None):
+        """Compute MTP (number of reachable predecessors) for every activity.
+
+        When *topo* is supplied, a single O(V+E) forward-DP pass is used.
+        Without *topo* the old O(n²) path is kept for backward compatibility.
+
+        Note: same path-count approximation as ``calculate_total_successors``.
+        """
+        if topo is not None:
+            # Forward pass: mtp[v] = Σ (1 + mtp[u]) for each direct predecessor u
+            mtp: dict = {a: 0 for a in self.forwardDict}
+            for u in topo:
+                for v in self.forwardDict.get(u, []):
+                    mtp[v] = mtp.get(v, 0) + 1 + mtp[u]
+            for a in self.forwardDict:
+                self.infoDict[a]['mtp'] = mtp[a]
+        else:
+            for a in self.backwardDict.keys():
+                self.infoDict[a]['mtp'] = len(nx.ancestors(self.nxgraph, a))
+
+    def calculate_greatest_rank_position_weight(self, topo: list | None = None):
+        """Compute GRPW = duration(a) + Σ duration(all ancestors) for each activity.
+
+        When *topo* is supplied, a single O(V+E) forward-DP pass accumulates
+        the predecessor duration sum without calling ``nx.ancestors()`` per
+        activity.  Without *topo* the old O(n²) path is kept for backward
+        compatibility.
+        """
+        if topo is not None:
+            # grpw_anc[v] = sum of durations of all predecessors of v (path-weight
+            # approximation; over-counts shared ancestors in DAGs with merges).
+            grpw_anc: dict = {a: 0.0 for a in self.forwardDict}
+            for u in topo:
+                u_dur = self.infoDict[u]['duration']
+                for v in self.forwardDict.get(u, []):
+                    # v inherits u's accumulated predecessor weight plus u's own duration
+                    grpw_anc[v] = grpw_anc.get(v, 0.0) + u_dur + grpw_anc[u]
+            for a in self.forwardDict:
+                self.infoDict[a]['grpw'] = self.infoDict[a]['duration'] + grpw_anc[a]
+        else:
+            for a in self.forwardDict.keys():
+                pred = nx.ancestors(self.nxgraph, a)
+                self.infoDict[a]['grpw'] = self.infoDict[a]['duration'] + sum(self.infoDict[b]['duration'] for b in pred)
 
     def calculate_greatest_resource_demand(self):
         for a in self.forwardDict.keys():
             res = a.getRequiredResources() # list of dict
             equip = a.getRequiredEquipment() # list of dict
-            loc = a.getLocation() # str
+            zone_ids = a.getZoneIds()
             dur = self.infoDict[a]['duration']
             grd = 0
             # grd = dur
@@ -600,33 +793,38 @@ class Pert:
                 grd += sum(r['crew_count'] for r in res) * dur
             if equip:
                 grd += sum(e['quantity_needed'] for e in equip) * dur
-            if loc is not None: # Assume only one location
-                grd += 1. * dur
+            if zone_ids:
+                grd += len(zone_ids) * dur
             self.infoDict[a]['grd'] = grd
 
     def calculate_resource_requirement(self):
         for a in self.forwardDict.keys():
             res = a.getRequiredResources()
             eq  = a.getRequiredEquipment()
-            loc = a.getLocation()
+            zone_ids = a.getZoneIds()
 
             skills = self.resource_pool.get_all_skills() if self.resource_pool else []
             equips = self.equipment_pool.get_all_equipment_ids() if self.equipment_pool else []
             locs   = self.location_pool.get_all_location_ids() if self.location_pool else []
             rr = dict.fromkeys(skills + equips + locs, 0.0)  # default 0 not None
 
-            for r in res:
-                skill_type, crew_count = r['skill_type'], r['crew_count']
-                max_avail = self.resource_pool.resources[skill_type].get_max_availability()  # ← 'resources' not 'resource'
-                rr[skill_type] = crew_count / max_avail if max_avail != 0 else 0.0
+            if self.resource_pool:
+                for r in res:
+                    skill_type, crew_count = r['skill_type'], r['crew_count']
+                    if skill_type in self.resource_pool.resources:
+                        max_avail = self.resource_pool.resources[skill_type].get_max_availability()
+                        rr[skill_type] = crew_count / max_avail if max_avail != 0 else 0.0
 
-            for e in eq:
-                e_id, quant = e['equipment_id'], e['quantity_needed']
-                max_avail = self.equipment_pool.equipment[e_id].get_max_availability()
-                rr[e_id] = quant / max_avail if max_avail != 0 else 0.0
+            if self.equipment_pool:
+                for e in eq:
+                    e_id, quant = e['equipment_id'], e['quantity_needed']
+                    if e_id in self.equipment_pool.equipment:
+                        max_avail = self.equipment_pool.equipment[e_id].get_max_availability()
+                        rr[e_id] = quant / max_avail if max_avail != 0 else 0.0
 
-            if loc is not None:
-                rr[loc] = 1.0
+            for zone_id in zone_ids:
+                if zone_id in rr:
+                    rr[zone_id] = 1.0
 
             rr_val      = np.asarray(list(rr.values()), dtype=float)
             num_res     = len(rr_val)
@@ -639,27 +837,38 @@ class Pert:
 
 # (ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, MinRReq)
     def calculate_gp_rules(self):
-        max_es = max([self.infoDict[a]['es'] for a in self.forwardDict.keys()])
-        max_ef = max([self.infoDict[a]['ef'] for a in self.forwardDict.keys()])
-        max_ls = max([self.infoDict[a]['ls'] for a in self.forwardDict.keys()])
-        max_lf = max([self.infoDict[a]['lf'] for a in self.forwardDict.keys()])
+        max_es  = max([self.infoDict[a]['es']  for a in self.forwardDict.keys()])
+        max_ef  = max([self.infoDict[a]['ef']  for a in self.forwardDict.keys()])
+        max_ls  = max([self.infoDict[a]['ls']  for a in self.forwardDict.keys()])
+        max_lf  = max([self.infoDict[a]['lf']  for a in self.forwardDict.keys()
+                        if math.isfinite(self.infoDict[a]['lf'])], default=0.0)
         max_mtp = max([self.infoDict[a]['mtp'] for a in self.forwardDict.keys()])
         max_mts = max([self.infoDict[a]['mts'] for a in self.forwardDict.keys()])
 
+        # Guard against zero denominators (trivial or single-activity networks)
+        safe_max_es  = max_es  if max_es  != 0.0 else 1.0
+        safe_max_ef  = max_ef  if max_ef  != 0.0 else 1.0
+        safe_max_ls  = max_ls  if max_ls  != 0.0 else 1.0
+        safe_max_lf  = max_lf  if max_lf  != 0.0 else 1.0
+        safe_max_mtp = max_mtp if max_mtp != 0   else 1
+        safe_max_mts = max_mts if max_mts != 0   else 1
+
         for a in self.forwardDict.keys():
+            lf_val = self.infoDict[a]['lf']
+            lf_norm = (lf_val / safe_max_lf) if math.isfinite(lf_val) else 1.0
             for key, func in CUSTOM_PRIORITY_FUNCS.items():
                 self.infoDict[a][key] = func(
-                    self.infoDict[a]['es']/max_es,
-                    self.infoDict[a]['ef']/max_ef,
-                    self.infoDict[a]['ls']/max_ls,
-                    self.infoDict[a]['lf']/max_lf,
-                    self.infoDict[a]['mtp']/max_mtp,
-                    self.infoDict[a]['mts']/max_mts,
+                    self.infoDict[a]['es']  / safe_max_es,
+                    self.infoDict[a]['ef']  / safe_max_ef,
+                    self.infoDict[a]['ls']  / safe_max_ls,
+                    lf_norm,
+                    self.infoDict[a]['mtp'] / safe_max_mtp,
+                    self.infoDict[a]['mts'] / safe_max_mts,
                     self.infoDict[a]['rr'],
                     self.infoDict[a]['avgrr'],
                     self.infoDict[a]['maxrr'],
-                    self.infoDict[a]['minrr']
-                    )
+                    self.infoDict[a]['minrr'],
+                )
 
 #=========================================
 
@@ -753,6 +962,115 @@ class Pert:
             if self.backwardDict[activity] != [] and activity in isolated:
                 isolated.remove(activity)
         return isolated
+
+    def _apply_time_windows(self) -> None:
+        """
+        Post-process CPM ES/EF/LS/LF/slack to incorporate regulatory
+        time-window constraints stored on each Activity.
+
+        Time windows are expressed as hours from outage start:
+            window_earliest_start_hours : activity cannot start before this offset
+            window_latest_finish_hours  : activity must complete by this offset
+
+        Effect on infoDict
+        ------------------
+        * ES is tightened:  ES = max(CPM_ES, window_earliest_start_hours)
+          EF is updated:    EF = ES + duration
+        * LF is tightened:  LF = min(CPM_LF, window_latest_finish_hours)
+          LS is updated:    LS = LF - duration
+        * Slack is recomputed: slack = LS - ES
+        * 'window_infeasible' key is set True when slack < 0 (window narrower
+          than activity duration) and a WARNING is logged.
+
+        These adjustments are local to the windowed activity; they do NOT
+        propagate through the network in this iteration (upstream/downstream
+        CPM values are unchanged).  Full window-propagating CPM is deferred.
+
+        Activities without window fields (both None) are untouched.
+        """
+        for act in self.forwardDict:
+            west = getattr(act, 'window_earliest_start_hours', None)
+            wlf  = getattr(act, 'window_latest_finish_hours',  None)
+
+            if west is None and wlf is None:
+                self.infoDict[act]['window_infeasible'] = False
+                continue
+
+            info = self.infoDict[act]
+            dur  = info['duration']
+
+            if west is not None:
+                new_es = max(info['es'], float(west))
+                info['es'] = new_es
+                info['ef'] = new_es + dur
+
+            if wlf is not None:
+                new_lf = min(info['lf'], float(wlf))
+                info['lf'] = new_lf
+                info['ls'] = new_lf - dur
+
+            info['slack'] = info['ls'] - info['es']
+
+            infeasible = info['slack'] < 0.0
+            info['window_infeasible'] = infeasible
+            if infeasible:
+                logger.warning(
+                    "Time-window infeasibility on '%s': "
+                    "window [%.1f, %.1f] h is narrower than duration %.1f h "
+                    "(slack=%.2f h). "
+                    "Activity cannot meet its regulatory window.",
+                    act.name,
+                    west if west is not None else info['es'],
+                    wlf  if wlf  is not None else info['lf'],
+                    dur,
+                    info['slack'],
+                )
+
+    def _compute_wbs_slack(self) -> None:
+        """Compute WBS-level aggregate float and write it into ``infoDict``.
+
+        For each ``wbs_group``, the *group minimum slack* is the minimum
+        ``slack`` value across all activities that share the same group label.
+        Every member's ``infoDict['wbs_slack']`` is set to that minimum.
+
+        Activities with no ``wbs_group`` (or ``wbs_group = None``) receive
+        ``wbs_slack = slack`` (their own individual float), so the rest of the
+        scheduling logic behaves identically to before for ungrouped tasks.
+
+        **Effect on scheduling priority:**
+
+        When ``_select_candidate_activities`` evaluates a task's weight it uses
+        ``min(slack, wbs_slack)`` — whichever is tighter.  If even one task in
+        a WBS package has zero float, every member of the package gets an
+        effective slack of 0 and is elevated to maximum priority
+        simultaneously, preventing the scheduler from idling cross-trained
+        workers while a system's critical sub-tasks stall.
+
+        Called at the end of both ``generateInfo()`` and
+        ``_generate_info_from()`` so that replanning also respects WBS groups.
+        """
+        from collections import defaultdict
+
+        # Collect group members
+        groups: dict = defaultdict(list)
+        for act in self.forwardDict:
+            group = getattr(act, 'wbs_group', None)
+            if group:
+                groups[group].append(act)
+
+        # Min slack per group
+        group_min: dict = {
+            group: min(self.infoDict[m]['slack'] for m in members)
+            for group, members in groups.items()
+        }
+
+        # Write wbs_slack for every activity
+        for act in self.forwardDict:
+            group = getattr(act, 'wbs_group', None)
+            if group and group in group_min:
+                self.infoDict[act]['wbs_slack'] = group_min[group]
+            else:
+                self.infoDict[act]['wbs_slack'] = self.infoDict[act]['slack']
 
     def _is_zero(self, x: float, tol: float = 1e-6) -> bool:
         return abs(x) <= tol
@@ -945,15 +1263,25 @@ class Pert:
                     self.backwardDict[node] = []
                 self.backwardDict[node].append(activity)
 
-        # Initialize info
+        # resetInfo() (called immediately below) will fully initialise all
+        # infoDict keys for every activity in forwardDict — including the new
+        # one just added above.  The explicit assignment here is therefore not
+        # strictly necessary, but it is kept as a defensive guard so that any
+        # code path that reads infoDict between addActivity() and resetInfo()
+        # sees a complete entry rather than a KeyError.  Keys must match those
+        # written by resetInfo() exactly.
         self.infoDict[activity] = {
             "duration": activity.duration,
-            "es": 0,
-            "ef": 0,
-            "ls": 0,
-            "lf": math.inf,
-            "slack": 0
+            "es": 0, "ef": 0, "ls": 0, "lf": math.inf, "slack": 0,
+            "wbs_slack": 0,
+            "mts": 0, "mtp": 0,
+            "grpw": 0, "grd": 0,
+            "rr": 0, "avgrr": 0, "maxrr": 0, "minrr": 0,
         }
+
+        # Rebuild the NetworkX graph so that calculateInfo()'s calls to
+        # nx.descendants() / nx.ancestors() see the updated topology.
+        self.nxgraph = nx.DiGraph(self.forwardDict)
 
         # Recalculate
         self.resetInfo()
@@ -1128,6 +1456,21 @@ class Pert:
         self.ongoing = []
         self.completed = []
 
+        # Reset consumable dose budgets so repeated scheduling runs start clean
+        for tracker in self.dose_trackers.values():
+            tracker.reset()
+
+        # Reset consumable inventory so repeated scheduling runs start clean
+        if self.consumable_pool:
+            self.consumable_pool.reset()
+
+        # Reset system state locks so repeated scheduling runs start clean
+        if self.system_state_pool:
+            self.system_state_pool.reset()
+
+        # Reset time-window violation log
+        self._window_violations: list = []
+
         # Reset step-by-step log
         self.schedule_log = []
 
@@ -1136,6 +1479,644 @@ class Pert:
         self.actual_zero_tf_set = set()
         self.constrained_chain_list = []
         self.constrained_chain_set = set()
+
+    # ------------------------------------------------------------------
+    # REAL-TIME REPLANNING (Challenge 4)
+    # ------------------------------------------------------------------
+
+    def _partial_reset(self, current_time_hours: float) -> None:
+        """Prepare scheduling state for a mid-outage replan.
+
+        Classifies every activity by its actual timing relative to
+        ``current_time_hours``:
+
+        * **completed** (endTime ≤ current_abs): frozen — start/end/delay/
+          belongsToCP preserved; dose re-consumed so tracker state is correct.
+        * **in_progress** (startTime ≤ current_abs < endTime): frozen start;
+          remaining duration stored in ``act._remaining_duration`` for the
+          partial CPM pass; dose re-consumed.
+        * **pending** (not yet started): full ``activity.reset()`` — start/end/
+          delay/belongsToCP cleared; added to ``self.wait``.
+
+        Dose trackers are reset at the top and then re-consumed for frozen
+        activities, so consumable budgets reflect the pre-replan expenditure.
+
+        Window violations accumulated before the replan are **not** cleared —
+        they are historical facts.  New violations during the rescheduled
+        portion are appended on top.
+
+        Args:
+            current_time_hours: Hours from outage start at which the replan
+                                 is triggered.
+        """
+        current_abs = self.startTime + timedelta(hours=current_time_hours)
+
+        # Rebuild Pert-level scheduling queues from scratch
+        self.wait = []
+        self.ongoing = []
+        self.completed = []
+        self.schedule_log = []
+        self.actual_tf = {}
+        self.actual_zero_tf_set = set()
+        self.constrained_chain_list = []
+        self.constrained_chain_set = set()
+
+        # Reset consumable dose trackers; replay for frozen activities below
+        for tracker in self.dose_trackers.values():
+            tracker.reset()
+
+        # Reset consumable inventory; replay for frozen activities below.
+        # Apply restocks up to current_time_hours first so deliveries that
+        # arrived before the replan point are accounted for.
+        if self.consumable_pool:
+            self.consumable_pool.reset()
+            self.consumable_pool.apply_restocks_up_to(current_time_hours)
+
+        # Reset system-state locks; re-acquire below for in-progress activities.
+        # Completed activities have already released their locks normally, so
+        # only in-progress activities (still holding state at replan time) need
+        # re-acquisition.
+        if self.system_state_pool:
+            self.system_state_pool.reset()
+
+        for act in self.forwardDict.keys():
+            st, et = act.returnAbsTimes()
+
+            if et is not None and et <= current_abs:
+                # ── Completed before replan time ─────────────────────────
+                act.status = 'completed'
+                self.completed.append(act)
+                # Re-commit dose so budget reflects pre-replan consumption
+                if self.dose_trackers:
+                    dose_rate = getattr(act, 'dose_rate_mrem_per_hour', 0.0)
+                    if dose_rate > 0.0:
+                        eff = max(0.0, act.duration)
+                        actual_res = getattr(act, '_actual_resources', None)
+                        if actual_res is not None:
+                            for skill, workers in actual_res.items():
+                                tracker = self.dose_trackers.get(skill)
+                                if tracker:
+                                    tracker.consume(dose_rate, workers, eff)
+                        else:
+                            for req in act.getRequiredResources():
+                                tracker = self.dose_trackers.get(req['skill_type'])
+                                if tracker:
+                                    tracker.consume(dose_rate, req['crew_count'], eff)
+                # Re-consume completed activity's consumables
+                if self.consumable_pool:
+                    for req in act.getRequiredConsumables():
+                        self.consumable_pool.consume(req['item_id'],
+                                                     float(req['quantity_needed']))
+
+            elif st is not None and st <= current_abs:
+                # ── In progress at replan time ───────────────────────────
+                act.status = 'in_progress'
+                remaining = (
+                    (et - current_abs).total_seconds() / 3600.0
+                    if et is not None else act.duration
+                )
+                act._remaining_duration = max(0.0, remaining)
+                self.ongoing.append(act)
+                # Re-commit dose (committed when task started; still consumed).
+                # Use act.duration (full) — _effective_duration returns _remaining_duration
+                # for in-progress activities, which would under-charge the dose budget.
+                # B3: prefer _actual_resources over declared crew_count so the charged
+                # worker count matches the assignment that was actually made.
+                if self.dose_trackers:
+                    dose_rate = getattr(act, 'dose_rate_mrem_per_hour', 0.0)
+                    if dose_rate > 0.0:
+                        eff = max(0.0, act.duration)
+                        actual_res = getattr(act, '_actual_resources', None)
+                        if actual_res is not None:
+                            for skill, workers in actual_res.items():
+                                tracker = self.dose_trackers.get(skill)
+                                if tracker:
+                                    tracker.consume(dose_rate, workers, eff)
+                        else:
+                            for req in act.getRequiredResources():
+                                tracker = self.dose_trackers.get(req['skill_type'])
+                                if tracker:
+                                    tracker.consume(dose_rate, req['crew_count'], eff)
+                # Re-consume in-progress activity's consumables (deducted at start)
+                if self.consumable_pool:
+                    for req in act.getRequiredConsumables():
+                        self.consumable_pool.consume(req['item_id'],
+                                                     float(req['quantity_needed']))
+                # Re-acquire system state locks for in-progress activities;
+                # they are still holding their locks at replan time.
+                if self.system_state_pool:
+                    for req in act.getRequiredSystemStates():
+                        self.system_state_pool.acquire(
+                            req['system_id'], req['required_state']
+                        )
+
+            else:
+                # ── Pending: not yet started ─────────────────────────────
+                act.reset()         # clears startTime/endTime/delay/belongsToCP/status
+                self.wait.append(act)
+
+        logger.info(
+            "_partial_reset at t=%.1fh: completed=%d in_progress=%d pending=%d",
+            current_time_hours,
+            len(self.completed), len(self.ongoing), len(self.wait),
+        )
+
+    def _inject_activities(self, new_activities: list) -> None:
+        """Insert new Activity objects into the live graph before replanning.
+
+        Each new activity's ``childs`` attribute lists successor task IDs
+        (existing or other newly injected activities).  Predecessor wiring from
+        *existing* activities to new ones must be set up by the caller before
+        calling this method (add the new activity's name to the relevant
+        existing activities' ``childs`` lists and update ``forwardDict``).
+
+        After injection:
+        * All new activities are registered in ``task_to_activity``.
+        * ``forwardDict`` is extended.
+        * ``backwardDict``, ``nxgraph``, and ``infoDict`` are rebuilt from
+          scratch via ``resetInitialGraph()``.  Frozen scheduling state is
+          preserved because it lives on the Activity objects themselves, not
+          in these structural dicts.
+
+        Args:
+            new_activities: List of Activity objects to inject.  Activities
+                            whose names already exist in the graph are skipped
+                            with a warning.
+        """
+        # Ensure task_to_activity is complete for graph-built Pert objects
+        # (graph= constructor does not populate this dict; injection needs it
+        # to resolve successor names that belong to existing activities).
+        for existing in self.forwardDict:
+            self.task_to_activity.setdefault(existing.name, existing)
+
+        for act in new_activities:
+            if act.name in self.task_to_activity:
+                logger.warning(
+                    "inject_activities: task ID '%s' already in graph — skipping.",
+                    act.name,
+                )
+                continue
+
+            self.task_to_activity[act.name] = act
+
+            # Resolve successor names to Activity objects
+            succs: list = []
+            for succ_id in act.childs:
+                succ_act = self.task_to_activity.get(succ_id)
+                if succ_act is None:
+                    logger.warning(
+                        "inject_activities: successor '%s' not found for '%s' — skipping edge.",
+                        succ_id, act.name,
+                    )
+                    continue
+                succs.append(succ_act)
+                lag_h = act.successor_lags.get(succ_id, 0.0)
+                if lag_h:
+                    self.lag_dict[(act, succ_act)] = lag_h
+
+            self.forwardDict[act] = succs
+            act.status = 'pending'
+
+        # Rebuild graph structures (backwardDict + infoDict initialised to 0)
+        self.resetInitialGraph()
+        self.nxgraph = nx.DiGraph(self.forwardDict)
+
+        logger.info(
+            "inject_activities: %d new activities added; graph now has %d nodes.",
+            len(new_activities), len(self.forwardDict),
+        )
+
+    def _generate_info_from(self, current_time_hours: float) -> None:
+        """Partial CPM pass for replanning.
+
+        Runs the standard forward / backward CPM pass but respects frozen
+        activity state:
+
+        * **completed** activities: ES/EF fixed from their actual start/end
+          times (as offsets from outage start).  The forward pass skips their
+          ES/EF updates so they serve as fixed anchors for successors.
+        * **in_progress** activities: ES fixed at actual start offset; EF set
+          to ``current_time_hours + act._remaining_duration`` (when they will
+          finish, from the outage-start perspective).  Also frozen in the
+          forward pass.
+        * **pending** activities: standard CPM — ES is bounded below by
+          ``current_time_hours`` so no pending activity can be scheduled in
+          the past.
+
+        After the CPM pass, ``_apply_time_windows()`` is called to tighten
+        ES/LF for windowed activities, same as in ``generateInfo()``.
+
+        Args:
+            current_time_hours: Hours from outage start at the replan point.
+        """
+        if not self.forwardDict:
+            return
+
+        # Ensure infoDict['duration'] reflects any duration changes that may have
+        # occurred since the last resetInfo() / generateInfo() call (e.g. a mode
+        # switch performed outside the set_durations() / set_modes() helpers).
+        self._sync_infodict_durations()
+
+        sources = self._get_sources() if not self.startActivity else [self.startActivity]
+        sinks   = self._get_sinks()   if not self.endActivity   else [self.endActivity]
+
+        # ── 1) Topological order (Kahn's algorithm) ──────────────────────
+        indeg = {a: 0 for a in self.forwardDict}
+        for u, succs in self.forwardDict.items():
+            for v in succs:
+                indeg[v] = indeg.get(v, 0) + 1
+
+        queue = [a for a in sources if a in indeg]
+        topo: list = []
+        while queue:
+            u = queue.pop(0)
+            topo.append(u)
+            for v in self.forwardDict.get(u, []):
+                indeg[v] -= 1
+                if indeg[v] == 0:
+                    queue.append(v)
+
+        # ── 2) Seed ES / EF ──────────────────────────────────────────────
+        for a in self.forwardDict:
+            status = getattr(a, 'status', 'pending')
+            if status == 'completed':
+                st, et = a.returnAbsTimes()
+                if st and et:
+                    es_h = (st - self.startTime).total_seconds() / 3600.0
+                    ef_h = (et - self.startTime).total_seconds() / 3600.0
+                else:
+                    es_h = ef_h = 0.0
+                self.infoDict[a]['es'] = es_h
+                self.infoDict[a]['ef'] = ef_h
+            elif status == 'in_progress':
+                st, _ = a.returnAbsTimes()
+                es_h = (
+                    (st - self.startTime).total_seconds() / 3600.0
+                    if st else current_time_hours
+                )
+                remaining = getattr(a, '_remaining_duration', a.duration)
+                ef_h = current_time_hours + remaining
+                self.infoDict[a]['es'] = es_h
+                self.infoDict[a]['ef'] = ef_h
+            else:   # pending
+                # Floor ES at current_time_hours so no pending activity is
+                # scheduled in the past.  For source activities (no predecessors
+                # to push them forward), also apply mobilization_lead_hours
+                # relative to outage start: if the mobilization window has not
+                # yet closed, the activity cannot start before
+                # max(current_time_hours, mobilization_lead_hours).
+                lead = getattr(a, 'mobilization_lead_hours', 0.0)
+                base = max(current_time_hours, lead)
+                self.infoDict[a]['es'] = base
+                # Set EF = base + duration so that when this activity is a
+                # source (no incoming edge in the forward pass), its successors
+                # still receive the correct EF as an anchor.
+                self.infoDict[a]['ef'] = base + self.infoDict[a]['duration']
+
+        # ── 3) Forward pass (skip frozen activities) ─────────────────────
+        for u in topo:
+            u_ef = self.infoDict[u]['ef']
+            for v in self.forwardDict.get(u, []):
+                if getattr(v, 'status', 'pending') in ('completed', 'in_progress'):
+                    continue    # frozen anchor — do not override
+                lag  = self.lag_dict.get((u, v), 0.0)
+                lead = getattr(v, 'mobilization_lead_hours', 0.0)
+                earliest = u_ef + lag + lead
+                if earliest >= self.infoDict[v]['es']:
+                    self.infoDict[v]['es'] = earliest
+                    self.infoDict[v]['ef'] = earliest + self.infoDict[v]['duration']
+
+        # ── 4) Project duration = max EF across all sinks ─────────────────
+        project_duration = max(self.infoDict[s]['ef'] for s in sinks)
+
+        # ── 5) Backward pass ──────────────────────────────────────────────
+        for a in self.forwardDict:
+            self.infoDict[a]['lf'] = project_duration
+            self.infoDict[a]['ls'] = self.infoDict[a]['lf'] - self.infoDict[a]['duration']
+
+        for u in reversed(topo):
+            for v in self.forwardDict.get(u, []):
+                lag  = self.lag_dict.get((u, v), 0.0)
+                lead = getattr(v, 'mobilization_lead_hours', 0.0)
+                constrained_lf = self.infoDict[v]['ls'] - lag - lead
+                if self.infoDict[u]['lf'] > constrained_lf:
+                    self.infoDict[u]['lf'] = constrained_lf
+                    self.infoDict[u]['ls'] = self.infoDict[u]['lf'] - self.infoDict[u]['duration']
+
+        # ── 6) Slack ──────────────────────────────────────────────────────
+        for a in self.forwardDict:
+            self.infoDict[a]['slack'] = self.infoDict[a]['ls'] - self.infoDict[a]['es']
+
+        # ── 7) Time-window post-processing ───────────────────────────────
+        self._apply_time_windows()
+
+        # ── 8) WBS aggregate float roll-up ───────────────────────────────
+        self._compute_wbs_slack()
+
+    def _build_event_queue_from(self, current_time_hours: float) -> list:
+        """Build the initial event heap for the replanning scheduling loop.
+
+        Like ``_build_event_queue`` but anchored at ``current_time_hours``
+        instead of the project start:
+
+        1. ``current_abs`` — replan anchor point.
+        2. Completion times of in-progress activities.
+        3. Availability boundaries ≥ ``current_abs``.
+        4. CPM ES of pending activities (already ≥ ``current_abs`` after
+           ``_generate_info_from``).
+        5. Window-open times for pending activities.
+        6. Shift-start boundaries for partial-day schedules.
+
+        Returns:
+            list: A valid heapq (min-heap) of datetime objects.
+        """
+        current_abs = self.startTime + timedelta(hours=current_time_hours)
+        events: set = set()
+
+        # 1) Replan anchor
+        events.add(current_abs)
+
+        # 2) In-progress completion times
+        for act in self.ongoing:
+            _, et = act.returnAbsTimes()
+            if et and et >= current_abs:
+                events.add(et)
+
+        # 3) Availability boundaries at or after replan time
+        for dt in self._availability_events:
+            if dt >= current_abs:
+                events.add(dt)
+
+        # 4) CPM ES of pending activities
+        for act in self.wait:
+            abs_es = self.startTime + timedelta(hours=self.infoDict[act]['es'])
+            if abs_es >= current_abs:
+                events.add(abs_es)
+
+        # 5) Window-open times for pending activities
+        for act in self.wait:
+            west = getattr(act, 'window_earliest_start_hours', None)
+            if west is not None:
+                window_open = self.startTime + timedelta(hours=float(west))
+                if window_open >= current_abs:
+                    events.add(window_open)
+
+        # 6) Shift-start boundaries for partial-day schedules
+        if self.working_hours_per_day < 24:
+            cpm_end = self.startTime + timedelta(
+                hours=self.getProjectDuration() * self._max_time_factor
+            )
+            for shift_dt in self._shift_boundary_events(current_abs, cpm_end):
+                events.add(shift_dt)
+
+        heap = list(events)
+        heapq.heapify(heap)
+        return heap
+
+    def calculateScheduleWithResources_from(
+        self,
+        current_time_hours: float,
+        sgs: str = 'max_use_res_ranked',
+        max_time_hours: float = None,
+        priority_rule: str = '',
+    ) -> dict:
+        """Resume the resource-constrained scheduling loop from a mid-outage
+        replan point.
+
+        Unlike ``calculateScheduleWithResources()``, this method does **not**
+        call ``_reset_scheduling_state()``; the caller (``replan()``) is
+        expected to have already called ``_partial_reset()`` and
+        ``_generate_info_from()`` to establish the correct frozen state and
+        updated CPM values.
+
+        The scheduling loop is identical to the baseline scheduler with three
+        differences:
+
+        1. The event heap is seeded from ``current_time_hours`` via
+           ``_build_event_queue_from()``.
+        2. ``self.completed`` and ``self.ongoing`` are pre-populated with
+           frozen activities, so the completion predicate
+           (``len(completed) == n_activities``) accounts for them from the start.
+        3. A ``'replan_time_hours'`` key is added to the result dict.
+
+        Args:
+            current_time_hours: Offset from outage start in hours.
+            sgs: Schedule Generation Scheme name.
+            max_time_hours: Safety cutoff (defaults to CPM × _max_time_factor).
+            priority_rule: Override priority rule (empty = TF-based).
+
+        Returns:
+            Same dict as ``calculateScheduleWithResources()``, plus
+            ``'replan_time_hours'``.
+        """
+        if not self.resource_pool or not self.equipment_pool or not self.location_pool:
+            raise ValueError("Resource, equipment, and location pools must be initialised")
+        if not self.startTime:
+            raise ValueError("startTime must be set before scheduling")
+
+        current_abs  = self.startTime + timedelta(hours=current_time_hours)
+        cpm_duration = self.getProjectDuration()
+        n_activities = len(self.infoDict)
+
+        if max_time_hours is None:
+            max_time_hours = cpm_duration * self._max_time_factor
+        max_time = self.startTime + timedelta(hours=max_time_hours)
+
+        logger.info(
+            "Replanning from t=%.1fh | total=%d (frozen=%d in_progress=%d pending=%d)"
+            " | CPM=%.1fh | strategy=%s",
+            current_time_hours, n_activities,
+            len(self.completed), len(self.ongoing), len(self.wait),
+            cpm_duration, sgs,
+        )
+
+        # Seed event heap from current time
+        event_heap = self._build_event_queue_from(current_time_hours)
+
+        # ── Main event-driven loop ────────────────────────────────────────
+        iteration  = 0
+        time_index = current_abs
+
+        while len(self.completed) != n_activities:
+
+            if not event_heap:
+                if self.wait and not self.ongoing:
+                    logger.warning(
+                        "Replan event queue exhausted with %d activities waiting "
+                        "and nothing ongoing. Completed %d/%d.",
+                        len(self.wait), len(self.completed), n_activities,
+                    )
+                break
+
+            time_index = heapq.heappop(event_heap)
+            while event_heap and (event_heap[0] - time_index) <= self._EVENT_EPSILON:
+                heapq.heappop(event_heap)
+
+            if time_index > max_time:
+                logger.warning(
+                    "Replan reached safety cutoff at %s. Completed %d/%d.",
+                    time_index.strftime('%Y-%m-%d %H:%M'),
+                    len(self.completed), n_activities,
+                )
+                break
+
+            iteration += 1
+            self._update_ongoing_list(time_index)
+
+            if len(self.completed) == n_activities:
+                break
+
+            if self.priorities is not None:
+                value_mode = 'external'
+            else:
+                value_mode = priority_rule if priority_rule else 'TF_based'
+
+            candidates = self._select_candidate_activities(time_index, value_mode)
+
+            next_event: datetime | None = event_heap[0] if event_heap else None
+            elapsed_hours = (
+                (next_event - time_index).total_seconds() / 3600.0
+                if next_event and next_event > time_index else 0.0
+            )
+
+            selected = []
+            if candidates:
+                selected = self._schedule_generation_scheme(candidates, time_index, sgs)
+                self._update_activity_sets(selected, candidates, time_index, elapsed_hours)
+                for act in selected:
+                    _, end_time = act.returnAbsTimes()
+                    if end_time:
+                        heapq.heappush(event_heap, end_time)
+
+                self.schedule_log.append({
+                    'time':       time_index,
+                    'candidates': [a.name for a in candidates],
+                    'selected':   [a.name for a in selected],
+                    'ongoing':    [a.name for a in self.ongoing],
+                    'completed':  [a.name for a in self.completed],
+                })
+
+            logger.debug(
+                "replan t=%s | iter=%d | completed=%d/%d | ongoing=%d | "
+                "waiting=%d | candidates=%d | selected=%d",
+                time_index.strftime('%Y-%m-%d %H:%M'), iteration,
+                len(self.completed), n_activities,
+                len(self.ongoing), len(self.wait),
+                len(candidates), len(selected),
+            )
+
+        # ── Post-schedule analytics ───────────────────────────────────────
+        self._compute_actual_tf_proxy()
+        self._compute_resource_constrained_chain()
+
+        actual_end      = self.get_project_finish_actual()
+        actual_duration = (actual_end - self.startTime).total_seconds() / 3600.0
+        total_delay     = sum(act.delay for act in self.forwardDict)
+
+        results = {
+            'scheduled_duration': float(actual_duration),
+            'cpm_duration':       float(cpm_duration),
+            'delay_hours':        float(total_delay),
+            'n_activities':       n_activities,
+            'n_completed':        len(self.completed),
+            'iterations':         iteration,
+            'window_violations':  list(self._window_violations),
+            'replan_time_hours':  float(current_time_hours),
+        }
+
+        logger.info(
+            "Replanning complete | actual=%.1fh | completed=%d/%d | iterations=%d",
+            actual_duration, len(self.completed), n_activities, iteration,
+        )
+        self._last_schedule_result = results
+        return results
+
+    def replan(
+        self,
+        current_time_hours: float,
+        new_activities: list = None,
+        sgs: str = 'max_use_res_ranked',
+        max_time_hours: float = None,
+    ) -> dict:
+        """Replan the remaining schedule from a mid-outage snapshot.
+
+        Intended workflow::
+
+            # 1) Build and run the initial schedule
+            p = Pert.from_json_file(...)
+            p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+
+            # 2) At t=48h a new task is discovered; replan from that point
+            new_task = Activity('T_EMERG', 6.0)
+            new_task.childs = ['T_DOWNSTREAM']   # must finish before T_DOWNSTREAM
+            result = p.replan(current_time_hours=48.0, new_activities=[new_task])
+
+        Steps performed internally:
+
+        1. ``_inject_activities(new_activities)`` — extend the graph (if any).
+        2. ``_partial_reset(current_time_hours)`` — classify activities into
+           completed / in_progress / pending based on actual start/end times;
+           reset pending activities; replay dose for frozen ones.
+        3. ``_generate_info_from(current_time_hours)`` — partial CPM using
+           frozen activity times as anchors; pending ES floored at
+           ``current_time_hours``.
+        4. ``calculateScheduleWithResources_from(...)`` — event-driven
+           scheduling loop starting from ``current_time_hours``.
+
+        Args:
+            current_time_hours: Hours from outage start at the replan trigger.
+            new_activities: Optional list of new Activity objects to inject
+                            before replanning.
+            sgs: Schedule Generation Scheme strategy name.
+            max_time_hours: Safety cutoff in hours (default: CPM × 10).
+
+        Returns:
+            Same dict as ``calculateScheduleWithResources()``, plus
+            ``'replan_time_hours'``.
+
+        Raises:
+            ValueError: If pools or startTime are not set.
+            RuntimeError: If called before any scheduling run has been
+                          performed (no activity has a startTime set, so there
+                          is nothing to freeze).
+        """
+        if not self.startTime:
+            raise ValueError("startTime must be set before replanning")
+        if not self.resource_pool or not self.equipment_pool or not self.location_pool:
+            raise ValueError("Resource, equipment, and location pools must be initialised")
+
+        # Guard: at least one scheduling run must have happened
+        any_scheduled = any(
+            act.returnAbsTimes()[0] is not None
+            for act in self.forwardDict
+        )
+        if not any_scheduled:
+            raise RuntimeError(
+                "replan() called before any scheduling run. "
+                "Execute calculateScheduleWithResources() first to establish "
+                "the baseline schedule."
+            )
+
+        # ── Step 1: inject new activities ────────────────────────────────
+        if new_activities:
+            self._inject_activities(new_activities)
+
+        # ── Step 2: classify / reset activities ──────────────────────────
+        self._partial_reset(current_time_hours)
+
+        # Rebuild nxgraph after possible injection (inject does this, but
+        # belt-and-suspenders after _partial_reset may have mutated lists)
+        self.nxgraph = nx.DiGraph(self.forwardDict)
+
+        # ── Step 3: partial CPM ───────────────────────────────────────────
+        self._generate_info_from(current_time_hours)
+
+        # ── Step 4: reschedule pending activities ─────────────────────────
+        return self.calculateScheduleWithResources_from(
+            current_time_hours,
+            sgs=sgs,
+            max_time_hours=max_time_hours,
+        )
 
 
     def clone_for_analysis(self) -> 'Pert':
@@ -1198,10 +2179,22 @@ class Pert:
         # Config — shallow copy (scalar / immutable values)
         clone.startTime             = self.startTime
         clone.working_hours_per_day = self.working_hours_per_day
+        clone.shift_start_hour      = getattr(self, 'shift_start_hour', 0)
         clone.seed                  = self.seed
         clone._max_time_factor      = self._max_time_factor
         clone._list_priority_names  = self._list_priority_names
         clone.priorities = copy.copy(self.priorities) if self.priorities else None
+
+        # Lag dict: re-map keys to point to copied Activity instances.
+        # The topology deep-copy preserved Activity identity within the clone,
+        # so we need to translate original Activity keys → cloned Activity keys.
+        orig_to_clone: dict = {}
+        for orig_act, clone_act in zip(self.forwardDict.keys(), clone.forwardDict.keys()):
+            orig_to_clone[orig_act] = clone_act
+        clone.lag_dict = {
+            (orig_to_clone.get(u, u), orig_to_clone.get(v, v)): lag
+            for (u, v), lag in self.lag_dict.items()
+        }
 
         # Resource / equipment / location pools — shared reference (read-only
         # during CPM analysis; no mutation occurs in Stage E what-if runs)
@@ -1223,7 +2216,91 @@ class Pert:
         # Availability events will be recomputed on demand if scheduling runs
         clone._availability_events = frozenset()
 
+        # Window violations and last schedule result start fresh in the clone
+        # (they are historical records of the baseline run, not structural data)
+        clone._window_violations    = []
+        clone._last_schedule_result = {}
+
         return clone
+
+    # ========================================================================
+    # SHIFT CALENDAR HELPERS
+    # ========================================================================
+
+    def _is_work_time(self, t: datetime) -> bool:
+        """Return True if *t* falls inside an active work shift.
+
+        When ``working_hours_per_day >= 24`` every hour is valid (24/7 plant
+        operations).  Otherwise a single recurring shift is assumed:
+
+        * The shift starts daily at ``shift_start_hour`` (0-based hour).
+        * It lasts exactly ``working_hours_per_day`` hours.
+        * Off-shift hours (the remaining ``24 - working_hours_per_day`` h) are
+          excluded from scheduling.
+
+        Fractional-minute precision is preserved by comparing the total
+        decimal hours within the day rather than the integer hour field.
+
+        Args:
+            t: Datetime to test.
+
+        Returns:
+            bool: True if activities may start at *t*.
+        """
+        if self.working_hours_per_day >= 24:
+            return True
+        hour_frac = t.hour + t.minute / 60.0 + t.second / 3600.0
+        shift_end_hour = (self.shift_start_hour + self.working_hours_per_day) % 24
+        if self.shift_start_hour < shift_end_hour:
+            # Shift does not cross midnight
+            return self.shift_start_hour <= hour_frac < shift_end_hour
+        else:
+            # Shift crosses midnight (e.g. starts 22:00, ends 06:00)
+            return hour_frac >= self.shift_start_hour or hour_frac < shift_end_hour
+
+    def _next_shift_start_after(self, t: datetime) -> datetime:
+        """Return the earliest shift-start time that is >= *t*.
+
+        Used to snap an activity's eligible start forward to the next open
+        shift window when the current time falls in an off-shift period.
+
+        Returns:
+            datetime: Start of the next (or current, if already in shift) window.
+        """
+        if self._is_work_time(t):
+            return t
+
+        # Snap to today's shift start; advance by one day if it is in the past.
+        candidate = t.replace(
+            hour=self.shift_start_hour, minute=0, second=0, microsecond=0
+        )
+        if candidate <= t:
+            candidate += timedelta(days=1)
+        return candidate
+
+    def _shift_boundary_events(self, start: datetime, end: datetime) -> list:
+        """Return all shift-start datetimes in [start, end] for event seeding.
+
+        Only meaningful when ``working_hours_per_day < 24``; returns an empty
+        list for 24/7 schedules.
+
+        Args:
+            start: Window start (inclusive).
+            end:   Window end (inclusive).
+        """
+        if self.working_hours_per_day >= 24:
+            return []
+        events: list = []
+        # Walk day-by-day from the first shift-start on or after *start*.
+        candidate = start.replace(
+            hour=self.shift_start_hour, minute=0, second=0, microsecond=0
+        )
+        if candidate < start:
+            candidate += timedelta(days=1)
+        while candidate <= end:
+            events.append(candidate)
+            candidate += timedelta(days=1)
+        return events
 
     # ========================================================================
     # RESOURCE-CONSTRAINED PROJECT SCHEDULING (RCPSP) METHODS
@@ -1317,6 +2394,29 @@ class Pert:
             abs_es = self.startTime + timedelta(hours=self.infoDict[act]['es'])
             if abs_es >= self.startTime:
                 events.add(abs_es)
+
+        # 4) Shift-start boundaries for partial-day schedules.
+        #    Without these events the loop would stall in off-shift periods
+        #    because no activity completion or availability change would wake it
+        #    up to re-check candidates at the next shift open.
+        if self.working_hours_per_day < 24:
+            cpm_end = self.startTime + timedelta(
+                hours=self.getProjectDuration() * self._max_time_factor
+            )
+            for shift_dt in self._shift_boundary_events(self.startTime, cpm_end):
+                events.add(shift_dt)
+
+        # 5) Window-open times for activities with earliest-start constraints.
+        #    Without these events the loop might skip over the window-open moment
+        #    if no other event coincides with it, causing the activity to wait
+        #    until the next unrelated event rather than starting at the earliest
+        #    allowed time.
+        for act in self.wait:
+            west = getattr(act, 'window_earliest_start_hours', None)
+            if west is not None:
+                window_open = self.startTime + timedelta(hours=float(west))
+                if window_open >= self.startTime:
+                    events.add(window_open)
 
         heap = list(events)
         heapq.heapify(heap)
@@ -1530,6 +2630,7 @@ class Pert:
             'n_activities':       n_activities,
             'n_completed':        len(self.completed),
             'iterations':         iteration,
+            'window_violations':  list(self._window_violations),
         }
 
         logger.info(
@@ -1538,6 +2639,9 @@ class Pert:
             cpm_duration, actual_duration,
             total_delay, len(self.completed), n_activities, iteration
         )
+        # Cache so compute_fitness() can access scheduling metrics without
+        # requiring callers to thread return values through their code.
+        self._last_schedule_result = results
         return results
 
 
@@ -1564,8 +2668,41 @@ class Pert:
         if selected:
             for act in selected:
                 act.setActualStartTime(time_index)
+                act.status = 'in_progress'
                 self.wait.remove(act)
                 self.ongoing.append(act)
+                # Commit the substitution-resolved skill breakdown so _get_consumed_resources
+                # tracks the *actual* skills in use (not just the declared primary skill).
+                actual = getattr(act, '_actual_resources_for_start', None)
+                if actual is not None:
+                    act._actual_resources = actual
+                # Commit dose for consumable resources when the activity starts.
+                # Dose is irrevocable: once a worker enters the radiation field it
+                # cannot be returned to the budget.
+                if self.dose_trackers:
+                    dose_rate = getattr(act, 'dose_rate_mrem_per_hour', 0.0)
+                    if dose_rate > 0.0:
+                        eff = self._effective_duration(act)
+                        actual_res = getattr(act, '_actual_resources', None)
+                        if actual_res is not None:
+                            # Charge dose against the skills that are *actually* working
+                            for skill, workers in actual_res.items():
+                                tracker = self.dose_trackers.get(skill)
+                                if tracker and workers > 0:
+                                    tracker.consume(dose_rate, workers, eff)
+                        else:
+                            for req in act.getRequiredResources():
+                                skill = req['skill_type']
+                                tracker = self.dose_trackers.get(skill)
+                                if tracker:
+                                    tracker.consume(dose_rate, req['crew_count'], eff)
+                # Commit consumable inventory: permanently deduct on start.
+                if self.consumable_pool:
+                    at_hour = (time_index - self.startTime).total_seconds() / 3600.0
+                    self.consumable_pool.apply_restocks_up_to(at_hour)
+                    for req in act.getRequiredConsumables():
+                        self.consumable_pool.consume(req['item_id'],
+                                                     float(req['quantity_needed']))
 
             postponed = set(candidates.keys()) - set(selected)
             for act in postponed:
@@ -1596,6 +2733,15 @@ class Pert:
 
         candidates: Dict[Activity, Dict] = {}
 
+        # Shift-calendar gate: if the current event time falls in an off-shift
+        # window, no new activity may start here.  The scheduler will advance to
+        # the next shift-start event automatically because _build_event_queue()
+        # seeds those boundaries into the heap.
+        if not self._is_work_time(time):
+            return candidates
+
+        current_hours = (time - self.startTime).total_seconds() / 3600.0
+
         for act in list(self.wait):
             # Check predecessors complete
             predecessors_complete = all(
@@ -1607,13 +2753,54 @@ class Pert:
 
             # ES reached?
             abs_es = self.startTime + timedelta(hours=self.infoDict[act]['es'])
-            if abs_es <= time:
-                candidates[act] = self.infoDict[act].copy()
+            if abs_es > time:
+                continue
+
+            # ── Time-window enforcement ──────────────────────────────────────
+            west = getattr(act, 'window_earliest_start_hours', None)
+            wlf  = getattr(act, 'window_latest_finish_hours',  None)
+
+            # Earliest-start window: too early to begin
+            if west is not None and current_hours < float(west):
+                continue
+
+            # Latest-finish window: if starting now would push finish past the
+            # deadline, the window has been missed.  Flag it and remove the
+            # activity from the wait list so it no longer blocks the scheduler.
+            if wlf is not None:
+                eff = self._effective_duration(act)
+                if current_hours + eff > float(wlf):
+                    # Record the violation for reporting; remove from wait.
+                    self._window_violations.append({
+                        'activity':                  act.name,
+                        'reason':                    'window_missed',
+                        'window_earliest_start_hours': west,
+                        'window_latest_finish_hours':  float(wlf),
+                        'current_hours':             current_hours,
+                        'duration_hours':            eff,
+                    })
+                    self.wait.remove(act)
+                    logger.warning(
+                        "Window missed: '%s' cannot finish by %.1f h "
+                        "(would finish at %.1f h). Marking as violation.",
+                        act.name, float(wlf), current_hours + eff,
+                    )
+                    continue
+
+            candidates[act] = self.infoDict[act].copy()
 
         # Assign priority
         if value_assignment == 'TF_based':
+            proj_dur = self.getProjectDuration()
             for act in candidates.keys():
-                candidates[act]['value'] = _weight_function(candidates[act]['slack'])
+                # Use the tighter of individual slack and WBS-group aggregate
+                # slack so that when any member of a package is critical, all
+                # members receive elevated priority simultaneously.
+                eff_slack = min(
+                    candidates[act]['slack'],
+                    candidates[act].get('wbs_slack', candidates[act]['slack']),
+                )
+                candidates[act]['value'] = _weight_function(eff_slack, proj_dur)
         elif value_assignment == 'external':
             for act in candidates.keys():
                 act_name = act.returnName()
@@ -1630,8 +2817,18 @@ class Pert:
     # Selection helpers
     # -----------------------------
     def _effective_duration(self, activity) -> float:
-        """Clamped effective runtime used for scheduling."""
-        #return max(0.0, activity.duration - activity.delay)
+        """Clamped effective runtime used for scheduling.
+
+        For in-progress activities during replanning, returns the
+        *remaining* duration (``activity._remaining_duration``) so that
+        capacity checks do not over-book resources for the already-elapsed
+        portion of the task.  For all other activities the original full
+        duration is returned.
+        """
+        remaining = getattr(activity, '_remaining_duration', None)
+        status = getattr(activity, 'status', 'pending')
+        if status == 'in_progress' and remaining is not None:
+            return max(0.0, remaining)
         return max(0.0, activity.duration)
 
     def _iter_hours(self, start: datetime, end: datetime):
@@ -1642,113 +2839,345 @@ class Pert:
             t += timedelta(hours=1)
 
 
-    def _build_capacity_snapshots(self, start_time: datetime, end_time: datetime):
-        """
-        Build per-hour snapshots of remaining capacity for resources, equipment,
-        and location task/worker capacity, after subtracting consumption of ongoing tasks.
-        """
-        res_rem = defaultdict(dict)        # res_rem[skill][hour] = remaining workers
-        eq_rem = defaultdict(dict)         # eq_rem[eq_id][hour] = remaining units
-        loc_tasks_rem = defaultdict(dict)  # loc_tasks_rem[loc_id][hour] = remaining task slots
-        loc_workers_rem = defaultdict(dict)# loc_workers_rem[loc_id][hour] = remaining worker slots (None = unlimited)
+    def _build_capacity_snapshots(
+        self,
+        start_time: datetime,
+        end_time: datetime,
+        extra_boundaries=None,
+    ):
+        """Build capacity snapshots on an event-boundary grid.
 
-        hours = list(self._iter_hours(start_time, end_time))
+        Instead of populating one entry per clock hour (O(D × K) where D is
+        the window width in hours and K is the number of ongoing activities),
+        this method builds a **sparse boundary grid** keyed at the times where
+        capacity actually changes:
 
-        # Remaining resources/equipment after ongoing consumption
+        * ``start_time`` and ``end_time`` (always present)
+        * Start and end times of every ongoing activity that overlaps the window
+        * Any additional boundaries supplied by the caller (e.g. the end times
+          of all candidate activities for this scheduling step)
+
+        Between consecutive grid points capacity is constant, so checking or
+        decrementing at each grid point correctly represents the whole interval.
+        Complexity: O((K + extra) × (S + E + L)) instead of
+        O(D × K × (S + E + L)).
+
+        Args:
+            start_time:        Window start (always included in the grid).
+            end_time:          Window end (always included in the grid).
+            extra_boundaries:  Optional iterable of additional datetime boundary
+                               points to add to the grid (e.g. candidate end
+                               times so that ``_apply_tentative`` stops at the
+                               right boundary for each candidate).
+
+        Returns:
+            Tuple ``(res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid)``
+            where ``grid`` is a sorted list of datetime boundary points.
+            Pass ``grid`` to :meth:`_fits_with_tentative` and
+            :meth:`_apply_tentative` to activate the O(K) fast path.
+        """
+        # ── 1. Build the boundary grid ────────────────────────────────────────
+        boundaries: set = {start_time, end_time}
+        for act in self.ongoing:
+            s, e = act.returnAbsTimes()
+            if s is not None and start_time <= s < end_time:
+                boundaries.add(s)
+            if e is not None and start_time < e <= end_time:
+                boundaries.add(e)
+        if extra_boundaries is not None:
+            for t in extra_boundaries:
+                if start_time <= t <= end_time:
+                    boundaries.add(t)
+        grid = sorted(boundaries)
+
+        res_rem      = defaultdict(dict)
+        eq_rem       = defaultdict(dict)
+        loc_tasks_rem   = defaultdict(dict)
+        loc_workers_rem = defaultdict(dict)
+
+        # ── 2. Seed base pool availability at every grid point ────────────────
         for skill in self.resource_pool.get_all_skills():
-            for h in hours:
-                orig = self.resource_pool.get_availability(skill, h)
-                consumed = self._get_consumed_resources(skill, h)
-                res_rem[skill][h] = max(0, orig - consumed)
+            for h in grid:
+                res_rem[skill][h] = self.resource_pool.get_availability(skill, h)
 
-        for eq in self.equipment_pool.get_all_equipment_ids():
-            for h in hours:
-                orig = self.equipment_pool.get_availability(eq, h)
-                consumed = self._get_consumed_equipment(eq, h)
-                eq_rem[eq][h] = max(0, orig - consumed)
+        for eq_id in self.equipment_pool.get_all_equipment_ids():
+            for h in grid:
+                eq_rem[eq_id][h] = self.equipment_pool.get_availability(eq_id, h)
 
-        # Remaining location task/worker capacity after ongoing usage
-        for loc in self.location_pool.get_all_location_ids():
-            for h in hours:
-                capacity = self.location_pool.get_capacity(loc, h)
-                ongoing_tasks = self._get_tasks_at_location(loc, h)
-                loc_tasks_rem[loc][h] = max(0, capacity['max_tasks'] - ongoing_tasks)
+        for loc_id in self.location_pool.get_all_location_ids():
+            for h in grid:
+                cap = self.location_pool.get_capacity(loc_id, h)
+                loc_tasks_rem[loc_id][h]   = cap['max_tasks']
+                loc_workers_rem[loc_id][h] = cap.get('max_workers')  # None = unlimited
 
-                max_workers = capacity.get('max_workers', None)
-                if max_workers is None:
-                    loc_workers_rem[loc][h] = None
-                else:
-                    ongoing_workers = self._get_workers_at_location(loc, h)
-                    loc_workers_rem[loc][h] = max(0, max_workers - ongoing_workers)
+        # ── 3. Subtract each ongoing activity's consumption at grid points ────
+        # Single pass over self.ongoing (O(K × |grid|)) instead of calling
+        # _get_consumed_resources / _get_consumed_equipment per grid point
+        # (O(|grid| × K)).  Net work is the same but avoids Python-function
+        # call overhead and the repeated inner loop over self.ongoing.
+        for act in self.ongoing:
+            s, e = act.returnAbsTimes()
+            if s is None or e is None:
+                continue
 
-        return res_rem, eq_rem, loc_tasks_rem, loc_workers_rem
+            # Resource consumption — use the substitution-resolved breakdown
+            # when available (same as _get_consumed_resources does).
+            actual = getattr(act, '_actual_resources', None)
+            res_consumption = actual if actual is not None else {
+                req['skill_type']: req['crew_count']
+                for req in act.getRequiredResources()
+            }
+            for skill, workers in res_consumption.items():
+                if workers > 0 and skill in res_rem:
+                    for h in grid:
+                        if s <= h < e:
+                            res_rem[skill][h] = max(0, res_rem[skill][h] - workers)
 
-    def _fits_with_tentative(self, activity, start_time, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem) -> bool:
-        """
-        Check feasibility against remaining capacity snapshots, including tentative picks.
+            # Equipment consumption
+            for eq_req in act.getRequiredEquipment():
+                eq_id, qty = eq_req['equipment_id'], eq_req['quantity_needed']
+                if eq_id in eq_rem:
+                    for h in grid:
+                        if s <= h < e:
+                            eq_rem[eq_id][h] = max(0, eq_rem[eq_id][h] - qty)
+
+            # Location / zone consumption.
+            # An activity occupying multiple zones consumes a slot in each zone
+            # simultaneously (permit zone + physical room, for example).
+            workers_at_loc = sum(
+                req['crew_count'] for req in act.getRequiredResources()
+            )
+            for zone_id in act.getZoneIds():
+                if zone_id not in loc_tasks_rem:
+                    continue
+                for h in grid:
+                    if s <= h < e:
+                        loc_tasks_rem[zone_id][h] = max(
+                            0, loc_tasks_rem[zone_id][h] - 1
+                        )
+                        if loc_workers_rem[zone_id][h] is not None:
+                            loc_workers_rem[zone_id][h] = max(
+                                0, loc_workers_rem[zone_id][h] - workers_at_loc
+                            )
+
+        return res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+
+    def _fits_with_tentative(
+        self,
+        activity,
+        start_time,
+        res_rem,
+        eq_rem,
+        loc_tasks_rem,
+        loc_workers_rem,
+        grid=None,
+    ) -> bool:
+        """Check feasibility against remaining capacity snapshots.
+
+        Args:
+            grid: Optional sorted list of boundary datetimes returned by
+                  :meth:`_build_capacity_snapshots`.  When supplied, only
+                  the boundary points within ``[start_time, end_time)`` are
+                  checked — O(K) instead of O(D).  When ``None``, falls back
+                  to the original hour-by-hour iteration (backward compatible).
         """
         eff = self._effective_duration(activity)
         end_time = start_time + timedelta(hours=eff)
 
-        # Resources
-        for h in self._iter_hours(start_time, end_time):
+        # Select the time points to check: boundary grid or every clock hour.
+        check_points = (
+            [h for h in grid if start_time <= h < end_time]
+            if grid is not None
+            else list(self._iter_hours(start_time, end_time))
+        )
+
+        # Resources (with substitution fallback)
+        for h in check_points:
             for req in activity.getRequiredResources():
                 skill, need = req['skill_type'], req['crew_count']
-                if res_rem[skill].get(h, 0) < need:
-                    return False
+                available = res_rem[skill].get(h, 0)
+                if available < need:
+                    still_needed = need - available
+                    for alt_skill in req.get('alternative_skill_types', []):
+                        still_needed -= res_rem[alt_skill].get(h, 0)
+                        if still_needed <= 0:
+                            break
+                    if still_needed > 0:
+                        return False
 
-        # Equipment
-        for h in self._iter_hours(start_time, end_time):
+        # Equipment — count check
+        for h in check_points:
             for eq in activity.getRequiredEquipment():
                 eq_id, need = eq['equipment_id'], eq['quantity_needed']
                 if eq_rem[eq_id].get(h, 0) < need:
                     return False
 
-        # Location constraints
-        loc_id = activity.getLocation()
-        if loc_id:
-            workers_needed = sum(req['crew_count'] for req in activity.getRequiredResources())
-            for h in self._iter_hours(start_time, end_time):
-                # Must have a task slot
-                if loc_tasks_rem[loc_id].get(h, 0) < 1:
+        # Equipment — zone-affinity check (static, time-independent).
+        # If a piece of equipment is assigned to a specific zone (zone_id is set),
+        # only activities that declare that zone in their zone list may use it.
+        # Two backward-compat guards:
+        #   - eq_zone is None  → equipment is unconstrained, skip
+        #   - act_zones empty  → activity has no zone declaration, skip
+        act_zones = set(activity.getZoneIds())
+        for eq in activity.getRequiredEquipment():
+            eq_zone = self.equipment_pool.get_zone_id(eq['equipment_id'])
+            if eq_zone is not None and act_zones and eq_zone not in act_zones:
+                return False
+
+        # Location / zone constraints.
+        # All zones must have a free task slot (and worker slot if bounded).
+        workers_needed = sum(req['crew_count'] for req in activity.getRequiredResources())
+        for zone_id in activity.getZoneIds():
+            if zone_id not in loc_tasks_rem:
+                continue
+            for h in check_points:
+                # Must have a task slot in this zone
+                if loc_tasks_rem[zone_id].get(h, 0) < 1:
                     return False
                 # Must have worker slot if bounded
-                lw = loc_workers_rem[loc_id].get(h, None)
+                lw = loc_workers_rem[zone_id].get(h, None)
                 if lw is not None and lw < workers_needed:
+                    return False
+
+        # Consumable dose budget check.
+        # For each resource requirement, resolve the actual skill breakdown
+        # (accounting for substitution) so dose is checked against the skills
+        # that will *actually* perform the work.
+        if self.dose_trackers:
+            dose_rate = getattr(activity, 'dose_rate_mrem_per_hour', 0.0)
+            if dose_rate > 0.0:
+                eff = self._effective_duration(activity)
+                # Compute resolved worker counts (same logic as _apply_tentative)
+                dose_check_workers: dict = {}  # {skill: workers}
+                for req in activity.getRequiredResources():
+                    skill, need = req['skill_type'], req['crew_count']
+                    primary_use = min(res_rem[skill].get(start_time, 0), need)
+                    dose_check_workers[skill] = dose_check_workers.get(skill, 0) + primary_use
+                    still_needed = need - primary_use
+                    for alt_skill in req.get('alternative_skill_types', []):
+                        if still_needed <= 0:
+                            break
+                        alt_use = min(res_rem[alt_skill].get(start_time, 0), still_needed)
+                        if alt_use > 0:
+                            dose_check_workers[alt_skill] = dose_check_workers.get(alt_skill, 0) + alt_use
+                            still_needed -= alt_use
+                for skill, workers in dose_check_workers.items():
+                    if workers > 0:
+                        tracker = self.dose_trackers.get(skill)
+                        if tracker and not tracker.fits(dose_rate, workers, eff):
+                            return False
+
+        # Consumable feasibility: check each item has sufficient remaining inventory.
+        # Uses a point-in-time check at start_time (deduct-on-start contract).
+        if self.consumable_pool:
+            at_hour = (start_time - self.startTime).total_seconds() / 3600.0
+            for req in activity.getRequiredConsumables():
+                if not self.consumable_pool.fits(req['item_id'],
+                                                  float(req['quantity_needed']),
+                                                  at_hour=at_hour):
+                    return False
+
+        # System-state feasibility: check that no conflicting state is currently
+        # held for any required plant system.  _apply_tentative calls acquire()
+        # immediately after this check so subsequent candidates in the same
+        # time-step see the tentative lock.
+        if self.system_state_pool:
+            for req in activity.getRequiredSystemStates():
+                if not self.system_state_pool.fits(
+                    req['system_id'], req['required_state']
+                ):
                     return False
 
         return True
 
-    def _apply_tentative(self, activity, start_time, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem):
-        """
-        Decrement remaining capacity snapshots by activity’s consumption,
-        so subsequent candidates see reduced capacity.
+    def _apply_tentative(
+        self,
+        activity,
+        start_time,
+        res_rem,
+        eq_rem,
+        loc_tasks_rem,
+        loc_workers_rem,
+        grid=None,
+    ):
+        """Decrement remaining capacity snapshots by activity's consumption.
+
+        Args:
+            grid: Optional sorted list of boundary datetimes returned by
+                  :meth:`_build_capacity_snapshots`.  When supplied, only
+                  the boundary points within ``[start_time, end_time)`` are
+                  decremented — O(K) instead of O(D).  When ``None``, falls
+                  back to the original hour-by-hour iteration.
+
+        Note: When ``grid`` is used the caller must ensure that the activity's
+        end time (``start_time + duration``) was included in ``extra_boundaries``
+        when building the snapshot.  This guarantees the decrement stops at the
+        correct boundary and does not bleed into subsequent intervals.
         """
         eff = self._effective_duration(activity)
         end_time = start_time + timedelta(hours=eff)
 
-        # Resources
-        for h in self._iter_hours(start_time, end_time):
+        # Select the time points to update: boundary grid or every clock hour.
+        hours = (
+            [h for h in grid if start_time <= h < end_time]
+            if grid is not None
+            else list(self._iter_hours(start_time, end_time))
+        )
+
+        # Resources — compute worker assignment at the first time point
+        # (assignments persist for the full activity duration), then apply
+        # the same breakdown to every time point in the window.
+        actual_consumption: dict = {}   # {skill_type: workers_used}
+        if hours:
+            h0 = hours[0]
             for req in activity.getRequiredResources():
                 skill, need = req['skill_type'], req['crew_count']
-                res_rem[skill][h] = max(0, res_rem[skill][h] - need)
+                primary_use = min(res_rem[skill].get(h0, 0), need)
+                actual_consumption[skill] = actual_consumption.get(skill, 0) + primary_use
+                still_needed = need - primary_use
+                for alt_skill in req.get('alternative_skill_types', []):
+                    if still_needed <= 0:
+                        break
+                    alt_use = min(res_rem[alt_skill].get(h0, 0), still_needed)
+                    if alt_use > 0:
+                        actual_consumption[alt_skill] = actual_consumption.get(alt_skill, 0) + alt_use
+                        still_needed -= alt_use
+
+        # Store resolved breakdown for _update_activity_sets to commit
+        activity._actual_resources_for_start = actual_consumption
+
+        for h in hours:
+            for skill, workers in actual_consumption.items():
+                if workers > 0:
+                    res_rem[skill][h] = max(0, res_rem[skill].get(h, 0) - workers)
 
         # Equipment
-        for h in self._iter_hours(start_time, end_time):
+        for h in hours:
             for eq in activity.getRequiredEquipment():
                 eq_id, need = eq['equipment_id'], eq['quantity_needed']
                 eq_rem[eq_id][h] = max(0, eq_rem[eq_id][h] - need)
 
-        # Location
-        loc_id = activity.getLocation()
-        if loc_id:
-            workers_needed = sum(req['crew_count'] for req in activity.getRequiredResources())
-            for h in self._iter_hours(start_time, end_time):
-                # consume 1 task slot
-                loc_tasks_rem[loc_id][h] = max(0, loc_tasks_rem[loc_id][h] - 1)
+        # Location / zone consume — deduct from every zone the activity occupies.
+        workers_needed = sum(req['crew_count'] for req in activity.getRequiredResources())
+        for zone_id in activity.getZoneIds():
+            if zone_id not in loc_tasks_rem:
+                continue
+            for h in hours:
+                # consume 1 task slot per zone
+                loc_tasks_rem[zone_id][h] = max(0, loc_tasks_rem[zone_id][h] - 1)
                 # consume worker slots if bounded
-                if loc_workers_rem[loc_id][h] is not None:
-                    loc_workers_rem[loc_id][h] = max(0, loc_workers_rem[loc_id][h] - workers_needed)
+                if loc_workers_rem[zone_id].get(h) is not None:
+                    loc_workers_rem[zone_id][h] = max(0, loc_workers_rem[zone_id][h] - workers_needed)
+
+        # System-state acquire: lock each required plant system in the declared
+        # state.  Doing this here (during the greedy selection loop) ensures that
+        # later candidates at the same time-step see the tentative lock and are
+        # correctly blocked if they require a conflicting state.
+        if self.system_state_pool:
+            for req in activity.getRequiredSystemStates():
+                self.system_state_pool.acquire(
+                    req['system_id'], req['required_state']
+                )
 
     def _schedule_generation_scheme(self, candidates: Dict,
                                     time_index: datetime,
@@ -1771,21 +3200,32 @@ class Pert:
                        if choice == 'max_use_res_ranked'
                        else self._shuffle_candidates(candidates))
 
-            # Build capacity snapshots across needed window
+            # Build capacity snapshots across needed window.
+            # Pre-compute candidate end times and pass them as extra boundaries
+            # so the event-boundary grid is split at each candidate's finish —
+            # this guarantees _apply_tentative stops at the right point and
+            # doesn't bleed capacity reduction into later intervals.
             max_end = time_index
+            cand_ends: set = set()
             for act in ordered:
                 eff = self._effective_duration(act)
                 cand_end = time_index + timedelta(hours=eff)
+                cand_ends.add(cand_end)
                 if cand_end > max_end:
                     max_end = cand_end
 
-            res_rem, eq_rem, loc_tasks_rem, loc_workers_rem = self._build_capacity_snapshots(time_index, max_end)
+            res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid = \
+                self._build_capacity_snapshots(time_index, max_end, extra_boundaries=cand_ends)
 
             selected = []
             for act in ordered:
-                if self._fits_with_tentative(act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem):
+                if self._fits_with_tentative(
+                    act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                ):
                     selected.append(act)
-                    self._apply_tentative(act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem)
+                    self._apply_tentative(
+                        act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                    )
             return selected
 
         elif choice == 'md_knapsack':
@@ -1802,19 +3242,26 @@ class Pert:
             tentative = optimizer.solve()
 
             max_end = time_index
+            cand_ends_knap: set = set()
             for act in tentative:
                 eff = self._effective_duration(act)
                 cand_end = time_index + timedelta(hours=eff)
+                cand_ends_knap.add(cand_end)
                 if cand_end > max_end:
                     max_end = cand_end
 
-            res_rem, eq_rem, loc_tasks_rem, loc_workers_rem = self._build_capacity_snapshots(time_index, max_end)
+            res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid = \
+                self._build_capacity_snapshots(time_index, max_end, extra_boundaries=cand_ends_knap)
 
             selected = []
             for act in tentative:
-                if self._fits_with_tentative(act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem):
+                if self._fits_with_tentative(
+                    act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                ):
                     selected.append(act)
-                    self._apply_tentative(act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem)
+                    self._apply_tentative(
+                        act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                    )
             return selected
 
         elif choice == 'look_ahead':
@@ -1860,27 +3307,32 @@ class Pert:
         end_time = start_time + timedelta(hours=self._effective_duration(activity))
 
         # Build a capacity snapshot for this activity's window from self.ongoing.
-        # This is the same snapshot _schedule_generation_scheme builds before
-        # calling _fits_with_tentative, keeping the logic identical.
-        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem = \
+        # The activity's end_time is the grid's end boundary, so it is always
+        # a split point — _fits_with_tentative checks the full window correctly.
+        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid = \
             self._build_capacity_snapshots(start_time, end_time)
 
         return self._fits_with_tentative(
             activity, start_time,
-            res_rem, eq_rem, loc_tasks_rem, loc_workers_rem
+            res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
         )
 
     def _get_consumed_resources(self, skill_type: str, time_point: datetime) -> int:
         """
         Calculate how many workers of a skill type are in use at time_point.
+        Uses the substitution-resolved actual breakdown when available.
         """
         in_use = 0
         for act in self.ongoing:
             start_time, end_time = act.returnAbsTimes()
             if start_time and end_time and start_time <= time_point < end_time:
-                for res_req in act.getRequiredResources():
-                    if res_req['skill_type'] == skill_type:
-                        in_use += res_req['crew_count']
+                actual = getattr(act, '_actual_resources', None)
+                if actual is not None:
+                    in_use += actual.get(skill_type, 0)
+                else:
+                    for res_req in act.getRequiredResources():
+                        if res_req['skill_type'] == skill_type:
+                            in_use += res_req['crew_count']
         return in_use
 
 
@@ -1903,6 +3355,418 @@ class Pert:
     def returnActualScheduleEndTime(self) -> datetime:
         """Convenience alias: return the actual schedule end time."""
         return self.get_project_finish_actual()
+
+    # ------------------------------------------------------------------
+    # GP TRAINING INTERFACE
+    # ------------------------------------------------------------------
+
+    def compute_fitness(
+        self,
+        alpha: float = 1.0,
+        beta:  float = 0.5,
+        gamma: float = 0.3,
+        delta: float = 2.0,
+    ) -> dict:
+        """Compute a composite fitness score for use as a GP training signal.
+
+        Must be called **after** :meth:`calculateScheduleWithResources` has
+        completed for the current priority assignment.  Lower is better.
+
+        Components
+        ----------
+        makespan_ratio : float
+            ``scheduled_duration / cpm_duration`` — ideal value is 1.0 (no
+            resource-induced stretch).  Increases as contention worsens.
+        delay_ratio : float
+            ``total_delay_hours / cpm_duration`` — sum of all activity wait
+            times divided by the unconstrained project length.  Penalises
+            schedules that leave resources idle while tasks queue.
+        criticality_ratio : float
+            Fraction of non-dummy activities with zero *actual* total float
+            (i.e. on the resource-constrained critical chain).  A higher
+            fraction means more activities are tight, which reduces
+            robustness.
+        window_violation_ratio : float
+            ``n_window_violations / n_real_activities`` — fraction of real
+            activities that missed their regulatory time window.  A schedule
+            with any violations is operationally invalid; the high default
+            weight (delta=2.0) ensures GP strongly penalises them.
+
+        Composite score
+        ---------------
+        ``composite = alpha * makespan_ratio
+                     + beta  * delay_ratio
+                     + gamma * criticality_ratio
+                     + delta * window_violation_ratio``
+
+        Default weights (alpha=1, beta=0.5, gamma=0.3, delta=2.0) give
+        makespan the dominant influence and treat window violations as a
+        severe penalty — consistent with nuclear outage priorities where
+        missing a Technical Specification window is a regulatory failure.
+
+        Args:
+            alpha: Weight for makespan component (default 1.0).
+            beta:  Weight for delay component (default 0.5).
+            gamma: Weight for criticality / robustness component (default 0.3).
+            delta: Weight for window-violation component (default 2.0).
+
+        Returns:
+            dict with keys ``composite``, ``makespan_ratio``, ``delay_ratio``,
+            ``criticality_ratio``, ``window_violation_ratio``,
+            ``scheduled_duration``, ``cpm_duration``, ``delay_hours``,
+            ``n_window_violations``.
+            All float values; ``composite`` is the scalar to minimise.
+
+        Raises:
+            RuntimeError: If called before any schedule has been computed.
+        """
+        if not self._last_schedule_result:
+            raise RuntimeError(
+                "compute_fitness() called before calculateScheduleWithResources(). "
+                "Run the scheduler first."
+            )
+
+        res = self._last_schedule_result
+        cpm_dur   = max(res.get('cpm_duration', 1.0), 1.0)
+        sched_dur = res.get('scheduled_duration', cpm_dur)
+        delay_h   = res.get('delay_hours', 0.0)
+
+        makespan_ratio    = sched_dur / cpm_dur
+        delay_ratio       = delay_h   / cpm_dur
+
+        # Criticality: fraction of real (non-dummy, non-buffer) activities with zero actual TF.
+        dummy_names = {'START', 'END'}
+        real_acts = [
+            a for a in self.forwardDict
+            if a.name.upper() not in dummy_names
+            and getattr(a, 'buffer_type', None) is None
+        ]
+        n_real = max(len(real_acts), 1)
+        zero_tf_set = getattr(self, 'actual_zero_tf_set', set())
+        criticality_ratio = len(
+            [a for a in real_acts if a in zero_tf_set]
+        ) / n_real
+
+        n_violations = len(res.get('window_violations', []))
+        window_violation_ratio = n_violations / n_real
+
+        composite = (
+            alpha * makespan_ratio
+            + beta  * delay_ratio
+            + gamma * criticality_ratio
+            + delta * window_violation_ratio
+        )
+
+        return {
+            'composite':               composite,
+            'makespan_ratio':          makespan_ratio,
+            'delay_ratio':             delay_ratio,
+            'criticality_ratio':       criticality_ratio,
+            'window_violation_ratio':  window_violation_ratio,
+            'n_window_violations':     n_violations,
+            'scheduled_duration':      sched_dur,
+            'cpm_duration':            cpm_dur,
+            'delay_hours':             delay_h,
+        }
+
+    # =========================================================================
+    # PROACTIVE ROBUSTNESS BUFFERING (CCPM)
+    # =========================================================================
+
+    @staticmethod
+    def _size_buffer(durations: list, method: str, fraction: float) -> float:
+        """Compute a CCPM buffer size from a list of activity durations.
+
+        Args:
+            durations: Activity durations in hours.  May be empty.
+            method:    ``'half'`` — ``fraction × Σ(d)``; standard cut-and-paste.
+                       ``'ssq'``  — ``√(Σ((d×fraction)²))``; statistically grounded
+                       (half-normal approximation of duration uncertainty).
+            fraction:  Scaling factor.  Typical value: 0.5.
+
+        Returns:
+            Buffer size in hours (≥ 0.0).  Zero when *durations* is empty.
+
+        Raises:
+            ValueError: If *method* is not ``'half'`` or ``'ssq'``.
+        """
+        if not durations:
+            return 0.0
+        if method == 'half':
+            return fraction * sum(durations)
+        elif method == 'ssq':
+            return math.sqrt(sum((d * fraction) ** 2 for d in durations))
+        else:
+            raise ValueError(
+                f"_size_buffer: unknown method '{method}'. Use 'half' or 'ssq'."
+            )
+
+    def _splice_buffer_activity(
+        self,
+        buffer_act,
+        predecessors: list,
+        successors: list,
+    ) -> None:
+        """Insert *buffer_act* between *predecessors* and *successors*.
+
+        For every (pred, succ) pair the direct edge pred → succ is removed and
+        replaced by pred → buffer_act → succ.  Predecessors that already point
+        only to the buffer are unaffected; successors whose only incoming edge
+        from the predecessor set is already via the buffer are also safe.
+
+        After splicing, ``nxgraph``, ``infoDict``, and CPM values are all
+        rebuilt via ``resetInfo()`` + ``generateInfo()``.
+        """
+        # Register buffer in forwardDict / backwardDict
+        self.forwardDict[buffer_act]  = list(successors)
+        self.backwardDict[buffer_act] = list(predecessors)
+
+        for pred in predecessors:
+            # Remove direct pred → succ edges that are now routed via buffer
+            for succ in successors:
+                if succ in self.forwardDict.get(pred, []):
+                    self.forwardDict[pred].remove(succ)
+                if pred in self.backwardDict.get(succ, []):
+                    self.backwardDict[succ].remove(pred)
+            # Wire pred → buffer
+            if buffer_act not in self.forwardDict.get(pred, []):
+                self.forwardDict[pred].append(buffer_act)
+
+        for succ in successors:
+            # Wire buffer → succ (already in forwardDict[buffer_act])
+            if buffer_act not in self.backwardDict.get(succ, []):
+                if succ not in self.backwardDict:
+                    self.backwardDict[succ] = []
+                self.backwardDict[succ].append(buffer_act)
+
+        # Register in task lookup
+        self.task_to_activity[buffer_act.name] = buffer_act
+
+        # Seed infoDict so resetInfo() + generateInfo() see the new activity
+        self.infoDict[buffer_act] = {
+            "duration": buffer_act.duration,
+            "es": 0, "ef": 0, "ls": 0, "lf": math.inf,
+            "slack": 0, "wbs_slack": 0,
+            "mts": 0, "mtp": 0,
+            "grpw": 0, "grd": 0,
+            "rr": 0, "avgrr": 0, "maxrr": 0, "minrr": 0,
+        }
+
+        # Rebuild graph topology and CPM
+        self.nxgraph = nx.DiGraph(self.forwardDict)
+        self.resetInfo()
+        self.generateInfo()
+
+    def insert_project_buffer(self, method: str = 'ssq', fraction: float = 0.5):
+        """Insert a CCPM Project Buffer at the end of the resource-constrained
+        critical chain.
+
+        The project buffer absorbs disruptions anywhere on the critical chain
+        so that individual task delays do not immediately extend the project
+        finish.  It is sized from the chain activities' durations using the
+        chosen *method* and spliced between the chain's terminal activity and
+        its successors.
+
+        Must be called **after** :meth:`calculateScheduleWithResources` has
+        run (requires ``constrained_chain_list`` to be populated).
+
+        Calling twice is idempotent — the existing buffer is returned without
+        modification if a project buffer already exists in the graph.
+
+        Args:
+            method:   ``'half'`` (50 % of chain sum) or ``'ssq'`` (default;
+                      sum-of-squares root — statistically grounded).
+            fraction: Scaling factor applied during sizing (default 0.5).
+
+        Returns:
+            The :class:`Activity` representing the project buffer.
+
+        Raises:
+            RuntimeError: If called before any scheduling run.
+        """
+        if not getattr(self, 'constrained_chain_list', None):
+            raise RuntimeError(
+                "insert_project_buffer: call calculateScheduleWithResources() first "
+                "to populate the resource-constrained critical chain."
+            )
+
+        # Idempotent: return existing buffer if already inserted
+        existing = [a for a in self.forwardDict
+                    if getattr(a, 'buffer_type', None) == 'project']
+        if existing:
+            return existing[0]
+
+        # Size from real (non-buffer) chain activities
+        chain_real = [a for a in self.constrained_chain_list
+                      if getattr(a, 'buffer_type', None) is None]
+        pb_size = self._size_buffer([a.duration for a in chain_real], method, fraction)
+
+        # Build buffer activity
+        pb = Activity(name='PB', duration=pb_size, description='Project Buffer')
+        pb.buffer_type = 'project'
+
+        # Splice: terminal → PB → original successors of terminal
+        terminal  = self.constrained_chain_list[-1]
+        successors = list(self.forwardDict.get(terminal, []))
+        self._splice_buffer_activity(pb, predecessors=[terminal], successors=successors)
+
+        logger.info(
+            "insert_project_buffer: inserted PB (%.1f h, method=%s, fraction=%.2f) "
+            "after '%s'.",
+            pb_size, method, fraction, terminal.name,
+        )
+        return pb
+
+    def insert_feeding_buffers(
+        self, method: str = 'ssq', fraction: float = 0.5
+    ) -> list:
+        """Insert CCPM Feeding Buffers at every merge point where a non-critical
+        feeding chain joins the resource-constrained critical chain.
+
+        A feeding buffer intercepts delays from the feeding chain before they
+        can propagate onto the critical chain.  One buffer is inserted per
+        merge point; it collects all non-chain predecessors of the merge point
+        as its own predecessors.
+
+        Must be called **after** :meth:`calculateScheduleWithResources` (and
+        optionally after :meth:`insert_project_buffer`).
+
+        Args:
+            method:   ``'half'`` or ``'ssq'`` (default).
+            fraction: Scaling factor (default 0.5).
+
+        Returns:
+            List of :class:`Activity` objects representing the inserted feeding
+            buffers (may be empty if the critical chain has no feeding inputs).
+
+        Raises:
+            RuntimeError: If called before any scheduling run.
+        """
+        if not getattr(self, 'constrained_chain_list', None):
+            raise RuntimeError(
+                "insert_feeding_buffers: call calculateScheduleWithResources() first."
+            )
+
+        chain_set = self.constrained_chain_set
+        inserted  = []
+
+        for merge_act in list(self.constrained_chain_list):
+            # Non-chain, non-buffer predecessors feeding into this chain activity
+            non_chain_preds = [
+                p for p in self.backwardDict.get(merge_act, [])
+                if p not in chain_set
+                and getattr(p, 'buffer_type', None) is None
+            ]
+            if not non_chain_preds:
+                continue
+
+            # Guard: don't insert a second FB at the same merge point
+            already = [a for a in self.forwardDict
+                       if getattr(a, 'buffer_type', None) == 'feeding'
+                       and merge_act in self.forwardDict.get(a, [])]
+            if already:
+                continue
+
+            # Collect the full feeding subnetwork (BFS backward from non-chain preds)
+            feeding_acts: set = set()
+            frontier = list(non_chain_preds)
+            while frontier:
+                curr = frontier.pop()
+                if curr in feeding_acts or curr in chain_set:
+                    continue
+                if getattr(curr, 'buffer_type', None) is not None:
+                    continue
+                feeding_acts.add(curr)
+                for pred in self.backwardDict.get(curr, []):
+                    frontier.append(pred)
+
+            if not feeding_acts:
+                continue
+
+            fb_size = self._size_buffer(
+                [a.duration for a in feeding_acts], method, fraction
+            )
+            if fb_size < 1e-6:
+                continue
+
+            fb_name = f'FB_{merge_act.name}'
+            fb = Activity(
+                name=fb_name,
+                duration=fb_size,
+                description=f'Feeding Buffer \u2192 {merge_act.name}',
+            )
+            fb.buffer_type = 'feeding'
+
+            # Splice: non_chain_preds → FB → merge_act
+            self._splice_buffer_activity(
+                fb,
+                predecessors=non_chain_preds,
+                successors=[merge_act],
+            )
+
+            # Refresh chain_set after graph change (chain activities unchanged,
+            # but chain_set must stay valid for subsequent merge-point checks)
+            chain_set = self.constrained_chain_set
+
+            inserted.append(fb)
+            logger.info(
+                "insert_feeding_buffers: inserted %s (%.1f h) before '%s'.",
+                fb_name, fb_size, merge_act.name,
+            )
+
+        return inserted
+
+    def get_buffer_status(self) -> dict:
+        """Report the consumption status of all buffer activities in the schedule.
+
+        Buffer *consumption* measures how much of the protective time was
+        actually absorbed by upstream delays:
+
+        ``consumed_hours = max(0, actual_start_hours − CPM_ES_hours)``
+
+        If the critical chain (or feeding chain) ran exactly on plan,
+        ``consumed_hours = 0``.  If delays pushed the chain's terminal
+        activity past its CPM finish time, the buffer's actual start is
+        later than planned and ``consumed_hours > 0``.
+
+        Returns:
+            dict keyed by buffer activity name, each value a dict with:
+            ``buffer_type``, ``size_hours``, ``cpm_start_hours``,
+            ``actual_start_hours`` (None if not yet scheduled),
+            ``consumed_hours``, ``utilization_pct``.
+            Empty dict if no buffer activities exist.
+        """
+        if not self.startTime:
+            return {}
+
+        status = {}
+        for act in self.forwardDict:
+            bt = getattr(act, 'buffer_type', None)
+            if bt is None:
+                continue
+
+            cpm_es = self.infoDict.get(act, {}).get('es', 0.0)
+            start_abs, _ = act.returnAbsTimes()
+
+            if start_abs is not None:
+                actual_start_h = (start_abs - self.startTime).total_seconds() / 3600.0
+                consumed = max(0.0, actual_start_h - cpm_es)
+            else:
+                actual_start_h = None
+                consumed       = 0.0
+
+            util_pct = (consumed / act.duration * 100.0) if act.duration > 0 else 0.0
+
+            status[act.name] = {
+                'buffer_type':        bt,
+                'size_hours':         act.duration,
+                'cpm_start_hours':    cpm_es,
+                'actual_start_hours': actual_start_h,
+                'consumed_hours':     consumed,
+                'utilization_pct':    min(100.0, util_pct),
+            }
+
+        return status
 
     def _compute_actual_tf_proxy(self, tol: float = 1e-6):
         """
@@ -2035,17 +3899,17 @@ class Pert:
                 blocking_preds = []
                 for pred in self.backwardDict.get(act, []):
                     p_st, p_et = pred.returnAbsTimes()
-                    # If predecessor didn’t end by the idle start, it gates
+                    # If predecessor didn't end by the idle start, it gates
                     if p_et is None or p_et > prev_et + timedelta(seconds=tol):
                         blocking_preds.append(pred.returnName())
                 if blocking_preds:
                     logger.debug(f"  Other predecessor(s) not complete by idle start: {blocking_preds}")
 
             # Prepare 'act' demands
-            skill_demands = {req['skill_type']: req['crew_count'] for req in act.getRequiredResources()}
-            eq_demands    = {req['equipment_id']: req['quantity_needed'] for req in act.getRequiredEquipment()}
-            loc_id        = act.getLocation()
-            need_workers  = sum(skill_demands.values())
+            skill_demands  = {req['skill_type']: req['crew_count'] for req in act.getRequiredResources()}
+            eq_demands     = {req['equipment_id']: req['quantity_needed'] for req in act.getRequiredEquipment()}
+            act_zone_ids   = act.getZoneIds()
+            need_workers   = sum(skill_demands.values())
 
             found_blockers = False
 
@@ -2094,38 +3958,38 @@ class Pert:
                             f"consumed {consumed}, remaining {remaining} -> BLOCKED")
                         logger.debug(f"  Equipment consumers at {hour_str}: {consumers or 'None (calendar blackout?)'}")
 
-                # (2c) Location capacity: task slots and worker slots
-                if loc_id:
-                    cap = self.location_pool.get_capacity(loc_id, h)
+                # (2c) Zone capacity: task slots and worker slots for every zone.
+                for zone_id in act_zone_ids:
+                    cap = self.location_pool.get_capacity(zone_id, h)
                     tasks_now = 0
                     workers_now = 0
                     loc_tasks = []
                     for og in scheduled_acts:
-                        if og.getLocation() == loc_id:
+                        if zone_id in og.getZoneIds():
                             og_st, og_et = og.returnAbsTimes()
                             if og_st <= h < og_et:
                                 tasks_now += 1
                                 loc_tasks.append(og.returnName())
-                                # total workers at the location (all skills)
+                                # total workers at the zone (all skills)
                                 workers_now += sum(r['crew_count'] for r in og.getRequiredResources())
 
                     # Task slot deficit
                     if cap['max_tasks'] - tasks_now < 1:
                         found_blockers = True
-                        logger.debug(f"• {hour_str} | LOCATION {loc_id} tasks: "
+                        logger.debug(f"• {hour_str} | ZONE {zone_id} tasks: "
                             f"max_tasks {cap['max_tasks']}, in_use {tasks_now} -> BLOCKED")
-                        logger.debug(f"  Location tasks at {hour_str}: {loc_tasks}")
+                        logger.debug(f"  Zone tasks at {hour_str}: {loc_tasks}")
 
                     # Worker slot deficit
                     if cap.get('max_workers') is not None and (cap['max_workers'] - workers_now) < need_workers:
                         found_blockers = True
-                        logger.debug(f"• {hour_str} | LOCATION {loc_id} workers: "
+                        logger.debug(f"• {hour_str} | ZONE {zone_id} workers: "
                             f"max_workers {cap['max_workers']}, in_use {workers_now}, "
                             f"need {need_workers} -> BLOCKED")
 
             if not found_blockers:
                 logger.debug("• No capacity deficits detected in idle window.")
-                logger.debug("  If ES gate above isn’t the cause, this likely indicates calendar unavailability, off-hours,")
+                logger.debug("  If ES gate above isn't the cause, this likely indicates calendar unavailability, off-hours,")
                 logger.debug("  or non-modeled constraints (e.g., shift rules).")
 
 
@@ -2202,11 +4066,11 @@ class Pert:
 
     def _get_tasks_at_location(self, location_id: str, time_point: datetime) -> int:
         """
-        Count how many tasks are ongoing at a location at time_point.
+        Count how many tasks are ongoing at a zone/location at time_point.
         """
         count = 0
         for act in self.ongoing:
-            if act.getLocation() == location_id:
+            if location_id in act.getZoneIds():
                 start_time, end_time = act.returnAbsTimes()
                 if start_time and end_time and start_time <= time_point < end_time:
                     count += 1
@@ -2214,11 +4078,11 @@ class Pert:
 
     def _get_workers_at_location(self, location_id: str, time_point: datetime) -> int:
         """
-        Count how many workers are at a location at time_point.
+        Count how many workers are at a zone/location at time_point.
         """
         total_workers = 0
         for act in self.ongoing:
-            if act.getLocation() == location_id:
+            if location_id in act.getZoneIds():
                 start_time, end_time = act.returnAbsTimes()
                 if start_time and end_time and start_time <= time_point < end_time:
                     for res_req in act.getRequiredResources():
@@ -2261,10 +4125,16 @@ class Pert:
                 #    f"(duration: {max(0.0, act.duration):.1f}h, delay: {act.delay:.1f}h)"
                 #)
 
-        # Move to completed
+        # Move to completed and release any system-state locks
         for act in completed_now:
+            act.status = 'completed'
             self.ongoing.remove(act)
             self.completed.append(act)
+            if self.system_state_pool:
+                for req in act.getRequiredSystemStates():
+                    self.system_state_pool.release(
+                        req['system_id'], req['required_state']
+                    )
 
     def get_schedule_dataframe(self):
         """
@@ -2461,9 +4331,9 @@ class Pert:
             # Half-open interval overlap: [st1, et1) with [st2, et2)
             return st1 < et2 and st2 < et1
 
-        # --- Location binding arcs ---
+        # --- Location / zone binding arcs ---
         for loc_id in self.location_pool.get_all_location_ids():
-            acts_loc = [(a, st, et) for (a, st, et) in scheduled if a.getLocation() == loc_id]
+            acts_loc = [(a, st, et) for (a, st, et) in scheduled if loc_id in a.getZoneIds()]
             acts_loc.sort(key=lambda t: (t[1], t[2]))
             # Check consecutive overlapping pairs
             for i in range(len(acts_loc) - 1):
@@ -2703,10 +4573,14 @@ class Pert:
         # Include one extra hour past j_end + d_i to ensure _fits_with_tentative
         # can always find valid data for any candidate start in the window.
         scan_end = j_end + d_i + timedelta(hours=1)
-        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem = \
+        # _build_capacity_snapshots now returns a 5-tuple.  This method scans
+        # hour-by-hour (t_n, t_n+1h, …) so we keep the hour-by-hour fallback
+        # (grid=None) for _apply_tentative and _fits_with_tentative to preserve
+        # correctness of the sequential overlap check.
+        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, _grid = \
             self._build_capacity_snapshots(t_n, scan_end)
 
-        # Commit j into the capacity snapshots
+        # Commit j into the capacity snapshots (hour-by-hour path)
         self._apply_tentative(act_j, t_n, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem)
 
         # Check simultaneous start (SP case)
@@ -2976,15 +4850,15 @@ class Pert:
                 if avail - consumed < need:
                     return False
 
-            # ── Location ─────────────────────────────────────────────────────
-            loc_id = activity.getLocation()
-            if loc_id:
-                cap = self.location_pool.get_capacity(loc_id, h)
+            # ── Location / zone ──────────────────────────────────────────────
+            # All zones must have a free task slot (and worker slot if bounded).
+            for zone_id in activity.getZoneIds():
+                cap = self.location_pool.get_capacity(zone_id, h)
 
                 # Task slots
                 tasks_in_use = sum(
                     1 for (a, s, e) in overlapping
-                    if s <= h < e and a.getLocation() == loc_id
+                    if s <= h < e and zone_id in a.getZoneIds()
                 )
                 if cap['max_tasks'] - tasks_in_use < 1:
                     return False
@@ -2997,7 +4871,7 @@ class Pert:
                     workers_in_use = sum(
                         r['crew_count']
                         for (a, s, e) in overlapping
-                        if s <= h < e and a.getLocation() == loc_id
+                        if s <= h < e and zone_id in a.getZoneIds()
                         for r in a.getRequiredResources()
                     )
                     if cap['max_workers'] - workers_in_use < workers_needed:
@@ -3648,13 +5522,25 @@ class Pert:
 # SERVICE METHODS
 # ============================================================================
 
-def _weight_function(total_float: float) -> float:
+def _weight_function(total_float: float, project_duration: float = 10.0) -> float:
     """
     Calculate priority weight based on total float (slack).
 
     Activities with less slack get higher priority (closer to 1.0).
+
+    The sigmoid inflection point scales with project duration so that the
+    "urgency zone" spans roughly 1 % of the project horizon rather than
+    a fixed 5 hours.  For a 500-hour outage the cliff sits at ~5 h (floor);
+    for a 2 000-hour outage it shifts to ~20 h, preventing near-identical
+    floats from receiving radically different priority weights.
+
+    Args:
+        total_float:      Float (slack) of the activity in hours.
+        project_duration: CPM project duration in hours (default 10 h gives
+                          the legacy behaviour for short toy networks).
     """
-    return 1.0 - 1.0 / (1.0 + math.exp(5.0 - total_float))
+    threshold = max(5.0, 0.01 * project_duration)
+    return 1.0 - 1.0 / (1.0 + math.exp(threshold - total_float))
 
 
 # ============================================================================
@@ -4180,7 +6066,17 @@ class MDKnapsackScheduler:
         return selected
 
     def _get_capacities(self) -> Dict:
-        """Get available capacity at current time point (original availability)."""
+        """Get available capacity at current time point (original availability).
+
+        Returns a flat dict keyed by prefixed dimension strings:
+        ``RESOURCE_<skill>``, ``EQUIPMENT_<eq_id>``,
+        ``LOC_TASKS_<loc_id>``, ``LOC_WORKERS_<loc_id>``.
+
+        Location task/worker caps are included so the greedy selector avoids
+        assigning too many concurrent tasks or workers to the same physical
+        zone — a common source of infeasibility in high-dose outage areas.
+        ``None`` caps (unlimited workers) are stored as ``math.inf``.
+        """
         capacities = {}
 
         # Resource capacities
@@ -4193,10 +6089,24 @@ class MDKnapsackScheduler:
             avail = self.equipment_pool.get_availability(eq_id, self.time_point)
             capacities[f'EQUIPMENT_{eq_id}'] = avail
 
+        # Location capacities
+        for loc_id in self.location_pool.get_all_location_ids():
+            cap = self.location_pool.get_capacity(loc_id, self.time_point)
+            capacities[f'LOC_TASKS_{loc_id}'] = cap.get('max_tasks', 0)
+            max_w = cap.get('max_workers', None)
+            capacities[f'LOC_WORKERS_{loc_id}'] = (
+                float('inf') if max_w is None else max_w
+            )
+
         return capacities
 
     def _get_resource_consumption(self, activity) -> Dict:
-        """Get resource consumption for an activity."""
+        """Get resource consumption for an activity.
+
+        Returns the same dimension space as :meth:`_get_capacities` so the
+        greedy knapsack loop can compare them directly.  Location dimensions
+        use 1 task slot and the sum of crew counts as worker slots.
+        """
         consumption = {}
 
         # Resources
@@ -4208,6 +6118,13 @@ class MDKnapsackScheduler:
         for eq_req in activity.getRequiredEquipment():
             key = f'EQUIPMENT_{eq_req["equipment_id"]}'
             consumption[key] = eq_req['quantity_needed']
+
+        # Location / zone: 1 concurrent task slot per zone + aggregate worker slots.
+        workers = sum(r['crew_count'] for r in activity.getRequiredResources())
+        for zone_id in activity.getZoneIds():
+            consumption[f'LOC_TASKS_{zone_id}'] = 1
+            if workers:
+                consumption[f'LOC_WORKERS_{zone_id}'] = workers
 
         return consumption
 
@@ -4260,27 +6177,29 @@ class LookAheadScheduler:
             return []
 
         max_end = time_point
+        cand_ends_la: set = set()
         for act, _ in scored:
             cand_end = time_point + timedelta(hours=self.pert._effective_duration(act))
+            cand_ends_la.add(cand_end)
             if cand_end > max_end:
                 max_end = cand_end
 
-        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem = \
-            self.pert._build_capacity_snapshots(time_point, max_end)
+        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid = \
+            self.pert._build_capacity_snapshots(time_point, max_end, extra_boundaries=cand_ends_la)
 
         # ── Step 3: greedy selection with tentative capacity decrement ───────────
         selected = []
         for act, score in scored:
             if self.pert._fits_with_tentative(
                 act, time_point,
-                res_rem, eq_rem, loc_tasks_rem, loc_workers_rem
+                res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
             ):
                 selected.append(act)
                 # Decrement shared snapshots so the next candidate in the loop
                 # sees reduced capacity — preventing overbooking.
                 self.pert._apply_tentative(
                     act, time_point,
-                    res_rem, eq_rem, loc_tasks_rem, loc_workers_rem
+                    res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
                 )
 
         return selected
@@ -4313,7 +6232,7 @@ class LookAheadScheduler:
 
             # Slack-based value: successors with smaller slack are more valuable to enable
             slack = self.pert.infoDict[succ]['slack']
-            future_score += _weight_function(slack)
+            future_score += _weight_function(slack, self.pert.getProjectDuration())
 
         # 2) Resource pressure relief at finish time
         #    If resources are scarce at finish_time, completing this activity earlier helps open capacity
