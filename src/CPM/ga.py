@@ -138,6 +138,18 @@ class RCPSPGeneticAlgorithm:
         generations.
     verbose : bool
         Print generation statistics and seeding table to stdout.
+    crossover : str
+        Crossover operator to use.  Choices:
+
+        * ``'one_point'``    — Hartmann (1998) one-point crossover
+        * ``'two_point'``    — two-point crossover (default)
+        * ``'uniform_order'`` — uniform order-preserving crossover (UOX)
+    mutation : str
+        Mutation operator to use.  Choices:
+
+        * ``'swap'``              — random swap with topological repair
+        * ``'adjacent_swap'``     — adjacent-swap with feasibility check (default)
+        * ``'insertion_window'``  — precedence-window insertion
     """
 
     # DEAP creator type names (module-level singletons; guarded against
@@ -145,17 +157,43 @@ class RCPSPGeneticAlgorithm:
     _FITNESS_CLS = "FitnessMinRCPSP"
     _INDIVIDUAL_CLS = "IndividualRCPSP"
 
+    # Maps accepted string names to the corresponding bound methods.
+    # Populated after the method definitions — see bottom of class body.
+    _CROSSOVER_METHODS: Dict[str, str] = {
+        'one_point':    '_crossover_one_point',
+        'two_point':    '_crossover_two_point',
+        'uniform_order': '_crossover_uniform_order',
+    }
+    _MUTATION_METHODS: Dict[str, str] = {
+        'swap':             '_mutate_swap',
+        'adjacent_swap':    '_mutate_adjacent_swap',
+        'insertion_window': '_mutate_insertion_window',
+    }
+
     def __init__(
         self,
         pert,
         pop_size: int = 50,
         n_gen: int = 100,
-        cxpb: float = 0.8,
+        cxpb: float = 0.7,
         mutpb: float = 0.1,
         seed: int = 42,
         hof_size: int = 5,
         verbose: bool = True,
+        crossover: str = 'two_point',
+        mutation: str = 'adjacent_swap',
     ) -> None:
+        if crossover not in self._CROSSOVER_METHODS:
+            raise ValueError(
+                f"Unknown crossover '{crossover}'. "
+                f"Choose from: {list(self._CROSSOVER_METHODS)}"
+            )
+        if mutation not in self._MUTATION_METHODS:
+            raise ValueError(
+                f"Unknown mutation '{mutation}'. "
+                f"Choose from: {list(self._MUTATION_METHODS)}"
+            )
+
         self.pert = pert
         self.pop_size = pop_size
         self.n_gen = n_gen
@@ -163,6 +201,8 @@ class RCPSPGeneticAlgorithm:
         self.mutpb = mutpb
         self.hof_size = hof_size
         self.verbose = verbose
+        self.crossover = crossover
+        self.mutation = mutation
 
         random.seed(seed)
         np.random.seed(seed)
@@ -192,10 +232,13 @@ class RCPSPGeneticAlgorithm:
             )
         self._Ind = getattr(creator, self._INDIVIDUAL_CLS)
 
+        cx_fn = getattr(self, self._CROSSOVER_METHODS[self.crossover])
+        mut_fn = getattr(self, self._MUTATION_METHODS[self.mutation])
+
         tb = base.Toolbox()
         tb.register("evaluate", self._evaluate)
-        tb.register("mate", self._crossover_one_point)
-        tb.register("mutate", self._mutate_swap)
+        tb.register("mate", cx_fn)
+        tb.register("mutate", mut_fn)
         tb.register("select", tools.selTournament, tournsize=3)
         self.toolbox = tb
 
@@ -433,6 +476,141 @@ class RCPSPGeneticAlgorithm:
 
         return ind1, ind2
 
+    @staticmethod
+    def _crossover_two_point(
+        ind1: List[int], ind2: List[int]
+    ) -> Tuple[List[int], List[int]]:
+        """
+        Two-point crossover for precedence-feasible activity lists.
+
+        Algorithm (Pseudocode: OP_TwoPoint_Crossover):
+        ------------------------------------------------
+        Given mother λᴹ (``ind1``) and father λᶠ (``ind2``):
+
+        1. Draw two random cut points 1 ≤ q1 < q2 < N.
+        2. Child 1 inherits fixed positions from mother:
+               C[1..q1]   := λᴹ[1..q1]
+               C[q2+1..N] := λᴹ[q2+1..N]
+        3. The middle segment (q1+1..q2) is filled by scanning the father
+           left-to-right and inserting activities not already fixed in C,
+           in order, into the available middle slots.
+        4. Child 2 is built symmetrically (mother and father roles swapped).
+
+        Precedence feasibility is preserved by the same argument as the
+        one-point operator: the fixed prefix and suffix come from a feasible
+        list, and the middle segment respects the relative order of the father.
+
+        Example (q1=2, q2=4, N=6):
+            λᴹ = [1, 3, 2, 5, 4, 6]
+            λᶠ = [2, 4, 6, 1, 3, 5]
+            fixed from mother: [1, 3, _, _, 4, 6]   (positions 1-2 and 5-6)
+            middle from father (not in {1,3,4,6}): [2, 5]
+            λᶜ = [1, 3, 2, 5, 4, 6]
+
+        Parameters
+        ----------
+        ind1, ind2 : list of int
+            Parent chromosomes.  Modified **in place** per DEAP convention.
+
+        Returns
+        -------
+        (ind1, ind2) : modified children
+        """
+        n = len(ind1)
+        if n < 3:
+            return ind1, ind2
+
+        # Choose 1 ≤ q1 < q2 ≤ n-1 (Python slice points); guarantees
+        # non-empty fixed ends and a non-empty middle segment.
+        q1, q2 = sorted(random.sample(range(1, n), 2))
+
+        # Save originals so Child 2 reads unmodified parent data.
+        orig1 = list(ind1)
+        orig2 = list(ind2)
+
+        # --- Child 1: fixed from mother (orig1), middle from father (orig2) ---
+        fixed1 = set(orig1[:q1]) | set(orig1[q2:])
+        middle1 = [gene for gene in orig2 if gene not in fixed1]
+        ind1[:] = orig1[:q1] + middle1 + orig1[q2:]
+
+        # --- Child 2: fixed from father (orig2), middle from mother (orig1) ---
+        fixed2 = set(orig2[:q1]) | set(orig2[q2:])
+        middle2 = [gene for gene in orig1 if gene not in fixed2]
+        ind2[:] = orig2[:q1] + middle2 + orig2[q2:]
+
+        return ind1, ind2
+
+    @staticmethod
+    def _crossover_uniform_order(
+        ind1: List[int], ind2: List[int]
+    ) -> Tuple[List[int], List[int]]:
+        """
+        Uniform order-preserving crossover (UOX) for activity lists.
+
+        Algorithm (Pseudocode: Uniform_Order_Crossover):
+        -------------------------------------------------
+        Given mother λᴹ (``ind1``) and father λᶠ (``ind2``):
+
+        1. Draw a random binary mask p ∈ {0,1}ᴺ.
+        2. Initialise child C with empty slots.
+        3. For each position i: if p[i]=1, set C[i] := λᴹ[i].
+        4. Fill the remaining empty slots by scanning λᶠ left-to-right
+           and placing each not-yet-used activity into the next empty slot.
+        5. Child 2 is built symmetrically (mother and father roles swapped,
+           same mask).
+
+        The operator preserves precedence feasibility: masked positions copy a
+        contiguous sub-sequence from the mother in its original order, and the
+        father scan respects the father's (feasible) relative order for the
+        remaining activities.
+
+        Example (p=[1,0,1,0,0,1], N=6):
+            λᴹ = [1, 3, 2, 5, 4, 6]
+            λᶠ = [2, 4, 6, 1, 3, 5]
+            After mask: C = [1, _, 2, _, _, 6]   (from mother at positions 0,2,5)
+            Father scan (skip 1,2,6): 4, 3, 5
+            λᶜ = [1, 4, 2, 3, 5, 6]
+
+        Parameters
+        ----------
+        ind1, ind2 : list of int
+            Parent chromosomes.  Modified **in place** per DEAP convention.
+
+        Returns
+        -------
+        (ind1, ind2) : modified children
+        """
+        n = len(ind1)
+        if n < 2:
+            return ind1, ind2
+
+        mask = [random.randint(0, 1) for _ in range(n)]
+
+        orig1 = list(ind1)
+        orig2 = list(ind2)
+
+        # --- Child 1: masked positions from mother (orig1), gaps from father (orig2) ---
+        child1 = [None] * n
+        used1: set = set()
+        for i in range(n):
+            if mask[i]:
+                child1[i] = orig1[i]
+                used1.add(orig1[i])
+        fill1 = iter(gene for gene in orig2 if gene not in used1)
+        ind1[:] = [child1[i] if child1[i] is not None else next(fill1) for i in range(n)]
+
+        # --- Child 2: masked positions from father (orig2), gaps from mother (orig1) ---
+        child2 = [None] * n
+        used2: set = set()
+        for i in range(n):
+            if mask[i]:
+                child2[i] = orig2[i]
+                used2.add(orig2[i])
+        fill2 = iter(gene for gene in orig1 if gene not in used2)
+        ind2[:] = [child2[i] if child2[i] is not None else next(fill2) for i in range(n)]
+
+        return ind1, ind2
+
     # ---------------------------------------------------------------------- #
     # Mutation — swap with topological repair                                  #
     # ---------------------------------------------------------------------- #
@@ -455,6 +633,9 @@ class RCPSPGeneticAlgorithm:
 
         The operator modifies ``individual`` **in place** per DEAP convention.
 
+        The first and last positions (dummy START / END activities) are never
+        selected, so the swap always targets real activities only.
+
         Parameters
         ----------
         individual : list of int
@@ -466,10 +647,10 @@ class RCPSPGeneticAlgorithm:
             ``(individual,)`` — single-element tuple per DEAP convention.
         """
         n = len(individual)
-        if n < 2:
+        if n < 4:  # need at least 2 non-dummy positions in range(1, n-1)
             return (individual,)
 
-        i, j = random.sample(range(n), 2)
+        i, j = random.sample(range(1, n - 1), 2)
         individual[i], individual[j] = individual[j], individual[i]
 
         # Build (Activity, rank) pairs from the perturbed ordering.
@@ -482,6 +663,138 @@ class RCPSPGeneticAlgorithm:
         repaired = self.pert.reorder_by_dependencies(ranked, self.pert.forwardDict)
 
         individual[:] = [self._act_to_idx[a] for a, _ in repaired]
+        return (individual,)
+
+    def _mutate_adjacent_swap(
+        self, individual: List[int], pmutation: float = 0.5
+    ) -> Tuple[List[int]]:
+        """
+        Adjacent-swap mutation with precedence feasibility check.
+
+        Algorithm (Pseudocode: Adjacent_Swap_Precedence_Mutation):
+        -----------------------------------------------------------
+        For each adjacent pair (i, i+1) in 1..N-1:
+          1. With probability ``pmutation``, attempt to swap positions i and i+1.
+          2. Accept the swap only if the result remains precedence-feasible.
+
+        Feasibility of an adjacent swap is cheap to check: only the two
+        swapped activities can violate precedence against each other.  Let
+        ``a = individual[i]`` and ``b = individual[i+1]``.  After the swap,
+        ``b`` sits before ``a``.  This is infeasible iff ``a`` is a
+        predecessor of ``b`` (i.e. ``a ∈ backwardDict[b]``).  All other
+        relative orders are unchanged, so no further check is needed.
+
+        Unlike ``_mutate_swap``, no topological repair step is required: the
+        swap is simply rejected when it would violate precedence, keeping the
+        chromosome always valid without post-processing.
+
+        The first and last positions (dummy START / END activities) are never
+        involved in any swap attempt.
+
+        Parameters
+        ----------
+        individual : list of int
+            Precedence-feasible permutation of activity indices.
+            Modified **in place** per DEAP convention.
+        pmutation : float, optional
+            Per-adjacent-pair swap probability.  Default ``0.5``.
+
+        Returns
+        -------
+        tuple
+            ``(individual,)`` — single-element tuple per DEAP convention.
+        """
+        n = len(individual)
+        if n < 4:  # need at least two non-dummy interior positions
+            return (individual,)
+
+        backward = self.pert.backwardDict
+
+        # range(1, n-2): pairs (1,2) … (n-3, n-2) — never touches position 0 or n-1.
+        for i in range(1, n - 2):
+            if random.random() >= pmutation:
+                continue
+            act_i  = self._activities[individual[i]]
+            act_i1 = self._activities[individual[i + 1]]
+            # Swap is feasible iff act_i is NOT a required predecessor of act_i1.
+            if act_i not in backward.get(act_i1, []):
+                individual[i], individual[i + 1] = individual[i + 1], individual[i]
+
+        return (individual,)
+
+    def _mutate_insertion_window(self, individual: List[int]) -> Tuple[List[int]]:
+        """
+        Precedence-window insertion mutation.
+
+        Algorithm (Pseudocode: Precedence_Window_Insertion_Mutation):
+        --------------------------------------------------------------
+        1. Choose a random non-dummy activity ``a`` from the chromosome.
+        2. Compute the feasible insertion window [lo..hi] from the current
+           positions of ``a``'s predecessors and successors:
+               lo = 1 + max position of predecessors of a   (0 if no predecessors)
+               hi = -1 + min position of successors of a   (n-1 if no successors)
+        3. Draw ``new_pos`` uniformly from [lo..hi].
+        4. Remove ``a`` from its current position and insert at ``new_pos``.
+
+        The result is precedence-feasible by construction: lo and hi are
+        chosen so that every predecessor of ``a`` still sits before ``new_pos``
+        and every successor still sits after it.  No repair step is needed.
+
+        Non-dummy activities are those whose name is neither ``START`` nor
+        ``END`` (case-insensitive), matching ``pert.startActivity`` /
+        ``pert.endActivity``.
+
+        Parameters
+        ----------
+        individual : list of int
+            Precedence-feasible permutation of activity indices.
+            Modified **in place** per DEAP convention.
+
+        Returns
+        -------
+        tuple
+            ``(individual,)`` — single-element tuple per DEAP convention.
+        """
+        n = len(individual)
+        if n < 2:
+            return (individual,)
+
+        # Indices of dummy (START / END) activities to exclude from selection.
+        dummy_acts = {self.pert.startActivity, self.pert.endActivity} - {None}
+        dummy_idx = {self._act_to_idx[a] for a in dummy_acts if a in self._act_to_idx}
+
+        non_dummy_positions = [p for p in range(n) if individual[p] not in dummy_idx]
+        if not non_dummy_positions:
+            return (individual,)
+
+        # Choose a random non-dummy position and resolve its Activity.
+        cur_pos = random.choice(non_dummy_positions)
+        act = self._activities[individual[cur_pos]]
+
+        # Position lookup: gene value → index in chromosome (built once per call).
+        pos_of = {individual[p]: p for p in range(n)}
+
+        # lo: one past the rightmost predecessor's position.
+        preds = self.pert.backwardDict.get(act, [])
+        lo = (max(pos_of[self._act_to_idx[pr]] for pr in preds) + 1) if preds else 0
+
+        # hi: one before the leftmost successor's position.
+        succs = self.pert.forwardDict.get(act, [])
+        hi = (min(pos_of[self._act_to_idx[sc]] for sc in succs) - 1) if succs else n - 1
+
+        # Safety: current position must lie in [lo..hi] for a valid chromosome.
+        if lo > hi:
+            return (individual,)
+
+        new_pos = random.randint(lo, hi)
+
+        if new_pos == cur_pos:
+            return (individual,)
+
+        # Remove then re-insert; adjust index because removal shortens the list.
+        gene = individual.pop(cur_pos)
+        individual.insert(new_pos if new_pos < cur_pos else new_pos - 1, gene)
+
         return (individual,)
 
     # ---------------------------------------------------------------------- #
