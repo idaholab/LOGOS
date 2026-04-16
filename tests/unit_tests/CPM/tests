@@ -11,4 +11,8 @@
   type = 'RavenPython'
   input = 'test_ga.py'
  [../]
+[./test_ga]
+  type = 'RavenPython'
+  input = 'test_rcpsp_alns.py'
+ [../]
 []
