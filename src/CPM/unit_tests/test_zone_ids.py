@@ -72,11 +72,11 @@ def _build_pert(fwd, locations_json=None, mech_count=0):
     """
     from CPM.outage_data import ResourceAvailability
     p = Pert(graph=fwd)
-    p.resource_pool  = ResourcePool()
+    p.crew_pool  = ResourcePool()
     if mech_count > 0:
         periods = [{'start_date': _START, 'end_date': _END,
                     'available_count': mech_count}]
-        p.resource_pool.resources['MECH'] = ResourceAvailability(
+        p.crew_pool.resources['MECH'] = ResourceAvailability(
             'MECH', periods, resource_type='renewable'
         )
     p.equipment_pool = EquipmentPool()

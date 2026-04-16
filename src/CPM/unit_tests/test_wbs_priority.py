@@ -65,7 +65,7 @@ def _chain_pert(*durations, groups=None):
 
     rp, ep, lp = _empty_pools()
     p = Pert(graph=fwd)
-    p.resource_pool  = rp
+    p.crew_pool  = rp
     p.equipment_pool = ep
     p.location_pool  = lp
     p.startTime      = _start()
@@ -175,7 +175,7 @@ class TestComputeWbsSlack:
 
         rp, ep, lp = _empty_pools()
         p = Pert(graph={A: [C], B: [C], C: []})
-        p.resource_pool  = rp
+        p.crew_pool  = rp
         p.equipment_pool = ep
         p.location_pool  = lp
         p.startTime      = _start()
@@ -202,7 +202,7 @@ class TestComputeWbsSlack:
 
         rp, ep, lp = _empty_pools()
         p = Pert(graph={A: [B], B: [C], C: [], D: [C]})
-        p.resource_pool  = rp
+        p.crew_pool  = rp
         p.equipment_pool = ep
         p.location_pool  = lp
         p.startTime      = _start()
@@ -229,7 +229,7 @@ class TestComputeWbsSlack:
 
         rp, ep, lp = _empty_pools()
         p = Pert(graph={A: [B], B: [C], C: [], D: [C]})
-        p.resource_pool = rp; p.equipment_pool = ep; p.location_pool = lp
+        p.crew_pool = rp; p.equipment_pool = ep; p.location_pool = lp
         p.startTime = _start()
         p.generateInfo()
 
@@ -248,7 +248,7 @@ class TestComputeWbsSlack:
 
         rp, ep, lp = _empty_pools()
         p = Pert(graph={A: [B], B: [], C: [D], D: []})
-        p.resource_pool = rp; p.equipment_pool = ep; p.location_pool = lp
+        p.crew_pool = rp; p.equipment_pool = ep; p.location_pool = lp
         p.startTime = _start()
         p.generateInfo()
 
@@ -283,7 +283,7 @@ class TestComputeWbsSlack:
 
         rp, ep, lp = _empty_pools()
         p = Pert(graph={A: [B], B: [C], C: [], D: [C]})
-        p.resource_pool = rp; p.equipment_pool = ep; p.location_pool = lp
+        p.crew_pool = rp; p.equipment_pool = ep; p.location_pool = lp
         p.startTime = _start(); p.generateInfo()
 
         # Initial: B slack=0 (critical), D slack>0 → group min=0
@@ -321,7 +321,7 @@ class TestPriorityElevation:
 
         rp, ep, lp = _empty_pools()
         p = Pert(graph={A: [B], B: [END], D: [END], END: []})
-        p.resource_pool = rp; p.equipment_pool = ep; p.location_pool = lp
+        p.crew_pool = rp; p.equipment_pool = ep; p.location_pool = lp
         p.startTime = _start(); p.generateInfo()
 
         # D has positive individual slack; wbs_slack = 0 (B is on CP)
@@ -377,7 +377,7 @@ class TestPriorityElevation:
         C.childs = []
 
         p = Pert(graph={A: [C], B: [C], C: []})
-        p.resource_pool = rp; p.equipment_pool = ep; p.location_pool = lp
+        p.crew_pool = rp; p.equipment_pool = ep; p.location_pool = lp
         p.startTime = a_date; p.generateInfo()
 
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
@@ -412,7 +412,7 @@ class TestWbsSlackReplanning:
         B.childs = []
 
         p = Pert(graph={A: [B], B: []})
-        p.resource_pool = rp; p.equipment_pool = ep; p.location_pool = lp
+        p.crew_pool = rp; p.equipment_pool = ep; p.location_pool = lp
         p.startTime = a_date; p.generateInfo()
 
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
@@ -450,7 +450,7 @@ class TestWbsSlackReplanning:
         C.wbs_group = 'PKG'
 
         p = Pert(graph={A: [C], B: [C], C: []})
-        p.resource_pool = rp; p.equipment_pool = ep; p.location_pool = lp
+        p.crew_pool = rp; p.equipment_pool = ep; p.location_pool = lp
         p.startTime = a_date; p.generateInfo()
 
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')

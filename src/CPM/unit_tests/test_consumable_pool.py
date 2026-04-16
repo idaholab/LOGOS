@@ -35,7 +35,7 @@ def _make_pert_with_consumable(acts_fwd, consumable_pool=None):
     """Build a Pert with minimal pools and an optional ConsumablePool."""
     from CPM.outage_data import ResourcePool, EquipmentPool, LocationPool
     p = Pert(graph=acts_fwd)
-    p.resource_pool  = ResourcePool()
+    p.crew_pool  = ResourcePool()
     p.equipment_pool = EquipmentPool()
     p.location_pool  = LocationPool()
     p.consumable_pool = consumable_pool
@@ -427,7 +427,7 @@ class TestReplanConsumables:
         c = _act('C', 4.0)
         fwd = {a: [b], b: [c], c: []}
         p = Pert(graph=fwd)
-        p.resource_pool  = ResourcePool()
+        p.crew_pool  = ResourcePool()
         p.equipment_pool = EquipmentPool()
         p.location_pool  = LocationPool()
         p.consumable_pool = consumable_pool
@@ -454,7 +454,7 @@ class TestReplanConsumables:
         b = _act('B', 4.0)
         fwd = {a: [b], b: []}
         p = Pert(graph=fwd)
-        p.resource_pool  = ResourcePool()
+        p.crew_pool  = ResourcePool()
         p.equipment_pool = EquipmentPool()
         p.location_pool  = LocationPool()
         p.consumable_pool = None

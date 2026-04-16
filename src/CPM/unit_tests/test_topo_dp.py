@@ -47,7 +47,7 @@ def _make_pools():
 def _build_pert(fwd: dict) -> Pert:
     rp, ep, lp = _make_pools()
     p = Pert(graph=fwd)
-    p.resource_pool  = rp
+    p.crew_pool  = rp
     p.equipment_pool = ep
     p.location_pool  = lp
     p.startTime      = datetime(2026, 1, 1)
@@ -341,7 +341,7 @@ class TestPerformance:
 
         rp, ep, lp = _make_pools()
         p = Pert(graph=fwd)
-        p.resource_pool  = rp
+        p.crew_pool  = rp
         p.equipment_pool = ep
         p.location_pool  = lp
         p.startTime      = datetime(2026, 1, 1)

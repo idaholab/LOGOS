@@ -44,6 +44,9 @@ class Activity:
         self.startTime = None
         self.endTime = None
         self.delay = 0
+        # Lazy delay tracking: set when activity first enters the candidate set;
+        # delay is computed once at start time rather than accumulated each step.
+        self._candidate_since = None
 
         # Dependencies - support both old (childs) and new (successors) terminology
         if childs is None:
@@ -118,6 +121,9 @@ class Activity:
         # and flagged as an infeasible window.
         self.window_earliest_start_hours: float | None = None
         self.window_latest_finish_hours: float | None = None
+        # Optional list of discrete allowed windows: [{'earliest': h, 'latest': h}, ...]
+        # When non-empty, takes precedence over the single-window fields above.
+        self.time_windows: list = []
 
         # Buffer type for CCPM proactive robustness buffering.
         # Set by insert_project_buffer() / insert_feeding_buffers() when this
@@ -248,6 +254,11 @@ class Activity:
         raw_wlf  = task_dict.get('window_latest_finish_hours')
         instance.window_earliest_start_hours = float(raw_west) if raw_west is not None else None
         instance.window_latest_finish_hours  = float(raw_wlf)  if raw_wlf  is not None else None
+        raw_tw = task_dict.get('time_windows', [])
+        instance.time_windows = [
+            {'earliest': float(w['earliest']), 'latest': float(w['latest'])}
+            for w in raw_tw
+        ] if raw_tw else []
         raw_modes = task_dict.get('modes', [])
         instance.modes = list(raw_modes) if raw_modes else []
         instance.wbs_group = task_dict.get('wbs_group') or None
@@ -297,6 +308,9 @@ class Activity:
             d['window_earliest_start_hours'] = west
         if wlf is not None:
             d['window_latest_finish_hours'] = wlf
+        tw = getattr(self, 'time_windows', [])
+        if tw:
+            d['time_windows'] = tw
         modes = getattr(self, 'modes', [])
         if modes:
             d['modes'] = modes
@@ -662,3 +676,4 @@ class Activity:
         self.status = 'pending'
         self._actual_resources = None
         self._remaining_duration = None
+        self._candidate_since = None

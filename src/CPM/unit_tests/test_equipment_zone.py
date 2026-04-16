@@ -71,7 +71,7 @@ def _loc_pool(*loc_ids):
 
 def _build_pert(fwd, eq_pool=None, loc_pool=None):
     p = Pert(graph=fwd)
-    p.resource_pool    = ResourcePool()
+    p.crew_pool    = ResourcePool()
     p.equipment_pool   = eq_pool or EquipmentPool()
     p.location_pool    = loc_pool or LocationPool()
     p.consumable_pool  = None
@@ -295,7 +295,7 @@ class TestValidateEquipmentZone:
             outage_config={'outage_id': 'TEST', 'start_date': '2026-01-01',
                            'working_hours_per_day': 24},
             tasks=tasks or [],
-            resource_pool=ResourcePool(),
+            crew_pool=ResourcePool(),
             equipment_pool=equipment or EquipmentPool(),
             location_pool=locations or LocationPool(),
             consumable_pool=ConsumablePool(),

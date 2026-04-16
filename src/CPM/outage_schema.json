@@ -150,6 +150,27 @@
             "minimum": 0,
             "description": "Hours of advance preparation required before this activity can begin after its predecessors complete. Typically used for vendor specialists or long-lead equipment that must be ordered or mobilised in advance. Baked into CPM early start so all downstream metrics (slack, GRPW) account for the delay. Omit or set 0 for activities with no mobilisation lead time."
           },
+          "time_windows": {
+            "type": "array",
+            "description": "Optional list of discrete allowed execution windows, each expressed as hours from outage start. When present, the activity must start and finish entirely within exactly one of the listed windows. If the first window is missed (resources unavailable), the scheduler waits for the next window rather than recording a violation. Takes precedence over the single-window fields window_earliest_start_hours and window_latest_finish_hours when non-empty. Use this for surveillance tests with multiple discrete Technical Specification windows.",
+            "items": {
+              "type": "object",
+              "required": ["earliest", "latest"],
+              "properties": {
+                "earliest": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Earliest allowed start time in hours from outage start."
+                },
+                "latest": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Latest allowed finish time in hours from outage start."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
           "required_system_states": {
             "type": "array",
             "description": "Plant-system isolation state requirements. Activities holding the same state on a system can coexist; activities requiring a different state are blocked. Must reference system_id values declared in the top-level 'plant_systems' array.",
@@ -389,6 +410,46 @@
             "description": "Enumeration of legal states for validation. Omit if unrestricted.",
             "items": { "type": "string", "minLength": 1 },
             "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "safety_functions": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Safety function definitions for documentation and mutual-exclusion encoding. Each entry names a safety function (e.g. ECCS, EDG) and lists its train identifiers. The scheduler enforces 'never two trains OOS simultaneously' by mapping each train to a distinct plant system state in plant_systems (see encoding note below). This array is metadata only — the scheduler does not read it directly.\n\nEncoding pattern (Option A): declare an abstract system in plant_systems with system_id = plant_system_id and valid_states = ['TRAIN_A_OOS', 'TRAIN_B_OOS', ...]. Activities working on Train A require required_state='TRAIN_A_OOS'; activities on Train B require 'TRAIN_B_OOS'. Because different states are mutually exclusive in SystemStatePool, the constraint is automatically enforced.\n\nFuture Option B: first-class SafetyFunctionPool with {trains, max_trains_oos} semantics — handles K>2 trains and per-function reporting without repurposing SystemStatePool. Implement if max_trains_oos_simultaneously > 1 or dedicated reporting is needed.",
+      "items": {
+        "type": "object",
+        "required": ["safety_function_id", "description", "train_ids", "plant_system_id"],
+        "properties": {
+          "safety_function_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique identifier for this safety function (e.g. 'ECCS', 'EDG', 'AFW')."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable name (e.g. 'Emergency Core Cooling System')."
+          },
+          "train_ids": {
+            "type": "array",
+            "minItems": 2,
+            "uniqueItems": true,
+            "description": "List of train identifiers for this safety function (e.g. ['TRAIN_A', 'TRAIN_B']). Each train maps to one valid_state in the plant_systems entry.",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "plant_system_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "References the system_id in plant_systems that encodes this safety function's mutual-exclusion constraint."
+          },
+          "max_trains_oos_simultaneously": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Maximum number of trains that may be out-of-service concurrently. Default 1 (only one train OOS at a time). Values > 1 require Option B (SafetyFunctionPool) — not yet implemented."
           }
         },
         "additionalProperties": false

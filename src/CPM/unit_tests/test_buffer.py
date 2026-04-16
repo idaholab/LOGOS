@@ -55,7 +55,7 @@ def _make_pert(fwd: dict, start=None) -> Pert:
     """Build a Pert from a forward-dict, attach empty pools."""
     rp, ep, lp = _empty_pools()
     p = Pert(graph=fwd)
-    p.resource_pool = rp
+    p.crew_pool = rp
     p.equipment_pool = ep
     p.location_pool = lp
     p.startTime = start or _start()
@@ -406,7 +406,7 @@ class TestGetBufferStatus:
         a = Activity('A', 4.0)
         fwd = {start: [a], a: [end], end: []}
         p = Pert(graph=fwd)
-        p.resource_pool = rp
+        p.crew_pool = rp
         p.equipment_pool = ep
         p.location_pool = lp
         # Do NOT set p.startTime

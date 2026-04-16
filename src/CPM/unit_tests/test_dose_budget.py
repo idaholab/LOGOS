@@ -93,7 +93,7 @@ def _pert_with_pools(fwd, rp, ep, lp, start_dt=None):
     before the scheduler runs.
     """
     p = Pert(graph=fwd)
-    p.resource_pool = rp
+    p.crew_pool = rp
     p.equipment_pool = ep
     p.location_pool = lp
     p.dose_trackers = rp.build_dose_trackers() if rp else {}
