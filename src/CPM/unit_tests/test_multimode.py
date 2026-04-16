@@ -121,7 +121,7 @@ def _simple_pert_with_modes():
     C.childs = []
 
     p = Pert(graph={A: [B], B: [C], C: []})
-    p.resource_pool  = rp
+    p.crew_pool  = rp
     p.equipment_pool = ep
     p.location_pool  = lp
     p.startTime      = a_date
@@ -470,7 +470,7 @@ class TestSchedulerWithModes:
         A.childs = []
 
         p = Pert(graph={A: []})
-        p.resource_pool  = rp
+        p.crew_pool  = rp
         p.equipment_pool = ep
         p.location_pool  = lp
         p.startTime      = a_date

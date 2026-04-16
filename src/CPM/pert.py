@@ -81,13 +81,13 @@ class Pert:
         # Store outage data components
         self.outage_data = outage_data
         if outage_data:
-            self.resource_pool = outage_data.resource_pool
+            self.crew_pool = outage_data.crew_pool
             self.equipment_pool = outage_data.equipment_pool
             self.location_pool = outage_data.location_pool
             self.startTime = outage_data.start_date
             self.working_hours_per_day = outage_data.working_hours_per_day
         else:
-            self.resource_pool = None
+            self.crew_pool = None
             self.equipment_pool = None
             self.location_pool = None
             self.startTime = None
@@ -104,8 +104,8 @@ class Pert:
         # Empty dict when no resource pool is attached or when no resources are
         # typed as 'consumable' — zero cost to existing code paths.
         self.dose_trackers: dict = (
-            self.resource_pool.build_dose_trackers()
-            if self.resource_pool else {}
+            self.crew_pool.build_dose_trackers()
+            if self.crew_pool else {}
         )
 
         # ConsumablePool: scalar-inventory items permanently depleted on start
@@ -136,9 +136,27 @@ class Pert:
         random.seed(self.seed)
 
         # Initialize activity tracking lists
-        self.wait = []
+        self.wait: set = set()              # pending activities (set for O(1) remove/member)
         self.ongoing = []
         self.completed = []
+        self._completed_set: set = set()   # O(1) membership mirror of self.completed
+        self._ready: set = set()            # wait activities whose predecessors are all done
+        self._pending_preds: dict = {}      # act → # predecessors not yet in _completed_set
+        # Universal no-alternative skill minimum: skills needed by ALL activities
+        # with no alternatives, and the minimum crew count across those activities.
+        # Computed once per scheduling run in _reset_scheduling_state / _partial_reset
+        # and used for early-exit in _schedule_generation_scheme.
+        self._univ_skill_min: dict = {}     # {skill: min_crew} or {} if no universal skill
+
+        # Fix III: heap-based candidate selection (O(K log n) per step vs O(n)).
+        # _priority_cache: precomputed static priority per activity for TF_based /
+        # external priority modes.  Populated at start of each scheduling run.
+        # _ready_heap: max-heap (stored as min-heap with negated values) of
+        # (-priority, name_str, act) for activities in self._ready.  Maintained
+        # incrementally alongside self._ready.  Empty list = heap not active.
+        self._priority_cache: dict = {}     # {Activity: float}
+        self._ready_heap: list = []         # [(-priority, name, seq, act), ...]
+        self._heap_seq: dict = {}           # {Activity: int} push-count; used to invalidate stale entries
 
         # Activities
         self.startActivity = None
@@ -157,7 +175,7 @@ class Pert:
 
 
         self._availability_events: frozenset = frozenset()
-        if self.resource_pool or self.equipment_pool or self.location_pool:
+        if self.crew_pool or self.equipment_pool or self.location_pool:
             self._precompute_availability_events()
 
         self.schedule_log = []
@@ -617,16 +635,17 @@ class Pert:
         if not sinks:
             raise ValueError("generateInfo: no sink activities found (cycle or empty graph)")
 
-        # 1) Topological order (Kahn)
+        # 1) Topological order (Kahn) — deque for O(1) popleft
+        from collections import deque as _deque
         indeg = {a: 0 for a in self.forwardDict}
         for u, succs in self.forwardDict.items():
             for v in succs:
                 indeg[v] = indeg.get(v, 0) + 1
 
-        queue = [a for a in sources if a in indeg]
+        queue = _deque(a for a in sources if a in indeg)
         topo  = []
         while queue:
-            u = queue.pop(0)
+            u = queue.popleft()
             topo.append(u)
             for v in self.forwardDict.get(u, []):
                 indeg[v] -= 1
@@ -700,7 +719,9 @@ class Pert:
         # restrict the ES/LF derived from network topology.  Infeasible windows
         # (window width < duration) are logged as warnings; the infoDict value
         # 'window_infeasible' is set True so callers can inspect them.
-        self._apply_time_windows()
+        # topo is passed so _apply_time_windows can propagate tightened LF
+        # values back to all predecessors in a single backward sweep.
+        self._apply_time_windows(topo=topo)
 
         # 7-9) Priority metrics
         self.calculate_total_successors(topo=topo)
@@ -804,16 +825,16 @@ class Pert:
             eq  = a.getRequiredEquipment()
             zone_ids = a.getZoneIds()
 
-            skills = self.resource_pool.get_all_skills() if self.resource_pool else []
+            skills = self.crew_pool.get_all_skills() if self.crew_pool else []
             equips = self.equipment_pool.get_all_equipment_ids() if self.equipment_pool else []
             locs   = self.location_pool.get_all_location_ids() if self.location_pool else []
             rr = dict.fromkeys(skills + equips + locs, 0.0)  # default 0 not None
 
-            if self.resource_pool:
+            if self.crew_pool:
                 for r in res:
                     skill_type, crew_count = r['skill_type'], r['crew_count']
-                    if skill_type in self.resource_pool.resources:
-                        max_avail = self.resource_pool.resources[skill_type].get_max_availability()
+                    if skill_type in self.crew_pool.resources:
+                        max_avail = self.crew_pool.resources[skill_type].get_max_availability()
                         rr[skill_type] = crew_count / max_avail if max_avail != 0 else 0.0
 
             if self.equipment_pool:
@@ -964,7 +985,30 @@ class Pert:
                 isolated.remove(activity)
         return isolated
 
-    def _apply_time_windows(self) -> None:
+    def _resolve_windows(self, act) -> list:
+        """Return a normalised list of (earliest_h, latest_h) float tuples.
+
+        Checks ``act.time_windows`` (multi-window list) first; falls back to
+        the legacy single-window fields
+        (``window_earliest_start_hours`` / ``window_latest_finish_hours``).
+
+        Returns an empty list when the activity has no window constraints.
+        The returned tuples use ``float('inf')`` for an absent latest bound
+        and ``0.0`` for an absent earliest bound.
+        """
+        tw = getattr(act, 'time_windows', [])
+        if tw:
+            return [(float(w['earliest']), float(w['latest'])) for w in tw]
+        west = getattr(act, 'window_earliest_start_hours', None)
+        wlf  = getattr(act, 'window_latest_finish_hours',  None)
+        if west is not None or wlf is not None:
+            return [(
+                float(west) if west is not None else 0.0,
+                float(wlf)  if wlf  is not None else float('inf'),
+            )]
+        return []
+
+    def _apply_time_windows(self, topo: list | None = None) -> None:
         """
         Post-process CPM ES/EF/LS/LF/slack to incorporate regulatory
         time-window constraints stored on each Activity.
@@ -983,30 +1027,50 @@ class Pert:
         * 'window_infeasible' key is set True when slack < 0 (window narrower
           than activity duration) and a WARNING is logged.
 
-        These adjustments are local to the windowed activity; they do NOT
-        propagate through the network in this iteration (upstream/downstream
-        CPM values are unchanged).  Full window-propagating CPM is deferred.
+        Window-propagating backward sweep
+        ----------------------------------
+        When ``topo`` (topological order) is supplied and at least one window
+        tightened an LF value, a second backward sweep is performed in reverse
+        topological order.  This propagates the tightened LF upstream so that
+        every predecessor's LF — and therefore slack — reflects the window
+        constraint, not just the unconstrained CPM value.
+
+        Formula (identical to the standard backward pass):
+            LF(u) = min(LF(u), LS(v) − lag(u,v) − v.mobilization_lead_hours)
+                  for each successor v
+
+        Cost: O(V + E) — one additional linear pass.
 
         Activities without window fields (both None) are untouched.
         """
-        for act in self.forwardDict:
-            west = getattr(act, 'window_earliest_start_hours', None)
-            wlf  = getattr(act, 'window_latest_finish_hours',  None)
+        any_lf_tightened = False
 
-            if west is None and wlf is None:
+        for act in self.forwardDict:
+            windows = self._resolve_windows(act)
+
+            if not windows:
                 self.infoDict[act]['window_infeasible'] = False
                 continue
 
             info = self.infoDict[act]
             dur  = info['duration']
 
-            if west is not None:
-                new_es = max(info['es'], float(west))
+            # For CPM: use the broadest envelope across all windows.
+            # ES is bounded by the earliest window's open time.
+            # LF is bounded by the latest window's hard deadline.
+            eff_west = min(w[0] for w in windows)
+            finite_latests = [w[1] for w in windows if w[1] != float('inf')]
+            eff_wlf = max(finite_latests) if finite_latests else None
+
+            if eff_west > 0.0:
+                new_es = max(info['es'], eff_west)
                 info['es'] = new_es
                 info['ef'] = new_es + dur
 
-            if wlf is not None:
-                new_lf = min(info['lf'], float(wlf))
+            if eff_wlf is not None:
+                new_lf = min(info['lf'], eff_wlf)
+                if new_lf < info['lf']:
+                    any_lf_tightened = True
                 info['lf'] = new_lf
                 info['ls'] = new_lf - dur
 
@@ -1015,17 +1079,30 @@ class Pert:
             infeasible = info['slack'] < 0.0
             info['window_infeasible'] = infeasible
             if infeasible:
-                logger.warning(
-                    "Time-window infeasibility on '%s': "
-                    "window [%.1f, %.1f] h is narrower than duration %.1f h "
-                    "(slack=%.2f h). "
-                    "Activity cannot meet its regulatory window.",
-                    act.name,
-                    west if west is not None else info['es'],
-                    wlf  if wlf  is not None else info['lf'],
-                    dur,
-                    info['slack'],
+                win_str = ', '.join(
+                    f'[{w[0]:.1f}, {"∞" if w[1]==float("inf") else f"{w[1]:.1f}"}]'
+                    for w in windows
                 )
+                logger.warning(
+                    "Time-window infeasibility on '%s': window(s) %s "
+                    "cannot accommodate duration %.1f h (slack=%.2f h).",
+                    act.name, win_str, dur, info['slack'],
+                )
+
+        # Backward sweep: propagate tightened LF values to all predecessors.
+        # Only runs when a window actually reduced an LF and topo is available.
+        # Uses the same formula as the standard CPM backward pass.
+        if topo is not None and any_lf_tightened:
+            for u in reversed(topo):
+                info_u = self.infoDict[u]
+                for v in self.forwardDict.get(u, []):
+                    lag  = self.lag_dict.get((u, v), 0.0)
+                    lead = getattr(v, 'mobilization_lead_hours', 0.0)
+                    constrained_lf = self.infoDict[v]['ls'] - lag - lead
+                    if info_u['lf'] > constrained_lf:
+                        info_u['lf'] = constrained_lf
+                        info_u['ls'] = constrained_lf - info_u['duration']
+                        info_u['slack'] = info_u['ls'] - info_u['es']
 
     def _compute_wbs_slack(self) -> None:
         """Compute WBS-level aggregate float and write it into ``infoDict``.
@@ -1422,6 +1499,140 @@ class Pert:
         return f"Pert({n_activities} activities, duration={duration:.2f} hours)"
 
 
+    def _compute_univ_skill_min(self) -> None:
+        """Compute self._univ_skill_min once per scheduling run.
+
+        Result: skills needed by EVERY activity in the graph that have NO
+        declared alternative skill types, mapped to their minimum crew count.
+        When any such skill's remaining capacity drops below its minimum, no
+        candidate can start on that skill regardless of priority — safe to
+        break the candidate loop in _schedule_generation_scheme.
+
+        Empty dict means no universal no-alternative skill exists (mixed-skill
+        graph), so the early-exit never fires and correctness is preserved.
+
+        Complexity: O(n × |reqs|) — called once per scheduling run.
+        """
+        univ: dict = {}
+        first = True
+        for act in self.forwardDict:
+            reqs = act.getRequiredResources()
+            act_skills = {
+                r['skill_type']: r['crew_count']
+                for r in reqs
+                if r['crew_count'] > 0 and not r.get('alternative_skill_types')
+            }
+            if not act_skills:
+                # This activity needs no skill (zero-duration gate) or all
+                # requirements have alternatives — skip it from the intersection.
+                continue
+            if first:
+                univ = dict(act_skills)
+                first = False
+            else:
+                for s in list(univ):
+                    if s not in act_skills:
+                        del univ[s]
+                    else:
+                        univ[s] = min(univ[s], act_skills[s])
+            if not univ:
+                break   # intersection is empty — no universal skill
+        self._univ_skill_min = univ
+
+    def _rebuild_ready_set(self) -> None:
+        """Recompute _ready from self.wait and _completed_set.
+
+        An activity is *ready* when every one of its predecessors (direct or
+        transitive) has been placed in _completed_set.  This is evaluated
+        cheaply using only the direct-predecessor list (backwardDict), since
+        transitivity is handled by the fact that predecessors enter _completed_set
+        only after their own predecessors completed.
+
+        Call this after any bulk rebuild of self.wait and _completed_set — i.e.
+        at the end of _reset_scheduling_state() and _partial_reset().  During
+        the scheduling loop, _ready is maintained incrementally by
+        _update_ongoing_list().
+
+        Complexity: O(n × k) where k is average predecessor count.
+        """
+        # Build pending-predecessor counters for every activity in the graph,
+        # counting only predecessors not yet in _completed_set.  O(n × k).
+        self._pending_preds = {
+            act: sum(1 for pred in self.backwardDict.get(act, [])
+                     if pred not in self._completed_set)
+            for act in self.forwardDict
+        }
+        # An activity is ready iff all its predecessors are done (counter == 0)
+        # and it is still in self.wait.  O(n).
+        self._ready = {
+            act for act in self.wait
+            if self._pending_preds[act] == 0
+        }
+
+    def _compute_priority_cache(self, value_mode: str) -> None:
+        """Precompute static activity priorities for heap-based candidate selection.
+
+        Populates ``self._priority_cache`` with a float per activity.  Only
+        supported for static priority modes (TF_based, external) where the value
+        does not change as activities complete during the run.  For dynamic or
+        unknown modes, the cache is cleared so the heap falls back to the full
+        O(n) candidate scan.
+
+        Must be called *after* ``generateInfo()`` / ``_generate_info_from()``
+        so that ``infoDict`` slack values are up to date.
+        """
+        self._priority_cache = {}
+        if value_mode == 'TF_based':
+            proj_dur = self.getProjectDuration()
+            for act in self.forwardDict:
+                info = self.infoDict.get(act, {})
+                eff_slack = min(
+                    info.get('slack', 0.0),
+                    info.get('wbs_slack', info.get('slack', 0.0)),
+                )
+                self._priority_cache[act] = _weight_function(eff_slack, proj_dur)
+        elif value_mode == 'external' and self.priorities:
+            for act in self.forwardDict:
+                act_name = act.returnName()
+                self._priority_cache[act] = self.priorities.get(act_name, 0.5)
+        # For priority-rule names (lf, ls, ef, es, …) and other dynamic modes:
+        # leave _priority_cache empty → _select_candidate_activities falls back
+        # to the O(n) full scan.
+
+    def _build_ready_heap(self) -> None:
+        """Build (or rebuild) the max-heap from ``_priority_cache`` and ``_ready``.
+
+        Should be called once per scheduling run, after ``_compute_priority_cache``
+        and after the initial ``_ready`` set has been constructed by
+        ``_rebuild_ready_set()``.
+
+        Complexity: O(n) via heapq.heapify.
+        """
+        self._heap_seq = {}
+        if not self._priority_cache:
+            self._ready_heap = []
+            return
+        self._ready_heap = []
+        for act in self._ready:
+            self._heap_push(act)
+
+    def _heap_push(self, act: Activity) -> None:
+        """Push *act* onto ``_ready_heap`` with a fresh version tag.
+
+        Incrementing ``_heap_seq[act]`` before pushing ensures that any prior
+        heap entry for this activity compares unequal on the seq field and is
+        treated as stale during the next ``_collect_candidates_from_heap`` call.
+        At most one valid entry per activity exists in the heap at any time,
+        eliminating the duplicate accumulation that occurred when all collected
+        candidates were re-pushed each scheduling step.
+        """
+        seq = self._heap_seq.get(act, 0) + 1
+        self._heap_seq[act] = seq
+        heapq.heappush(
+            self._ready_heap,
+            (-self._priority_cache.get(act, 0.0), str(act.name), seq, act),
+        )
+
     def _reset_scheduling_state(self):
         """
         Reset all mutable scheduling state on activities and on the Pert instance
@@ -1431,7 +1642,8 @@ class Pert:
         What is reset:
             Activity level:
                 - startTime, endTime  (set by setActualStartTime)
-                - delay               (incremented by addDelay)
+                - delay               (computed lazily at start time via _candidate_since)
+                - _candidate_since    (lazy delay anchor; reset by Activity.reset())
                 - belongsToCP         (flagged by getCriticalPath)
 
             Pert level:
@@ -1453,9 +1665,16 @@ class Pert:
             act.reset()  # calls the new Activity.reset() method
 
         # Reset Pert-level scheduling queues
-        self.wait = list(self.forwardDict.keys())
+        self.wait = set(self.forwardDict.keys())
         self.ongoing = []
         self.completed = []
+        self._completed_set = set()
+        self._rebuild_ready_set()
+        self._compute_univ_skill_min()
+        # Clear Fix III heap/cache — rebuilt after value_mode is known
+        self._priority_cache = {}
+        self._ready_heap = []
+        self._heap_seq = {}
 
         # Reset consumable dose budgets so repeated scheduling runs start clean
         for tracker in self.dose_trackers.values():
@@ -1485,7 +1704,8 @@ class Pert:
     # REAL-TIME REPLANNING (Challenge 4)
     # ------------------------------------------------------------------
 
-    def _partial_reset(self, current_time_hours: float) -> None:
+    def _partial_reset(self, current_time_hours: float,
+                       duration_overrides: dict = None) -> None:
         """Prepare scheduling state for a mid-outage replan.
 
         Classifies every activity by its actual timing relative to
@@ -1513,7 +1733,7 @@ class Pert:
         current_abs = self.startTime + timedelta(hours=current_time_hours)
 
         # Rebuild Pert-level scheduling queues from scratch
-        self.wait = []
+        self.wait = set()
         self.ongoing = []
         self.completed = []
         self.schedule_log = []
@@ -1572,10 +1792,22 @@ class Pert:
             elif st is not None and st <= current_abs:
                 # ── In progress at replan time ───────────────────────────
                 act.status = 'in_progress'
-                remaining = (
-                    (et - current_abs).total_seconds() / 3600.0
-                    if et is not None else act.duration
-                )
+                # Apply duration override if provided (new total duration).
+                # The override is permanent — it updates act.duration so that
+                # CPM analytics and future replans reflect the revised estimate.
+                if duration_overrides and act.name in duration_overrides:
+                    new_total = float(duration_overrides[act.name])
+                    act.duration = new_total
+                    elapsed = (
+                        (current_abs - st).total_seconds() / 3600.0
+                        if st is not None else 0.0
+                    )
+                    remaining = max(0.0, new_total - elapsed)
+                else:
+                    remaining = (
+                        (et - current_abs).total_seconds() / 3600.0
+                        if et is not None else act.duration
+                    )
                 act._remaining_duration = max(0.0, remaining)
                 self.ongoing.append(act)
                 # Re-commit dose (committed when task started; still consumed).
@@ -1614,22 +1846,32 @@ class Pert:
             else:
                 # ── Pending: not yet started ─────────────────────────────
                 act.reset()         # clears startTime/endTime/delay/belongsToCP/status
-                self.wait.append(act)
+                self.wait.add(act)
 
         logger.info(
             "_partial_reset at t=%.1fh: completed=%d in_progress=%d pending=%d",
             current_time_hours,
             len(self.completed), len(self.ongoing), len(self.wait),
         )
+        self._completed_set = set(self.completed)
+        self._rebuild_ready_set()
+        self._compute_univ_skill_min()
+        # Clear heap/cache — will be rebuilt after _generate_info_from updates
+        # infoDict slack values (called by replan() before scheduling resumes).
+        self._priority_cache = {}
+        self._ready_heap = []
+        self._heap_seq = {}
 
-    def _inject_activities(self, new_activities: list) -> None:
+    def _inject_activities(
+        self,
+        new_activities: list,
+        predecessor_wiring: dict = None,
+    ) -> None:
         """Insert new Activity objects into the live graph before replanning.
 
         Each new activity's ``childs`` attribute lists successor task IDs
-        (existing or other newly injected activities).  Predecessor wiring from
-        *existing* activities to new ones must be set up by the caller before
-        calling this method (add the new activity's name to the relevant
-        existing activities' ``childs`` lists and update ``forwardDict``).
+        (existing or other newly injected activities).  To wire *existing*
+        activities as predecessors of new ones, pass ``predecessor_wiring``.
 
         After injection:
         * All new activities are registered in ``task_to_activity``.
@@ -1643,6 +1885,14 @@ class Pert:
             new_activities: List of Activity objects to inject.  Activities
                             whose names already exist in the graph are skipped
                             with a warning.
+            predecessor_wiring: Optional ``{new_task_id: [existing_pred_id, ...]}``
+                dict.  For each entry, the named existing activities are
+                added as predecessors of the new activity (i.e. edges
+                existing_pred → new_task are inserted into ``forwardDict``).
+                Unknown task IDs on either side are skipped with a warning.
+                Lags for these edges default to 0; set them via
+                ``act.successor_lags`` before calling if non-zero lags are
+                needed.
         """
         # Ensure task_to_activity is complete for graph-built Pert objects
         # (graph= constructor does not populate this dict; injection needs it
@@ -1677,6 +1927,31 @@ class Pert:
 
             self.forwardDict[act] = succs
             act.status = 'pending'
+
+        # Wire existing activities as predecessors of new ones.
+        if predecessor_wiring:
+            for new_name, pred_names in predecessor_wiring.items():
+                new_act = self.task_to_activity.get(new_name)
+                if new_act is None:
+                    logger.warning(
+                        "inject_activities: predecessor_wiring references "
+                        "unknown new activity '%s' — skipping.", new_name,
+                    )
+                    continue
+                if isinstance(pred_names, str):
+                    pred_names = [pred_names]
+                for pred_name in pred_names:
+                    pred_act = self.task_to_activity.get(pred_name)
+                    if pred_act is None:
+                        logger.warning(
+                            "inject_activities: predecessor '%s' not found "
+                            "for new activity '%s' — skipping edge.",
+                            pred_name, new_name,
+                        )
+                        continue
+                    succs = self.forwardDict.setdefault(pred_act, [])
+                    if new_act not in succs:
+                        succs.append(new_act)
 
         # Rebuild graph structures (backwardDict + infoDict initialised to 0)
         self.resetInitialGraph()
@@ -1721,16 +1996,17 @@ class Pert:
         sources = self._get_sources() if not self.startActivity else [self.startActivity]
         sinks   = self._get_sinks()   if not self.endActivity   else [self.endActivity]
 
-        # ── 1) Topological order (Kahn's algorithm) ──────────────────────
+        # ── 1) Topological order (Kahn's algorithm) — deque for O(1) popleft ──
+        from collections import deque as _deque
         indeg = {a: 0 for a in self.forwardDict}
         for u, succs in self.forwardDict.items():
             for v in succs:
                 indeg[v] = indeg.get(v, 0) + 1
 
-        queue = [a for a in sources if a in indeg]
+        queue = _deque(a for a in sources if a in indeg)
         topo: list = []
         while queue:
-            u = queue.pop(0)
+            u = queue.popleft()
             topo.append(u)
             for v in self.forwardDict.get(u, []):
                 indeg[v] -= 1
@@ -1809,7 +2085,8 @@ class Pert:
             self.infoDict[a]['slack'] = self.infoDict[a]['ls'] - self.infoDict[a]['es']
 
         # ── 7) Time-window post-processing ───────────────────────────────
-        self._apply_time_windows()
+        # Pass topo so tightened LF values propagate back to predecessors.
+        self._apply_time_windows(topo=topo)
 
         # ── 8) WBS aggregate float roll-up ───────────────────────────────
         self._compute_wbs_slack()
@@ -1854,13 +2131,14 @@ class Pert:
             if abs_es >= current_abs:
                 events.add(abs_es)
 
-        # 5) Window-open times for pending activities
+        # 5) Window-open times for pending activities (all windows, including
+        #    multi-window activities).
         for act in self.wait:
-            west = getattr(act, 'window_earliest_start_hours', None)
-            if west is not None:
-                window_open = self.startTime + timedelta(hours=float(west))
-                if window_open >= current_abs:
-                    events.add(window_open)
+            for (west_h, _) in self._resolve_windows(act):
+                if west_h > 0.0 and west_h < float('inf'):
+                    window_open = self.startTime + timedelta(hours=west_h)
+                    if window_open >= current_abs:
+                        events.add(window_open)
 
         # 6) Shift-start boundaries for partial-day schedules
         if self.working_hours_per_day < 24:
@@ -1910,7 +2188,7 @@ class Pert:
             Same dict as ``calculateScheduleWithResources()``, plus
             ``'replan_time_hours'``.
         """
-        if not self.resource_pool or not self.equipment_pool or not self.location_pool:
+        if not self.crew_pool or not self.equipment_pool or not self.location_pool:
             raise ValueError("Resource, equipment, and location pools must be initialised")
         if not self.startTime:
             raise ValueError("startTime must be set before scheduling")
@@ -1933,6 +2211,18 @@ class Pert:
 
         # Seed event heap from current time
         event_heap = self._build_event_queue_from(current_time_hours)
+
+        # ── Determine value_mode once (constant for entire run) ──────────
+        if self.priorities is not None:
+            value_mode = 'external'
+        elif priority_rule:
+            value_mode = priority_rule
+        else:
+            value_mode = 'TF_based'
+
+        # Fix III: precompute priority cache and ready heap
+        self._compute_priority_cache(value_mode)
+        self._build_ready_heap()
 
         # ── Main event-driven loop ────────────────────────────────────────
         iteration  = 0
@@ -1967,11 +2257,6 @@ class Pert:
             if len(self.completed) == n_activities:
                 break
 
-            if self.priorities is not None:
-                value_mode = 'external'
-            else:
-                value_mode = priority_rule if priority_rule else 'TF_based'
-
             candidates = self._select_candidate_activities(time_index, value_mode)
 
             next_event: datetime | None = event_heap[0] if event_heap else None
@@ -1990,11 +2275,11 @@ class Pert:
                         heapq.heappush(event_heap, end_time)
 
                 self.schedule_log.append({
-                    'time':       time_index,
-                    'candidates': [a.name for a in candidates],
-                    'selected':   [a.name for a in selected],
-                    'ongoing':    [a.name for a in self.ongoing],
-                    'completed':  [a.name for a in self.completed],
+                    'time':        time_index,
+                    'candidates':  [a.name for a in candidates],
+                    'selected':    [a.name for a in selected],
+                    'ongoing':     [a.name for a in self.ongoing],
+                    'n_completed': len(self.completed),
                 })
 
             logger.debug(
@@ -2036,6 +2321,10 @@ class Pert:
         self,
         current_time_hours: float,
         new_activities: list = None,
+        predecessor_wiring: dict = None,
+        resource_updates: list = None,
+        equipment_updates: list = None,
+        duration_overrides: dict = None,
         sgs: str = 'max_use_res_ranked',
         max_time_hours: float = None,
     ) -> dict:
@@ -2047,27 +2336,49 @@ class Pert:
             p = Pert.from_json_file(...)
             p.calculateScheduleWithResources(sgs='max_use_res_ranked')
 
-            # 2) At t=48h a new task is discovered; replan from that point
+            # 2) At t=48h: welder calls in sick, ISI crawler breaks, new task found
             new_task = Activity('T_EMERG', 6.0)
-            new_task.childs = ['T_DOWNSTREAM']   # must finish before T_DOWNSTREAM
-            result = p.replan(current_time_hours=48.0, new_activities=[new_task])
+            new_task.childs = ['T_DOWNSTREAM']
+            result = p.replan(
+                current_time_hours=48.0,
+                new_activities=[new_task],
+                resource_updates=[
+                    {'skill_type': 'WELDER', 'from_hour': 48, 'new_count': 2},
+                ],
+                equipment_updates=[
+                    {'equipment_id': 'ISI_CRAWLER', 'from_hour': 48,
+                     'until_hour': 60, 'new_quantity': 0},
+                ],
+                duration_overrides={'T_ISI_INSP': 32.0},
+            )
 
         Steps performed internally:
 
-        1. ``_inject_activities(new_activities)`` — extend the graph (if any).
-        2. ``_partial_reset(current_time_hours)`` — classify activities into
-           completed / in_progress / pending based on actual start/end times;
-           reset pending activities; replay dose for frozen ones.
-        3. ``_generate_info_from(current_time_hours)`` — partial CPM using
-           frozen activity times as anchors; pending ES floored at
-           ``current_time_hours``.
-        4. ``calculateScheduleWithResources_from(...)`` — event-driven
-           scheduling loop starting from ``current_time_hours``.
+        1. Apply ``resource_updates`` — mutate ResourcePool availability.
+        2. Apply ``equipment_updates`` — mutate EquipmentPool availability.
+        3. Rebuild ``_availability_events`` (pool boundaries have changed).
+        4. ``_inject_activities(new_activities)`` — extend the graph (if any).
+        5. ``_partial_reset(current_time_hours, duration_overrides)`` — classify
+           activities; replay dose; apply duration overrides for in-progress.
+        6. Rebuild nxgraph.
+        7. ``_generate_info_from(current_time_hours)`` — partial CPM.
+        8. ``calculateScheduleWithResources_from(...)`` — scheduling loop.
 
         Args:
             current_time_hours: Hours from outage start at the replan trigger.
-            new_activities: Optional list of new Activity objects to inject
-                            before replanning.
+            new_activities: Optional list of Activity objects to inject.
+            predecessor_wiring: Optional ``{new_task_id: [existing_pred_id, ...]}``
+                passed directly to ``_inject_activities``.  Ignored when
+                ``new_activities`` is None or empty.
+            resource_updates: Optional list of dicts, each with keys:
+                ``skill_type`` (str), ``from_hour`` (float),
+                ``new_count`` (int), ``until_hour`` (float, optional).
+            equipment_updates: Optional list of dicts, each with keys:
+                ``equipment_id`` (str), ``from_hour`` (float),
+                ``new_quantity`` (int), ``until_hour`` (float, optional).
+            duration_overrides: Optional {task_id: new_total_duration_hours}
+                for in-progress activities whose remaining time has changed.
+                Updates ``act.duration`` permanently.
             sgs: Schedule Generation Scheme strategy name.
             max_time_hours: Safety cutoff in hours (default: CPM × 10).
 
@@ -2076,14 +2387,14 @@ class Pert:
             ``'replan_time_hours'``.
 
         Raises:
-            ValueError: If pools or startTime are not set.
+            ValueError: If pools or startTime are not set, or if a resource /
+                        equipment update specifies from_hour < 0.
             RuntimeError: If called before any scheduling run has been
-                          performed (no activity has a startTime set, so there
-                          is nothing to freeze).
+                          performed.
         """
         if not self.startTime:
             raise ValueError("startTime must be set before replanning")
-        if not self.resource_pool or not self.equipment_pool or not self.location_pool:
+        if not self.crew_pool or not self.equipment_pool or not self.location_pool:
             raise ValueError("Resource, equipment, and location pools must be initialised")
 
         # Guard: at least one scheduling run must have happened
@@ -2098,21 +2409,73 @@ class Pert:
                 "the baseline schedule."
             )
 
-        # ── Step 1: inject new activities ────────────────────────────────
-        if new_activities:
-            self._inject_activities(new_activities)
+        # ── Step 1: apply resource availability updates ───────────────────
+        if resource_updates:
+            for upd in resource_updates:
+                skill     = upd['skill_type']
+                from_h    = float(upd['from_hour'])
+                new_count = int(upd['new_count'])
+                until_h   = upd.get('until_hour')
+                if from_h < 0:
+                    raise ValueError(
+                        f"resource_updates: from_hour={from_h} must be ≥ 0 "
+                        f"(no retroactive changes allowed)"
+                    )
+                self.crew_pool.update_skill_from_hour(
+                    skill, self.startTime, from_h, new_count,
+                    until_hour=until_h,
+                )
+                logger.info(
+                    "replan: resource '%s' → %d workers from h=%.1f%s",
+                    skill, new_count, from_h,
+                    f" until h={until_h}" if until_h is not None else " (permanent)",
+                )
 
-        # ── Step 2: classify / reset activities ──────────────────────────
-        self._partial_reset(current_time_hours)
+        # ── Step 2: apply equipment availability updates ──────────────────
+        if equipment_updates:
+            for upd in equipment_updates:
+                eq_id     = upd['equipment_id']
+                from_h    = float(upd['from_hour'])
+                new_qty   = int(upd['new_quantity'])
+                until_h   = upd.get('until_hour')
+                if from_h < 0:
+                    raise ValueError(
+                        f"equipment_updates: from_hour={from_h} must be ≥ 0"
+                    )
+                self.equipment_pool.update_equipment_from_hour(
+                    eq_id, self.startTime, from_h, new_qty,
+                    until_hour=until_h,
+                )
+                logger.info(
+                    "replan: equipment '%s' → %d units from h=%.1f%s",
+                    eq_id, new_qty, from_h,
+                    f" until h={until_h}" if until_h is not None else " (permanent)",
+                )
+
+        # ── Step 3: rebuild availability event boundaries ─────────────────
+        # Pool mutations may add new period boundaries that the scheduler
+        # must treat as event points (e.g. the hour when the broken crawler
+        # returns to service).  Recompute before building the event heap.
+        if resource_updates or equipment_updates:
+            self._precompute_availability_events()
+
+        # ── Step 4: inject new activities ────────────────────────────────
+        if new_activities:
+            self._inject_activities(new_activities,
+                                    predecessor_wiring=predecessor_wiring)
+
+        # ── Step 5: classify / reset activities (with duration overrides) ─
+        self._partial_reset(current_time_hours,
+                            duration_overrides=duration_overrides)
 
         # Rebuild nxgraph after possible injection (inject does this, but
         # belt-and-suspenders after _partial_reset may have mutated lists)
         self.nxgraph = nx.DiGraph(self.forwardDict)
 
-        # ── Step 3: partial CPM ───────────────────────────────────────────
+        # ── Step 6: partial CPM ───────────────────────────────────────────
         self._generate_info_from(current_time_hours)
 
-        # ── Step 4: reschedule pending activities ─────────────────────────
+        # ── Step 7: reschedule pending activities ─────────────────────────
         return self.calculateScheduleWithResources_from(
             current_time_hours,
             sgs=sgs,
@@ -2131,8 +2494,9 @@ class Pert:
           - Scheduling state (wait / ongoing / completed / schedule_log /
             actual_tf / constrained_chain) is initialised fresh rather than
             copied.  The clone starts as if no run has been executed yet.
-          - Resource, equipment, and location pools are shared by reference
-            (read-only during CPM analysis), avoiding expensive duplication.
+          - Resource, equipment, location, consumable, and system-state pools
+            are deep-copied so that replan() calls on the clone cannot mutate
+            the baseline's pool state.  This enables safe what-if comparisons.
           - The NetworkX graph is rebuilt from the copied forwardDict so that
             node identity is consistent across all topology structures.
 
@@ -2141,8 +2505,8 @@ class Pert:
         topology mutations before reading CPM results.
 
         Returns:
-            A new Pert instance with independent topology and fresh scheduling
-            state, sharing immutable config and resource-pool references.
+            A new Pert instance with independent topology, deep-copied pools,
+            and fresh scheduling state.
         """
         # Deep copy all topology structures in a single call so that Activity
         # object identity is preserved across forwardDict, backwardDict,
@@ -2197,12 +2561,26 @@ class Pert:
             for (u, v), lag in self.lag_dict.items()
         }
 
-        # Resource / equipment / location pools — shared reference (read-only
-        # during CPM analysis; no mutation occurs in Stage E what-if runs)
-        clone.resource_pool   = self.resource_pool
-        clone.equipment_pool  = self.equipment_pool
-        clone.location_pool   = self.location_pool
-        clone.outage_data     = self.outage_data
+        # Resource / equipment / location pools — deep-copied so that
+        # replan() on the clone (which mutates pool periods) does not affect
+        # the original Pert's pools.  This enables safe what-if comparisons:
+        #   clone1 = baseline.clone_for_analysis(); clone1.replan(48, resource_updates=[...])
+        #   clone2 = baseline.clone_for_analysis(); clone2.replan(48, resource_updates=[...])
+        # Each clone has an independent copy of the pool state.
+        clone.crew_pool   = copy.deepcopy(self.crew_pool)
+        clone.equipment_pool  = copy.deepcopy(self.equipment_pool)
+        clone.location_pool   = copy.deepcopy(self.location_pool)
+        clone.outage_data     = self.outage_data  # read-only config reference
+        # Consumable and system-state pools have mutable runtime state; deep-copy
+        # so that replan() on the clone does not affect the baseline's pool state.
+        clone.consumable_pool   = copy.deepcopy(self.consumable_pool) \
+                                  if self.consumable_pool   else None
+        clone.system_state_pool = copy.deepcopy(self.system_state_pool) \
+                                  if self.system_state_pool else None
+        # Dose trackers are also mutable; rebuild fresh from the copied resource pool
+        # so the clone's trackers reference its own pool (not the original's).
+        clone.dose_trackers = clone.crew_pool.build_dose_trackers() \
+                              if clone.crew_pool else {}
 
         # Fresh scheduling state — not inherited from the baseline run
         clone.wait       = list(clone.forwardDict.keys())
@@ -2327,9 +2705,9 @@ class Pert:
         """
         events: set = set()
 
-        if self.resource_pool:
-            for skill in self.resource_pool.get_all_skills():
-                for period in self.resource_pool.resources[skill].get_all_periods():
+        if self.crew_pool:
+            for skill in self.crew_pool.get_all_skills():
+                for period in self.crew_pool.resources[skill].get_all_periods():
                     events.add(period['start_date'])
                     events.add(period['end_date'])
 
@@ -2411,13 +2789,14 @@ class Pert:
         #    Without these events the loop might skip over the window-open moment
         #    if no other event coincides with it, causing the activity to wait
         #    until the next unrelated event rather than starting at the earliest
-        #    allowed time.
+        #    allowed time.  Seed an event for every window's open time (handles
+        #    both single-window and multi-window activities uniformly).
         for act in self.wait:
-            west = getattr(act, 'window_earliest_start_hours', None)
-            if west is not None:
-                window_open = self.startTime + timedelta(hours=float(west))
-                if window_open >= self.startTime:
-                    events.add(window_open)
+            for (west_h, _) in self._resolve_windows(act):
+                if west_h > 0.0 and west_h < float('inf'):
+                    window_open = self.startTime + timedelta(hours=west_h)
+                    if window_open >= self.startTime:
+                        events.add(window_open)
 
         heap = list(events)
         heapq.heapify(heap)
@@ -2474,7 +2853,7 @@ class Pert:
                 'iterations':          int      # number of event-loop steps
             }
         """
-        if not self.resource_pool or not self.equipment_pool or not self.location_pool:
+        if not self.crew_pool or not self.equipment_pool or not self.location_pool:
             raise ValueError(
                 "Resource, equipment, and location pools must be initialised"
             )
@@ -2497,12 +2876,27 @@ class Pert:
             n_activities, cpm_duration, sgs, max_time_hours
         )
 
+        # ── Determine value_mode once (constant for entire run) ──────────────
+        if self.priorities is not None:
+            value_mode = 'external'
+        elif priority_rule:
+            value_mode = priority_rule
+        else:
+            value_mode = 'TF_based'
+
+        # Fix III: precompute static priority cache + ready heap so that
+        # _select_candidate_activities can use O(K log n) extraction.
+        self._compute_priority_cache(value_mode)
+        self._build_ready_heap()
+
         # ── Bootstrap START activity ─────────────────────────────────────────
         if self.startActivity and self.startActivity in self.wait:
             self.startActivity.setActualStartTime(self.startTime)
-            self.wait.remove(self.startActivity)
+            self.wait.discard(self.startActivity)
+            self._ready.discard(self.startActivity)
             self.ongoing.append(self.startActivity)
-            # Push START's completion time so the loop wakes up when it finishes
+            # Heap entry for startActivity is lazily discarded on first pop
+            # (startActivity is no longer in _ready after discard above).
             _, start_end = self.startActivity.returnAbsTimes()
             event_heap = []
             heapq.heappush(event_heap, start_end)
@@ -2590,22 +2984,23 @@ class Pert:
                         heapq.heappush(event_heap, end_time)
 
                 self.schedule_log.append({
-                    'time':       time_index,
-                    'candidates': [a.name for a in candidates],
-                    'selected':   [a.name for a in selected],
-                    'ongoing':    [a.name for a in self.ongoing],
-                    'completed':  [a.name for a in self.completed],
+                    'time':        time_index,
+                    'candidates':  [a.name for a in candidates],
+                    'selected':    [a.name for a in selected],
+                    'ongoing':     [a.name for a in self.ongoing],
+                    'n_completed': len(self.completed),
                 })
 
-            logger.debug('==============')
-            logger.debug(f"t={time_index.strftime('%Y-%m-%d %H:%M')}")
-            logger.debug(f"completed={[a.name for a in self.completed]}")
-            logger.debug(f"ongoing={[a.name for a in self.ongoing]}")
-            logger.debug(f"waiting={[a.name for a in self.wait]}")
-            if candidates:
-                logger.debug(f"candidates={[a.name for a in candidates.keys()]}")
-            if selected:
-                logger.debug(f"selected={[a.name for a in selected]}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug('==============')
+                logger.debug(f"t={time_index.strftime('%Y-%m-%d %H:%M')}")
+                logger.debug(f"completed={[a.name for a in self.completed]}")
+                logger.debug(f"ongoing={[a.name for a in self.ongoing]}")
+                logger.debug(f"waiting={[a.name for a in self.wait]}")
+                if candidates:
+                    logger.debug(f"candidates={[a.name for a in candidates.keys()]}")
+                if selected:
+                    logger.debug(f"selected={[a.name for a in selected]}")
 
             logger.debug(
                 "t=%s | iter=%d | completed=%d/%d | ongoing=%d | "
@@ -2673,8 +3068,16 @@ class Pert:
         if selected:
             for act in selected:
                 act.setActualStartTime(time_index)
+                # Fix I: lazy delay — compute once at start from first-candidate time
+                # instead of accumulating addDelay(elapsed) each step (was O(n²/k)).
+                if act._candidate_since is not None:
+                    act.delay = max(
+                        0.0,
+                        (time_index - act._candidate_since).total_seconds() / 3600.0,
+                    )
                 act.status = 'in_progress'
-                self.wait.remove(act)
+                self.wait.discard(act)
+                self._ready.discard(act)
                 self.ongoing.append(act)
                 # Commit the substitution-resolved skill breakdown so _get_consumed_resources
                 # tracks the *actual* skills in use (not just the declared primary skill).
@@ -2709,13 +3112,118 @@ class Pert:
                         self.consumable_pool.consume(req['item_id'],
                                                      float(req['quantity_needed']))
 
-            postponed = set(candidates.keys()) - set(selected)
-            for act in postponed:
-                act.addDelay(elapsed_hours)
+    def _collect_candidates_from_heap(
+        self,
+        time: datetime,
+        current_hours: float,
+        value_assignment: str,
+    ) -> Dict[Activity, Dict]:
+        """Heap-based candidate collection for TF_based / external priority modes.
+
+        Fix III: extracts the top-K activities from ``_ready_heap`` using lazy
+        deletion (stale entries are discarded on pop) and early-exit once K
+        candidates have been collected.  K is estimated from ``_univ_skill_min``
+        with an 8× overbook factor to handle feasibility check failures.
+
+        Complexity per call: O(K log n + stale_entries × log n).  For fan/tight
+        topologies with static priorities this is O(K log n) ≈ O(1) vs the
+        O(n) full scan — converting O(n²/k) scheduling to O(n log n).
+        """
+        # Estimate K: how many activities can start this step.
+        _univ_min = self._univ_skill_min
+        if _univ_min and self.crew_pool:
+            try:
+                max_slots = min(
+                    int(self.crew_pool.get_availability(s, time) // d)
+                    for s, d in _univ_min.items()
+                    if d > 0
+                )
+            except Exception:
+                max_slots = len(self._ready)
         else:
-            # No activity could be started this step
-            for act in candidates.keys():
-                act.addDelay(elapsed_hours)
+            max_slots = len(self._ready)
+
+        k_needed = max(1, max_slots) * 8  # 8× overbook for feasibility headroom
+        candidates: Dict[Activity, Dict] = {}
+        pushed_back: list = []
+
+        while self._ready_heap and len(candidates) < k_needed:
+            neg_val, _, seq, act = self._ready_heap[0]
+
+            # Lazy deletion: stale if act left _ready (started/violated) or if
+            # a newer push superseded this entry (seq mismatch).
+            if act not in self._ready or seq != self._heap_seq.get(act, 0):
+                heapq.heappop(self._ready_heap)
+                continue
+
+            heapq.heappop(self._ready_heap)
+
+            # Safety: pending-preds guard (should always be 0 here)
+            if self._pending_preds.get(act, 0) != 0:
+                pushed_back.append(act)
+                continue
+
+            # ES check
+            abs_es = self.startTime + timedelta(hours=self.infoDict[act]['es'])
+            if abs_es > time:
+                # Not eligible yet — push back for next iteration
+                pushed_back.append(act)
+                continue
+
+            # Time-window enforcement
+            windows = self._resolve_windows(act)
+            if windows:
+                eff = self._effective_duration(act)
+                placed = any_future = False
+                for west_h, wlf_h in sorted(windows, key=lambda w: w[0]):
+                    if current_hours + eff <= wlf_h:
+                        if current_hours >= west_h:
+                            placed = True; break
+                        else:
+                            any_future = True
+                if not placed:
+                    if not any_future:
+                        self._window_violations.append({
+                            'activity':      act.name,
+                            'reason':        'window_missed',
+                            'windows':       [{'earliest': w[0], 'latest': w[1]}
+                                              for w in windows],
+                            'current_hours': current_hours,
+                            'duration_hours': eff,
+                        })
+                        self.wait.discard(act)
+                        self._ready.discard(act)
+                        logger.warning(
+                            "Window missed: '%s' cannot fit in any of %d "
+                            "window(s) at h=%.1f (duration=%.1f h). "
+                            "Marking as violation.",
+                            act.name, len(windows), current_hours, eff,
+                        )
+                    else:
+                        pushed_back.append(act)
+                    continue
+
+            # Valid candidate — record first-seen time and add
+            if act._candidate_since is None:
+                act._candidate_since = time
+            candidates[act] = self.infoDict[act]
+            candidates[act]['value'] = -neg_val   # precomputed from _priority_cache
+
+        # Restore pushed-back items (ES not reached yet or window future).
+        # _heap_push increments seq, invalidating the entry we just popped.
+        for act in pushed_back:
+            if act in self._ready:
+                self._heap_push(act)
+
+        # Re-push valid candidates so non-selected ones stay available next step.
+        # _heap_push increments seq, so only the new entry is valid — prior
+        # entries (from earlier steps) are automatically treated as stale.
+        # Selected activities are removed from self._ready by _update_activity_sets;
+        # their re-pushed entries are lazily discarded on the next pop.
+        for act in candidates:
+            self._heap_push(act)
+
+        return candidates
 
     def _select_candidate_activities(self, time: datetime, value_assignment: str, tie_breaker: str = 'mehh_8000_b') -> Dict[Activity, Dict]:
         """
@@ -2747,13 +3255,20 @@ class Pert:
 
         current_hours = (time - self.startTime).total_seconds() / 3600.0
 
-        for act in list(self.wait):
-            # Check predecessors complete
-            predecessors_complete = all(
-                pred in self.completed
-                for pred in self.backwardDict.get(act, [])
+        # Fix III: if priority cache is populated, use heap-based O(K log n) scan
+        # instead of O(n) full scan.  Only valid for TF_based / external modes
+        # where priorities are static within a run.
+        if self._priority_cache and (
+            value_assignment in ('TF_based', 'external')
+        ):
+            return self._collect_candidates_from_heap(
+                time, current_hours, value_assignment
             )
-            if not predecessors_complete:
+
+        for act in list(self._ready):
+            # _ready guarantees all predecessors are complete (_pending_preds==0);
+            # the counter check is O(1) and acts as a safety net for drift.
+            if self._pending_preds.get(act, 0) != 0:
                 continue
 
             # ES reached?
@@ -2762,37 +3277,51 @@ class Pert:
                 continue
 
             # ── Time-window enforcement ──────────────────────────────────────
-            west = getattr(act, 'window_earliest_start_hours', None)
-            wlf  = getattr(act, 'window_latest_finish_hours',  None)
-
-            # Earliest-start window: too early to begin
-            if west is not None and current_hours < float(west):
-                continue
-
-            # Latest-finish window: if starting now would push finish past the
-            # deadline, the window has been missed.  Flag it and remove the
-            # activity from the wait list so it no longer blocks the scheduler.
-            if wlf is not None:
+            # Works for both single-window (legacy fields) and multi-window
+            # (time_windows list) activities via _resolve_windows().
+            windows = self._resolve_windows(act)
+            if windows:
                 eff = self._effective_duration(act)
-                if current_hours + eff > float(wlf):
-                    # Record the violation for reporting; remove from wait.
-                    self._window_violations.append({
-                        'activity':                  act.name,
-                        'reason':                    'window_missed',
-                        'window_earliest_start_hours': west,
-                        'window_latest_finish_hours':  float(wlf),
-                        'current_hours':             current_hours,
-                        'duration_hours':            eff,
-                    })
-                    self.wait.remove(act)
-                    logger.warning(
-                        "Window missed: '%s' cannot finish by %.1f h "
-                        "(would finish at %.1f h). Marking as violation.",
-                        act.name, float(wlf), current_hours + eff,
-                    )
+                # Iterate windows in earliest-first order.
+                placed       = False   # True when activity fits inside an open window
+                any_future   = False   # True when at least one window hasn't opened yet
+
+                for (west_h, wlf_h) in sorted(windows, key=lambda w: w[0]):
+                    if current_hours + eff <= wlf_h:    # window not yet missed
+                        if current_hours >= west_h:     # window is open now
+                            placed = True
+                            break
+                        else:
+                            any_future = True           # window will open later
+
+                if not placed:
+                    if not any_future:
+                        # All windows are past — record violation and drop activity.
+                        self._window_violations.append({
+                            'activity':      act.name,
+                            'reason':        'window_missed',
+                            'windows':       [{'earliest': w[0], 'latest': w[1]}
+                                              for w in windows],
+                            'current_hours': current_hours,
+                            'duration_hours': eff,
+                        })
+                        self.wait.discard(act)
+                        self._ready.discard(act)
+                        logger.warning(
+                            "Window missed: '%s' cannot fit in any of %d "
+                            "window(s) at h=%.1f (duration=%.1f h). "
+                            "Marking as violation.",
+                            act.name, len(windows), current_hours, eff,
+                        )
+                    # Whether future window exists or all missed, skip for now.
                     continue
 
-            candidates[act] = self.infoDict[act].copy()
+            # Fix I: lazy delay — record the first time this activity is a candidate
+            if act._candidate_since is None:
+                act._candidate_since = time
+            # Fix IIa: use infoDict directly (no copy); 'value' is written back
+            # into infoDict[act] below — safe for single-threaded scheduling.
+            candidates[act] = self.infoDict[act]
 
         # Assign priority
         if value_assignment == 'TF_based':
@@ -2901,9 +3430,9 @@ class Pert:
         loc_workers_rem = defaultdict(dict)
 
         # ── 2. Seed base pool availability at every grid point ────────────────
-        for skill in self.resource_pool.get_all_skills():
+        for skill in self.crew_pool.get_all_skills():
             for h in grid:
-                res_rem[skill][h] = self.resource_pool.get_availability(skill, h)
+                res_rem[skill][h] = self.crew_pool.get_availability(skill, h)
 
         for eq_id in self.equipment_pool.get_all_equipment_ids():
             for h in grid:
@@ -3201,9 +3730,15 @@ class Pert:
 
         if choice in ('max_use_res_ranked', 'max_use_res_shuffled'):
             # Order candidates
-            ordered = (self._rank_by_value(candidates)
-                       if choice == 'max_use_res_ranked'
-                       else self._shuffle_candidates(candidates))
+            # Fix IIb: for ranked mode, estimate max startable activities from
+            # _univ_skill_min and use heapq.nlargest(K) instead of a full sort.
+            # This is O(n + K log K) instead of O(n log n) — major win for tight
+            # pools where K << n.  A generous overbook factor (×8) ensures we
+            # never miss a valid candidate due to the cap.
+            if choice == 'max_use_res_ranked':
+                ordered = self._rank_by_value_top_k(candidates)
+            else:
+                ordered = self._shuffle_candidates(candidates)
 
             # Build capacity snapshots across needed window.
             # Pre-compute candidate end times and pass them as extra boundaries
@@ -3222,8 +3757,22 @@ class Pert:
             res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid = \
                 self._build_capacity_snapshots(time_index, max_end, extra_boundaries=cand_ends)
 
+            # Use the universal-skill cache precomputed once per scheduling run
+            # (self._univ_skill_min).  When any universal no-alternative skill's
+            # remaining capacity drops below its minimum crew demand, every
+            # remaining candidate will fail the resource check — break early.
+            # O(1) per iteration; O(0) extra precomputation here.
+            _univ_min = self._univ_skill_min
+
             selected = []
             for act in ordered:
+                # Early-exit: if any universal skill is fully consumed at
+                # time_index, no remaining candidate can start → stop scanning.
+                if _univ_min and any(
+                    res_rem.get(s, {}).get(time_index, 0) < d
+                    for s, d in _univ_min.items()
+                ):
+                    break
                 if self._fits_with_tentative(
                     act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
                 ):
@@ -3238,7 +3787,7 @@ class Pert:
             # then re-validate with per-hour capacity snapshots to avoid overbooking.
             optimizer = MDKnapsackScheduler(
                 candidates,
-                self.resource_pool,
+                self.crew_pool,
                 self.equipment_pool,
                 self.location_pool,
                 time_index,
@@ -3924,7 +4473,7 @@ class Pert:
 
                 # (2a) Resources: remaining = availability - consumption
                 for skill, need in skill_demands.items():
-                    avail = self.resource_pool.get_availability(skill, h)
+                    avail = self.crew_pool.get_availability(skill, h)
                     consumed = 0
                     consumers = []
                     # Scan all scheduled activities overlapping hour h
@@ -4105,6 +4654,41 @@ class Pert:
         )
         return [act for act, info in sorted_items]
 
+    def _rank_by_value_top_k(self, candidates: Dict) -> List:
+        """
+        Rank candidates by priority value, returning at most K × overbook items.
+
+        Fix IIb: estimates the maximum number of startable activities this step
+        from ``self._univ_skill_min`` (precomputed once per run).  Uses
+        ``heapq.nlargest(K)`` which is O(n + K log K) rather than the O(n log n)
+        full sort.  Falls back to full sort when no slot estimate is available or
+        when there are few candidates.
+
+        The overbook factor (8×) is intentionally generous so that activities
+        that fail the feasibility check (_fits_with_tentative) do not cause the
+        SGS to miss valid high-priority alternatives.
+        """
+        _OVERBOOK = 8
+        n = len(candidates)
+
+        # Estimate max slots from universal-skill minimum capacity
+        max_slots: int = 0
+        _univ_min = self._univ_skill_min
+        if _univ_min and self.crew_pool:
+            max_slots = min(
+                int(self.crew_pool.get_availability(s, self.startTime) // d)
+                for s, d in _univ_min.items()
+                if d > 0
+            )
+
+        k = max_slots * _OVERBOOK if max_slots > 0 else n
+        if k >= n:
+            # No benefit from partial sort — full sort is simpler
+            return self._rank_by_value(candidates)
+
+        top_k = heapq.nlargest(k, candidates.items(), key=lambda x: x[1]['value'])
+        return [act for act, _ in top_k]
+
     def _shuffle_candidates(self, candidates: Dict) -> List:
         """
         Randomly shuffle candidates.
@@ -4130,11 +4714,27 @@ class Pert:
                 #    f"(duration: {max(0.0, act.duration):.1f}h, delay: {act.delay:.1f}h)"
                 #)
 
-        # Move to completed and release any system-state locks
+        # Fix C: bulk-filter ongoing instead of O(|ongoing|) remove per activity
+        if completed_now:
+            completed_set_now = set(completed_now)
+            self.ongoing = [a for a in self.ongoing if a not in completed_set_now]
+
+        # Move to completed and release any system-state locks.
+        # Fix D: use _pending_preds counter (O(1)) instead of all() predecessor scan.
         for act in completed_now:
             act.status = 'completed'
-            self.ongoing.remove(act)
             self.completed.append(act)
+            self._completed_set.add(act)
+            # Decrement pending-predecessor counter for each successor; promote to
+            # _ready when the counter reaches zero and the successor is still waiting.
+            for succ in self.forwardDict.get(act, []):
+                cnt = self._pending_preds.get(succ, 0) - 1
+                self._pending_preds[succ] = cnt
+                if cnt == 0 and succ in self.wait:
+                    self._ready.add(succ)
+                    # Fix III: push newly ready activity onto the priority heap
+                    if self._priority_cache:
+                        self._heap_push(succ)
             if self.system_state_pool:
                 for req in act.getRequiredSystemStates():
                     self.system_state_pool.release(
@@ -4251,6 +4851,32 @@ class Pert:
         df.to_csv(filename, index=False)
         logger.info(f"Schedule exported to {filename}")
 
+    def validate_schedule(self):
+        """Run post-schedule feasibility checks and return a ValidationResult.
+
+        Interrogates the actual startTime / endTime values on every completed
+        activity against every constraint type: completeness, duration
+        consistency, precedence (with lags), time windows, hold points, crew
+        capacity, equipment capacity, location concurrency, dose budgets, and
+        system-state compatibility.  Also emits soft quality warnings for
+        resource-wait delay, float consumption, and makespan stretch vs CPM.
+
+        Should be called after ``calculateScheduleWithResources()`` or
+        ``calculateScheduleWithResources_from()``.
+
+        Returns:
+            ValidationResult with .is_feasible, .violations, .warnings,
+            and .summary() method.
+
+        Example::
+
+            result = pert.validate_schedule()
+            if not result.is_feasible:
+                print(result.summary())
+        """
+        from .schedule_validator import validate_schedule as _validate
+        return _validate(self)
+
     def print_schedule_summary(self):
         """Print a summary of the calculated schedule."""
         if not self.completed:
@@ -4362,41 +4988,84 @@ class Pert:
             return sum(req['quantity_needed'] for req in act.getRequiredEquipment()
                     if req['equipment_id'] == eq_id)
 
-        for i in range(len(scheduled)):
-            a1, st1, et1 = scheduled[i]
-            for j in range(i + 1, len(scheduled)):
-                a2, st2, et2 = scheduled[j]
-                if not overlaps(st1, et1, st2, et2):
-                    continue
+        # ── Precompute per-skill and per-equipment max single-activity demand ──
+        # If 2 × max_demand < pool_availability for every skill and equipment,
+        # no overlapping pair can ever be binding → skip the O(n²) pair scan.
+        # This turns the fan+unconstrained case from O(n²) → O(n).
+        all_skills = list(self.crew_pool.get_all_skills())
+        all_eq_ids = list(self.equipment_pool.get_all_equipment_ids())
 
-                overlap_start = max(st1, st2)
-                binding = False
+        # Representative availability (use startTime; pools are rarely time-varying
+        # in the coarse granularity that matters here).
+        _t0 = self.startTime
 
-                # Shared skills binding?
-                skills1 = set(req['skill_type'] for req in a1.getRequiredResources())
-                skills2 = set(req['skill_type'] for req in a2.getRequiredResources())
-                for skill in skills1.intersection(skills2):
-                    avail = self.resource_pool.get_availability(skill, overlap_start)
-                    combined = demand_skill(a1, skill) + demand_skill(a2, skill)
-                    if avail > 0 and combined >= avail:
-                        binding = True
+        can_bind_res = False
+        for skill in all_skills:
+            avail = self.crew_pool.get_availability(skill, _t0)
+            if avail <= 0:
+                continue
+            max_demand = max(
+                (demand_skill(a, skill) for a, _, _ in scheduled),
+                default=0,
+            )
+            if 2 * max_demand >= avail:
+                can_bind_res = True
+                break
+
+        can_bind_eq = False
+        for eq_id in all_eq_ids:
+            avail = self.equipment_pool.get_availability(eq_id, _t0)
+            if avail <= 0:
+                continue
+            max_demand = max(
+                (demand_eq(a, eq_id) for a, _, _ in scheduled),
+                default=0,
+            )
+            if 2 * max_demand >= avail:
+                can_bind_eq = True
+                break
+
+        if can_bind_res or can_bind_eq:
+            # ── O(n²) pair scan with sweep-line break ─────────────────────────
+            # scheduled is sorted by (st, et); once st2 >= et1 no later j overlaps.
+            for i in range(len(scheduled)):
+                a1, st1, et1 = scheduled[i]
+                for j in range(i + 1, len(scheduled)):
+                    a2, st2, et2 = scheduled[j]
+                    if st2 >= et1:          # sweep-line: no later j overlaps a1
                         break
+                    if not overlaps(st1, et1, st2, et2):
+                        continue
 
-                # Shared equipment binding?
-                if not binding:
-                    eq1 = set(req['equipment_id'] for req in a1.getRequiredEquipment())
-                    eq2 = set(req['equipment_id'] for req in a2.getRequiredEquipment())
-                    for eq_id in eq1.intersection(eq2):
-                        avail = self.equipment_pool.get_availability(eq_id, overlap_start)
-                        combined = demand_eq(a1, eq_id) + demand_eq(a2, eq_id)
-                        if avail > 0 and combined >= avail:
-                            binding = True
-                            break
+                    overlap_start = max(st1, st2)
+                    binding = False
 
-                if binding:
-                    earlier, later = (a1, a2) if st1 <= st2 else (a2, a1)
-                    if later not in augmented[earlier]:
-                        augmented[earlier].append(later)
+                    # Shared skills binding?
+                    if can_bind_res:
+                        skills1 = set(req['skill_type'] for req in a1.getRequiredResources())
+                        skills2 = set(req['skill_type'] for req in a2.getRequiredResources())
+                        for skill in skills1.intersection(skills2):
+                            avail = self.crew_pool.get_availability(skill, overlap_start)
+                            combined = demand_skill(a1, skill) + demand_skill(a2, skill)
+                            if avail > 0 and combined >= avail:
+                                binding = True
+                                break
+
+                    # Shared equipment binding?
+                    if not binding and can_bind_eq:
+                        eq1 = set(req['equipment_id'] for req in a1.getRequiredEquipment())
+                        eq2 = set(req['equipment_id'] for req in a2.getRequiredEquipment())
+                        for eq_id in eq1.intersection(eq2):
+                            avail = self.equipment_pool.get_availability(eq_id, overlap_start)
+                            combined = demand_eq(a1, eq_id) + demand_eq(a2, eq_id)
+                            if avail > 0 and combined >= avail:
+                                binding = True
+                                break
+
+                    if binding:
+                        earlier, later = (a1, a2) if st1 <= st2 else (a2, a1)
+                        if later not in augmented[earlier]:
+                            augmented[earlier].append(later)
 
         return augmented
 
@@ -4409,15 +5078,16 @@ class Pert:
         Returns:
         path: List[Activity] from START to END (if present), else best available.
         """
-        # Kahn topological sort
+        # Kahn topological sort — use deque for O(1) popleft instead of O(n) pop(0)
+        from collections import deque
         indeg = {a: 0 for a in augmented.keys()}
         for u, succs in augmented.items():
             for v in succs:
                 indeg[v] += 1
-        queue = [a for a, d in indeg.items() if d == 0]
+        queue = deque(a for a, d in indeg.items() if d == 0)
         topo = []
         while queue:
-            u = queue.pop(0)
+            u = queue.popleft()
             topo.append(u)
             for v in augmented[u]:
                 indeg[v] -= 1
@@ -4835,7 +5505,7 @@ class Pert:
             # ── Resources ────────────────────────────────────────────────────
             for req in activity.getRequiredResources():
                 skill, need = req['skill_type'], req['crew_count']
-                avail = self.resource_pool.get_availability(skill, h)
+                avail = self.crew_pool.get_availability(skill, h)
                 consumed = sum(
                     r['crew_count']
                     for (a, s, e) in overlapping
@@ -5008,7 +5678,7 @@ class Pert:
                 'priority_rule':       str,
             }
         """
-        if not self.resource_pool or not self.equipment_pool or not self.location_pool:
+        if not self.crew_pool or not self.equipment_pool or not self.location_pool:
             raise ValueError(
                 "Resource, equipment, and location pools must be initialized"
             )
@@ -5101,8 +5771,10 @@ class Pert:
 
             # Move through queues so post-schedule analytics work correctly
             if act in self.wait:
-                self.wait.remove(act)
+                self.wait.discard(act)
+                self._ready.discard(act)
             self.completed.append(act)
+            self._completed_set.add(act)
 
             self.schedule_log.append({
                 'activity':   act.name,
@@ -5359,12 +6031,13 @@ class Pert:
             adj.setdefault(u, []).append(v)
             indeg[v] = indeg.get(v, 0) + 1
 
-        # Kahn's algorithm for depths
-        queue = [nid for nid, d in indeg.items() if d == 0]
+        # Kahn's algorithm for depths — deque for O(1) popleft
+        from collections import deque as _deque
+        queue = _deque(nid for nid, d in indeg.items() if d == 0)
         for nid in queue:
             topo_depth[nid] = 0
         while queue:
-            u = queue.pop(0)
+            u = queue.popleft()
             for v in adj.get(u, []):
                 topo_depth[v] = max(topo_depth.get(v, 0), topo_depth[u] + 1)
                 indeg[v] -= 1
@@ -5626,7 +6299,7 @@ def plot_resource_utilization(pert, resource_type, filename=None,
     if not pert.completed:
         raise ValueError("No schedule calculated. Run calculateScheduleWithResources() first.")
 
-    if not pert.resource_pool.has_skill(resource_type):
+    if not pert.crew_pool.has_skill(resource_type):
         raise ValueError(f"Resource type '{resource_type}' not found in resource pool")
 
     # Get time range
@@ -5657,7 +6330,7 @@ def plot_resource_utilization(pert, resource_type, filename=None,
 
         # Get available workers
         if show_available:
-            avail = pert.resource_pool.get_availability(resource_type, time_point)
+            avail = pert.crew_pool.get_availability(resource_type, time_point)
             available.append(avail)
 
     # Create plot
@@ -6011,14 +6684,14 @@ class MDKnapsackScheduler:
     all resource limits.
     """
 
-    def __init__(self, candidates: Dict, resource_pool, equipment_pool,
+    def __init__(self, candidates: Dict, crew_pool, equipment_pool,
                  location_pool, time_point: datetime, value_mode='uniform'):
         """
         Initialize MD-Knapsack optimizer.
 
         Args:
             candidates (dict): Candidate activities with info
-            resource_pool (ResourcePool): Resource availability
+            crew_pool (ResourcePool): Resource availability
             equipment_pool (EquipmentPool): Equipment availability
             location_pool (LocationPool): Location availability
             time_point (datetime): Current scheduling time
@@ -6026,7 +6699,7 @@ class MDKnapsackScheduler:
         """
         self.candidates = list(candidates.keys())
         self.candidate_info = candidates
-        self.resource_pool = resource_pool
+        self.crew_pool = crew_pool
         self.equipment_pool = equipment_pool
         self.location_pool = location_pool
         self.time_point = time_point
@@ -6101,8 +6774,8 @@ class MDKnapsackScheduler:
         capacities = {}
 
         # Resource capacities
-        for skill in self.resource_pool.get_all_skills():
-            avail = self.resource_pool.get_availability(skill, self.time_point)
+        for skill in self.crew_pool.get_all_skills():
+            avail = self.crew_pool.get_availability(skill, self.time_point)
             capacities[f'RESOURCE_{skill}'] = avail
 
         # Equipment capacities
@@ -6260,7 +6933,7 @@ class LookAheadScheduler:
         pressure_score = 0.0
         for req in activity.getRequiredResources():
             skill = req['skill_type']
-            avail = self.pert.resource_pool.get_availability(skill, finish_time)
+            avail = self.pert.crew_pool.get_availability(skill, finish_time)
             demand = 0
             # Estimated demand at finish_time from waiting tasks
             for w in self.pert.wait:

@@ -5,8 +5,9 @@ This module provides classes to manage time-based availability of resources,
 equipment, and locations throughout a nuclear outage.
 """
 
+import copy
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple
 
 
@@ -19,7 +20,7 @@ class OutageData:
     """
 
     def __init__(self, outage_config: Dict, tasks: List[Dict],
-                 resource_pool: 'ResourcePool', equipment_pool: 'EquipmentPool',
+                 crew_pool: 'ResourcePool', equipment_pool: 'EquipmentPool',
                  location_pool: 'LocationPool',
                  consumable_pool: 'ConsumablePool' = None,
                  system_state_pool: 'SystemStatePool' = None):
@@ -29,7 +30,7 @@ class OutageData:
         Args:
             outage_config (dict): Outage configuration (ID, dates, etc.)
             tasks (list): List of task dictionaries
-            resource_pool (ResourcePool): Initialized resource pool
+            crew_pool (ResourcePool): Initialized resource pool
             equipment_pool (EquipmentPool): Initialized equipment pool
             location_pool (LocationPool): Initialized location pool
             consumable_pool (ConsumablePool, optional): Consumable inventory pool.
@@ -40,7 +41,7 @@ class OutageData:
         """
         self.outage_config = outage_config
         self.tasks = tasks
-        self.resource_pool = resource_pool
+        self.crew_pool = crew_pool
         self.equipment_pool = equipment_pool
         self.location_pool = location_pool
         self.consumable_pool = consumable_pool if consumable_pool is not None else ConsumablePool()
@@ -78,7 +79,7 @@ class OutageData:
             >>> outage = OutageData.from_json_file('example_30.json')
             >>> print(outage.outage_id)
             'RFO_2025_SPRING'
-            >>> print(outage.resource_pool.get_availability('MECHANIC', outage.start_date))
+            >>> print(outage.crew_pool.get_availability('MECHANIC', outage.start_date))
             20
         """
         with open(filepath, 'r') as f:
@@ -111,13 +112,13 @@ class OutageData:
         tasks = data['tasks']
 
         # Create pools from JSON data
-        resource_pool  = ResourcePool.from_json(data['resources'])
+        crew_pool  = ResourcePool.from_json(data['resources'])
         equipment_pool = EquipmentPool.from_json(data.get('equipment', []))
         location_pool  = LocationPool.from_json(data.get('locations', []))
         consumable_pool    = ConsumablePool.from_json(data.get('consumables', []))
         system_state_pool  = SystemStatePool.from_json(data.get('plant_systems', []))
 
-        return cls(outage_config, tasks, resource_pool, equipment_pool,
+        return cls(outage_config, tasks, crew_pool, equipment_pool,
                    location_pool, consumable_pool, system_state_pool)
 
     def get_task_by_id(self, task_id: str) -> Optional[Dict]:
@@ -180,7 +181,7 @@ class OutageData:
         errors = []
 
         # Check resource references
-        all_skills = self.resource_pool.get_all_skills()
+        all_skills = self.crew_pool.get_all_skills()
         for task in self.tasks:
             for res_req in task.get('required_resources', []):
                 skill = res_req['skill_type']
@@ -249,6 +250,26 @@ class OutageData:
                             f"system '{sid}' which is not in valid_states {valid}"
                         )
 
+        # Check intra-activity system state conflicts:
+        # The same system_id appearing twice with different required_state values is
+        # physically impossible (a system cannot be in two states simultaneously).
+        for task in self.tasks:
+            seen: Dict[str, str] = {}  # system_id → first-seen required_state
+            for req in task.get('required_system_states', []):
+                sid   = req.get('system_id', '')
+                state = req.get('required_state', '')
+                if not sid:
+                    continue
+                if sid in seen and seen[sid] != state:
+                    errors.append(
+                        f"Task '{task['task_id']}' declares conflicting states "
+                        f"'{seen[sid]}' and '{state}' for system '{sid}' "
+                        f"(physically impossible — a system cannot be in two states "
+                        f"simultaneously)"
+                    )
+                else:
+                    seen[sid] = state
+
         return len(errors) == 0, errors
 
     def print_summary(self):
@@ -264,9 +285,9 @@ class OutageData:
         print(f"Tasks: {len(self.tasks)}")
         print(f"  - Hold Points: {len(self.get_hold_point_tasks())}")
         print()
-        print(f"Resources: {len(self.resource_pool.get_all_skills())} skill types")
-        for skill in sorted(self.resource_pool.get_all_skills()):
-            max_avail = self.resource_pool.resources[skill].get_max_availability()
+        print(f"Resources: {len(self.crew_pool.get_all_skills())} skill types")
+        for skill in sorted(self.crew_pool.get_all_skills()):
+            max_avail = self.crew_pool.resources[skill].get_max_availability()
             print(f"  - {skill}: max {max_avail} workers")
         print()
         print(f"Equipment: {len(self.equipment_pool.get_all_equipment_ids())} types")
@@ -302,7 +323,7 @@ class OutageData:
     def __repr__(self):
         return (f"OutageData('{self.outage_id}', "
                 f"{len(self.tasks)} tasks, "
-                f"{len(self.resource_pool.get_all_skills())} skills, "
+                f"{len(self.crew_pool.get_all_skills())} skills, "
                 f"{len(self.equipment_pool.get_all_equipment_ids())} equipment, "
                 f"{len(self.location_pool.get_all_location_ids())} locations, "
                 f"{len(self.consumable_pool.get_all_item_ids())} consumables, "
@@ -340,7 +361,7 @@ def load_outage_data(filepath: str) -> OutageData:
         >>> # Query resource availability
         >>> from datetime import datetime
         >>> time = datetime(2025, 3, 22, 10, 0, 0)
-        >>> mechanics = outage.resource_pool.get_availability('MECHANIC', time)
+        >>> mechanics = outage.crew_pool.get_availability('MECHANIC', time)
         >>> print(f"Mechanics available: {mechanics}")
         >>>
         >>> # Check location capacity
@@ -555,6 +576,57 @@ class ResourceAvailability:
         """
         return self.periods.copy()
 
+    def update_from_hour(self, outage_start: datetime,
+                         from_hour: float,
+                         new_count: int,
+                         until_hour: float = None) -> None:
+        """Replace availability in [from_hour, until_hour) with new_count.
+
+        Performs a chop-and-replace on self.periods:
+        - Periods entirely outside [from_dt, until_dt) are kept unchanged.
+        - Periods that straddle from_dt or until_dt are split at the boundary.
+        - Periods entirely within [from_dt, until_dt) are removed.
+        - A new period covering [from_dt, until_dt) with new_count is inserted.
+
+        Args:
+            outage_start: Outage start datetime (converts hours → datetimes).
+            from_hour: Hours from outage start where the new count takes effect.
+            new_count: New available_count (≥ 0).
+            until_hour: Hours from outage start where the update ends.
+                        None = far future (year 9999 sentinel).
+        """
+        from_dt  = outage_start + timedelta(hours=from_hour)
+        until_dt = (outage_start + timedelta(hours=until_hour)
+                    if until_hour is not None else datetime(9999, 12, 31))
+
+        kept = []
+        for p in self.periods:
+            ps, pe = p['start_date'], p['end_date']
+            if pe <= from_dt or ps >= until_dt:
+                kept.append(p)          # entirely outside — untouched
+            else:
+                if ps < from_dt:        # straddles from_dt — keep left portion
+                    kept.append({**p, 'end_date': from_dt})
+                if pe > until_dt:       # straddles until_dt — keep right portion
+                    kept.append({**p, 'start_date': until_dt})
+                # middle portion (inside the replacement window) is discarded
+
+        kept.append({
+            'start_date':     from_dt,
+            'end_date':       until_dt,
+            'available_count': new_count,
+            'reason':         'runtime_update',
+        })
+        self.periods = sorted(kept, key=lambda p: p['start_date'])
+
+    def snapshot(self) -> list:
+        """Return a deep copy of the current periods list for rollback."""
+        return copy.deepcopy(self.periods)
+
+    def restore(self, saved: list) -> None:
+        """Restore periods from a previously saved snapshot."""
+        self.periods = copy.deepcopy(saved)
+
     def __repr__(self):
         return f"ResourceAvailability('{self.skill_type}', {len(self.periods)} periods)"
 
@@ -651,6 +723,52 @@ class EquipmentAvailability:
     def get_all_periods(self) -> List[Dict]:
         """Get all availability periods."""
         return self.periods.copy()
+
+    def update_from_hour(self, outage_start: datetime,
+                         from_hour: float,
+                         new_quantity: int,
+                         until_hour: float = None) -> None:
+        """Replace quantity_available in [from_hour, until_hour) with new_quantity.
+
+        Same chop-and-replace semantics as ResourceAvailability.update_from_hour.
+
+        Args:
+            outage_start: Outage start datetime.
+            from_hour: Hours from outage start where the new quantity takes effect.
+            new_quantity: New quantity_available (≥ 0).
+            until_hour: Hours from outage start where the update ends.
+                        None = far future (year 9999 sentinel).
+        """
+        from_dt  = outage_start + timedelta(hours=from_hour)
+        until_dt = (outage_start + timedelta(hours=until_hour)
+                    if until_hour is not None else datetime(9999, 12, 31))
+
+        kept = []
+        for p in self.periods:
+            ps, pe = p['start_date'], p['end_date']
+            if pe <= from_dt or ps >= until_dt:
+                kept.append(p)
+            else:
+                if ps < from_dt:
+                    kept.append({**p, 'end_date': from_dt})
+                if pe > until_dt:
+                    kept.append({**p, 'start_date': until_dt})
+
+        kept.append({
+            'start_date':      from_dt,
+            'end_date':        until_dt,
+            'quantity_available': new_quantity,
+            'reason':          'runtime_update',
+        })
+        self.periods = sorted(kept, key=lambda p: p['start_date'])
+
+    def snapshot(self) -> list:
+        """Return a deep copy of the current periods list for rollback."""
+        return copy.deepcopy(self.periods)
+
+    def restore(self, saved: list) -> None:
+        """Restore periods from a previously saved snapshot."""
+        self.periods = copy.deepcopy(saved)
 
     def __repr__(self):
         return f"EquipmentAvailability('{self.equipment_id}', {len(self.periods)} periods)"
@@ -897,6 +1015,40 @@ class ResourcePool:
         """
         return skill_type in self.resources
 
+    def update_skill_from_hour(self, skill_type: str, outage_start: datetime,
+                               from_hour: float, new_count: int,
+                               until_hour: float = None) -> None:
+        """Update availability for one skill from from_hour forward.
+
+        Delegates to ResourceAvailability.update_from_hour.  No-op (with
+        warning) if skill_type is not registered in the pool.
+
+        Args:
+            skill_type: Skill to update.
+            outage_start: Outage start datetime.
+            from_hour: Hours from outage start where the change takes effect.
+            new_count: New absolute count (≥ 0).
+            until_hour: End of the update window. None = permanent.
+        """
+        import logging as _logging
+        if skill_type not in self.resources:
+            _logging.getLogger(__name__).warning(
+                "update_skill_from_hour: skill '%s' not found in pool", skill_type
+            )
+            return
+        self.resources[skill_type].update_from_hour(outage_start, from_hour,
+                                                     new_count, until_hour)
+
+    def snapshot(self) -> dict:
+        """Return {skill_type: periods_snapshot} for rollback."""
+        return {s: ra.snapshot() for s, ra in self.resources.items()}
+
+    def restore(self, saved: dict) -> None:
+        """Restore all skills from a previously taken snapshot."""
+        for s, periods in saved.items():
+            if s in self.resources:
+                self.resources[s].restore(periods)
+
     def get_consumable_skills(self) -> List[str]:
         """
         Return skill types whose resource_type is 'consumable'.
@@ -1023,6 +1175,40 @@ class EquipmentPool:
             bool: True if equipment exists in pool
         """
         return equipment_id in self.equipment
+
+    def update_equipment_from_hour(self, equipment_id: str, outage_start: datetime,
+                                   from_hour: float, new_quantity: int,
+                                   until_hour: float = None) -> None:
+        """Update quantity for one equipment item from from_hour forward.
+
+        Delegates to EquipmentAvailability.update_from_hour.  No-op (with
+        warning) if equipment_id is not registered in the pool.
+
+        Args:
+            equipment_id: Equipment to update.
+            outage_start: Outage start datetime.
+            from_hour: Hours from outage start where the change takes effect.
+            new_quantity: New absolute quantity (≥ 0).
+            until_hour: End of the update window. None = permanent.
+        """
+        import logging as _logging
+        if equipment_id not in self.equipment:
+            _logging.getLogger(__name__).warning(
+                "update_equipment_from_hour: equipment '%s' not found in pool", equipment_id
+            )
+            return
+        self.equipment[equipment_id].update_from_hour(outage_start, from_hour,
+                                                       new_quantity, until_hour)
+
+    def snapshot(self) -> dict:
+        """Return {equipment_id: periods_snapshot} for rollback."""
+        return {eq_id: ea.snapshot() for eq_id, ea in self.equipment.items()}
+
+    def restore(self, saved: dict) -> None:
+        """Restore all equipment from a previously taken snapshot."""
+        for eq_id, periods in saved.items():
+            if eq_id in self.equipment:
+                self.equipment[eq_id].restore(periods)
 
     def get_description(self, equipment_id: str) -> Optional[str]:
         """
@@ -1567,7 +1753,7 @@ print("\n  Resource availability:")
 for res_req in task['required_resources']:
     skill = res_req['skill_type']
     needed = res_req['crew_count']
-    available = outage.resource_pool.get_availability_in_range(
+    available = outage.crew_pool.get_availability_in_range(
         skill, start_time, end_time
     )
     status = "✓" if available >= needed else "✗"

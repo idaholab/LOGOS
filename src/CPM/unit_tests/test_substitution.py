@@ -60,7 +60,7 @@ def _make_consumable_rp(skill, count, budget_per_worker=500.0):
 def _pert(fwd, rp, start_dt=START_DT):
     """Build Pert, inject pools, generate info, set start time."""
     p = Pert(graph=fwd)
-    p.resource_pool = rp
+    p.crew_pool = rp
     p.equipment_pool = EquipmentPool()
     p.location_pool = LocationPool()
     p.dose_trackers = rp.build_dose_trackers() if rp else {}
@@ -157,10 +157,10 @@ class TestFitsWithSubstitution:
         # Both must complete (B waits for A's WELDER workers to free)
         assert a.status == 'completed'
         assert b.status == 'completed'
-        # B should start after A finishes (serialised due to resource shortage)
-        a_end = a.returnAbsTimes()[1]
-        b_start = b.returnAbsTimes()[0]
-        assert b_start >= a_end
+        # A and B must serialise due to resource shortage (either order is valid)
+        a_st, a_et = a.returnAbsTimes()
+        b_st, b_et = b.returnAbsTimes()
+        assert b_st >= a_et or a_st >= b_et
 
     def test_alternative_substitutes_when_primary_exhausted(self):
         """

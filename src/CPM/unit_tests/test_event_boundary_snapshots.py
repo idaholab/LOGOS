@@ -66,7 +66,7 @@ def _simple_pert(skill='MECH', pool_count=4) -> Pert:
 
     fwd = {start: [a], a: [b], b: [end], end: []}
     p = Pert(graph=fwd)
-    p.resource_pool  = _make_rp(skill, pool_count)
+    p.crew_pool  = _make_rp(skill, pool_count)
     p.equipment_pool = EquipmentPool()
     p.location_pool  = LocationPool()
     p.startTime      = _start()
@@ -188,7 +188,7 @@ class TestCapacityValues:
         for h in grid:
             if h >= t1:
                 continue
-            orig = p.resource_pool.get_availability('MECH', h)
+            orig = p.crew_pool.get_availability('MECH', h)
             consumed = p._get_consumed_resources('MECH', h)
             expected = max(0, orig - consumed)
             assert res_rem_b['MECH'][h] == expected, (
@@ -377,7 +377,7 @@ class TestSchedulingOutcomeUnchanged:
         for h_offset in range(20):
             h = t0 + timedelta(hours=h_offset)
             consumed = p._get_consumed_resources('MECH', h)
-            available = p.resource_pool.get_availability('MECH', h)
+            available = p.crew_pool.get_availability('MECH', h)
             assert consumed <= available, (
                 f"Overbooking at h+{h_offset}: consumed={consumed} > available={available}"
             )
@@ -399,7 +399,7 @@ class TestPerformanceBoundary:
         """
         rp = _make_rp('MECH', 10)
         p = Pert(graph={Activity('S', 0): []})
-        p.resource_pool  = rp
+        p.crew_pool  = rp
         p.equipment_pool = EquipmentPool()
         p.location_pool  = LocationPool()
         p.startTime      = _start()

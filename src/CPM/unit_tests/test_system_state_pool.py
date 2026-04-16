@@ -51,7 +51,7 @@ def _act(name, duration=4.0, system_states=None):
 
 def _build_pert(fwd, systems_json=None):
     p = Pert(graph=fwd)
-    p.resource_pool    = ResourcePool()
+    p.crew_pool    = ResourcePool()
     p.equipment_pool   = EquipmentPool()
     p.location_pool    = LocationPool()
     p.consumable_pool  = None
@@ -384,9 +384,9 @@ class TestSchedulerSystemState:
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 2
         a_st, a_et = a.returnAbsTimes()
-        b_st, _    = b.returnAbsTimes()
-        # B starts no earlier than A finishes
-        assert b_st >= a_et
+        b_st, b_et = b.returnAbsTimes()
+        # A and B hold conflicting states — they must not overlap (either order)
+        assert b_st >= a_et or a_st >= b_et
 
     def test_three_activities_two_states(self):
         """
@@ -432,9 +432,10 @@ class TestSchedulerSystemState:
         p = _build_pert(fwd)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 2
-        _, a_et = a.returnAbsTimes()
-        b_st, _ = b.returnAbsTimes()
-        assert b_st >= a_et
+        a_st, a_et = a.returnAbsTimes()
+        b_st, b_et = b.returnAbsTimes()
+        # A and B conflict on VALVE_V1 — must not overlap (either order)
+        assert b_st >= a_et or a_st >= b_et
 
     def test_pool_held_state_is_zero_after_schedule(self):
         """After all activities complete, no locks should remain held."""

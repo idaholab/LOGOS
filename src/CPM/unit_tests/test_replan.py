@@ -21,6 +21,12 @@ Coverage:
 - replan: dose state preserved across replan
 - replan: returns replan_time_hours in result
 - replan: running twice from same snapshot gives stable result
+- replan: predecessor_wiring adds edge from existing to new activity
+- replan: new activity respects wired predecessor finish time
+- replan: unknown new-activity name in wiring is skipped gracefully
+- replan: unknown predecessor name in wiring is skipped gracefully
+- replan: predecessor name as plain string (not list) is accepted
+- replan: predecessor_wiring=None is a no-op
 """
 
 import pytest
@@ -62,7 +68,7 @@ def _chain_pert(*durations):
 
     rp, ep, lp = _make_pools()
     p = Pert(graph=fwd)
-    p.resource_pool  = rp
+    p.crew_pool  = rp
     p.equipment_pool = ep
     p.location_pool  = lp
     p.generateInfo()
@@ -209,7 +215,7 @@ class TestPartialReset:
         fwd   = {start: [a], a: [end], end: []}
 
         p = Pert(graph=fwd)
-        p.resource_pool  = rp
+        p.crew_pool  = rp
         p.equipment_pool = ep
         p.location_pool  = lp
         p.dose_trackers  = rp.build_dose_trackers()
@@ -446,4 +452,110 @@ class TestReplanWithInjection:
         new_act.childs = []
         p.replan(4.0, new_activities=[new_act])
 
+        assert len(p.forwardDict) == n_before + 1
+
+
+# ---------------------------------------------------------------------------
+# Predecessor wiring for injected activities (Issue #3)
+# ---------------------------------------------------------------------------
+
+class TestPredecessorWiring:
+    """
+    replan(predecessor_wiring=...) wires existing activities as predecessors
+    of newly injected activities so the caller does not have to mutate
+    forwardDict manually.
+    """
+
+    def _base_pert(self):
+        """START(0) → A(4) → B(4) → END(0) with pools."""
+        start = Activity('START', 0.0)
+        a     = Activity('A', 4.0)
+        b     = Activity('B', 4.0)
+        end   = Activity('END', 0.0)
+        fwd   = {start: [a], a: [b], b: [end], end: []}
+        rp, ep, lp = _make_pools()
+        p = Pert(graph=fwd)
+        p.crew_pool   = rp
+        p.equipment_pool  = ep
+        p.location_pool   = lp
+        p.consumable_pool   = None
+        p.system_state_pool = None
+        p.startTime = datetime(2026, 1, 1)
+        p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        return p, start, a, b, end
+
+    def test_predecessor_wiring_adds_edge_to_forwarddict(self):
+        """After injection with wiring, existing activity A → new activity."""
+        p, _, a, b, _ = self._base_pert()
+        new_act = Activity('NEW', 2.0)
+        new_act.childs = ['B']    # NEW → B
+        p.replan(
+            4.0,
+            new_activities=[new_act],
+            predecessor_wiring={'NEW': ['A']},   # A → NEW
+        )
+        # A must have NEW as a successor
+        assert new_act in p.forwardDict[a]
+
+    def test_predecessor_wiring_respected_in_schedule(self):
+        """NEW starts no earlier than A finishes (A is its predecessor)."""
+        p, _, a, b, _ = self._base_pert()
+        new_act = Activity('NEW', 2.0)
+        new_act.childs = []
+        p.replan(
+            4.0,
+            new_activities=[new_act],
+            predecessor_wiring={'NEW': ['A']},
+        )
+        a_st, a_et = a.returnAbsTimes()
+        n_st, _    = new_act.returnAbsTimes()
+        # NEW cannot start before A finishes
+        assert n_st >= a_et
+
+    def test_predecessor_wiring_unknown_new_activity_warns(self):
+        """Wiring referencing a non-existent new activity is skipped gracefully."""
+        p, _, a, b, _ = self._base_pert()
+        new_act = Activity('NEW', 2.0)
+        new_act.childs = []
+        # 'GHOST' was never injected — should warn and not crash
+        p.replan(
+            4.0,
+            new_activities=[new_act],
+            predecessor_wiring={'GHOST': ['A']},
+        )
+        # Scheduler completes normally
+        assert new_act in p.forwardDict
+
+    def test_predecessor_wiring_unknown_predecessor_warns(self):
+        """Wiring referencing a non-existent existing activity is skipped."""
+        p, _, a, b, _ = self._base_pert()
+        new_act = Activity('NEW', 2.0)
+        new_act.childs = []
+        p.replan(
+            4.0,
+            new_activities=[new_act],
+            predecessor_wiring={'NEW': ['NO_SUCH_TASK']},
+        )
+        # NEW is still in the graph; wiring simply absent
+        assert new_act in p.forwardDict
+
+    def test_predecessor_wiring_string_shorthand(self):
+        """Single predecessor name as a plain string (not list) is accepted."""
+        p, _, a, b, _ = self._base_pert()
+        new_act = Activity('NEW', 2.0)
+        new_act.childs = []
+        p.replan(
+            4.0,
+            new_activities=[new_act],
+            predecessor_wiring={'NEW': 'A'},   # string, not list
+        )
+        assert new_act in p.forwardDict[a]
+
+    def test_predecessor_wiring_none_is_no_op(self):
+        """predecessor_wiring=None (default) behaves identically to before."""
+        p, _, a, b, _ = self._base_pert()
+        new_act = Activity('NEW', 2.0)
+        new_act.childs = []
+        n_before = len(p.forwardDict)
+        p.replan(4.0, new_activities=[new_act])
         assert len(p.forwardDict) == n_before + 1

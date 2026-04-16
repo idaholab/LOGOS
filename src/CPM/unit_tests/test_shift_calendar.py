@@ -175,6 +175,8 @@ class TestShiftGateInScheduler:
         p.wait = list(p.forwardDict.keys())
         p.ongoing = []
         p.completed = []
+        p._completed_set = set()
+        p._rebuild_ready_set()
         return p
 
     def test_off_shift_returns_empty_candidates(self):
@@ -192,6 +194,8 @@ class TestShiftGateInScheduler:
         p.wait = list(p.forwardDict.keys())
         p.ongoing = []
         p.completed = []
+        p._completed_set = set()
+        p._rebuild_ready_set()
         # All predecessors complete = none (for START, which has no predecessors)
         candidates = p._select_candidate_activities(on_shift_time, 'TF_based')
         # START has ES=0 ≤ 8h → should be a candidate
@@ -206,6 +210,8 @@ class TestShiftGateInScheduler:
         p.wait = list(p.forwardDict.keys())
         p.ongoing = []
         p.completed = []
+        p._completed_set = set()
+        p._rebuild_ready_set()
         candidates = p._select_candidate_activities(midnight, 'TF_based')
         # Should not be empty
         assert len(candidates) > 0

@@ -146,8 +146,8 @@ class TestResourceConstraints:
         end = pert.get_project_finish_actual()
         t = start
         while t < end:
-            for skill in pert.resource_pool.get_all_skills():
-                available = pert.resource_pool.get_availability(skill, t)
+            for skill in pert.crew_pool.get_all_skills():
+                available = pert.crew_pool.get_availability(skill, t)
                 used = sum(
                     req["crew_count"]
                     for act in pert.completed

@@ -62,7 +62,7 @@ def _pooled_pert(a_duration=4.0, b_duration=4.0, b_lead=0.0):
     """Same as _simple_pert but with empty pools attached for scheduling."""
     p, a, b = _simple_pert(a_duration, b_duration, b_lead)
     rp, ep, lp = _make_pools()
-    p.resource_pool  = rp
+    p.crew_pool  = rp
     p.equipment_pool = ep
     p.location_pool  = lp
     p.generateInfo()
@@ -336,7 +336,7 @@ class TestGenerateInfoFromWithLead:
 
         rp, ep, lp = _make_pools()
         p = Pert(graph=fwd)
-        p.resource_pool  = rp
+        p.crew_pool  = rp
         p.equipment_pool = ep
         p.location_pool  = lp
         p.generateInfo()

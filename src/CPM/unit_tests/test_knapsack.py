@@ -25,9 +25,9 @@ from CPM.outage_data import (
 # ---------------------------------------------------------------------------
 
 def _make_pools(n_mechanics=4, crane_qty=1, max_tasks=2, max_workers=6):
-    """Return (resource_pool, equipment_pool, location_pool) for tests."""
-    resource_pool = ResourcePool()
-    resource_pool.resources["MECHANIC"] = ResourceAvailability(
+    """Return (crew_pool, equipment_pool, location_pool) for tests."""
+    crew_pool = ResourcePool()
+    crew_pool.resources["MECHANIC"] = ResourceAvailability(
         skill_type="MECHANIC",
         periods=[{
             "start_date": datetime(2025, 1, 1),
@@ -62,7 +62,7 @@ def _make_pools(n_mechanics=4, crane_qty=1, max_tasks=2, max_workers=6):
         }],
     )
 
-    return resource_pool, equipment_pool, location_pool
+    return crew_pool, equipment_pool, location_pool
 
 
 def _make_activity(name, skill="MECHANIC", crew=2, equipment=None, location="LOC_A"):
