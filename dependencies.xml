@@ -12,6 +12,8 @@
     <networkx source='pip'/>
     <plotly source='pip'/>
     <pandas source='pip'/>
+    <deap source='pip'/>
+    <pytest source="pip"/>
   </main>
 
   <alternate name="pip">

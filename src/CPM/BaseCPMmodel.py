@@ -61,7 +61,7 @@ class BaseCPMmodel(ExternalModelPluginBase):
     for child in xmlNode:
       if child.tag == 'project_file':
         self.project_file = child.text.strip()
-      if child.tag == 'CPtime':
+      elif child.tag == 'CPtime':
         self.CPtime = child.text.strip()
       elif child.tag == 'sgs':
         self.sgs = child.text.strip()
@@ -70,8 +70,8 @@ class BaseCPMmodel(ExternalModelPluginBase):
       elif child.tag == 'map':
         # <map activity='activity_ID' attribute='duration/priority'>raven_var_ID</map>
         raven_var_ID = child.text.strip()
-        act_ID       = child.get('activity')
-        attribute    = child.get('attribute')
+        act_ID       = child.get('act')
+        attribute    = child.get('attr')
         self.mapping[raven_var_ID] = (act_ID,attribute)
         if attribute=='duration':
           self.duration_vars.append(raven_var_ID)
@@ -79,6 +79,9 @@ class BaseCPMmodel(ExternalModelPluginBase):
           self.priority_vars.append(raven_var_ID)
         else:
           raise IOError("CMPmodel: attribute " + str(attribute) + " is not allowed")
+
+      elif child.tag.lower() in ['variables', 'inputs', 'outputs']:
+        continue
       else:
         raise IOError("CMPmodel: xml node " + str(child.tag) + " is not allowed")
 

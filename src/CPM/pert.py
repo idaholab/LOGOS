@@ -5668,6 +5668,7 @@ class Pert:
         self,
         priority_rule: str = 'lf',
         max_time_hours: float = None,
+        _ordered: List['Activity'] = None,
     ) -> dict:
         """
         Schedule activities using a Serial Schedule Generation Scheme (Serial SGS).
@@ -5734,21 +5735,27 @@ class Pert:
             max_time_hours = cpm_duration * self._max_time_factor
         max_time = self.startTime + timedelta(hours=max_time_hours)
 
+        # ── Build priority-ordered list ───────────────────────────────────────
+        # If a pre-computed ordering is supplied (e.g. from the GA), use it
+        # directly.  Otherwise derive it from the named priority rule.
+        if _ordered is not None:
+            ordered: List['Activity'] = list(_ordered)
+            priority_rule = 'custom'
+        else:
+            # priority_calculation returns either List[Activity] (random) or
+            # List[(Activity, value)] for all other rules.  Normalise to List[Activity].
+            all_acts = list(self.forwardDict.keys())
+            raw_priority = self.priority_calculation(all_acts, priority_rule)
+
+            if raw_priority and isinstance(raw_priority[0], tuple):
+                ordered: List['Activity'] = [a for (a, _, _) in raw_priority]
+            else:
+                ordered: List['Activity'] = list(raw_priority)
+
         logger.info(
             "Starting Serial SGS | activities=%d | CPM=%.1fh | rule=%s",
             n_activities, cpm_duration, priority_rule
         )
-
-        # ── Build priority-ordered list ───────────────────────────────────────
-        # priority_calculation returns either List[Activity] (random) or
-        # List[(Activity, value)] for all other rules.  Normalise to List[Activity].
-        all_acts = list(self.forwardDict.keys())
-        raw_priority = self.priority_calculation(all_acts, priority_rule)
-
-        if raw_priority and isinstance(raw_priority[0], tuple):
-            ordered: List['Activity'] = [a for (a, _, _) in raw_priority]
-        else:
-            ordered: List['Activity'] = list(raw_priority)
 
         # ── Schedule profile: committed (activity, abs_start, abs_end) ────────
         schedule_profile: List[tuple] = []
