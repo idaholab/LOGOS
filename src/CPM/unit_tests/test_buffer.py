@@ -32,6 +32,7 @@ import pytest
 from datetime import datetime
 from pathlib import Path
 
+from conftest import assert_valid_schedule
 from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import ResourcePool, EquipmentPool, LocationPool
@@ -90,6 +91,7 @@ def _schedule_linear_chain(*durations):
     """
     p, acts = _linear_chain(*durations)
     p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+    assert_valid_schedule(p)
     return p, acts
 
 
@@ -130,6 +132,7 @@ def _fork_merge(*durations_per_branch, merge_duration=2.0):
 def _schedule_fork_merge(*durations_per_branch, merge_duration=2.0):
     p, branches, merge = _fork_merge(*durations_per_branch, merge_duration=merge_duration)
     p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+    assert_valid_schedule(p)
     return p, branches, merge
 
 

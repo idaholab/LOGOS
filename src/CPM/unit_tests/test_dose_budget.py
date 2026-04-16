@@ -17,6 +17,7 @@ Tests verify:
 import pytest
 from datetime import datetime
 
+from conftest import assert_valid_schedule
 from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import (
@@ -370,6 +371,7 @@ class TestSchedulerDoseBudget:
         # budget_per_worker=500, peak=4 → total=2000; A consumes 50×2×4=400 mRem
         p, a, b = _minimal_pert_with_dose(budget_per_worker=500.0, peak_workers=4)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert p.dose_trackers['MECHANIC'].consumed_mrem > 0.0
 
     def test_dose_trackers_reset_between_runs(self):
@@ -381,6 +383,7 @@ class TestSchedulerDoseBudget:
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         consumed_first = p.dose_trackers['MECHANIC'].consumed_mrem
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         consumed_second = p.dose_trackers['MECHANIC'].consumed_mrem
         assert abs(consumed_first - consumed_second) < 1e-9
 
@@ -399,6 +402,7 @@ class TestSchedulerDoseBudget:
         fwd = {start_act: [a], a: [end_act], end_act: []}
         p = _pert_with_pools(fwd, rp, ep, lp, datetime(2025, 6, 1, 6, 0))
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert len(p.completed) == len(p.infoDict)
 
     def test_renewable_resource_unaffected_by_dose_logic(self):
@@ -423,5 +427,6 @@ class TestSchedulerDoseBudget:
         fwd = {start_act: [a], a: [end_act], end_act: []}
         p = _pert_with_pools(fwd, rp, ep, lp, datetime(2025, 6, 1, 6, 0))
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert p.dose_trackers == {}
         assert len(p.completed) == len(p.infoDict)

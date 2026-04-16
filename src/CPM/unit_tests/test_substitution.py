@@ -15,6 +15,7 @@ import pytest
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from conftest import assert_valid_schedule
 from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import (
@@ -137,6 +138,7 @@ class TestFitsWithSubstitution:
         act = _activity('A', 'WELDER', 2)
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert act.status == 'completed'
 
     def test_primary_exhausted_no_alternative_waits(self):
@@ -157,6 +159,7 @@ class TestFitsWithSubstitution:
         # Both must complete (B waits for A's WELDER workers to free)
         assert a.status == 'completed'
         assert b.status == 'completed'
+        assert_valid_schedule(p)
         # A and B must serialise due to resource shortage (either order is valid)
         a_st, a_et = a.returnAbsTimes()
         b_st, b_et = b.returnAbsTimes()
@@ -171,6 +174,7 @@ class TestFitsWithSubstitution:
         act = _activity('A', 'WELDER', 2, alt_skills=['WELDER_SENIOR'])
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert act.status == 'completed'
 
     def test_alternative_partially_fills_gap(self):
@@ -182,6 +186,7 @@ class TestFitsWithSubstitution:
         act = _activity('A', 'WELDER', 2, alt_skills=['WELDER_SENIOR'])
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert act.status == 'completed'
 
     def test_multiple_alternatives_tried_in_order(self):
@@ -195,6 +200,7 @@ class TestFitsWithSubstitution:
         act = Activity('A', 2.0, required_resources=[req])
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert act.status == 'completed'
 
     def test_two_alternatives_split_the_gap(self):
@@ -208,6 +214,7 @@ class TestFitsWithSubstitution:
         act = Activity('A', 2.0, required_resources=[req])
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert act.status == 'completed'
 
     def test_insufficient_even_with_alternatives_waits(self):
@@ -233,6 +240,7 @@ class TestFitsWithSubstitution:
         act = Activity('A', 2.0, required_resources=[{'skill_type': 'MECHANIC', 'crew_count': 2}])
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert act.status == 'completed'
 
     def test_per_hour_alternative_check(self):
@@ -256,6 +264,7 @@ class TestFitsWithSubstitution:
         # Both should complete; scheduler may serialise them
         assert a.status == 'completed'
         assert b.status == 'completed'
+        assert_valid_schedule(p)
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +279,7 @@ class TestActualResourcesTracked:
         act = _activity('A', 'WELDER', 2)
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert act._actual_resources is not None
 
     def test_actual_resources_full_primary_when_sufficient(self):
@@ -278,6 +288,7 @@ class TestActualResourcesTracked:
         act = _activity('A', 'WELDER', 2)
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert act._actual_resources.get('WELDER', 0) == 2
 
     def test_actual_resources_shows_substitution(self):
@@ -286,6 +297,7 @@ class TestActualResourcesTracked:
         act = _activity('A', 'WELDER', 2, alt_skills=['WELDER_SENIOR'])
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert act._actual_resources.get('WELDER', 0) == 0
         assert act._actual_resources.get('WELDER_SENIOR', 0) == 2
 
@@ -295,6 +307,7 @@ class TestActualResourcesTracked:
         act = _activity('A', 'WELDER', 2, alt_skills=['WELDER_SENIOR'])
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert act._actual_resources.get('WELDER', 0) == 1
         assert act._actual_resources.get('WELDER_SENIOR', 0) == 1
 
@@ -320,6 +333,7 @@ class TestActualResourcesTracked:
         act = _activity('A', 'WELDER', 2, duration=4.0, alt_skills=['WELDER_SENIOR'])
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert act._actual_resources.get('WELDER_SENIOR', 0) == 2
         assert act._actual_resources.get('WELDER', 0) == 0
 
@@ -331,6 +345,7 @@ class TestActualResourcesTracked:
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         first_result = dict(act._actual_resources)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         second_result = dict(act._actual_resources)
         assert first_result == second_result
 
@@ -369,6 +384,7 @@ class TestSubstitutionDoseTracking:
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert act.status == 'completed'
+        assert_valid_schedule(p)
         # All 2 workers come from WELDER_SENIOR; dose = 50 * 2 * 2 = 200
         assert abs(p.dose_trackers['WELDER_SENIOR'].consumed_mrem - 200.0) < 1e-9
         # No WELDER workers used → no dose on WELDER tracker
@@ -396,6 +412,7 @@ class TestSubstitutionDoseTracking:
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert act.status == 'completed'
+        assert_valid_schedule(p)
         assert abs(p.dose_trackers['WELDER'].consumed_mrem - 100.0) < 1e-9
         assert abs(p.dose_trackers['WELDER_SENIOR'].consumed_mrem - 100.0) < 1e-9
 
@@ -420,6 +437,7 @@ class TestSubstitutionDoseTracking:
         act.dose_rate_mrem_per_hour = 0.0
         p = _pert(_single(act), rp)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert p.dose_trackers['WELDER'].consumed_mrem == 0.0
         assert p.dose_trackers['WELDER_SENIOR'].consumed_mrem == 0.0
 

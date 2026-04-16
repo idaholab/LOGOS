@@ -29,6 +29,7 @@ import pytest
 from datetime import datetime
 from pathlib import Path
 
+from conftest import assert_valid_schedule
 from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import ResourcePool, EquipmentPool, LocationPool
@@ -381,6 +382,7 @@ class TestPriorityElevation:
         p.startTime = a_date; p.generateInfo()
 
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         # All activities should complete (no deadlock)
         assert result['scheduled_duration'] > 0
 

@@ -221,9 +221,14 @@ class Activity:
         raw_successors = task_dict.get('successors', [])
         childs_list: list = []
         lag_map: dict = {}
-        for entry in raw_successors:
+        for i, entry in enumerate(raw_successors):
             if isinstance(entry, dict):
-                tid = entry['task_id']
+                tid = entry.get('task_id')
+                if not tid:
+                    raise ValueError(
+                        f"Task '{task_dict.get('task_id', '?')}': "
+                        f"successors[{i}] is a dict but is missing 'task_id': {entry!r}"
+                    )
                 childs_list.append(tid)
                 lag_h = float(entry.get('lag_hours', 0.0))
                 if lag_h != 0.0:
@@ -233,7 +238,7 @@ class Activity:
 
         instance = cls(
             name=task_dict['task_id'],
-            duration=task_dict['duration'],
+            duration=float(task_dict['duration']),
             description=task_dict.get('description'),
             childs=childs_list,
             location_id=task_dict.get('location_id'),
@@ -255,10 +260,17 @@ class Activity:
         instance.window_earliest_start_hours = float(raw_west) if raw_west is not None else None
         instance.window_latest_finish_hours  = float(raw_wlf)  if raw_wlf  is not None else None
         raw_tw = task_dict.get('time_windows', [])
-        instance.time_windows = [
-            {'earliest': float(w['earliest']), 'latest': float(w['latest'])}
-            for w in raw_tw
-        ] if raw_tw else []
+        parsed_tw = []
+        for j, w in enumerate(raw_tw or []):
+            e = w.get('earliest')
+            l = w.get('latest')
+            if e is None or l is None:
+                raise ValueError(
+                    f"Task '{task_dict.get('task_id', '?')}': "
+                    f"time_windows[{j}] must have 'earliest' and 'latest', got {w!r}"
+                )
+            parsed_tw.append({'earliest': float(e), 'latest': float(l)})
+        instance.time_windows = parsed_tw
         raw_modes = task_dict.get('modes', [])
         instance.modes = list(raw_modes) if raw_modes else []
         instance.wbs_group = task_dict.get('wbs_group') or None
@@ -535,14 +547,20 @@ class Activity:
                 f"set_mode: activity '{self.name}' has no modes defined. "
                 "Add a 'modes' array to its JSON definition."
             )
-        mode = next((m for m in self.modes if m['mode_id'] == mode_id), None)
+        mode = next((m for m in self.modes if m.get('mode_id') == mode_id), None)
         if mode is None:
-            available = [m['mode_id'] for m in self.modes]
+            available = [m.get('mode_id', '<missing>') for m in self.modes]
             raise ValueError(
                 f"set_mode: mode '{mode_id}' not found for activity '{self.name}'. "
                 f"Available modes: {available}"
             )
-        self.duration             = float(mode['duration'])
+        dur = mode.get('duration')
+        if dur is None:
+            raise ValueError(
+                f"set_mode: mode '{mode_id}' for activity '{self.name}' "
+                f"is missing required key 'duration'"
+            )
+        self.duration             = float(dur)
         self.required_resources   = list(mode.get('required_resources', []))
         self.required_equipment   = list(mode.get('required_equipment', []))
         # Optional per-mode overrides for dose and mobilization lead
@@ -561,7 +579,7 @@ class Activity:
 
         Returns an empty list for single-mode (legacy) activities.
         """
-        return [m['mode_id'] for m in self.modes]
+        return [m.get('mode_id') for m in self.modes if m.get('mode_id') is not None]
 
     def addDelay(self, hours: float = 1.0):
         """

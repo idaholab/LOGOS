@@ -25,6 +25,7 @@ import pytest
 import math
 from datetime import datetime, timedelta
 
+from conftest import assert_valid_schedule
 from CPM.activity import Activity
 from CPM.pert import Pert
 
@@ -310,6 +311,7 @@ class TestSchedulerWindowEnforcement:
         """
         p, a, b = self._make_scheduling_pert(west=10.0, b_duration=4.0)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert len(p.completed) == len(p.infoDict)
         assert result['window_violations'] == []
 
@@ -319,6 +321,7 @@ class TestSchedulerWindowEnforcement:
         """
         p, a, b = self._make_scheduling_pert()
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert result['window_violations'] == []
 
     def test_missed_window_recorded_as_violation(self):
@@ -349,6 +352,7 @@ class TestSchedulerWindowEnforcement:
         """
         p, a, b = self._make_scheduling_pert(west=10.0)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         b_start, _ = b.returnAbsTimes()
         b_start_hours = (b_start - p.startTime).total_seconds() / 3600.0
         assert b_start_hours >= 10.0 - TOL
@@ -373,6 +377,7 @@ class TestFitnessWindowViolation:
     def test_no_violation_ratio_zero(self):
         p = self._make_scheduling_pert()
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         f = p.compute_fitness()
         assert f['window_violation_ratio'] == 0.0
         assert f['n_window_violations'] == 0

@@ -18,6 +18,7 @@ import json
 import pytest
 from datetime import datetime, timedelta
 
+from conftest import assert_valid_schedule
 from CPM.activity import Activity
 from CPM.outage_data import LocationAvailability, LocationPool, ResourcePool, EquipmentPool
 from CPM.pert import Pert
@@ -277,6 +278,7 @@ class TestSchedulerZoneIds:
         p = _build_pert(fwd, locs)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 2
+        assert_valid_schedule(p)
         a_st, a_et = a.returnAbsTimes()
         b_st, b_et = b.returnAbsTimes()
         # Non-overlapping: one must finish before the other starts
@@ -295,6 +297,7 @@ class TestSchedulerZoneIds:
         p = _build_pert(fwd, locs)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 2
+        assert_valid_schedule(p)
         a_st, a_et = a.returnAbsTimes()
         b_st, b_et = b.returnAbsTimes()
         assert a_et <= b_st or b_et <= a_st
@@ -317,6 +320,7 @@ class TestSchedulerZoneIds:
         p = _build_pert(fwd, locs)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 2
+        assert_valid_schedule(p)
         a_st, a_et = a.returnAbsTimes()
         b_st, b_et = b.returnAbsTimes()
         assert a_et <= b_st or b_et <= a_st
@@ -339,6 +343,7 @@ class TestSchedulerZoneIds:
         p = _build_pert(fwd, locs)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 2
+        assert_valid_schedule(p)
         a_st, a_et = a.returnAbsTimes()
         b_st, b_et = b.returnAbsTimes()
         assert a_et <= b_st or b_et <= a_st
@@ -361,6 +366,7 @@ class TestSchedulerZoneIds:
         p = _build_pert(fwd, locs)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 2
+        assert_valid_schedule(p)
         a_st, a_et = a.returnAbsTimes()
         b_st, b_et = b.returnAbsTimes()
         # Both finish — zones are independent so either order is valid
@@ -383,6 +389,7 @@ class TestSchedulerZoneIds:
         p = _build_pert(fwd, locs, mech_count=4)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 2
+        assert_valid_schedule(p)
         a_st, a_et = a.returnAbsTimes()
         b_st, b_et = b.returnAbsTimes()
         assert a_et <= b_st or b_et <= a_st

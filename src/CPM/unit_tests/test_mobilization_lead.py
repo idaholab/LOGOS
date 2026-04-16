@@ -28,6 +28,7 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from conftest import assert_valid_schedule
 from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import ResourcePool, EquipmentPool, LocationPool
@@ -268,6 +269,7 @@ class TestSchedulerEnforcement:
         """
         p, a, b = _pooled_pert(b_lead=5.0)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         b_st, _ = b.returnAbsTimes()
         b_start_hours = (b_st - p.startTime).total_seconds() / 3600.0
         assert b_start_hours >= 9.0 - TOL
@@ -276,12 +278,14 @@ class TestSchedulerEnforcement:
         """Schedule must complete all activities even with a long lead time."""
         p, a, b = _pooled_pert(b_lead=10.0)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert result['n_completed'] == result['n_activities']
 
     def test_zero_lead_schedule_unchanged(self):
         """Zero lead must not change when activities start."""
         p, a, b = _pooled_pert(b_lead=0.0)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         a_st, _ = a.returnAbsTimes()
         b_st, _ = b.returnAbsTimes()
         a_start = (a_st - p.startTime).total_seconds() / 3600.0
@@ -294,9 +298,11 @@ class TestSchedulerEnforcement:
         """Scheduled duration with lead must be greater than without."""
         p_no, _, _ = _pooled_pert(b_lead=0.0)
         r_no = p_no.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p_no)
 
         p_ld, _, _ = _pooled_pert(b_lead=6.0)
         r_ld = p_ld.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p_ld)
 
         assert r_ld['scheduled_duration'] > r_no['scheduled_duration']
 
@@ -374,6 +380,7 @@ class TestGenerateInfoFromWithLead:
         # Replan at t=2h (A in_progress, B pending)
         result = p.replan(2.0)
         assert result['n_completed'] == result['n_activities']
+        assert_valid_schedule(p)
         b_st, _ = b.returnAbsTimes()
         b_hours = (b_st - p.startTime).total_seconds() / 3600.0
         # A finishes at 4h; B can't start until 4 + 5 = 9h.

@@ -165,8 +165,19 @@ def _check_completeness(pert: 'Pert',
 
 def _check_durations(pert: 'Pert',
                      violations: list, warnings: list) -> None:
-    """endTime − startTime must match activity.duration within tolerance."""
+    """endTime − startTime must match activity.duration within tolerance.
+
+    Activities that were in-progress at replan time have ``_remaining_duration``
+    set and a stale ``endTime`` from before the replan.  Their duration field
+    may also have been updated by a ``duration_override``.  These activities
+    cannot be checked by a simple ``endTime − startTime == duration`` test, so
+    they are skipped.
+    """
     for act in pert.completed:
+        # Skip activities frozen mid-execution by a replan: their endTime was
+        # recorded before the duration override took effect and is stale.
+        if getattr(act, '_remaining_duration', None) is not None:
+            continue
         st, et = act.returnAbsTimes()
         if st is None or et is None:
             continue
@@ -486,6 +497,8 @@ def _check_equipment_zone_affinity(pert: 'Pert',
         if st is None:
             continue
         act_zones = set(act.getZoneIds())
+        if not act_zones:
+            continue  # unconstrained activity — no zone check needed
         for req in act.getRequiredEquipment():
             eq_id = req['equipment_id']
             zone_id = pert.equipment_pool.get_zone_id(eq_id)
@@ -520,11 +533,13 @@ def _check_shift_calendar(pert: 'Pert',
         st, et = act.returnAbsTimes()
         if st is None or et is None or pert.startTime is None:
             continue
-        # Hour offset from project start → hour-of-day
-        start_offset_h = (st - pert.startTime).total_seconds() / 3600.0
-        end_offset_h   = (et - pert.startTime).total_seconds() / 3600.0
-        start_hod = start_offset_h % 24.0   # hour-of-day for start
-        end_hod   = end_offset_h   % 24.0   # hour-of-day for end
+        # Absolute clock hour-of-day (matches _is_work_time logic).
+        # Using project-offset % 24 is wrong when the outage starts mid-day:
+        # an activity at offset=0h would show hour-of-day=0.0 instead of the
+        # actual clock hour, causing false violations for outages that begin
+        # partway through a day.
+        start_hod = st.hour + st.minute / 60.0 + st.second / 3600.0
+        end_hod   = et.hour + et.minute / 60.0 + et.second / 3600.0
 
         # Activities with zero duration are instantaneous — skip end check
         duration_h = (et - st).total_seconds() / 3600.0
