@@ -16,6 +16,7 @@ import pytest
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from conftest import assert_valid_schedule
 from CPM.pert import Pert
 
 
@@ -208,6 +209,7 @@ def test_priority_rule_completes(rule):
     """Each priority rule must produce a complete, valid schedule."""
     p = Pert.from_json_file(str(DATA_DIR / "test_case_1.json"), SCHEMA)
     p.calculateScheduleWithResources(sgs='max_use_res_ranked', priority_rule=rule)
+    assert_valid_schedule(p)
     n_total = len(p.infoDict)
     assert len(p.completed) == n_total, \
         f"Rule '{rule}' left {n_total - len(p.completed)} activities incomplete"
@@ -229,3 +231,15 @@ class TestFitnessAfterScheduling:
     def test_fitness_makespan_ratio_geq_1(self, sched_example_10):
         f = sched_example_10.compute_fitness()
         assert f["makespan_ratio"] >= 1.0 - 1e-6
+
+
+# ---------------------------------------------------------------------------
+# Validator consistency
+# ---------------------------------------------------------------------------
+
+class TestValidatorConsistency:
+    def test_example_10_output_is_valid(self, sched_example_10):
+        assert_valid_schedule(sched_example_10)
+
+    def test_test_case_1_output_is_valid(self, sched_test_case_1):
+        assert_valid_schedule(sched_test_case_1)

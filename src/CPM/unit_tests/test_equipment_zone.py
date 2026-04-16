@@ -19,6 +19,7 @@ import json
 import pytest
 from datetime import datetime, timedelta
 
+from conftest import assert_valid_schedule
 from CPM.outage_data import (
     EquipmentAvailability, EquipmentPool, LocationPool,
     ResourcePool, OutageData
@@ -167,13 +168,13 @@ class TestSchedulerEquipmentZone:
     """Integration tests exercising _fits_with_tentative zone-affinity check."""
 
     def _schedule(self, acts, eq_pool, loc_pool=None):
-        """Run SGS and return the set of scheduled activity names."""
+        """Run SGS and return (set of scheduled activity names, pert)."""
         # Pert expects {activity_object: [successors_list]}
         fwd = {a: [] for a in acts}
         p = _build_pert(fwd, eq_pool=eq_pool,
                         loc_pool=loc_pool or _loc_pool('ZONE_A', 'ZONE_B'))
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
-        return {a.name for a in p.completed if a.name not in ('Source', 'Sink')}
+        return {a.name for a in p.completed if a.name not in ('Source', 'Sink')}, p
 
     # --- backward-compat: unzoned equipment --------------------------------
 
@@ -183,7 +184,8 @@ class TestSchedulerEquipmentZone:
         ep.equipment['PUMP'] = _eq('PUMP')                # no zone
         act = _act('A', eq_reqs=[{'equipment_id': 'PUMP', 'quantity_needed': 1}],
                    zone_ids=['ZONE_A'])
-        scheduled = self._schedule([act], ep)
+        scheduled, p = self._schedule([act], ep)
+        assert_valid_schedule(p)
         assert 'A' in scheduled
 
     def test_unzoned_equipment_allowed_no_zone_activity(self):
@@ -192,7 +194,8 @@ class TestSchedulerEquipmentZone:
         ep.equipment['PUMP'] = _eq('PUMP')
         act = _act('A', eq_reqs=[{'equipment_id': 'PUMP', 'quantity_needed': 1}])
         # act has no zone_ids — act_zones will be empty → guard fires → unconstrained
-        scheduled = self._schedule([act], ep)
+        scheduled, p = self._schedule([act], ep)
+        assert_valid_schedule(p)
         assert 'A' in scheduled
 
     # --- backward-compat: activity with no zones ---------------------------
@@ -203,7 +206,8 @@ class TestSchedulerEquipmentZone:
         ep.equipment['PUMP'] = _eq('PUMP', zone_id='ZONE_A')
         act = _act('A', eq_reqs=[{'equipment_id': 'PUMP', 'quantity_needed': 1}])
         # act_zones empty → guard fires → activity is unconstrained
-        scheduled = self._schedule([act], ep)
+        scheduled, p = self._schedule([act], ep)
+        assert_valid_schedule(p)
         assert 'A' in scheduled
 
     # --- enforcement -------------------------------------------------------
@@ -214,7 +218,8 @@ class TestSchedulerEquipmentZone:
         ep.equipment['PUMP'] = _eq('PUMP', zone_id='ZONE_A')
         act = _act('A', eq_reqs=[{'equipment_id': 'PUMP', 'quantity_needed': 1}],
                    zone_ids=['ZONE_A'])
-        scheduled = self._schedule([act], ep)
+        scheduled, p = self._schedule([act], ep)
+        assert_valid_schedule(p)
         assert 'A' in scheduled
 
     def test_wrong_zone_is_blocked(self):
@@ -223,7 +228,7 @@ class TestSchedulerEquipmentZone:
         ep.equipment['PUMP'] = _eq('PUMP', zone_id='ZONE_A')
         act = _act('A', eq_reqs=[{'equipment_id': 'PUMP', 'quantity_needed': 1}],
                    zone_ids=['ZONE_B'])
-        scheduled = self._schedule([act], ep)
+        scheduled, _ = self._schedule([act], ep)
         assert 'A' not in scheduled
 
     def test_multi_zone_activity_allowed_when_one_matches(self):
@@ -232,7 +237,8 @@ class TestSchedulerEquipmentZone:
         ep.equipment['PUMP'] = _eq('PUMP', zone_id='ZONE_A')
         act = _act('A', eq_reqs=[{'equipment_id': 'PUMP', 'quantity_needed': 1}],
                    zone_ids=['ZONE_B', 'ZONE_A'])
-        scheduled = self._schedule([act], ep)
+        scheduled, p = self._schedule([act], ep)
+        assert_valid_schedule(p)
         assert 'A' in scheduled
 
     def test_two_activities_only_correct_one_scheduled(self):
@@ -243,7 +249,7 @@ class TestSchedulerEquipmentZone:
                        zone_ids=['ZONE_A'])
         act_bad = _act('BAD', eq_reqs=[{'equipment_id': 'PUMP', 'quantity_needed': 1}],
                        zone_ids=['ZONE_B'])
-        scheduled = self._schedule([act_ok, act_bad], ep)
+        scheduled, _ = self._schedule([act_ok, act_bad], ep)
         assert 'OK'  in scheduled
         assert 'BAD' not in scheduled
 
@@ -254,7 +260,7 @@ class TestSchedulerEquipmentZone:
         ep.equipment['PUMP'] = _eq('PUMP', zone_id='ZONE_A')
         act = _act('A', eq_reqs=[{'equipment_id': 'PUMP', 'quantity_needed': 1}],
                    zone_ids=['ZONE_B'])
-        scheduled = self._schedule([act], ep)
+        scheduled, _ = self._schedule([act], ep)
         assert 'A' not in scheduled
 
     def test_multiple_equipment_one_zoned_mismatch_blocks(self):
@@ -266,7 +272,7 @@ class TestSchedulerEquipmentZone:
                    eq_reqs=[{'equipment_id': 'PUMP',  'quantity_needed': 1},
                              {'equipment_id': 'CRANE', 'quantity_needed': 1}],
                    zone_ids=['ZONE_B'])
-        scheduled = self._schedule([act], ep)
+        scheduled, _ = self._schedule([act], ep)
         assert 'A' not in scheduled
 
     def test_multiple_equipment_all_zones_match(self):
@@ -278,7 +284,8 @@ class TestSchedulerEquipmentZone:
                    eq_reqs=[{'equipment_id': 'PUMP',  'quantity_needed': 1},
                              {'equipment_id': 'CRANE', 'quantity_needed': 1}],
                    zone_ids=['ZONE_A'])
-        scheduled = self._schedule([act], ep)
+        scheduled, p = self._schedule([act], ep)
+        assert_valid_schedule(p)
         assert 'A' in scheduled
 
 

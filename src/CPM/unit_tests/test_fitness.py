@@ -11,11 +11,12 @@ Tests cover:
 
 import pytest
 from datetime import datetime, timedelta
+from pathlib import Path
 
+from conftest import assert_valid_schedule
 from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import load_outage_data
-from pathlib import Path
 
 
 DATA_DIR = Path(__file__).parent.parent
@@ -137,10 +138,12 @@ class TestComputeFitnessFormula:
         # We just verify that the method is callable for both without error.
         p1 = Pert.from_json_file(EXAMPLE_10, SCHEMA_PATH)
         p1.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p1)
         f1 = p1.compute_fitness()
 
         p2 = Pert.from_json_file(EXAMPLE_10, SCHEMA_PATH)
         p2.calculateScheduleWithResources(sgs='max_use_res_shuffled')
+        assert_valid_schedule(p2)
         f2 = p2.compute_fitness()
 
         # Both must produce valid dicts regardless of which is better

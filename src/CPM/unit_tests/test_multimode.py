@@ -39,6 +39,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from conftest import assert_valid_schedule
 from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import ResourcePool, ResourceAvailability, EquipmentPool, LocationPool
@@ -430,12 +431,14 @@ class TestSchedulerWithModes:
         p, A, B, C = _simple_pert_with_modes()
         p.set_modes({'A': 'crash', 'B': 'crash'})
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert result['scheduled_duration'] <= 10.0   # 9h theoretical + possible resource wait
 
     def test_scheduler_normal_finishes_slower(self):
         p, A, B, C = _simple_pert_with_modes()
         p.set_modes({'A': 'normal', 'B': 'normal'})
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert result['scheduled_duration'] >= 9.0    # cannot be shorter than crash+slack
 
     def test_scheduler_crash_scheduled_duration_correct(self):
@@ -443,6 +446,7 @@ class TestSchedulerWithModes:
         p, A, B, C = _simple_pert_with_modes()
         p.set_modes({'A': 'crash', 'B': 'crash'})
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         # A needs 4 mechanics, B needs 4 mechanics — run sequentially as only 6 available
         # C needs 1 mechanic
         assert result['scheduled_duration'] >= 9.0

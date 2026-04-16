@@ -14,6 +14,7 @@ import json
 import pytest
 from datetime import datetime
 
+from conftest import assert_valid_schedule
 from CPM.outage_data import ConsumablePool
 from CPM.activity import Activity
 from CPM.pert import Pert
@@ -316,6 +317,7 @@ class TestSchedulerConsumableIntegration:
         p = self._build(fwd, None)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 3
+        assert_valid_schedule(p)
 
     def test_activity_with_zero_consumables_schedules(self):
         acts, fwd = _linear_with_consumable(2, consumables=[])
@@ -323,6 +325,7 @@ class TestSchedulerConsumableIntegration:
         p = self._build(fwd, pool)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 2
+        assert_valid_schedule(p)
 
     def test_deducts_inventory_on_start(self):
         a = _act('A', 4.0, consumables=[{'item_id': 'SUIT', 'quantity_needed': 3}])
@@ -331,15 +334,16 @@ class TestSchedulerConsumableIntegration:
         pool = _simple_pool('SUIT', total=10.0)
         p = self._build(fwd, pool)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         # After both activities scheduled, A consumed 3 suits (B has none)
         assert abs(p.consumable_pool.remaining['SUIT'] - 7.0) < TOL
 
     def test_blocks_when_pool_exhausted(self):
         """
         Two independent activities both need 6 suits, pool has 10.
-        They cannot BOTH start concurrently — only 6+6=12 > 10.
-        The second must wait... but there's no release event (consumable).
-        Both should still complete because they run sequentially in the SGS.
+        Consumables are non-renewable: once A takes 6, only 4 remain
+        permanently — B needs 6 but can never start (deadlock).
+        Only 1 activity completes; 4 suits remain unused.
         """
         a = _act('A', 2.0, consumables=[{'item_id': 'SUIT', 'quantity_needed': 6}])
         b = _act('B', 2.0, consumables=[{'item_id': 'SUIT', 'quantity_needed': 6}])
@@ -347,9 +351,25 @@ class TestSchedulerConsumableIntegration:
         pool = _simple_pool('SUIT', total=10.0)
         p = self._build(fwd, pool)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
-        # Both eventually complete (sequential)
+        # Only A completes; B is permanently blocked (10 - 6 = 4 < 6 needed)
+        assert result['n_completed'] == 1
+        # 4 suits remain (A took 6; B never started)
+        assert p.consumable_pool.remaining['SUIT'] == 4.0
+
+    def test_sequential_fits_when_pool_is_sufficient(self):
+        """
+        Two independent activities both need 6 suits, pool has 12.
+        After A takes 6 suits (6 remain), B can start with the remaining 6.
+        Both complete; pool is fully depleted.
+        """
+        a = _act('A', 2.0, consumables=[{'item_id': 'SUIT', 'quantity_needed': 6}])
+        b = _act('B', 2.0, consumables=[{'item_id': 'SUIT', 'quantity_needed': 6}])
+        fwd = {a: [], b: []}
+        pool = _simple_pool('SUIT', total=12.0)
+        p = self._build(fwd, pool)
+        result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 2
-        # Pool should be exhausted (10 - 6 - 6 would go negative; clamped to 0)
+        assert_valid_schedule(p)
         assert p.consumable_pool.remaining['SUIT'] == 0.0
 
     def test_activity_blocked_until_restock(self):
@@ -367,6 +387,7 @@ class TestSchedulerConsumableIntegration:
         p = self._build(fwd, pool)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 2
+        assert_valid_schedule(p)
         # A starts after B finishes (at 8h); restock is available by then
         assert p.consumable_pool.remaining['SUIT'] == 0.0
 
@@ -411,6 +432,7 @@ class TestSchedulerConsumableIntegration:
         assert p.consumable_pool.remaining['SUIT'] == 0.0
         # Run again — reset should restore inventory
         p.calculateScheduleWithResources()
+        assert_valid_schedule(p)
         assert p.consumable_pool.remaining['SUIT'] == 0.0  # consumed again
 
 

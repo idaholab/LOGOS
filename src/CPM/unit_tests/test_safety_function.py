@@ -41,6 +41,7 @@ def _minimal_outage(**kwargs):
     tasks = kwargs.pop('tasks', [
         {
             'task_id': 'T1',
+            'duration': 4.0,
             'required_system_states': [],
         }
     ])
@@ -77,7 +78,7 @@ class TestIntraActivityStateConflict:
 
     def test_no_system_states_no_errors(self):
         """Task with no required_system_states field passes cleanly."""
-        od = _minimal_outage(tasks=[{'task_id': 'T1'}])
+        od = _minimal_outage(tasks=[{'task_id': 'T1', 'duration': 4.0}])
         valid, errors = od.validate_data_consistency()
         assert valid
         assert errors == []
@@ -85,7 +86,7 @@ class TestIntraActivityStateConflict:
     def test_empty_system_states_no_errors(self):
         """Task with empty required_system_states list passes cleanly."""
         od = _minimal_outage(tasks=[
-            {'task_id': 'T1', 'required_system_states': []}
+            {'task_id': 'T1', 'duration': 4.0, 'required_system_states': []}
         ])
         valid, errors = od.validate_data_consistency()
         assert valid
@@ -97,6 +98,7 @@ class TestIntraActivityStateConflict:
         od = _minimal_outage(
             tasks=[{
                 'task_id': 'T1',
+                'duration': 4.0,
                 'required_system_states': [
                     {'system_id': 'ECCS_SAFETY_FUNCTION', 'required_state': 'TRAIN_A_OOS'}
                 ],

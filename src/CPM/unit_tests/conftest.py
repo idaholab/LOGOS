@@ -15,6 +15,31 @@ from pathlib import Path
 
 from CPM.activity import Activity
 from CPM.pert import Pert
+from CPM.schedule_validator import validate_schedule
+
+
+# ---------------------------------------------------------------------------
+# Correctness assertion helper
+# ---------------------------------------------------------------------------
+
+def assert_valid_schedule(pert, msg: str = "") -> None:
+    """Assert that validate_schedule reports no violations on a Pert output.
+
+    Intended to be called at the end of any test that produces a complete
+    schedule.  A validation failure prints the full human-readable summary
+    so the cause is immediately visible in the pytest output.
+
+    Args:
+        pert: A Pert instance whose scheduler has already run.
+        msg:  Optional extra context appended to the failure message.
+    """
+    result = validate_schedule(pert)
+    if not result.is_feasible:
+        detail = f": {msg}" if msg else ""
+        pytest.fail(
+            f"Scheduler output failed validation{detail}.\n\n"
+            + result.summary()
+        )
 
 
 # ---------------------------------------------------------------------------

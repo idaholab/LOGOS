@@ -181,6 +181,7 @@ class Pert:
         self.schedule_log = []
         self._last_schedule_result: dict = {}
         self._window_violations: list = []
+        self._window_violations_baseline: int = 0  # index into _window_violations at start of current run
 
     @classmethod
     def from_json_file(cls, filepath: str, schema_path: str, priorities: Dict = None, seed: int = 2506178):
@@ -1688,8 +1689,9 @@ class Pert:
         if self.system_state_pool:
             self.system_state_pool.reset()
 
-        # Reset time-window violation log
+        # Reset time-window violation log; baseline resets to 0 for a fresh run
         self._window_violations: list = []
+        self._window_violations_baseline: int = 0
 
         # Reset step-by-step log
         self.schedule_log = []
@@ -1724,13 +1726,20 @@ class Pert:
 
         Window violations accumulated before the replan are **not** cleared —
         they are historical facts.  New violations during the rescheduled
-        portion are appended on top.
+        portion are appended on top.  ``_window_violations_baseline`` is
+        updated to the current list length so that ``compute_fitness()`` and
+        the schedule-result snapshot only count violations from this run.
 
         Args:
             current_time_hours: Hours from outage start at which the replan
                                  is triggered.
         """
         current_abs = self.startTime + timedelta(hours=current_time_hours)
+
+        # Snapshot the violation count so compute_fitness() and the result
+        # dict only report violations produced by this replan run, not those
+        # accumulated during earlier scheduling passes.
+        self._window_violations_baseline = len(self._window_violations)
 
         # Rebuild Pert-level scheduling queues from scratch
         self.wait = set()
@@ -2148,6 +2157,14 @@ class Pert:
             for shift_dt in self._shift_boundary_events(current_abs, cpm_end):
                 events.add(shift_dt)
 
+        # 7) Consumable restock delivery times at or after the replan anchor.
+        if self.consumable_pool:
+            for item_id in self.consumable_pool.get_all_item_ids():
+                for delivery_hour, _ in self.consumable_pool.restocks.get(item_id, []):
+                    restock_dt = self.startTime + timedelta(hours=delivery_hour)
+                    if restock_dt >= current_abs:
+                        events.add(restock_dt)
+
         heap = list(events)
         heapq.heapify(heap)
         return heap
@@ -2306,7 +2323,7 @@ class Pert:
             'n_activities':       n_activities,
             'n_completed':        len(self.completed),
             'iterations':         iteration,
-            'window_violations':  list(self._window_violations),
+            'window_violations':  list(self._window_violations[self._window_violations_baseline:]),
             'replan_time_hours':  float(current_time_hours),
         }
 
@@ -2798,6 +2815,18 @@ class Pert:
                     if window_open >= self.startTime:
                         events.add(window_open)
 
+        # 6) Consumable restock delivery times.
+        #    Without these events an activity blocked on a depleted consumable
+        #    pool would not be re-checked until the next unrelated event, causing
+        #    it to start later than necessary.  Seeding each delivery time
+        #    guarantees the loop wakes up exactly when new inventory arrives.
+        if self.consumable_pool:
+            for item_id in self.consumable_pool.get_all_item_ids():
+                for delivery_hour, _ in self.consumable_pool.restocks.get(item_id, []):
+                    restock_dt = self.startTime + timedelta(hours=delivery_hour)
+                    if restock_dt >= self.startTime:
+                        events.add(restock_dt)
+
         heap = list(events)
         heapq.heapify(heap)
 
@@ -3104,13 +3133,9 @@ class Pert:
                                 tracker = self.dose_trackers.get(skill)
                                 if tracker:
                                     tracker.consume(dose_rate, req['crew_count'], eff)
-                # Commit consumable inventory: permanently deduct on start.
-                if self.consumable_pool:
-                    at_hour = (time_index - self.startTime).total_seconds() / 3600.0
-                    self.consumable_pool.apply_restocks_up_to(at_hour)
-                    for req in act.getRequiredConsumables():
-                        self.consumable_pool.consume(req['item_id'],
-                                                     float(req['quantity_needed']))
+                # Consumable inventory is deducted in _apply_tentative so that
+                # later candidates in the same time-step see the reduced pool.
+                # No second deduction here.
 
     def _collect_candidates_from_heap(
         self,
@@ -3689,7 +3714,7 @@ class Pert:
         for h in hours:
             for eq in activity.getRequiredEquipment():
                 eq_id, need = eq['equipment_id'], eq['quantity_needed']
-                eq_rem[eq_id][h] = max(0, eq_rem[eq_id][h] - need)
+                eq_rem[eq_id][h] = max(0, eq_rem[eq_id].get(h, 0) - need)
 
         # Location / zone consume — deduct from every zone the activity occupies.
         workers_needed = sum(req['crew_count'] for req in activity.getRequiredResources())
@@ -3712,6 +3737,17 @@ class Pert:
                 self.system_state_pool.acquire(
                     req['system_id'], req['required_state']
                 )
+
+        # Consumable deduction: deduct inventory here (not in _update_activity_sets)
+        # so that later candidates in the same time-step see the reduced pool and
+        # are correctly blocked if inventory is insufficient.  Matches the
+        # system-state acquire pattern above.
+        if self.consumable_pool:
+            at_hour = (start_time - self.startTime).total_seconds() / 3600.0
+            self.consumable_pool.apply_restocks_up_to(at_hour)
+            for req in activity.getRequiredConsumables():
+                self.consumable_pool.consume(req['item_id'],
+                                             float(req['quantity_needed']))
 
     def _schedule_generation_scheme(self, candidates: Dict,
                                     time_index: datetime,
@@ -4791,23 +4827,24 @@ class Pert:
     def check_dependency_violations(self):
         """
         Check whether the computed schedule violates any job-precedence
-        constraints defined in forwardDict.
+        constraints defined in forwardDict, including finish-to-start lags.
 
         A violation occurs when a successor activity starts before its
-        predecessor has finished, i.e.:
+        predecessor has finished plus any declared lag, i.e.:
 
-            successor.start_time < predecessor.end_time
+            successor.start_time < predecessor.end_time + lag
 
         Returns
         -------
         violations : list[dict]
             One entry per violated edge, each with keys:
-                - 'predecessor'   : activity_id of the predecessor
-                - 'successor'     : activity_id of the successor
-                - 'pred_end_time' : scheduled end time of the predecessor
+                - 'predecessor'    : activity_id of the predecessor
+                - 'successor'      : activity_id of the successor
+                - 'pred_end_time'  : scheduled end time of the predecessor
                 - 'succ_start_time': scheduled start time of the successor
-                - 'overlap_hours' : how many hours the overlap spans
-                  (pred_end_time - succ_start_time)
+                - 'overlap_hours'  : how many hours early the successor started
+                  relative to pred_end + lag
+                - 'lag_hours'      : the declared finish-to-start lag (0.0 if none)
         is_feasible : bool
             True when no violations were found.
         """
@@ -4830,14 +4867,17 @@ class Pert:
                 if succ_start is None:
                     continue
 
-                if succ_start < pred_end:
-                    overlap = (pred_end - succ_start).total_seconds() / 3600.0
+                lag_h = self.lag_dict.get((pred, succ), 0.0)
+                required_start = pred_end + timedelta(hours=lag_h)
+                if succ_start < required_start:
+                    overlap = (required_start - succ_start).total_seconds() / 3600.0
                     violations.append({
                         'predecessor':    pred.returnName(),
                         'successor':      succ.returnName(),
                         'pred_end_time':  pred_end,
                         'succ_start_time': succ_start,
                         'overlap_hours':  overlap,
+                        'lag_hours':      lag_h,
                     })
 
         is_feasible = len(violations) == 0
@@ -4963,7 +5003,11 @@ class Pert:
             return st1 < et2 and st2 < et1
 
         # --- Location / zone binding arcs ---
-        for loc_id in self.location_pool.get_all_location_ids():
+        if not self.location_pool:
+            loc_ids = []
+        else:
+            loc_ids = self.location_pool.get_all_location_ids()
+        for loc_id in loc_ids:
             acts_loc = [(a, st, et) for (a, st, et) in scheduled if loc_id in a.getZoneIds()]
             acts_loc.sort(key=lambda t: (t[1], t[2]))
             # Check consecutive overlapping pairs
@@ -4992,8 +5036,8 @@ class Pert:
         # If 2 × max_demand < pool_availability for every skill and equipment,
         # no overlapping pair can ever be binding → skip the O(n²) pair scan.
         # This turns the fan+unconstrained case from O(n²) → O(n).
-        all_skills = list(self.crew_pool.get_all_skills())
-        all_eq_ids = list(self.equipment_pool.get_all_equipment_ids())
+        all_skills = list(self.crew_pool.get_all_skills()) if self.crew_pool else []
+        all_eq_ids = list(self.equipment_pool.get_all_equipment_ids()) if self.equipment_pool else []
 
         # Representative availability (use startTime; pools are rarely time-varying
         # in the coarse granularity that matters here).
@@ -5094,6 +5138,24 @@ class Pert:
                 if indeg[v] == 0:
                     queue.append(v)
 
+        # Cycle guard: Kahn's algorithm processes every node exactly once in
+        # a DAG.  If the augmented graph somehow contains a cycle (should not
+        # happen — binding arcs are always directed earlier-start → later-start
+        # — but defensive check for corrupt input), the sort terminates early
+        # and the DP would run on a partial order, producing a silently wrong
+        # critical chain.  Detect and log so it does not go unnoticed.
+        if len(topo) != len(augmented):
+            n_stuck = len(augmented) - len(topo)
+            logger.warning(
+                "_longest_path_in_augmented: cycle detected in augmented graph "
+                "(%d/%d nodes processed). Critical chain may be incomplete.",
+                len(topo), len(augmented),
+            )
+            # Add the stuck nodes in undefined order so the DP at least runs
+            # over all nodes rather than silently dropping them.
+            stuck = set(augmented.keys()) - set(topo)
+            topo.extend(stuck)
+
         # DP longest path
         dist = {a: 0.0 for a in augmented.keys()}
         parent = {a: None for a in augmented.keys()}
@@ -5102,10 +5164,10 @@ class Pert:
         if start is None:
             return []
 
-        dist[start] = self.infoDict[start]['duration']
+        dist[start] = self._effective_duration(start)
         for u in topo:
             for v in augmented[u]:
-                cand = dist[u] + self.infoDict[v]['duration']
+                cand = dist[u] + self._effective_duration(v)
                 if cand > dist[v]:
                     dist[v] = cand
                     parent[v] = u

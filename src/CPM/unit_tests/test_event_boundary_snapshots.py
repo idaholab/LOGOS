@@ -29,6 +29,7 @@ import pytest
 from datetime import datetime, timedelta
 from collections import defaultdict
 
+from conftest import assert_valid_schedule
 from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import ResourcePool, ResourceAvailability, EquipmentPool, LocationPool
@@ -354,18 +355,21 @@ class TestSchedulingOutcomeUnchanged:
         """All activities in a linear chain complete successfully."""
         p = _simple_pert(pool_count=4)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert result['n_completed'] == result['n_activities']
 
     def test_scheduled_duration_matches_cpm(self):
         """With ample resources, scheduled duration equals CPM duration."""
         p = _simple_pert(pool_count=10)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert abs(result['scheduled_duration'] - result['cpm_duration']) < 1e-6
 
     def test_resource_constrained_delay(self):
         """With tight resources, delay is non-negative."""
         p = _simple_pert(pool_count=2)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         assert result['delay_hours'] >= 0.0
         assert result['n_completed'] == result['n_activities']
 
@@ -373,6 +377,7 @@ class TestSchedulingOutcomeUnchanged:
         """No hour should have more workers assigned than available (pool size = 2)."""
         p = _simple_pert(pool_count=2)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
+        assert_valid_schedule(p)
         t0 = p.startTime
         for h_offset in range(20):
             h = t0 + timedelta(hours=h_offset)

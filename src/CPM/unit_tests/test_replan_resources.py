@@ -27,6 +27,7 @@ import copy
 import pytest
 from datetime import datetime, timedelta
 
+from conftest import assert_valid_schedule
 from CPM.outage_data import (
     ResourceAvailability, EquipmentAvailability,
     ResourcePool, EquipmentPool, LocationPool,
@@ -469,6 +470,7 @@ class TestReplanDurationOverrides:
             duration_overrides={'A': 12.0},
         )
         assert result['n_completed'] == result['n_activities']
+        assert_valid_schedule(p)
         # A's duration is now permanently 12h
         assert a.duration == 12.0
         # B must start after A finishes (at t=12)
@@ -534,6 +536,7 @@ class TestReplanCombined:
             }],
         )
         assert result['n_completed'] == result['n_activities']
+        assert_valid_schedule(p)
         c_st, _ = c.returnAbsTimes()
         assert c_st is not None
 

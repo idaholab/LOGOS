@@ -51,11 +51,15 @@ class OutageData:
 
         # Parse outage dates
         self.outage_id = outage_config['outage_id']
-        self.start_date = datetime.fromisoformat(outage_config['start_date'] + 'T00:00:00')
+        _sd = outage_config['start_date']
+        self.start_date = datetime.fromisoformat(
+            _sd if 'T' in _sd else _sd + 'T00:00:00'
+        )
         self.target_end_date = None
         if outage_config.get('target_end_date'):
+            _ed = outage_config['target_end_date']
             self.target_end_date = datetime.fromisoformat(
-                outage_config['target_end_date'] + 'T23:59:59'
+                _ed if 'T' in _ed else _ed + 'T23:59:59'
             )
         self.working_hours_per_day = outage_config['working_hours_per_day']
 
@@ -174,52 +178,105 @@ class OutageData:
         - All task resource requirements reference existing skills
         - All task equipment requirements reference existing equipment
         - All task locations reference existing locations
+        - All task consumable requirements reference existing consumable items
+        - All successor task IDs reference tasks that exist in the task list
+        - No intra-task system-state conflicts (same system, different states)
 
         Returns:
             tuple: (is_valid, list_of_errors)
         """
         errors = []
 
+        all_task_ids = set(self.get_all_task_ids())
+
+        # Check numeric bounds on duration and crew counts
+        for task in self.tasks:
+            tid = task.get('task_id', '<unknown>')
+            duration = task.get('duration')
+            if duration is None:
+                errors.append(f"Task '{tid}' is missing 'duration'")
+            else:
+                try:
+                    if float(duration) <= 0:
+                        errors.append(
+                            f"Task '{tid}' has non-positive duration {duration!r} "
+                            f"(must be > 0)"
+                        )
+                except (TypeError, ValueError):
+                    errors.append(
+                        f"Task '{tid}' has non-numeric duration {duration!r}"
+                    )
+            for i, res_req in enumerate(task.get('required_resources', [])):
+                crew = res_req.get('crew_count')
+                if crew is not None:
+                    try:
+                        if float(crew) < 0:
+                            errors.append(
+                                f"Task '{tid}' required_resources[{i}] has "
+                                f"negative crew_count {crew!r}"
+                            )
+                    except (TypeError, ValueError):
+                        errors.append(
+                            f"Task '{tid}' required_resources[{i}] has "
+                            f"non-numeric crew_count {crew!r}"
+                        )
+
         # Check resource references
         all_skills = self.crew_pool.get_all_skills()
         for task in self.tasks:
-            for res_req in task.get('required_resources', []):
-                skill = res_req['skill_type']
-                if skill not in all_skills:
+            tid = task.get('task_id', '<unknown>')
+            for i, res_req in enumerate(task.get('required_resources', [])):
+                skill = res_req.get('skill_type')
+                if not skill:
                     errors.append(
-                        f"Task '{task['task_id']}' requires skill '{skill}' "
+                        f"Task '{tid}' required_resources[{i}] is missing 'skill_type'"
+                    )
+                elif skill not in all_skills:
+                    errors.append(
+                        f"Task '{tid}' requires skill '{skill}' "
                         f"which is not in resource pool"
                     )
 
         # Check equipment references
         all_equipment = self.equipment_pool.get_all_equipment_ids()
         for task in self.tasks:
-            for eq_req in task.get('required_equipment', []):
-                eq_id = eq_req['equipment_id']
-                if eq_id not in all_equipment:
+            tid = task.get('task_id', '<unknown>')
+            for i, eq_req in enumerate(task.get('required_equipment', [])):
+                eq_id = eq_req.get('equipment_id')
+                if not eq_id:
                     errors.append(
-                        f"Task '{task['task_id']}' requires equipment '{eq_id}' "
+                        f"Task '{tid}' required_equipment[{i}] is missing 'equipment_id'"
+                    )
+                elif eq_id not in all_equipment:
+                    errors.append(
+                        f"Task '{tid}' requires equipment '{eq_id}' "
                         f"which is not in equipment pool"
                     )
 
         # Check location references
         all_locations = self.location_pool.get_all_location_ids()
         for task in self.tasks:
+            tid = task.get('task_id', '<unknown>')
             loc_id = task.get('location_id')
             if loc_id and loc_id not in all_locations:
                 errors.append(
-                    f"Task '{task['task_id']}' references location '{loc_id}' "
+                    f"Task '{tid}' references location '{loc_id}' "
                     f"which is not in location pool"
                 )
 
         # Check consumable references
         all_consumables = self.consumable_pool.get_all_item_ids()
         for task in self.tasks:
-            for req in task.get('required_consumables', []):
-                item_id = req['item_id']
-                if item_id not in all_consumables:
+            tid = task.get('task_id', '<unknown>')
+            for i, req in enumerate(task.get('required_consumables', [])):
+                item_id = req.get('item_id')
+                if not item_id:
                     errors.append(
-                        f"Task '{task['task_id']}' requires consumable '{item_id}' "
+                        f"Task '{tid}' required_consumables[{i}] is missing 'item_id'"
+                    )
+                elif item_id not in all_consumables:
+                    errors.append(
+                        f"Task '{tid}' requires consumable '{item_id}' "
                         f"which is not in consumable pool"
                     )
 
@@ -234,19 +291,20 @@ class OutageData:
 
         # Check system-state references
         for task in self.tasks:
+            tid = task.get('task_id', '<unknown>')
             for req in task.get('required_system_states', []):
                 sid   = req.get('system_id', '')
                 state = req.get('required_state', '')
                 if sid and not self.system_state_pool.has_system(sid):
                     errors.append(
-                        f"Task '{task['task_id']}' references plant system '{sid}' "
+                        f"Task '{tid}' references plant system '{sid}' "
                         f"which is not in plant_systems"
                     )
                 elif sid and state:
                     valid = self.system_state_pool.systems[sid].get('valid_states', [])
                     if valid and state not in valid:
                         errors.append(
-                            f"Task '{task['task_id']}' requires state '{state}' for "
+                            f"Task '{tid}' requires state '{state}' for "
                             f"system '{sid}' which is not in valid_states {valid}"
                         )
 
@@ -254,6 +312,7 @@ class OutageData:
         # The same system_id appearing twice with different required_state values is
         # physically impossible (a system cannot be in two states simultaneously).
         for task in self.tasks:
+            tid = task.get('task_id', '<unknown>')
             seen: Dict[str, str] = {}  # system_id → first-seen required_state
             for req in task.get('required_system_states', []):
                 sid   = req.get('system_id', '')
@@ -262,13 +321,26 @@ class OutageData:
                     continue
                 if sid in seen and seen[sid] != state:
                     errors.append(
-                        f"Task '{task['task_id']}' declares conflicting states "
+                        f"Task '{tid}' declares conflicting states "
                         f"'{seen[sid]}' and '{state}' for system '{sid}' "
                         f"(physically impossible — a system cannot be in two states "
                         f"simultaneously)"
                     )
                 else:
                     seen[sid] = state
+
+        # Check successor references: every declared successor must exist in the
+        # task list.  The scheduler silently skips missing successors, which can
+        # silently break dependency chains.
+        for task in self.tasks:
+            tid = task.get('task_id', '<unknown>')
+            for entry in task.get('successors', []):
+                succ_id = entry.get('task_id') if isinstance(entry, dict) else str(entry)
+                if succ_id and succ_id not in all_task_ids:
+                    errors.append(
+                        f"Task '{tid}' declares successor '{succ_id}' "
+                        f"which does not exist in the task list"
+                    )
 
         return len(errors) == 0, errors
 
@@ -952,7 +1024,7 @@ class ResourcePool:
                 periods.append({
                     'start_date': datetime.fromisoformat(period['start_date']),
                     'end_date': datetime.fromisoformat(period['end_date']),
-                    'available_count': period['available_count'],
+                    'available_count': int(period['available_count']),
                     'reason': period.get('reason', '')
                 })
             pool.resources[skill] = ResourceAvailability(
@@ -1115,7 +1187,7 @@ class EquipmentPool:
                 periods.append({
                     'start_date': datetime.fromisoformat(period['start_date']),
                     'end_date': datetime.fromisoformat(period['end_date']),
-                    'quantity_available': period['quantity_available'],
+                    'quantity_available': int(period['quantity_available']),
                     'reason': period.get('reason', '')
                 })
             zone_id = eq_data.get('zone_id')  # None when absent — unconstrained
@@ -1273,11 +1345,13 @@ class LocationPool:
             zone_type = loc_data.get('zone_type', 'physical')
             periods = []
             for period in loc_data['availability_periods']:
+                raw_workers = period.get('max_concurrent_workers')
                 periods.append({
                     'start_date': datetime.fromisoformat(period['start_date']),
                     'end_date': datetime.fromisoformat(period['end_date']),
-                    'max_concurrent_tasks': period['max_concurrent_tasks'],
-                    'max_concurrent_workers': period.get('max_concurrent_workers'),
+                    'max_concurrent_tasks': int(period['max_concurrent_tasks']),
+                    'max_concurrent_workers': (int(raw_workers)
+                                               if raw_workers is not None else None),
                     'reason': period.get('reason', '')
                 })
             pool.locations[loc_id] = LocationAvailability(
