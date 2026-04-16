@@ -235,7 +235,71 @@ class TestEvaluate:
 
 
 # =============================================================================
-# 6. End-to-end run
+# 6. Mutation — _mutate_swap
+# =============================================================================
+
+class TestMutateSwap:
+
+    def test_returns_single_element_tuple(self, ga):
+        """DEAP mutation convention: returns (individual,)."""
+        chrom = list(ga._rule_to_chromosome('lf'))
+        result = ga._mutate_swap(chrom)
+        assert isinstance(result, tuple)
+        assert len(result) == 1
+
+    def test_modifies_in_place(self, ga):
+        """DEAP convention: the returned individual is the same object."""
+        chrom = list(ga._rule_to_chromosome('lf'))
+        original_id = id(chrom)
+        (mutated,) = ga._mutate_swap(chrom)
+        assert id(mutated) == original_id
+
+    def test_result_is_valid_permutation(self, ga):
+        """After mutation the chromosome must still be a valid permutation."""
+        random.seed(5)
+        expected = set(range(ga._n))
+        for _ in range(10):
+            chrom = list(ga._rule_to_chromosome('random'))
+            (mutated,) = ga._mutate_swap(chrom)
+            assert set(mutated) == expected, f"Not a permutation: {mutated}"
+            assert len(mutated) == ga._n
+
+    def test_trivial_length_unchanged(self, ga):
+        """A chromosome of length < 2 must be returned untouched."""
+        chrom = [0]
+        (result,) = ga._mutate_swap(chrom)
+        assert result == [0]
+
+    def test_precedence_feasibility(self, ga):
+        """Every predecessor must appear before its successor in the mutated order."""
+        random.seed(99)
+        for _ in range(20):
+            chrom = list(ga._rule_to_chromosome('lf'))
+            (mutated,) = ga._mutate_swap(chrom)
+            acts = ga._chromosome_to_activities(mutated)
+            pos = {a: i for i, a in enumerate(acts)}
+            for act, preds in ga.pert.backwardDict.items():
+                if act not in pos:
+                    continue
+                for pred in preds:
+                    if pred in pos:
+                        assert pos[pred] < pos[act], (
+                            f"Precedence violated: {pred} (pos {pos[pred]}) "
+                            f"must precede {act} (pos {pos[act]})"
+                        )
+
+    def test_mutpb_attribute(self, ga):
+        """mutpb must be stored and accessible."""
+        assert hasattr(ga, 'mutpb')
+        assert 0.0 <= ga.mutpb <= 1.0
+
+    def test_mutate_registered_in_toolbox(self, ga):
+        """toolbox must have 'mutate' registered."""
+        assert hasattr(ga.toolbox, 'mutate')
+
+
+# =============================================================================
+# 7. End-to-end run
 # =============================================================================
 
 class TestRun:
