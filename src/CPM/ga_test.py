@@ -7,8 +7,9 @@ a comparison table of:
   - Best GA duration (activity list chromosome + serial SGS decoder)
   - Improvement over the best seeded solution
 
-The GA uses the Activity List representation with the Hartmann (1998)
-one-point crossover.  Decoding is performed by the Serial SGS.
+The GA uses the Activity List representation with configurable crossover
+and mutation operators.  Decoding is performed by the Serial SGS.
+Default operators: two-point crossover, adjacent-swap mutation.
 
 Reference
 ---------
@@ -56,6 +57,8 @@ def run_ga_case(
     mutpb: float = 0.1,
     seed: int = 42,
     verbose: bool = True,
+    crossover: str = 'two_point',
+    mutation: str = 'adjacent_swap',
 ) -> dict:
     """
     Run the GA on a single PSPLIB benchmark case.
@@ -66,8 +69,8 @@ def run_ga_case(
     2. Record baseline durations for every named priority rule under both
        serial and parallel SGS (these are the same evaluations used to seed
        the GA's initial population).
-    3. Run the GA (Activity List representation, Hartmann one-point crossover,
-       swap mutation with topological repair, serial SGS decoder).
+    3. Run the GA (Activity List representation, configurable crossover and
+       mutation operators, serial SGS decoder).
     4. Print per-case results and return a summary dict.
 
     Parameters
@@ -88,6 +91,12 @@ def run_ga_case(
         RNG seed.
     verbose : bool
         Print per-generation stats and seeding table.
+    crossover : str
+        Crossover operator name passed to ``RCPSPGeneticAlgorithm``.
+        One of ``'one_point'``, ``'two_point'``, ``'uniform_order'``.
+    mutation : str
+        Mutation operator name passed to ``RCPSPGeneticAlgorithm``.
+        One of ``'swap'``, ``'adjacent_swap'``, ``'insertion_window'``.
 
     Returns
     -------
@@ -149,7 +158,7 @@ def run_ga_case(
         print()
 
     # ── Run GA ───────────────────────────────────────────────────────────────
-    print("Running GA (Activity List + one-point crossover + swap mutation + Serial SGS)...")
+    print(f"Running GA (crossover={crossover!r}, mutation={mutation!r}, Serial SGS)...")
     ga = RCPSPGeneticAlgorithm(
         pert,
         pop_size=pop_size,
@@ -158,6 +167,8 @@ def run_ga_case(
         mutpb=mutpb,
         seed=seed,
         verbose=verbose,
+        crossover=crossover,
+        mutation=mutation,
     )
     hof, log = ga.run()
 
@@ -212,7 +223,7 @@ def main() -> None:
 
     # ── Summary table ─────────────────────────────────────────────────────────
     print("\n" + "=" * 80)
-    print("SUMMARY — GA (Activity List, one-point crossover, swap mutation, Serial SGS)")
+    print("SUMMARY — GA (Activity List, two-point crossover, adjacent-swap mutation, Serial SGS)")
     print("=" * 80)
     print(
         f"  {'Case':<8} {'N':>6} {'CPM (h)':>10} "
