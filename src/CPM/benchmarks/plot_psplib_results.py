@@ -4,14 +4,16 @@ from psplib_results.csv — overall and per benchmark set (J30/J60/J90/J120).
 Covers SGS and PGS priority rule deviations from best known.
 """
 
+import argparse
 import math
+import shutil
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
 CSV_PATH = Path(__file__).parent / "psplib_results.csv"
-OUTPUT_DIR = Path(__file__).parent
+OUTPUT_DIR = Path(__file__).parent / "results"
 
 SETS = ["j30", "j60", "j90", "j120"]
 SET_COLORS = {"j30": "steelblue", "j60": "seagreen", "j90": "darkorange", "j120": "mediumpurple"}
@@ -394,7 +396,30 @@ def plot_overall_gap_bars(gap_result: pd.DataFrame, output_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    df = load_results(CSV_PATH)
+    parser = argparse.ArgumentParser(description="Plot PSPLIB benchmark results.")
+    parser.add_argument(
+        "--output-dir", type=Path, default=None,
+        help="Directory for output plots and CSV (default: <script-dir>/results)",
+    )
+    parser.add_argument(
+        "--csv", type=Path, default=None,
+        help="Path to psplib_results.csv (default: <script-dir>/psplib_results.csv)",
+    )
+    args = parser.parse_args()
+
+    csv_path = args.csv if args.csv is not None else CSV_PATH
+    output_dir = args.output_dir if args.output_dir is not None else OUTPUT_DIR
+
+    if output_dir.exists():
+        answer = input(f"Output directory '{output_dir}' already exists. Remove it? [y/N] ").strip().lower()
+        if answer == "y":
+            shutil.rmtree(output_dir)
+            print(f"Removed '{output_dir}'")
+        else:
+            print("Keeping existing directory — files may be overwritten.")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    df = load_results(csv_path)
     print(f"Loaded {len(df)} rows, {len(df.columns)} columns")
 
     # Derived gap columns — logos_best
@@ -422,7 +447,7 @@ def main() -> None:
     # -- SGS deviation vs benchmark ------------------------------------------
     plot_histograms(
         df, dev_cols,
-        OUTPUT_DIR / "psplib_histograms.png",
+        output_dir /"psplib_histograms.png",
         "PSPLIB Benchmark (All Sets): SGS Deviations",
     )
     for set_name in SETS:
@@ -436,13 +461,13 @@ def main() -> None:
             ["count", "mean", "std", "min", "max"]].to_string())
         plot_histograms(
             subset, subset_dev_cols,
-            OUTPUT_DIR / f"psplib_histograms_{set_name}.png",
+            output_dir /f"psplib_histograms_{set_name}.png",
             f"PSPLIB Benchmark ({label}): SGS Deviations",
         )
 
     # -- logos_best gap -------------------------------------------------------
-    plot_gap_overall(df, OUTPUT_DIR / "psplib_gap_overall.png")
-    plot_gap_by_set(df, OUTPUT_DIR / "psplib_gap_by_set.png")
+    plot_gap_overall(df, output_dir /"psplib_gap_overall.png")
+    plot_gap_by_set(df, output_dir /"psplib_gap_by_set.png")
 
     # -- SGS per-rule deviations from best known ------------------------------
     for relative, suffix, kind in [
@@ -451,7 +476,7 @@ def main() -> None:
     ]:
         plot_priority_rule_deviations(
             df,
-            OUTPUT_DIR / f"psplib_sgs_rule_dev{suffix}.png",
+            output_dir /f"psplib_sgs_rule_dev{suffix}.png",
             f"PSPLIB (All Sets) — SGS: Priority Rule {kind} Deviation from Best Known",
             SGS_RULE_LABELS, relative=relative,
         )
@@ -460,20 +485,20 @@ def main() -> None:
                 continue
             plot_priority_rule_deviations(
                 df[df["set"] == set_name],
-                OUTPUT_DIR / f"psplib_sgs_rule_dev{suffix}_{set_name}.png",
+                output_dir /f"psplib_sgs_rule_dev{suffix}_{set_name}.png",
                 f"PSPLIB ({set_name.upper()}) — SGS: Priority Rule {kind} Deviation from Best Known",
                 SGS_RULE_LABELS, relative=relative,
             )
 
     # -- SGS best-rule gap ----------------------------------------------------
     plot_best_gap_overall(
-        df, OUTPUT_DIR / "psplib_sgs_best_gap.png",
+        df, output_dir /"psplib_sgs_best_gap.png",
         "sgs_best_abs_gap", "sgs_best_rel_gap",
         "steelblue", "cornflowerblue",
         "Best SGS Priority Rule vs Best Known (All Sets)",
     )
     plot_best_gap_by_set(
-        df, OUTPUT_DIR / "psplib_sgs_best_gap_by_set.png",
+        df, output_dir /"psplib_sgs_best_gap_by_set.png",
         "sgs_best_abs_gap", "sgs_best_rel_gap",
         "Best SGS Priority Rule vs Best Known by Benchmark Set",
     )
@@ -485,7 +510,7 @@ def main() -> None:
     ]:
         plot_priority_rule_deviations(
             df,
-            OUTPUT_DIR / f"psplib_pgs_rule_dev{suffix}.png",
+            output_dir /f"psplib_pgs_rule_dev{suffix}.png",
             f"PSPLIB (All Sets) — PGS: Priority Rule {kind} Deviation from Best Known",
             PGS_RULE_LABELS, relative=relative,
         )
@@ -494,28 +519,28 @@ def main() -> None:
                 continue
             plot_priority_rule_deviations(
                 df[df["set"] == set_name],
-                OUTPUT_DIR / f"psplib_pgs_rule_dev{suffix}_{set_name}.png",
+                output_dir /f"psplib_pgs_rule_dev{suffix}_{set_name}.png",
                 f"PSPLIB ({set_name.upper()}) — PGS: Priority Rule {kind} Deviation from Best Known",
                 PGS_RULE_LABELS, relative=relative,
             )
 
     # -- PGS best-rule gap ----------------------------------------------------
     plot_best_gap_overall(
-        df, OUTPUT_DIR / "psplib_pgs_best_gap.png",
+        df, output_dir /"psplib_pgs_best_gap.png",
         "pgs_best_abs_gap", "pgs_best_rel_gap",
         "mediumseagreen", "limegreen",
         "Best PGS Priority Rule vs Best Known (All Sets)",
     )
     plot_best_gap_by_set(
-        df, OUTPUT_DIR / "psplib_pgs_best_gap_by_set.png",
+        df, output_dir /"psplib_pgs_best_gap_by_set.png",
         "pgs_best_abs_gap", "pgs_best_rel_gap",
         "Best PGS Priority Rule vs Best Known by Benchmark Set",
     )
 
     # -- CSV export + summary bar charts --------------------------------------
     gap_df = _build_gap_df(df)
-    gap_result = export_gap_csv(gap_df, OUTPUT_DIR / "psplib_gap_analysis.csv")
-    plot_overall_gap_bars(gap_result, OUTPUT_DIR / "psplib_gap_bars_overall.png")
+    gap_result = export_gap_csv(gap_df, output_dir /"psplib_gap_analysis.csv")
+    plot_overall_gap_bars(gap_result, output_dir /"psplib_gap_bars_overall.png")
 
 
 if __name__ == "__main__":
