@@ -2569,6 +2569,8 @@ class Pert:
             # There are tie values in the list which will cause the difference in priority orders
             data = [(a, self.infoDict[a][rule]) for a in eligible]
             priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=lambda x:self.infoDict[x[0]]['mehh_8000_b'])
+            # priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=None)
+
         elif rule == 'random':
             random.shuffle(eligible)
             data = [(a, i) for i, a in enumerate(eligible)]
@@ -2576,6 +2578,8 @@ class Pert:
         elif rule in ['mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr', 'maxrr', 'minrr']:
             data = [(a, self.infoDict[a][rule]) for a in eligible]
             priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=lambda x:self.infoDict[x[0]]['mehh_8000_b'],reverse=True)
+            # priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=None,reverse=True)
+
         elif rule == 'wcs':
             # Worst Case Slack (Kolisch 1996, eq. 19):
             #   v(j) = LS_j - max{ E(i,j) | i ∈ D_n, i ≠ j }

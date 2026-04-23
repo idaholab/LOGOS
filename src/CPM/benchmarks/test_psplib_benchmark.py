@@ -20,6 +20,7 @@ import argparse
 import json
 import logging
 import multiprocessing as mp
+import shutil
 import sys
 import traceback
 from pathlib import Path
@@ -195,11 +196,19 @@ def main() -> None:
         help="Path to outage_schema.json. Auto-detected from src/CPM/ if omitted.",
     )
     parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="Directory where outputs are saved. Overrides the directory part of --out.",
+    )
+    parser.add_argument(
         "--out",
         type=Path,
         default=Path("psplib_results.csv"),
         metavar="FILE",
-        help="Output CSV file path (default: psplib_results.csv).",
+        help="Output CSV filename (default: psplib_results.csv). "
+             "When --output-dir is set, only the filename part is used.",
     )
     parser.add_argument(
         "--workers",
@@ -220,6 +229,25 @@ def main() -> None:
     # --- Resolve paths ---
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parents[2]
+
+    # Resolve output directory and final CSV path
+    if args.output_dir is not None:
+        output_dir = args.output_dir
+        out_csv = output_dir / args.out.name
+    else:
+        out_csv = args.out
+        output_dir = out_csv.parent
+
+    if output_dir.exists():
+        answer = input(
+            f"Output directory '{output_dir}' already exists. Remove it? [y/N] "
+        ).strip().lower()
+        if answer == "y":
+            shutil.rmtree(output_dir)
+            print(f"Removed '{output_dir}'")
+        else:
+            print("Keeping existing directory — files may be overwritten.")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     benchmark_dir = args.benchmark_dir or script_dir
     schema_path = args.schema
@@ -264,7 +292,7 @@ def main() -> None:
 
     print(f"Running {len(tasks)} instances across {len(args.sets)} sets "
           f"with {args.workers} worker(s) ...")
-    print(f"Output will be saved to: {args.out}")
+    print(f"Output will be saved to: {out_csv}")
 
     # --- Execute ---
     worker_args = [(json_path, schema, sname) for json_path, schema, sname in tasks]
@@ -329,9 +357,8 @@ def main() -> None:
         df = _attach_benchmark_columns(df, benchmark_pr, best_known)
 
     # --- Save ---
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(args.out, index=False)
-    print(f"\nSaved {len(df)} rows to {args.out}")
+    df.to_csv(out_csv, index=False)
+    print(f"\nSaved {len(df)} rows to {out_csv}")
 
     # --- Summary ---
     if "gap_to_best_known" in df.columns:
