@@ -407,8 +407,13 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    csv_path = args.csv if args.csv is not None else CSV_PATH
     output_dir = args.output_dir if args.output_dir is not None else OUTPUT_DIR
+    if args.csv is not None:
+        csv_path = args.csv
+    elif args.output_dir is not None:
+        csv_path = output_dir / CSV_PATH.name
+    else:
+        csv_path = CSV_PATH
 
     if output_dir.exists():
         answer = input(f"Output directory '{output_dir}' already exists. Remove it? [y/N] ").strip().lower()
