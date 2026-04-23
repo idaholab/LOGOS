@@ -68,6 +68,9 @@ SGS_METHODS = ["max_use_res_ranked"]
 # both to get the true project makespan matching PSPLIB benchmark values.
 DUMMY_OFFSET = 2
 
+# Tie-breaker options evaluated per rule; the best (lowest) makespan is kept.
+TIE_BREAKER_OPTIONS: list = [None, "mehh_8000_b"]
+
 
 # ---------------------------------------------------------------------------
 # Per-instance worker
@@ -94,18 +97,28 @@ def _run_instance(args: tuple) -> dict:
     try:
         # --- Serial generation scheme ---
         for rule in PRIORITY_RULES:
-            pert = Pert.from_json_file(json_path, schema_path=schema_path)
-            out = pert.calculateSerialScheduleWithResources(priority_rule=rule)
-            row[f"sgs_{rule}"] = out["scheduled_duration"] - DUMMY_OFFSET
+            best = None
+            for tb in TIE_BREAKER_OPTIONS:
+                pert = Pert.from_json_file(json_path, schema_path=schema_path)
+                out = pert.calculateSerialScheduleWithResources(priority_rule=rule, tie_breaker=tb)
+                val = out["scheduled_duration"] - DUMMY_OFFSET
+                if best is None or val < best:
+                    best = val
+            row[f"sgs_{rule}"] = best
 
         # --- Parallel generation scheme + priority rules ---
         for sgs in SGS_METHODS:
             for rule in PRIORITY_RULES:
-                pert = Pert.from_json_file(json_path, schema_path=schema_path)
-                out = pert.calculateScheduleWithResources(
-                    sgs=sgs, priority_rule=rule
-                )
-                row[f"pgs_{sgs}_{rule}"] = out["scheduled_duration"] - DUMMY_OFFSET
+                best = None
+                for tb in TIE_BREAKER_OPTIONS:
+                    pert = Pert.from_json_file(json_path, schema_path=schema_path)
+                    out = pert.calculateScheduleWithResources(
+                        sgs=sgs, priority_rule=rule, tie_breaker=tb
+                    )
+                    val = out["scheduled_duration"] - DUMMY_OFFSET
+                    if best is None or val < best:
+                        best = val
+                row[f"pgs_{sgs}_{rule}"] = best
 
     except Exception:
         row["error"] = traceback.format_exc()
@@ -323,17 +336,27 @@ def main() -> None:
             row: dict = {"set": set_name, "instance": stem, "sm_name": sm_name}
             try:
                 for rule in PRIORITY_RULES:
-                    pert = Pert.from_json_file(json_path, schema_path=schema)
-                    out = pert.calculateSerialScheduleWithResources(priority_rule=rule)
-                    row[f"sgs_{rule}"] = out["scheduled_duration"] - DUMMY_OFFSET
+                    best = None
+                    for tb in TIE_BREAKER_OPTIONS:
+                        pert = Pert.from_json_file(json_path, schema_path=schema)
+                        out = pert.calculateSerialScheduleWithResources(priority_rule=rule, tie_breaker=tb)
+                        val = out["scheduled_duration"] - DUMMY_OFFSET
+                        if best is None or val < best:
+                            best = val
+                    row[f"sgs_{rule}"] = best
 
                 for sgs in SGS_METHODS:
                     for rule in PRIORITY_RULES:
-                        pert = Pert.from_json_file(json_path, schema_path=schema)
-                        out = pert.calculateScheduleWithResources(
-                            sgs=sgs, priority_rule=rule
-                        )
-                        row[f"pgs_{sgs}_{rule}"] = out["scheduled_duration"] - DUMMY_OFFSET
+                        best = None
+                        for tb in TIE_BREAKER_OPTIONS:
+                            pert = Pert.from_json_file(json_path, schema_path=schema)
+                            out = pert.calculateScheduleWithResources(
+                                sgs=sgs, priority_rule=rule, tie_breaker=tb
+                            )
+                            val = out["scheduled_duration"] - DUMMY_OFFSET
+                            if best is None or val < best:
+                                best = val
+                        row[f"pgs_{sgs}_{rule}"] = best
 
                 results.append(row)
             except Exception:
