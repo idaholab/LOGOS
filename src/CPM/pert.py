@@ -1147,7 +1147,8 @@ class Pert:
     _EVENT_EPSILON = timedelta(minutes=1)
 
     def calculateScheduleWithResources(self, sgs: str = 'max_use_res_ranked',
-                                       max_time_hours: float = None, priority_rule: str = '') -> dict:
+                                       max_time_hours: float = None, priority_rule: str = '',
+                                       tie_breaker: str = 'mehh_8000_b') -> dict:
         """
         Schedule activities considering resource, equipment, and location
         constraints using an event-driven scheduling loop.
@@ -1168,6 +1169,9 @@ class Pert:
             sgs (str): Schedule Generation Scheme strategy name.
             max_time_hours (float, optional): Safety cutoff in hours from
                 startTime.  Defaults to self._max_time_factor x the CPM duration.
+            tie_breaker (str, optional): infoDict key used to break ties in
+                priority sorting.  Defaults to 'mehh_8000_b'.  Pass None to
+                disable tie-breaking.
 
         Returns:
             dict: {
@@ -1267,7 +1271,7 @@ class Pert:
                     value_mode = 'TF_based'
                 else:
                     value_mode = priority_rule
-            candidates = self._select_candidate_activities(time_index, value_mode)
+            candidates = self._select_candidate_activities(time_index, value_mode, tie_breaker=tie_breaker)
 
             # ── Determine elapsed time to next event (for delay accounting) ──
             # Peek at the heap without popping; used by _update_activity_sets
@@ -1385,7 +1389,7 @@ class Pert:
             for act in candidates.keys():
                 act.addDelay(elapsed_hours)
 
-    def _select_candidate_activities(self, time: datetime, value_assignment: str) -> Dict[Activity, Dict]:
+    def _select_candidate_activities(self, time: datetime, value_assignment: str, tie_breaker: str = 'mehh_8000_b') -> Dict[Activity, Dict]:
         """
         Select activities that can potentially start at given time.
 
@@ -1431,7 +1435,7 @@ class Pert:
         # use priority rules to compute candidate
         elif value_assignment.lower() in self._list_priority_names:
             acts = list(candidates.keys())
-            priority = self.priority_calculation(acts, value_assignment, current_time=time)
+            priority = self.priority_calculation(acts, value_assignment, current_time=time, tie_breaker=tie_breaker)
             for (a, _, val) in priority:
                 candidates[a]['value'] = val
         return candidates
@@ -2533,7 +2537,7 @@ class Pert:
         # GFP: i must start no earlier than when j finishes
         return j_end
 
-    def priority_calculation(self, eligible, priority_rule='LF', current_time: datetime = None):
+    def priority_calculation(self, eligible, priority_rule='LF', current_time: datetime = None, tie_breaker: str = 'mehh_8000_b'):
         """Calculate activity priorities based on a named rule.
 
         Args:
@@ -2557,6 +2561,8 @@ class Pert:
                 acs: average case slack — (ES_j + LS_j) / 2 - t; lower = higher urgency
                 irsm: improved resource scheduling method — rr_j / (LS_j - t + 1); higher = higher urgency
             current_time (datetime, optional): current scheduling time; required for wcs/acs/irsm.
+            tie_breaker (str, optional): infoDict key used to break ties in primary sort. Defaults to 'mehh_8000_b'.
+                Pass None to disable tie-breaking.
 
         Raises:
             IOError: Invalid priority rule
@@ -2565,11 +2571,11 @@ class Pert:
             list: [(Activity, raw_value, normalized_value), ...]
         """
         rule = priority_rule.lower()
+        tb_func = (lambda x: self.infoDict[x[0]][tie_breaker]) if tie_breaker is not None else None
         if rule in ['lf', 'ls', 'ef', 'es', 'duration'] + list(CUSTOM_PRIORITY_FUNCS.keys()):
             # There are tie values in the list which will cause the difference in priority orders
             data = [(a, self.infoDict[a][rule]) for a in eligible]
-            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=lambda x:self.infoDict[x[0]]['mehh_8000_b'])
-            # priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=None)
+            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=tb_func)
 
         elif rule == 'random':
             random.shuffle(eligible)
@@ -2577,8 +2583,7 @@ class Pert:
             priority = data
         elif rule in ['mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr', 'maxrr', 'minrr']:
             data = [(a, self.infoDict[a][rule]) for a in eligible]
-            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=lambda x:self.infoDict[x[0]]['mehh_8000_b'],reverse=True)
-            # priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=None,reverse=True)
+            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=tb_func, reverse=True)
 
         elif rule == 'wcs':
             # Worst Case Slack (Kolisch 1996, eq. 19):
@@ -2884,6 +2889,7 @@ class Pert:
         priority_rule: str = 'lf',
         max_time_hours: float = None,
         _ordered: List['Activity'] = None,
+        tie_breaker: str = 'mehh_8000_b',
     ) -> dict:
         """
         Schedule activities using a Serial Schedule Generation Scheme (Serial SGS).
@@ -2923,6 +2929,9 @@ class Pert:
                 startTime.  Defaults to 3× the CPM duration.  Any activity
                 whose computed start exceeds this limit is left unscheduled
                 and triggers a warning.
+            tie_breaker (str, optional): infoDict key used to break ties in
+                priority sorting.  Defaults to 'mehh_8000_b'.  Pass None to
+                disable tie-breaking.
 
         Returns:
             dict: {
@@ -2960,7 +2969,7 @@ class Pert:
             # priority_calculation returns either List[Activity] (random) or
             # List[(Activity, value)] for all other rules.  Normalise to List[Activity].
             all_acts = list(self.forwardDict.keys())
-            raw_priority = self.priority_calculation(all_acts, priority_rule)
+            raw_priority = self.priority_calculation(all_acts, priority_rule, tie_breaker=tie_breaker)
 
             if raw_priority and isinstance(raw_priority[0], tuple):
                 ordered: List['Activity'] = [a for (a, _, _) in raw_priority]
