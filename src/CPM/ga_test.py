@@ -26,6 +26,7 @@ Or from the repo root:
 
 import sys
 import logging
+import json
 from pathlib import Path
 
 
@@ -39,6 +40,7 @@ from src.CPM.ga import RCPSPGeneticAlgorithm, PRIORITY_RULES  # noqa: E402
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 SCHEMA = Path(__file__).parent / "outage_schema.json"
+BEST_RESULTS_PATH = Path(__file__).parent / "benchmarks" / "best_results.json"
 
 CASES = [
     ("j30",  "j301_1.json"),
@@ -46,6 +48,18 @@ CASES = [
     ("j90",  "j901_1.json"),
     ("j120", "j1201_1.json"),
 ]
+
+
+def load_best_known_results() -> dict[str, float]:
+    """Load PSPLIB best-known results keyed by `<instance>.sm`."""
+    with BEST_RESULTS_PATH.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def get_best_known_result(best_results: dict[str, float], json_file: str) -> float | None:
+    """Resolve the benchmark JSON filename to the corresponding PSPLIB result key."""
+    instance_key = f"{Path(json_file).stem}.sm"
+    return best_results.get(instance_key)
 
 
 def run_ga_case(
@@ -207,6 +221,7 @@ def run_ga_case(
 
 def main() -> None:
     """Run the GA on all benchmark cases and print a summary table."""
+    best_results = load_best_known_results()
     results = []
     for case_name, json_file in CASES:
         result = run_ga_case(
@@ -219,6 +234,11 @@ def main() -> None:
             seed=42,
             verbose=True,
         )
+        best_known = get_best_known_result(best_results, json_file)
+        result['best_known'] = best_known
+        result['ga_vs_best_known'] = (
+            result['best_ga'] - best_known if best_known is not None else float('nan')
+        )
         results.append(result)
 
     # ── Summary table ─────────────────────────────────────────────────────────
@@ -227,14 +247,16 @@ def main() -> None:
     print("=" * 80)
     print(
         f"  {'Case':<8} {'N':>6} {'CPM (h)':>10} "
-        f"{'Best Serial':>13} {'Best Parallel':>14} {'Best GA':>10} {'Δ (h)':>8}"
+        f"{'Best Serial':>13} {'Best Parallel':>14} {'Best GA':>10} "
+        f"{'Best Known':>12} {'GA-BK':>8} {'Δ (h)':>8}"
     )
-    print("  " + "-" * 72)
+    print("  " + "-" * 94)
     for r in results:
         print(
             f"  {r['case']:<8} {r['n_activities']:>6} {r['cpm_duration']:>10.2f} "
             f"{r['best_serial_seed']:>13.2f} {r['best_parallel_seed']:>14.2f} "
-            f"{r['best_ga']:>10.2f} {r['improvement']:>8.2f}"
+            f"{r['best_ga']:>10.2f} {r['best_known']:>12.2f} "
+            f"{r['ga_vs_best_known']:>8.2f} {r['improvement']:>8.2f}"
         )
     print()
 
