@@ -8,15 +8,15 @@ resource-constrained project scheduling problem" (arXiv:2502.18330v2).
 
 Key algorithmic components
 --------------------------
-- **Resource ranking**: resources ranked by utilisation load; weights guide
+- **Resource ranking**: resources ranked by utilization load; weights guide
   dense-gene selection and GRASP parallel SGS.
-- **Dense genes**: time slots with high weighted resource utilisation; the
+- **Dense genes**: time slots with high weighted resource utilization; the
   activities executing during these slots are preferentially inherited by
   offspring chromosomes.
 - **Crossover A**: greedy merge of dense-gene segments from both parents.
 - **Crossover B**: segment swap based on the outgoing/incoming networks of
   dense-gene activities in the schedule graph G_S.
-- **FBI**: Forward–Backward–Forward improvement (3 SGS calls); applied after
+- **FBI**: Forward-Backward-Forward improvement (3 SGS calls); applied after
   every crossover and mutation operator.
 - **Neighborhood NA**: block reschedule — P activities near a core activity
   are extracted and re-inserted at their earliest feasible positions.
@@ -85,7 +85,7 @@ class RCPSPHybridGANS:
     Parameters
     ----------
     pert : Pert
-        Fully initialised ``Pert`` object with ``generateInfo()`` called.
+        Fully initialized ``Pert`` object with ``generateInfo()`` called.
     pop_size : int
         Population size.  Priority-rule seeds fill up to ``len(PRIORITY_RULES)``
         slots; the rest are random precedence-feasible permutations.
@@ -225,7 +225,7 @@ class RCPSPHybridGANS:
 
     def _rank_resources(self) -> List[str]:
         """
-        Rank resources by utilisation load (most loaded = most scarce).
+        Rank resources by utilization load (most loaded = most scarce).
 
         load_k = sum_j(r_jk * p_j) / (R_k * T_cpm)
         """
@@ -366,10 +366,10 @@ class RCPSPHybridGANS:
         """
         Compute v_t = sum_k (R_k - sum_{j∈J(t)} r_jk) * w_k / R_k
 
-        Returns a value in [0, K] where 0 = fully utilised, K = completely idle.
+        Returns a value in [0, K] where 0 = fully utilized, K = completely idle.
         """
         if not self._skill_ids:
-            # Fallback: proportion of activities running (pseudo-utilisation)
+            # Fallback: proportion of activities running (pseudo-utilization)
             n_total = max(1, len(self._activities))
             return max(0.0, 1.0 - len(active_acts) / n_total)
 
@@ -644,7 +644,7 @@ class RCPSPHybridGANS:
                 if new_pos != cur_pos:
                     gene = order.pop(cur_pos)
                     order.insert(new_pos if new_pos < cur_pos else new_pos - 1, gene)
-
+        order = self._repair(order)
         return self._evaluate_with_fbi(order)
 
     # ------------------------------------------------------------------ #
@@ -765,26 +765,27 @@ class RCPSPHybridGANS:
 
         return block
 
-    def _na_neighbor(self, ind: Individual) -> Optional[Individual]:
+    def _na_neighbor(self, ind: Individual) -> Tuple[Optional[Individual], int]:
         """
         Neighborhood NA: select core activity, extract block, reschedule it.
 
         The block activities are removed from their current order positions and
         re-inserted at their earliest feasible positions in the remaining list.
         """
+        evals_used = 1  # initial decode for timing / block construction
         out = self._decode(ind['order'])
         times = self._get_schedule_times()
         order = self._order_from_schedule(times)
 
         non_dummy = [a for a in self._activities if a not in self._dummy_acts]
         if not non_dummy:
-            return None
+            return None, evals_used
         core = random.choice(non_dummy)
         block = self._create_block(core, times, self._block_size)
 
         if not block:
             self._empty_block_history.append(True)
-            return None
+            return None, evals_used
         self._empty_block_history.append(False)
 
         block_set = {self._act_to_idx[a] for a in block if a in self._act_to_idx}
@@ -818,7 +819,8 @@ class RCPSPHybridGANS:
 
         child_order = self._repair(residual)
         fitness, best_order = self._fbi(child_order)
-        return self._make_individual(best_order, fitness)
+        evals_used += 3  # FBI
+        return self._make_individual(best_order, fitness), evals_used
 
     # ------------------------------------------------------------------ #
     # Neighbourhood NB — split-list GRASP parallel SGS                    #
@@ -832,7 +834,7 @@ class RCPSPHybridGANS:
     ) -> List[Any]:
         """
         Greedy-randomized selection of one activity from the eligible set,
-        maximising weighted resource utilisation.
+        maximizing weighted resource utilization.
 
         Returns a ordering of block_acts chosen by GRASP.
         """
@@ -850,7 +852,7 @@ class RCPSPHybridGANS:
                     / max(self._skill_capacity.get(sk, 1.0), 1.0)
                     for sk in self._skill_ids
                 ) if self._skill_ids else 1.0
-                # Penalise activities that would exceed remaining resource capacity
+                # Penalize activities that would exceed remaining resource capacity
                 feasible = True
                 for sk in self._skill_ids:
                     cap = self._skill_capacity.get(sk, math.inf)
@@ -860,7 +862,7 @@ class RCPSPHybridGANS:
                 scores.append((score if feasible else -1.0, self._act_to_idx.get(a, 0), a))
 
             scores.sort(key=lambda x: x[0], reverse=True)
-            rcl = [a for _, _idx, a in scores[:alpha] if scores[0][0] >= 0]
+            rcl = [a for score, _idx, a in scores[:alpha] if score >= 0]
             if not rcl:
                 rcl = [eligible[0]]
 
@@ -875,24 +877,26 @@ class RCPSPHybridGANS:
 
         return scheduled
 
-    def _nb_neighbor(self, ind: Individual) -> Optional[Individual]:
+    def _nb_neighbor(self, ind: Individual) -> Tuple[Optional[Individual], int]:
         """
         Neighborhood NB: split list L = A1 | block | A2.
 
         A1 scheduled with serial SGS; block with GRASP-parallel SGS; A2 appended.
         """
+        evals_used = 0
         order = list(ind['order'])
         n = len(order)
         non_dummy = [self._activities[i] for i in order
                      if self._activities[i] not in self._dummy_acts]
         if len(non_dummy) < 2:
-            return None
+            return None, evals_used
 
         core = random.choice(non_dummy)
         core_idx = order.index(self._act_to_idx[core])
 
         # Decode for timing to build block
         self._decode(order)
+        evals_used += 1
         times = self._get_schedule_times()
         block_acts = self._create_block(core, times, self._block_size)
 
@@ -902,7 +906,7 @@ class RCPSPHybridGANS:
         # Check: if any block member is a predecessor of core, skip
         preds_of_core = set(self.pert.backwardDict.get(core, []))
         if preds_of_core & set(block_acts):
-            return None
+            return None, evals_used
 
         # Split at core position
         a1_order = [i for i in order[:core_idx] if i not in block_idx_set]
@@ -923,7 +927,8 @@ class RCPSPHybridGANS:
 
         child_order = self._repair(child_order)
         fitness, best_order = self._fbi(child_order)
-        return self._make_individual(best_order, fitness)
+        evals_used += 3  # FBI
+        return self._make_individual(best_order, fitness), evals_used
 
     # ------------------------------------------------------------------ #
     # Adaptive block-size update                                           #
@@ -1064,17 +1069,18 @@ class RCPSPHybridGANS:
                 ns_current = self._make_individual(best['order'], best['fitness'])
                 tabu: List[int] = []
                 tabu_key_current = self._tabu_key(ns_current)
+                n_evals += 1
 
                 for _step in range(self.ns_steps):
                     if n_evals >= self.lambda_max:
                         break
                     ns_type = random.choice(['NA', 'NB'])
-                    neighbor = (
+                    neighbor, neighbor_evals = (
                         self._na_neighbor(ns_current)
                         if ns_type == 'NA'
                         else self._nb_neighbor(ns_current)
                     )
-                    n_evals += 3  # FBI inside neighbor
+                    n_evals += neighbor_evals
 
                     if neighbor is None:
                         continue
