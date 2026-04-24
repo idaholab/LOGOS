@@ -226,7 +226,7 @@ def main() -> None:
             case_name=case_name,
             json_file=json_file,
             pop_size=50,
-            n_gen=500,
+            n_gen=1000,
             cxpb=0.9,
             mutpb=0.5,
             n_random=0,

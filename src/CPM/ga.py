@@ -199,6 +199,18 @@ class RCPSPGeneticAlgorithm:
                 f"Unknown mutation '{mutation}'. "
                 f"Choose from: {list(self._MUTATION_METHODS)}"
             )
+        if pop_size <= 0:
+            raise ValueError("pop_size must be positive.")
+        if n_gen < 0:
+            raise ValueError("n_gen must be non-negative.")
+        if not 0.0 <= cxpb <= 1.0:
+            raise ValueError("cxpb must be in [0, 1].")
+        if not 0.0 <= mutpb <= 1.0:
+            raise ValueError("mutpb must be in [0, 1].")
+        if n_random < 0:
+            raise ValueError("n_random must be non-negative.")
+        if hof_size <= 0:
+            raise ValueError("hof_size must be positive.")
 
         self.pert = pert
         self.pop_size = pop_size
@@ -407,10 +419,30 @@ class RCPSPGeneticAlgorithm:
 
         # --- fill remaining slots with random precedence-feasible permutations ---
         n_random = 0
+        random_failures = 0
+        max_random_failures = max(10, self.pop_size * 2)
         while len(population) < self.pop_size:
-            chromosome = self._rule_to_chromosome('random')
+            try:
+                chromosome = self._rule_to_chromosome('random')
+            except Exception as exc:  # noqa: BLE001
+                random_failures += 1
+                logger.warning(
+                    "Random chromosome generation failed during population "
+                    "seeding (%d/%d): %s",
+                    random_failures,
+                    max_random_failures,
+                    exc,
+                )
+                if random_failures >= max_random_failures:
+                    break
+                continue
             population.append(self._Ind(chromosome))
             n_random += 1
+
+        if not population:
+            raise RuntimeError(
+                "Failed to generate any valid individuals for the initial population."
+            )
 
         if seed_info and self.verbose:
             all_dur = [v for info in seed_info.values() for v in info.values()]
@@ -518,16 +550,20 @@ class RCPSPGeneticAlgorithm:
 
         q = random.randint(1, n - 1)
 
+        # Save originals so Child 2 reads the unmodified first parent.
+        orig1 = list(ind1)
+        orig2 = list(ind2)
+
         # --- Child 1: prefix from ind1 (mother), suffix from ind2 (father) ---
-        prefix1 = list(ind1[:q])
+        prefix1 = list(orig1[:q])
         taken1 = set(prefix1)
-        suffix1 = [gene for gene in ind2 if gene not in taken1]
+        suffix1 = [gene for gene in orig2 if gene not in taken1]
         ind1[:] = prefix1 + suffix1
 
         # --- Child 2: prefix from ind2 (mother), suffix from ind1 (father) ---
-        prefix2 = list(ind2[:q])
+        prefix2 = list(orig2[:q])
         taken2 = set(prefix2)
-        suffix2 = [gene for gene in ind1 if gene not in taken2]
+        suffix2 = [gene for gene in orig1 if gene not in taken2]
         ind2[:] = prefix2 + suffix2
 
         return ind1, ind2
@@ -935,6 +971,8 @@ class RCPSPGeneticAlgorithm:
         """
         # ── Generation 0 ─────────────────────────────────────────────────────
         pop = self.generate_initial_population()
+        if not pop:
+            raise RuntimeError("Initial population is empty; GA cannot run.")
 
         fitnesses = list(map(self.toolbox.evaluate, pop))
         for ind, fit in zip(pop, fitnesses):
