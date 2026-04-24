@@ -291,6 +291,10 @@ class TestConstructor:
         """Default mutation operator must be 'adjacent_swap'."""
         assert ga.mutation == 'adjacent_swap'
 
+    def test_default_n_random(self, ga):
+        """Default consensus-library random reference count must be 8."""
+        assert ga.n_random == 8
+
     def test_crossover_method_map(self):
         """_CROSSOVER_METHODS must contain all documented choices."""
         assert set(RCPSPGeneticAlgorithm._CROSSOVER_METHODS) == {
@@ -300,7 +304,7 @@ class TestConstructor:
     def test_mutation_method_map(self):
         """_MUTATION_METHODS must contain all documented choices."""
         assert set(RCPSPGeneticAlgorithm._MUTATION_METHODS) == {
-            'swap', 'adjacent_swap', 'insertion_window'
+            'swap', 'adjacent_swap', 'insertion_window', 'consensus_reorder'
         }
 
     def test_invalid_crossover_raises(self, pert):
@@ -325,15 +329,17 @@ class TestConstructor:
         ('uniform_order', 'insertion_window'),
         ('one_point',    'insertion_window'),
         ('uniform_order', 'swap'),
+        ('two_point',    'consensus_reorder'),
     ])
     def test_operator_selection(self, pert, cx, mut):
         """All valid crossover/mutation combinations must construct without error."""
         g = RCPSPGeneticAlgorithm(
-            pert, pop_size=3, n_gen=1, verbose=False,
+            pert, pop_size=3, n_gen=1, n_random=3, verbose=False,
             crossover=cx, mutation=mut,
         )
         assert g.crossover == cx
         assert g.mutation == mut
+        assert g.n_random == 3
 
 
 # =============================================================================
@@ -697,12 +703,13 @@ class TestRun:
         ('one_point',    'swap'),
         ('two_point',    'adjacent_swap'),
         ('uniform_order', 'insertion_window'),
+        ('two_point',    'consensus_reorder'),
     ])
     def test_all_operator_combinations_complete(self, pert, cx, mut):
         """Every valid crossover/mutation pair must complete a short run."""
         g = RCPSPGeneticAlgorithm(
             pert, pop_size=5, n_gen=2, verbose=False,
-            crossover=cx, mutation=mut, seed=0,
+            crossover=cx, mutation=mut, seed=0, n_random=3,
         )
         hof, log = g.run()
         assert len(hof) > 0
