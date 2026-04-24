@@ -154,6 +154,14 @@ class RCPSPGeneticAlgorithm:
         * ``'adjacent_swap'``     — adjacent-swap with feasibility check (default)
         * ``'insertion_window'``  — precedence-window insertion
         * ``'consensus_reorder'`` — local reorder guided by consensus references
+    fb_improvement : bool
+        Apply Forward-Backward-Forward (FBF) local improvement (Valls et al., 2005)
+        as a final polish on the full population after evolution completes, then
+        update the Hall of Fame from the improved population.  Default ``True``.
+    fb_freq : int
+        If > 0, also apply FBF every ``fb_freq`` generations during evolution
+        (applied to the whole population).  ``0`` (default) disables periodic
+        in-run application and limits FBF to the final polishing step.
     """
 
     # DEAP creator type names (module-level singletons; guarded against
@@ -188,6 +196,8 @@ class RCPSPGeneticAlgorithm:
         verbose: bool = True,
         crossover: str = 'two_point',
         mutation: str = 'adjacent_swap',
+        fb_improvement: bool = True,
+        fb_freq: int = 0,
     ) -> None:
         if crossover not in self._CROSSOVER_METHODS:
             raise ValueError(
@@ -222,6 +232,8 @@ class RCPSPGeneticAlgorithm:
         self.verbose = verbose
         self.crossover = crossover
         self.mutation = mutation
+        self.fb_improvement = fb_improvement
+        self.fb_freq = fb_freq
 
         random.seed(seed)
         np.random.seed(seed)
@@ -351,6 +363,127 @@ class RCPSPGeneticAlgorithm:
             {gene: pos for pos, gene in enumerate(chromosome)}
             for chromosome in references
         ]
+
+    # ---------------------------------------------------------------------- #
+    # Forward-Backward-Forward (FBF) improvement                               #
+    # ---------------------------------------------------------------------- #
+
+    def _compute_backward_chromosome(
+        self, forward_chromosome: List[int]
+    ) -> Tuple[List[int], float]:
+        """
+        Run a forward SGS pass, compute ALAP times by backward sweep,
+        and return a new chromosome sorted by ALAP late-start.
+
+        This is the 'F→B' leg of Forward-Backward-Forward improvement.
+
+        After the forward schedule the successor start-times are used to
+        tighten the ALAP bound for each activity:
+
+            alap_lf(a)  =  min(alap_ls(s)  for s in successors(a))
+                           or makespan if a has no successors
+            alap_ls(a)  =  alap_lf(a) − duration(a)
+
+        Activities are then sorted by alap_ls (ascending) and repaired for
+        precedence feasibility via ``reorder_by_dependencies``.
+
+        Parameters
+        ----------
+        forward_chromosome : list of int
+            Precedence-feasible activity index permutation used for the
+            forward SGS call.
+
+        Returns
+        -------
+        backward_chromosome : list of int
+        makespan_h : float
+            Raw ``scheduled_duration`` (hours) from the forward SGS call.
+        """
+        acts = self._chromosome_to_activities(forward_chromosome)
+        out = self.pert.calculateSerialScheduleWithResources(_ordered=acts)
+        makespan_h: float = out['scheduled_duration']
+
+        # Backward ALAP sweep — pure precedence, no resource constraints.
+        # Iterate in reverse topological order; every successor is already
+        # processed so alap_ls[s] is available when we handle activity a.
+        alap_ls: Dict[Any, float] = {}
+        for gene in reversed(forward_chromosome):
+            a = self._activities[gene]
+            d = self.pert.infoDict[a]['duration']
+            succs = self.pert.forwardDict.get(a, [])
+            succ_ls = [alap_ls[s] for s in succs if s in alap_ls]
+            alap_lf = min(succ_ls) if succ_ls else makespan_h
+            alap_ls[a] = alap_lf - d
+
+        # Reorder by ALAP late-start; repair for precedence feasibility.
+        ranked = [(a, alap_ls.get(a, 0.0)) for a in self._activities]
+        repaired = self.pert.reorder_by_dependencies(ranked, self.pert.forwardDict)
+        backward_chromosome = [self._act_to_idx[a] for a, _ in repaired]
+        return backward_chromosome, makespan_h
+
+    def _fb_improvement(
+        self, chromosome: List[int]
+    ) -> Tuple[List[int], float]:
+        """
+        One Forward-Backward-Forward (FBF) improvement pass.
+
+        Algorithm (Valls, Ballestin, Quintanilla 2005):
+
+        F1  Serial SGS with *chromosome* → scheduled start-times, makespan T₁.
+        B   ALAP backward sweep using T₁ as the backward horizon and the
+            actual forward-scheduled successor times to derive tight ALAP
+            bounds → new precedence-feasible ordering λ_B.
+        F2  Serial SGS with λ_B → makespan T₂.
+
+        Returns whichever of (chromosome, T₁) or (λ_B, T₂) has the smaller
+        makespan, so the operator can never worsen a solution.
+
+        Parameters
+        ----------
+        chromosome : list of int
+
+        Returns
+        -------
+        best_chromosome : list of int
+        best_fitness    : float   (scheduled_duration − 2)
+        """
+        backward_chromosome, makespan_f1 = self._compute_backward_chromosome(
+            chromosome
+        )
+        fitness_f1 = makespan_f1 - 2
+
+        acts_b = self._chromosome_to_activities(backward_chromosome)
+        out_f2 = self.pert.calculateSerialScheduleWithResources(_ordered=acts_b)
+        fitness_f2 = out_f2['scheduled_duration'] - 2
+
+        if fitness_f2 <= fitness_f1:
+            return backward_chromosome, fitness_f2
+        return chromosome, fitness_f1
+
+    def apply_fb_improvement(self, individuals: List[Any]) -> int:
+        """
+        Apply Forward-Backward-Forward improvement in-place to a sequence of
+        DEAP individuals, updating each individual and its stored fitness when
+        a shorter schedule is found.
+
+        Parameters
+        ----------
+        individuals : list of IndividualRCPSP
+            Typically ``pop`` (the full population) or ``list(hof)``.
+
+        Returns
+        -------
+        n_improved : int
+            Number of individuals whose fitness was strictly improved.
+        """
+        n_improved = 0
+        for ind in individuals:
+            new_chr, new_fit = self._fb_improvement(list(ind))
+            if new_fit < ind.fitness.values[0]:
+                ind[:] = new_chr
+                ind.fitness.values = (new_fit,)
+                n_improved += 1
+        return n_improved
 
     # ---------------------------------------------------------------------- #
     # Initial population                                                       #
@@ -965,6 +1098,8 @@ class RCPSPGeneticAlgorithm:
         -------
         hof : deap.tools.HallOfFame
             Top ``hof_size`` individuals found across all generations.
+            When ``fb_improvement=True`` the HoF individuals are polished
+            by a final FBF pass before being returned.
         log : deap.tools.Logbook
             Per-generation statistics:
             ``gen``, ``nevals``, ``min``, ``avg``, ``std``, ``max``.
@@ -1022,10 +1157,37 @@ class RCPSPGeneticAlgorithm:
             pop[:] = offspring
             hof.update(pop)
 
+            # Periodic FBF improvement (optional)
+            if self.fb_improvement and self.fb_freq > 0 and gen % self.fb_freq == 0:
+                n_fb = self.apply_fb_improvement(pop)
+                hof.update(pop)
+                if self.verbose and n_fb:
+                    print(
+                        f"  [FBF gen {gen}] {n_fb}/{len(pop)} improved"
+                        f" | best = {hof[0].fitness.values[0]:.2f} h"
+                    )
+
             record = stats.compile(pop)
             log.record(gen=gen, nevals=len(invalid), **record)
             if self.verbose:
                 print(log.stream)
+
+        # Final FBF polish on the full population; update HoF from result
+        if self.fb_improvement:
+            n_fb = self.apply_fb_improvement(pop)
+            hof.update(pop)
+            if self.verbose:
+                msg = (
+                    f"FBF final polish: {n_fb}/{len(pop)} improved"
+                    f" | best = {hof[0].fitness.values[0]:.2f} h"
+                )
+                print(f"\n{msg}")
+            logger.info(
+                "FBF final polish: %d/%d improved | best = %.2f h",
+                n_fb,
+                len(pop),
+                hof[0].fitness.values[0],
+            )
 
         logger.info(
             "GA finished | best = %.2f h | generations = %d | pop_size = %d",

@@ -73,6 +73,8 @@ def run_ga_case(
     verbose: bool = True,
     crossover: str = 'two_point',
     mutation: str = 'adjacent_swap',
+    fb_improvement: bool = True,
+    fb_freq: int = 0,
 ) -> dict:
     """
     Run the GA on a single PSPLIB benchmark case.
@@ -111,6 +113,12 @@ def run_ga_case(
     mutation : str
         Mutation operator name passed to ``RCPSPGeneticAlgorithm``.
         One of ``'swap'``, ``'adjacent_swap'``, ``'insertion_window'``.
+    fb_improvement : bool
+        Apply Forward-Backward-Forward local improvement as a final
+        polishing step on the full population.  Default ``True``.
+    fb_freq : int
+        Also apply FBF every ``fb_freq`` generations during evolution
+        (``0`` = only at the end).
 
     Returns
     -------
@@ -183,6 +191,8 @@ def run_ga_case(
         verbose=verbose,
         crossover=crossover,
         mutation=mutation,
+        fb_improvement=fb_improvement,
+        fb_freq=fb_freq,
     )
     hof, log = ga.run()
 
@@ -233,6 +243,8 @@ def main() -> None:
             mutpb=0.1,
             seed=42,
             verbose=True,
+            fb_improvement=True,
+            fb_freq=0,
         )
         best_known = get_best_known_result(best_results, json_file)
         result['best_known'] = best_known
