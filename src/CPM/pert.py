@@ -3068,6 +3068,449 @@ class Pert:
         )
         return results
 
+    # =========================================================================
+    # BACKWARD SGS
+    # =========================================================================
+
+    def _find_latest_feasible_start_serial(
+        self,
+        activity:         'Activity',
+        max_start:        datetime,
+        schedule_profile: List[tuple],
+    ) -> 'Optional[datetime]':
+        """
+        Event-driven backward scan: find the LATEST feasible start ≤ max_start.
+
+        Backward counterpart of ``_find_earliest_feasible_start_serial``.
+        Candidate times are scanned in descending order:
+
+          1. ``max_start`` itself (successor-derived upper bound).
+          2. End times of backward-committed activities in [startTime, max_start]
+             — when our start equals a committed activity's end, there is no
+             left-side overlap.
+          3. Start times of committed activities minus our duration
+             (s₂ − d) in [startTime, max_start] — when our end equals a
+             committed activity's start, there is no right-side overlap.
+          4. Pre-computed availability boundaries in [startTime, max_start].
+
+        Overlap condition between our window [t, t+d) and a committed window
+        [s₂, e₂) is: s₂ < t+d AND e₂ > t.  The four event categories above
+        capture every inflection point where this condition changes.
+
+        Args:
+            activity:         Activity to schedule ALAP.
+            max_start:        Latest permissible absolute start.
+            schedule_profile: Already backward-committed (act, start, end).
+
+        Returns:
+            Latest feasible absolute start ≥ startTime, or None if no
+            feasible slot exists in [startTime, max_start].
+        """
+        d = self._effective_duration(activity)
+        candidates: set = {max_start}
+
+        # Availability boundary events in [startTime, max_start]
+        for dt in self._availability_events:
+            if self.startTime <= dt <= max_start:
+                candidates.add(dt)
+
+        for (_, s, e) in schedule_profile:
+            # Our start = committed activity's end  →  no right-side overlap
+            if self.startTime <= e <= max_start:
+                candidates.add(e)
+            # Our end = committed activity's start  →  no left-side overlap
+            t_cand = s - timedelta(hours=d)
+            if self.startTime <= t_cand <= max_start:
+                candidates.add(t_cand)
+
+        for t in sorted(candidates, reverse=True):
+            if self._serial_check_feasibility(activity, t, schedule_profile):
+                return t
+
+        return None
+
+    def calculateBackwardSerialScheduleWithResources(
+        self,
+        makespan_hours: float = None,
+        priority_rule:  str = 'lf',
+        _ordered:       List['Activity'] = None,
+    ) -> dict:
+        """
+        Schedule activities As-Late-As-Possible (ALAP) using a Backward
+        Serial Schedule Generation Scheme (Backward Serial SGS).
+
+        This is the time-mirror of ``calculateSerialScheduleWithResources``:
+        activities are processed in reverse topological order (successors
+        before predecessors), and each is assigned the *latest* feasible
+        start time within the window bounded above by the earliest
+        backward-committed successor start and below by the project start.
+
+        Primary use: the 'B' step of the Forward-Backward-Forward (FBF)
+        local search improvement (Valls, Ballestín & Quintanilla 2005).
+        A complete FBF pass is:
+          F1  ``calculateSerialScheduleWithResources``  → makespan M
+          B   ``calculateBackwardSerialScheduleWithResources(M)``  → ALAP order
+          F2  ``calculateSerialScheduleWithResources(_ordered=alap_order)``
+
+        Args:
+            makespan_hours: Backward horizon in hours from ``startTime``.
+                Defaults to CPM duration × ``_max_time_factor``.
+            priority_rule: Priority rule used to build the forward-pass
+                order when ``_ordered`` is None.
+            _ordered: Forward-pass activity ordering (precedence-feasible /
+                topologically sorted).  Reversed for the backward pass.
+                When None the order is derived from ``priority_rule``.
+
+        Returns:
+            dict — same keys as ``calculateSerialScheduleWithResources``:
+                ``scheduled_duration``, ``cpm_duration``, ``delay_hours``,
+                ``n_activities``, ``n_completed``, ``priority_rule``.
+        """
+        if not self.resource_pool or not self.equipment_pool or not self.location_pool:
+            raise ValueError(
+                "Resource, equipment, and location pools must be initialized"
+            )
+        if not self.startTime:
+            raise ValueError("startTime must be set before scheduling")
+
+        # ── Clean slate ──────────────────────────────────────────────────────
+        self._reset_scheduling_state()
+
+        cpm_duration = self.getProjectDuration()
+        n_activities = len(self.infoDict)
+
+        if makespan_hours is None:
+            makespan_hours = cpm_duration * self._max_time_factor
+        horizon = self.startTime + timedelta(hours=makespan_hours)
+
+        # ── Build reverse-topological ordering ───────────────────────────────
+        if _ordered is not None:
+            ordered: List['Activity'] = list(reversed(_ordered))
+            priority_rule = 'custom'
+        else:
+            all_acts = list(self.forwardDict.keys())
+            raw_priority = self.priority_calculation(all_acts, priority_rule)
+            if raw_priority and isinstance(raw_priority[0], tuple):
+                ordered: List['Activity'] = list(reversed(
+                    [a for (a, _, _) in raw_priority]
+                ))
+            else:
+                ordered: List['Activity'] = list(reversed(list(raw_priority)))
+
+        logger.info(
+            "Starting Backward Serial SGS | activities=%d | CPM=%.1fh | "
+            "horizon=%.1fh | rule=%s",
+            n_activities, cpm_duration, makespan_hours, priority_rule
+        )
+
+        # ── Schedule profile ─────────────────────────────────────────────────
+        schedule_profile: List[tuple] = []
+        actual_start: Dict['Activity', datetime] = {}
+
+        n_scheduled = 0
+
+        for act in ordered:
+            d = self._effective_duration(act)
+
+            # Latest permissible finish: earliest actual start among
+            # backward-committed successors (or horizon if none yet placed).
+            succs = self.forwardDict.get(act, [])
+            if succs:
+                latest_finish = min(actual_start.get(s, horizon) for s in succs)
+            else:
+                latest_finish = horizon
+
+            # Latest permissible start
+            max_start = latest_finish - timedelta(hours=d)
+            if max_start < self.startTime:
+                logger.warning(
+                    "Backward Serial SGS: %s max_start before project start "
+                    "— skipped.",
+                    act.name
+                )
+                continue
+
+            # ── Event-driven backward feasibility scan ────────────────────────
+            feasible_start = self._find_latest_feasible_start_serial(
+                act, max_start, schedule_profile
+            )
+            if feasible_start is None:
+                logger.warning(
+                    "Backward Serial SGS: no feasible slot for %s — "
+                    "placing at startTime.",
+                    act.name
+                )
+                feasible_start = self.startTime
+
+            # ── Commit ────────────────────────────────────────────────────────
+            act.setActualStartTime(feasible_start)
+            abs_end = feasible_start + timedelta(hours=d)
+            actual_start[act] = feasible_start
+
+            schedule_profile.append((act, feasible_start, abs_end))
+
+            if act in self.wait:
+                self.wait.remove(act)
+            self.completed.append(act)
+
+            self.schedule_log.append({
+                'activity':  act.name,
+                'start':     feasible_start,
+                'end':       abs_end,
+                'max_start': max_start,
+            })
+
+            n_scheduled += 1
+            logger.debug(
+                "Backward Serial SGS: %s | start=%s | end=%s",
+                act.name,
+                feasible_start.strftime('%Y-%m-%d %H:%M'),
+                abs_end.strftime('%Y-%m-%d %H:%M'),
+            )
+
+        # ── Post-schedule analytics ──────────────────────────────────────────
+        self._compute_actual_tf_proxy()
+        self._compute_resource_constrained_chain()
+
+        actual_project_end = self.get_project_finish_actual()
+        actual_duration    = (actual_project_end - self.startTime).total_seconds() / 3600.0
+        total_delay        = sum(act.delay for act in self.forwardDict)
+
+        results = {
+            'scheduled_duration': actual_duration,
+            'cpm_duration':       cpm_duration,
+            'delay_hours':        total_delay,
+            'n_activities':       n_activities,
+            'n_completed':        n_scheduled,
+            'priority_rule':      priority_rule,
+        }
+
+        logger.info(
+            "Backward Serial SGS complete | CPM=%.1fh | actual=%.1fh | "
+            "scheduled=%d/%d | rule=%s",
+            cpm_duration, actual_duration, n_scheduled, n_activities, priority_rule
+        )
+        return results
+
+    def calculateBackwardScheduleWithResources(
+        self,
+        makespan_hours: float = None,
+        priority_rule:  str = '',
+    ) -> dict:
+        """
+        Schedule activities As-Late-As-Possible (ALAP) using a Backward
+        Parallel Schedule Generation Scheme (event-driven, backward in time).
+
+        Backward counterpart of ``calculateScheduleWithResources``: the time
+        cursor advances backward from ``makespan_hours`` toward the project
+        start.  At each event the scheduler finds all eligible activities
+        (every successor already backward-committed) and assigns as many as
+        possible to end at the current backward-time, subject to resource,
+        equipment, and location constraints.
+
+        Capacity checking uses the same ``_serial_check_feasibility``
+        mechanism as the Backward Serial SGS (growing ``schedule_profile``),
+        so the two methods share identical constraint logic.
+
+        Args:
+            makespan_hours: Backward horizon in hours from ``startTime``.
+                Defaults to CPM duration × ``_max_time_factor``.
+            priority_rule: Priority rule for candidate ranking (any name
+                accepted by ``priority_calculation``).
+
+        Returns:
+            dict — same keys as ``calculateScheduleWithResources``:
+                ``scheduled_duration``, ``cpm_duration``, ``delay_hours``,
+                ``n_activities``, ``n_completed``, ``iterations``.
+        """
+        if not self.resource_pool or not self.equipment_pool or not self.location_pool:
+            raise ValueError(
+                "Resource, equipment, and location pools must be initialized"
+            )
+        if not self.startTime:
+            raise ValueError("startTime must be set before scheduling")
+
+        self._reset_scheduling_state()
+
+        cpm_duration = self.getProjectDuration()
+        n_activities = len(self.infoDict)
+
+        if makespan_hours is None:
+            makespan_hours = cpm_duration * self._max_time_factor
+        horizon = self.startTime + timedelta(hours=makespan_hours)
+
+        logger.info(
+            "Starting Backward Parallel SGS | activities=%d | CPM=%.1fh | "
+            "horizon=%.1fh",
+            n_activities, cpm_duration, makespan_hours
+        )
+
+        # ── State ─────────────────────────────────────────────────────────────
+        schedule_profile: List[tuple] = []
+        placed: set = set()
+        actual_start_map: Dict['Activity', datetime] = {}
+
+        # ── Priority mode ─────────────────────────────────────────────────────
+        if self.priorities is not None:
+            value_mode = 'external'
+        elif priority_rule and priority_rule.lower() in self._list_priority_names:
+            value_mode = priority_rule
+        else:
+            value_mode = 'TF_based'
+
+        # ── Backward event max-heap ───────────────────────────────────────────
+        # heapq is a min-heap; store negative relative-seconds so the largest
+        # (latest) time is always at the top.
+        def _rel(dt: datetime) -> float:
+            return (dt - self.startTime).total_seconds()
+
+        backward_events: set = {horizon}
+        for dt in self._availability_events:
+            if self.startTime <= dt <= horizon:
+                backward_events.add(dt)
+        # CPM LF times as natural ALAP end-point candidates
+        for act in self.forwardDict:
+            lf_abs = self.startTime + timedelta(hours=self.infoDict[act]['lf'])
+            if self.startTime < lf_abs <= horizon:
+                backward_events.add(lf_abs)
+
+        neg_heap = [-_rel(dt) for dt in backward_events]
+        heapq.heapify(neg_heap)
+
+        iteration = 0
+
+        while len(placed) < n_activities:
+            if not neg_heap:
+                logger.warning(
+                    "Backward Parallel SGS: event queue exhausted with "
+                    "%d activities unplaced.",
+                    n_activities - len(placed)
+                )
+                break
+
+            neg_t = heapq.heappop(neg_heap)
+            t = self.startTime + timedelta(seconds=-neg_t)
+
+            # Merge near-simultaneous backward events within epsilon
+            eps_s = self._EVENT_EPSILON.total_seconds()
+            while neg_heap and (neg_heap[0] - neg_t) <= eps_s:
+                heapq.heappop(neg_heap)
+
+            if t < self.startTime:
+                break
+
+            iteration += 1
+
+            # ── Find backward candidates at time t ───────────────────────────
+            # Eligible: not yet placed AND every successor already placed
+            candidates: Dict = {}
+            for act in self.forwardDict:
+                if act in placed:
+                    continue
+                succs = self.forwardDict.get(act, [])
+                if not all(s in placed for s in succs):
+                    continue
+                d = self._effective_duration(act)
+                proposed_start = t - timedelta(hours=d)
+                if proposed_start < self.startTime:
+                    continue
+                # Precedence: activity must end ≤ earliest backward-committed
+                # successor start (otherwise it would overlap into a successor)
+                if succs:
+                    earliest_succ_start = min(
+                        actual_start_map.get(s, horizon) for s in succs
+                    )
+                    if t > earliest_succ_start:
+                        continue
+                candidates[act] = self.infoDict[act].copy()
+
+            if not candidates:
+                continue
+
+            # ── Assign priorities ─────────────────────────────────────────────
+            if value_mode == 'TF_based':
+                for act in candidates:
+                    candidates[act]['value'] = _weight_function(
+                        candidates[act]['slack']
+                    )
+            elif value_mode == 'external':
+                for act in candidates:
+                    candidates[act]['value'] = self.priorities.get(
+                        act.returnName(), 0.5
+                    )
+            elif value_mode.lower() in self._list_priority_names:
+                prio = self.priority_calculation(
+                    list(candidates.keys()), value_mode, current_time=t
+                )
+                for (a, _, val) in prio:
+                    candidates[a]['value'] = val
+
+            # ── Rank and schedule feasible candidates ─────────────────────────
+            ordered_cands = self._rank_by_value(candidates)
+            tentative_profile = list(schedule_profile)
+            selected = []
+
+            for act in ordered_cands:
+                d = self._effective_duration(act)
+                proposed_start = t - timedelta(hours=d)
+                if proposed_start < self.startTime:
+                    continue
+                if self._serial_check_feasibility(
+                    act, proposed_start, tentative_profile
+                ):
+                    abs_end = proposed_start + timedelta(hours=d)
+                    selected.append((act, proposed_start, abs_end))
+                    tentative_profile.append((act, proposed_start, abs_end))
+
+            # ── Commit selected ───────────────────────────────────────────────
+            for act, start, end in selected:
+                act.setActualStartTime(start)
+                actual_start_map[act] = start
+                placed.add(act)
+                schedule_profile.append((act, start, end))
+
+                if act in self.wait:
+                    self.wait.remove(act)
+                self.completed.append(act)
+
+                # Activity's start time becomes the next backward event
+                heapq.heappush(neg_heap, -_rel(start))
+
+                self.schedule_log.append({
+                    'activity': act.name,
+                    'start':    start,
+                    'end':      end,
+                })
+
+            logger.debug(
+                "Backward Parallel SGS t=%s | candidates=%d | selected=%d",
+                t.strftime('%Y-%m-%d %H:%M'), len(candidates), len(selected)
+            )
+
+        # ── Post-schedule analytics ───────────────────────────────────────────
+        self._compute_actual_tf_proxy()
+        self._compute_resource_constrained_chain()
+
+        actual_project_end = self.get_project_finish_actual()
+        actual_duration    = (actual_project_end - self.startTime).total_seconds() / 3600.0
+        total_delay        = sum(act.delay for act in self.forwardDict)
+
+        results = {
+            'scheduled_duration': actual_duration,
+            'cpm_duration':       cpm_duration,
+            'delay_hours':        total_delay,
+            'n_activities':       n_activities,
+            'n_completed':        len(placed),
+            'iterations':         iteration,
+        }
+
+        logger.info(
+            "Backward Parallel SGS complete | CPM=%.1fh | actual=%.1fh | "
+            "placed=%d/%d | iterations=%d",
+            cpm_duration, actual_duration, len(placed), n_activities, iteration
+        )
+        return results
+
 # ============================================================================
 # PROJECT SCHEDULE VISUALIZATION
 # ============================================================================

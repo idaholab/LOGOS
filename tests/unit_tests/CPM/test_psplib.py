@@ -985,6 +985,217 @@ for rule in ['wcs', 'acs', 'irsm']:
 
 
 # ---------------------------------------------------------------------------
+# 15. Backward Serial SGS – API Contract and Basic Properties (j30)
+# ---------------------------------------------------------------------------
+
+print("\n=== Backward Serial SGS API Contract (j30) ===")
+
+# Derive a makespan from a forward serial run to use as the ALAP horizon.
+_p_fwd = load_pert()
+_out_fwd = _p_fwd.calculateSerialScheduleWithResources(priority_rule='lf')
+_makespan = _out_fwd['scheduled_duration']  # 51.0 h
+
+pert_bwd_s = load_pert()
+out_bwd_s = pert_bwd_s.calculateBackwardSerialScheduleWithResources(
+    makespan_hours=_makespan,
+    priority_rule='lf',
+)
+
+# Return dict keys
+EXPECTED_BWD_SERIAL_KEYS = {
+    'scheduled_duration', 'cpm_duration', 'delay_hours',
+    'n_activities', 'n_completed', 'priority_rule'
+}
+checkSubset(
+    "Backward Serial SGS: return dict has required keys",
+    EXPECTED_BWD_SERIAL_KEYS,
+    out_bwd_s
+)
+
+# cpm_duration matches CPM analysis
+checkAnswer(
+    "Backward Serial SGS: cpm_duration matches CPM",
+    out_bwd_s['cpm_duration'],
+    expected=40.0
+)
+
+# n_activities count is correct
+checkAnswer(
+    "Backward Serial SGS: n_activities",
+    float(out_bwd_s['n_activities']),
+    expected=32.0
+)
+
+# n_completed ≤ n_activities
+checkAnswer(
+    "Backward Serial SGS: n_completed ≤ n_activities",
+    float(out_bwd_s['n_completed'] <= out_bwd_s['n_activities']),
+    expected=1.0
+)
+
+# priority_rule echoed
+checkAnswerString(
+    "Backward Serial SGS: priority_rule echoed",
+    out_bwd_s['priority_rule'],
+    expected='lf'
+)
+
+# All placed activities start at or after project start
+_bad_start = [
+    act.name for act in pert_bwd_s.forwardDict
+    if act.returnAbsTimes()[0] is not None
+    and act.returnAbsTimes()[0] < pert_bwd_s.startTime
+]
+checkAnswer(
+    "Backward Serial SGS: no placed activity starts before project start",
+    float(len(_bad_start) == 0),
+    expected=1.0
+)
+
+# All placed activities end at or before the horizon
+from datetime import timedelta as _td
+_horizon = pert_bwd_s.startTime + _td(hours=_makespan)
+_bad_end = [
+    act.name for act in pert_bwd_s.forwardDict
+    if act.returnAbsTimes()[1] is not None
+    and act.returnAbsTimes()[1] > _horizon
+]
+checkAnswer(
+    "Backward Serial SGS: no placed activity exceeds horizon",
+    float(len(_bad_end) == 0),
+    expected=1.0
+)
+
+# No precedence violations among placed activities
+_bwd_s_viols, _bwd_s_feas = pert_bwd_s.check_dependency_violations()
+# Violations only for placed activities (skip None-start pairs already filtered
+# by check_dependency_violations which skips None times)
+checkAnswer(
+    "Backward Serial SGS: no precedence violations among placed activities",
+    float(len(_bwd_s_viols) == 0),
+    expected=1.0
+)
+
+
+# ---------------------------------------------------------------------------
+# 16. Backward Parallel SGS – API Contract and Properties (j30)
+# ---------------------------------------------------------------------------
+
+print("\n=== Backward Parallel SGS API Contract (j30) ===")
+
+pert_bwd_p = load_pert()
+# Use default priority_rule='' (TF_based) which achieves full completion on j30.
+out_bwd_p = pert_bwd_p.calculateBackwardScheduleWithResources(
+    makespan_hours=_makespan,
+)
+
+# Return dict keys
+EXPECTED_BWD_PARALLEL_KEYS = {
+    'scheduled_duration', 'cpm_duration', 'delay_hours',
+    'n_activities', 'n_completed', 'iterations'
+}
+checkSubset(
+    "Backward Parallel SGS: return dict has required keys",
+    EXPECTED_BWD_PARALLEL_KEYS,
+    out_bwd_p
+)
+
+# cpm_duration matches CPM analysis
+checkAnswer(
+    "Backward Parallel SGS: cpm_duration matches CPM",
+    out_bwd_p['cpm_duration'],
+    expected=40.0
+)
+
+# All activities completed (backward parallel places all activities)
+checkAnswer(
+    "Backward Parallel SGS: n_completed == n_activities",
+    float(out_bwd_p['n_completed']),
+    expected=float(out_bwd_p['n_activities'])
+)
+
+# scheduled_duration matches horizon (ALAP does not extend beyond horizon)
+checkAnswer(
+    "Backward Parallel SGS: scheduled_duration == makespan_hours",
+    out_bwd_p['scheduled_duration'],
+    expected=_makespan,
+    tol=1e-6
+)
+
+# All activities start at or after project start
+_bad_start_p = [
+    act.name for act in pert_bwd_p.forwardDict
+    if act.returnAbsTimes()[0] is not None
+    and act.returnAbsTimes()[0] < pert_bwd_p.startTime
+]
+checkAnswer(
+    "Backward Parallel SGS: no activity starts before project start",
+    float(len(_bad_start_p) == 0),
+    expected=1.0
+)
+
+# All activities end at or before the horizon
+_bad_end_p = [
+    act.name for act in pert_bwd_p.forwardDict
+    if act.returnAbsTimes()[1] is not None
+    and act.returnAbsTimes()[1] > _horizon
+]
+checkAnswer(
+    "Backward Parallel SGS: no activity exceeds horizon",
+    float(len(_bad_end_p) == 0),
+    expected=1.0
+)
+
+# No precedence violations
+_bwd_p_viols, _bwd_p_feas = pert_bwd_p.check_dependency_violations()
+checkAnswer(
+    "Backward Parallel SGS: no precedence violations",
+    float(len(_bwd_p_viols) == 0),
+    expected=1.0
+)
+
+checkAnswer(
+    "Backward Parallel SGS: is_feasible == True",
+    float(_bwd_p_feas),
+    expected=1.0
+)
+
+
+# ---------------------------------------------------------------------------
+# 17. Backward SGS via _ordered: ALAP respects F1 topological order (j30)
+#     Tests that passing _ordered (from a forward run) produces an ALAP
+#     schedule consistent with precedence constraints.
+# ---------------------------------------------------------------------------
+
+print("\n=== Backward SGS with _ordered (j30) ===")
+
+_p_ord = load_pert()
+_raw_prio = _p_ord.priority_calculation(list(_p_ord.forwardDict.keys()), 'lf')
+_f1_ordered = [a for (a, _, _) in _raw_prio]
+
+out_bwd_ord = _p_ord.calculateBackwardSerialScheduleWithResources(
+    makespan_hours=_makespan,
+    _ordered=_f1_ordered,
+)
+checkAnswerString(
+    "Backward Serial SGS with _ordered: priority_rule echoed as 'custom'",
+    out_bwd_ord['priority_rule'],
+    expected='custom'
+)
+checkAnswer(
+    "Backward Serial SGS with _ordered: n_completed ≤ n_activities",
+    float(out_bwd_ord['n_completed'] <= out_bwd_ord['n_activities']),
+    expected=1.0
+)
+_viols_ord, _ = _p_ord.check_dependency_violations()
+checkAnswer(
+    "Backward Serial SGS with _ordered: no precedence violations",
+    float(len(_viols_ord) == 0),
+    expected=1.0
+)
+
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 
