@@ -317,6 +317,24 @@ class TestConstructor:
         with pytest.raises(ValueError, match="mutation"):
             RCPSPGeneticAlgorithm(pert, crossover='one_point', mutation='bogus')
 
+    def test_default_fb_improvement(self, ga):
+        assert ga.fb_improvement is True
+
+    def test_default_fb_freq(self, ga):
+        assert ga.fb_freq == 0
+
+    def test_custom_fb_improvement_false(self, pert):
+        g = RCPSPGeneticAlgorithm(
+            pert, pop_size=3, n_gen=1, verbose=False, fb_improvement=False
+        )
+        assert g.fb_improvement is False
+
+    def test_custom_fb_freq(self, pert):
+        g = RCPSPGeneticAlgorithm(
+            pert, pop_size=3, n_gen=1, verbose=False, fb_freq=5
+        )
+        assert g.fb_freq == 5
+
     def test_toolbox_mate_registered(self, ga):
         assert hasattr(ga.toolbox, 'mate')
 
@@ -621,7 +639,105 @@ class TestMutateInsertionWindow:
 
 
 # =============================================================================
-# 11. End-to-end run
+# 11. Forward-Backward-Forward improvement
+# =============================================================================
+
+class TestFBImprovement:
+
+    def test_backward_chromosome_is_valid_permutation(self, ga):
+        """_compute_backward_chromosome must return a full permutation."""
+        chrom = ga._rule_to_chromosome('lf')
+        bwd_chrom, makespan_h = ga._compute_backward_chromosome(chrom)
+        assert sorted(bwd_chrom) == list(range(ga._n))
+        assert len(bwd_chrom) == ga._n
+
+    def test_backward_chromosome_makespan_positive(self, ga):
+        chrom = ga._rule_to_chromosome('lf')
+        _, makespan_h = ga._compute_backward_chromosome(chrom)
+        assert makespan_h > 0
+
+    def test_backward_chromosome_precedence_feasible(self, ga):
+        """The backward-ordered chromosome must respect all precedence constraints."""
+        chrom = ga._rule_to_chromosome('mts')
+        bwd_chrom, _ = ga._compute_backward_chromosome(chrom)
+        acts = ga._chromosome_to_activities(bwd_chrom)
+        pos = {a: i for i, a in enumerate(acts)}
+        for act, preds in ga.pert.backwardDict.items():
+            if act not in pos:
+                continue
+            for pred in preds:
+                if pred in pos:
+                    assert pos[pred] < pos[act], (
+                        f"Precedence violated: {pred} before {act}"
+                    )
+
+    def test_fb_improvement_returns_valid_permutation(self, ga):
+        """_fb_improvement must return a full permutation and a float fitness."""
+        chrom = ga._rule_to_chromosome('lf')
+        best_chrom, best_fit = ga._fb_improvement(chrom)
+        assert sorted(best_chrom) == list(range(ga._n))
+        assert isinstance(best_fit, (int, float))
+
+    @pytest.mark.parametrize("rule", ['es', 'lf', 'mts', 'grpw', 'random'])
+    def test_fb_improvement_never_worsens(self, ga, rule):
+        """FBF must return fitness ≤ the original forward-pass fitness."""
+        chrom = ga._rule_to_chromosome(rule)
+        (orig_fit,) = ga._evaluate(chrom)
+        _, fb_fit = ga._fb_improvement(chrom)
+        assert fb_fit <= orig_fit + 1e-9, (
+            f"FBF worsened '{rule}': {orig_fit:.2f} → {fb_fit:.2f}"
+        )
+
+    def test_fb_improvement_precedence_feasible(self, ga):
+        """The chromosome returned by _fb_improvement must be precedence-feasible."""
+        chrom = ga._rule_to_chromosome('mts')
+        best_chrom, _ = ga._fb_improvement(chrom)
+        acts = ga._chromosome_to_activities(best_chrom)
+        pos = {a: i for i, a in enumerate(acts)}
+        for act, preds in ga.pert.backwardDict.items():
+            if act not in pos:
+                continue
+            for pred in preds:
+                if pred in pos:
+                    assert pos[pred] < pos[act]
+
+    def test_apply_fb_improvement_returns_int(self, ga):
+        """apply_fb_improvement must return an int count of improved individuals."""
+        pop = ga.generate_initial_population()
+        for ind in pop:
+            ind.fitness.values = ga._evaluate(ind)
+        result = ga.apply_fb_improvement(pop)
+        assert isinstance(result, int)
+        assert 0 <= result <= len(pop)
+
+    def test_apply_fb_improvement_never_worsens(self, ga):
+        """No individual's fitness may increase after apply_fb_improvement."""
+        pop = ga.generate_initial_population()
+        for ind in pop:
+            ind.fitness.values = ga._evaluate(ind)
+        before = [ind.fitness.values[0] for ind in pop]
+        ga.apply_fb_improvement(pop)
+        for i, (ind, orig) in enumerate(zip(pop, before)):
+            assert ind.fitness.values[0] <= orig + 1e-9, (
+                f"Individual {i} worsened: {orig:.2f} → {ind.fitness.values[0]:.2f}"
+            )
+
+    def test_apply_fb_improvement_updates_fitness_when_improved(self, ga):
+        """Individuals that improve must have updated fitness values."""
+        pop = ga.generate_initial_population()
+        for ind in pop:
+            ind.fitness.values = ga._evaluate(ind)
+        before = [ind.fitness.values[0] for ind in pop]
+        n_improved = ga.apply_fb_improvement(pop)
+        actual_improved = sum(
+            1 for ind, orig in zip(pop, before)
+            if ind.fitness.values[0] < orig - 1e-9
+        )
+        assert n_improved == actual_improved
+
+
+# =============================================================================
+# 12. End-to-end run
 # =============================================================================
 
 class TestRun:
@@ -714,6 +830,46 @@ class TestRun:
         hof, log = g.run()
         assert len(hof) > 0
         assert len(log) == g.n_gen + 1
+
+    def test_run_fb_improvement_disabled(self, pert):
+        """GA must complete when FBF improvement is disabled."""
+        g = RCPSPGeneticAlgorithm(
+            pert, pop_size=5, n_gen=2, verbose=False,
+            fb_improvement=False, seed=1,
+        )
+        hof, log = g.run()
+        assert len(hof) > 0
+        assert len(log) == g.n_gen + 1
+
+    def test_run_fb_freq_periodic(self, pert):
+        """GA must complete with periodic FBF enabled and log length unchanged."""
+        g = RCPSPGeneticAlgorithm(
+            pert, pop_size=5, n_gen=4, verbose=False,
+            fb_improvement=True, fb_freq=2, seed=2,
+        )
+        hof, log = g.run()
+        assert len(hof) > 0
+        assert len(log) == g.n_gen + 1  # FBF does not add log entries
+
+    def test_run_fb_hof_fitness_not_worse_than_pre_fb(self, pert):
+        """HoF best fitness with FBF must be ≤ HoF best fitness without FBF."""
+        g_no_fb = RCPSPGeneticAlgorithm(
+            pert, pop_size=8, n_gen=5, verbose=False,
+            fb_improvement=False, seed=3,
+        )
+        hof_no_fb, _ = g_no_fb.run()
+        best_no_fb = hof_no_fb[0].fitness.values[0]
+
+        g_fb = RCPSPGeneticAlgorithm(
+            pert, pop_size=8, n_gen=5, verbose=False,
+            fb_improvement=True, seed=3,
+        )
+        hof_fb, _ = g_fb.run()
+        best_fb = hof_fb[0].fitness.values[0]
+
+        assert best_fb <= best_no_fb + 1e-9, (
+            f"FBF worsened HoF best: {best_no_fb:.2f} → {best_fb:.2f}"
+        )
 
 
 # =============================================================================
