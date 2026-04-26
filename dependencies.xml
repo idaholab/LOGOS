@@ -14,6 +14,7 @@
     <pandas source='pip'/>
     <deap source='pip'/>
     <pytest source="pip"/>
+    <alns source='pip'/>
   </main>
 
   <alternate name="pip">

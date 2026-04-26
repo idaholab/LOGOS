@@ -133,6 +133,9 @@ class RCPSPGeneticAlgorithm:
         Probability of applying crossover to a selected pair of parents.
     seed : int
         RNG seed for reproducibility.
+    n_random : int
+        Number of additional random precedence-feasible reference orderings
+        to include in the consensus library.
     hof_size : int
         Number of elite individuals kept in the Hall of Fame across all
         generations.
@@ -150,6 +153,7 @@ class RCPSPGeneticAlgorithm:
         * ``'swap'``              — random swap with topological repair
         * ``'adjacent_swap'``     — adjacent-swap with feasibility check (default)
         * ``'insertion_window'``  — precedence-window insertion
+        * ``'consensus_reorder'`` — local reorder guided by consensus references
     """
 
     # DEAP creator type names (module-level singletons; guarded against
@@ -168,6 +172,7 @@ class RCPSPGeneticAlgorithm:
         'swap':             '_mutate_swap',
         'adjacent_swap':    '_mutate_adjacent_swap',
         'insertion_window': '_mutate_insertion_window',
+        'consensus_reorder': '_mutate_consensus_reorder',
     }
 
     def __init__(
@@ -178,6 +183,7 @@ class RCPSPGeneticAlgorithm:
         cxpb: float = 0.7,
         mutpb: float = 0.1,
         seed: int = 42,
+        n_random: int = 8,
         hof_size: int = 5,
         verbose: bool = True,
         crossover: str = 'two_point',
@@ -199,6 +205,7 @@ class RCPSPGeneticAlgorithm:
         self.n_gen = n_gen
         self.cxpb = cxpb
         self.mutpb = mutpb
+        self.n_random = n_random
         self.hof_size = hof_size
         self.verbose = verbose
         self.crossover = crossover
@@ -213,8 +220,11 @@ class RCPSPGeneticAlgorithm:
         self._act_to_idx: Dict[Any, int] = {
             a: i for i, a in enumerate(self._activities)
         }
+        self._consensus_library: List[List[int]] = []
+        self._consensus_position_maps: List[Dict[int, int]] = []
 
         self._setup_deap()
+        self._build_consensus_library(self.n_random)
 
     # ---------------------------------------------------------------------- #
     # DEAP registration                                                        #
@@ -283,6 +293,52 @@ class RCPSPGeneticAlgorithm:
     def _chromosome_to_activities(self, chromosome: List[int]) -> List[Any]:
         """Convert an index-list chromosome to an ordered list of Activity objects."""
         return [self._activities[i] for i in chromosome]
+
+    def _repair_chromosome(self, chromosome: List[int]) -> List[int]:
+        """
+        Restore precedence feasibility while preserving the perturbed order
+        as closely as possible.
+        """
+        acts = self._chromosome_to_activities(chromosome)
+        ranked = [(a, pos) for pos, a in enumerate(acts)]
+        repaired = self.pert.reorder_by_dependencies(ranked, self.pert.forwardDict)
+        return [self._act_to_idx[a] for a, _ in repaired]
+
+    def _build_consensus_library(self, n_random: int) -> None:
+        """
+        Build a small library of precedence-feasible reference orderings used
+        by consensus-guided mutation.
+        """
+        references: List[List[int]] = []
+        seen: set[Tuple[int, ...]] = set()
+
+        for rule in PRIORITY_RULES:
+            try:
+                chromosome = self._rule_to_chromosome(rule)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "Skipping rule '%s' in consensus library construction: %s",
+                    rule,
+                    exc,
+                )
+                continue
+            key = tuple(chromosome)
+            if key not in seen:
+                references.append(chromosome)
+                seen.add(key)
+
+        for _ in range(n_random):
+            chromosome = self._rule_to_chromosome('random')
+            key = tuple(chromosome)
+            if key not in seen:
+                references.append(chromosome)
+                seen.add(key)
+
+        self._consensus_library = references
+        self._consensus_position_maps = [
+            {gene: pos for pos, gene in enumerate(chromosome)}
+            for chromosome in references
+        ]
 
     # ---------------------------------------------------------------------- #
     # Initial population                                                       #
@@ -656,13 +712,7 @@ class RCPSPGeneticAlgorithm:
         # Build (Activity, rank) pairs from the perturbed ordering.
         # rank = position index so reorder_by_dependencies preserves the swap
         # wherever precedence allows it.
-        acts = self._chromosome_to_activities(individual)
-        ranked = [(a, pos) for pos, a in enumerate(acts)]
-
-        # Repair to topological feasibility.
-        repaired = self.pert.reorder_by_dependencies(ranked, self.pert.forwardDict)
-
-        individual[:] = [self._act_to_idx[a] for a, _ in repaired]
+        individual[:] = self._repair_chromosome(individual)
         return (individual,)
 
     def _mutate_adjacent_swap(
@@ -797,6 +847,64 @@ class RCPSPGeneticAlgorithm:
 
         return (individual,)
 
+    def _mutate_consensus_reorder(self, individual: List[int]) -> Tuple[List[int]]:
+        """
+        Consensus-guided block reorder mutation.
+
+        The operator perturbs a local window of the chromosome using a
+        consensus ranking induced by several reference orderings. This follows
+        the spirit of consensus recombination: preserve agreements that recur
+        across multiple good precedence-feasible schedules, but apply them as
+        a unary mutation to a single individual.
+
+        Algorithm
+        ---------
+        1. Select a random interior window [lo..hi] of non-dummy genes.
+        2. Sample a small number of precedence-feasible reference orderings
+           from the consensus library.
+        3. For each gene in the window, compute its average position across
+           the sampled references.
+        4. Reorder only the genes inside the window by that consensus score,
+           breaking ties by the current order.
+        5. Apply topological repair to restore precedence feasibility if the
+           local reorder conflicts with dependency constraints.
+
+        Returns
+        -------
+        tuple
+            ``(individual,)`` — single-element tuple per DEAP convention.
+        """
+        n = len(individual)
+        if n < 6 or not self._consensus_position_maps:
+            return (individual,)
+
+        interior_positions = list(range(1, n - 1))
+        if len(interior_positions) < 3:
+            return (individual,)
+
+        max_window = min(8, len(interior_positions))
+        window_len = random.randint(3, max_window)
+        lo = random.randint(1, n - 1 - window_len)
+        hi = lo + window_len
+
+        current_window = individual[lo:hi]
+        current_rank = {gene: offset for offset, gene in enumerate(current_window)}
+
+        sample_size = min(5, len(self._consensus_position_maps))
+        sampled_maps = random.sample(self._consensus_position_maps, sample_size)
+
+        def consensus_score(gene: int) -> Tuple[float, int]:
+            avg_pos = sum(pos_map[gene] for pos_map in sampled_maps) / sample_size
+            return avg_pos, current_rank[gene]
+
+        reordered_window = sorted(current_window, key=consensus_score)
+        if reordered_window == current_window:
+            return (individual,)
+
+        individual[lo:hi] = reordered_window
+        individual[:] = self._repair_chromosome(individual)
+        return (individual,)
+
     # ---------------------------------------------------------------------- #
     # Main optimisation loop                                                   #
     # ---------------------------------------------------------------------- #
@@ -812,7 +920,7 @@ class RCPSPGeneticAlgorithm:
         3. For each of ``n_gen`` generations:
            a. Tournament selection.
            b. Pairwise crossover with probability ``cxpb``.
-           c. Swap mutation with probability ``mutpb``.
+           c. Apply the configured mutation operator with probability ``mutpb``.
            d. Re-evaluate invalidated offspring.
            d. Generational replacement.
            e. Update Hall of Fame and statistics logbook.
