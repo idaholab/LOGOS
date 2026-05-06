@@ -145,6 +145,18 @@ class RCPSPGraphGeneticAlgorithm:
             if pert.infoDict else 1.0
         )
 
+        # Transitive successor cache used for precedence-safe insertion windows.
+        self._trans_successors: Dict[Any, Set[Any]] = {}
+        for act in reversed(self._topo):
+            direct = {
+                succ for succ in self.pert.forwardDict.get(act, [])
+                if succ in self._act_to_idx
+            }
+            trans: Set[Any] = set()
+            for succ in direct:
+                trans.update(self._trans_successors.get(succ, set()))
+            self._trans_successors[act] = direct | trans
+
     # ---------------------------------------------------------------------- #
     # Construction helpers                                                     #
     # ---------------------------------------------------------------------- #
@@ -268,18 +280,13 @@ class RCPSPGraphGeneticAlgorithm:
         """
         order = self._start_times_to_activity_order(self._lags_to_start_times(lags))
         out = self.pert.calculateSerialScheduleWithResources(_ordered=order)
+        if out.get('n_completed', 0) < out.get('n_activities', len(self._activities)):
+            return math.inf, list(lags)
         makespan = out['scheduled_duration'] - 2
 
-        project_start = self.pert.startTime
-        actual_starts: Dict[Any, float] = {}
-        for a in self._activities:
-            if a.startTime is not None and project_start is not None:
-                actual_starts[a] = (
-                    (a.startTime - project_start).total_seconds() / 3600.0
-                )
-            else:
-                actual_starts[a] = 0.0
-
+        actual_starts = self._get_actual_start_offsets()
+        if actual_starts is None:
+            return math.inf, list(lags)
         corrected = self._correct_aon_lag(actual_starts)
         return makespan, corrected
 
@@ -289,20 +296,36 @@ class RCPSPGraphGeneticAlgorithm:
         resulting resource-feasible schedule, and return an evaluated Individual.
         """
         out = self.pert.calculateSerialScheduleWithResources(_ordered=order)
+        if out.get('n_completed', 0) < out.get('n_activities', len(self._activities)):
+            return self._make_individual([0.0] * len(self._arcs), math.inf)
         makespan = out['scheduled_duration'] - 2
 
-        project_start = self.pert.startTime
-        actual_starts: Dict[Any, float] = {}
-        for a in self._activities:
-            if a.startTime is not None and project_start is not None:
-                actual_starts[a] = (
-                    (a.startTime - project_start).total_seconds() / 3600.0
-                )
-            else:
-                actual_starts[a] = 0.0
+        actual_starts = self._get_actual_start_offsets()
+        if actual_starts is None:
+            return self._make_individual([0.0] * len(self._arcs), math.inf)
 
         corrected = self._correct_aon_lag(actual_starts)
         return self._make_individual(corrected, makespan)
+
+    def _get_actual_start_offsets(self) -> Optional[Dict[Any, float]]:
+        """
+        Return actual start offsets in hours after a successful SGS run.
+
+        ``None`` indicates that at least one activity was not scheduled or that
+        the project start time is unavailable.
+        """
+        project_start = self.pert.startTime
+        if project_start is None:
+            return None
+
+        actual_starts: Dict[Any, float] = {}
+        for a in self._activities:
+            if a.startTime is None:
+                return None
+            actual_starts[a] = (
+                (a.startTime - project_start).total_seconds() / 3600.0
+            )
+        return actual_starts
 
     # ---------------------------------------------------------------------- #
     # Individual factory                                                       #
@@ -334,7 +357,7 @@ class RCPSPGraphGeneticAlgorithm:
 
         Seeding order:
         1. Each priority rule in ``PRIORITY_RULES`` (up to ``ne`` slots):
-           derive an activity ordering → CPM early-start lags → ``_improve``.
+           derive an activity ordering → serial SGS → corrected lag vector.
         2. Zero-lag individual (all lags = 0, i.e. CPM-earliest ordering).
         3. Random lag vectors until the pool reaches ``ne``.
         """
@@ -347,19 +370,15 @@ class RCPSPGraphGeneticAlgorithm:
                 break
             try:
                 self.pert.priorities = None
-                raw = self.pert.priority_calculation(all_acts, priority_rule=rule)
+                raw = self.pert.priority_calculation(
+                    list(all_acts), priority_rule=rule
+                )
                 if raw and isinstance(raw[0], tuple):
                     ordered_acts: List[Any] = [a for (a, _, _) in raw]
                 else:
                     ordered_acts = list(raw)
 
-                # Use CPM early-start times to initialise lags for this ordering
-                cpm_starts = {
-                    a: self.pert.infoDict[a]['es'] for a in self._activities
-                }
-                init_lags = self._correct_aon_lag(cpm_starts)
-
-                ind = self._evaluate(self._make_individual(init_lags))
+                ind = self._evaluate_activity_order(ordered_acts)
                 pool.append(ind)
                 seed_info[rule] = ind['fitness']
             except Exception as exc:
@@ -455,6 +474,14 @@ class RCPSPGraphGeneticAlgorithm:
                         if succ not in self._dummy_acts and succ not in visited_bfs:
                             queue.append(succ)
 
+        if btype == 'backward':
+            frontier: Set[Any] = set()
+            for node in list(collected):
+                for pred in self.pert.backwardDict.get(node, []):
+                    if pred not in self._dummy_acts:
+                        frontier.add(pred)
+            collected.update(frontier)
+
         if not collected:
             return frozenset()
 
@@ -506,9 +533,10 @@ class RCPSPGraphGeneticAlgorithm:
         """
         Algorithm 3: Lag-uniform crossover with frozen block.
 
-        For each arc (u → v):
-        - If v is in the frozen set → inherit lag from p1 (protection).
-        - Otherwise → inherit from p1 or p2 with equal probability.
+        For each activity v:
+        - If v is in the frozen set → inherit all incoming lags from p1.
+        - Otherwise → inherit v's incoming lag bundle from p1 or p2 with
+          equal probability.
 
         Two children would be symmetric; here we produce one child (the main
         loop calls this operator multiple times with different parent pairs).
@@ -517,9 +545,15 @@ class RCPSPGraphGeneticAlgorithm:
         lags2 = p2['lags']
         child_lags = list(lags1)
 
-        for k, (i_idx, j_idx) in enumerate(self._arcs):
+        incoming_by_target: Dict[int, List[int]] = {}
+        for k, (_, j_idx) in enumerate(self._arcs):
+            incoming_by_target.setdefault(j_idx, []).append(k)
+
+        for j_idx, arc_indices in incoming_by_target.items():
             act_j = self._activities[j_idx]
-            if act_j not in frozen and random.random() < 0.5:
+            if act_j in frozen or random.random() >= 0.5:
+                continue
+            for k in arc_indices:
                 child_lags[k] = lags2[k]
 
         return self._evaluate(self._make_individual(child_lags))
@@ -580,8 +614,7 @@ class RCPSPGraphGeneticAlgorithm:
         Algorithm 5: Day-form two-point crossover with frozen activity protection.
 
         1. Convert both parents to start-time vectors aligned with _topo.
-        2. Randomly swap the segment [q1, q2) from the challenger into the
-           winner's vector.
+        2. Build the four two-point segment-exchange variants and choose one.
         3. Restore frozen activities' start times to the winner's values.
         4. Re-derive activity ordering and run _improve (SGS + correct lags).
         """
@@ -594,14 +627,25 @@ class RCPSPGraphGeneticAlgorithm:
 
         q1, q2 = sorted(random.sample(range(1, n), 2))
 
-        child_st: Dict[Any, float] = {}
-        for i, act in enumerate(self._topo):
-            if act in frozen:
-                child_st[act] = st_w.get(act, 0.0)
-            elif q1 <= i < q2:
-                child_st[act] = st_c.get(act, st_w.get(act, 0.0))
-            else:
-                child_st[act] = st_w.get(act, 0.0)
+        candidates: List[Dict[Any, float]] = []
+        for base_st, donor_st in ((st_w, st_c), (st_c, st_w)):
+            inside: Dict[Any, float] = {}
+            outside: Dict[Any, float] = {}
+            for i, act in enumerate(self._topo):
+                in_segment = q1 <= i < q2
+                inside[act] = (
+                    donor_st.get(act, base_st.get(act, 0.0))
+                    if in_segment else base_st.get(act, 0.0)
+                )
+                outside[act] = (
+                    base_st.get(act, 0.0)
+                    if in_segment else donor_st.get(act, base_st.get(act, 0.0))
+                )
+            candidates.extend([inside, outside])
+
+        child_st = random.choice(candidates)
+        for act in frozen:
+            child_st[act] = st_w.get(act, 0.0)
 
         child_lags = self._correct_aon_lag(child_st)
         return self._evaluate(self._make_individual(child_lags))
@@ -723,7 +767,7 @@ class RCPSPGraphGeneticAlgorithm:
 
         # Compute feasible insertion window
         preds = self.pert.backwardDict.get(act, [])
-        succs = self.pert.forwardDict.get(act, [])
+        succs = self._trans_successors.get(act, set())
 
         lo = (
             max(
@@ -839,9 +883,18 @@ class RCPSPGraphGeneticAlgorithm:
 
             # Stall-triggered restart
             if stall >= self.restart_threshold:
-                elite = self._build_initial_population()
-                elite.sort(key=lambda x: x['fitness'])
-                elite[0] = self._make_individual(winner['lags'], winner['fitness'])
+                fresh_elite = self._build_initial_population()
+                fresh_elite.append(
+                    self._make_individual(winner['lags'], winner['fitness'])
+                )
+                fresh_elite.sort(key=lambda x: x['fitness'])
+                elite = fresh_elite[: self.ne]
+                if elite[0]['fitness'] < best_ever:
+                    best_ever = elite[0]['fitness']
+                    winner = self._make_individual(
+                        elite[0]['lags'], elite[0]['fitness']
+                    )
+                gen_best_fitness = elite[0]['fitness']
                 stall = 0
                 restarted = True
 
