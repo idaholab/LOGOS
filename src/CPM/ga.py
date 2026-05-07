@@ -162,6 +162,28 @@ class RCPSPGeneticAlgorithm:
         If > 0, also apply FBF every ``fb_freq`` generations during evolution
         (applied to the whole population).  ``0`` (default) disables periodic
         in-run application and limits FBF to the final polishing step.
+    target_fitness : float, optional
+        Stop once the Hall-of-Fame best fitness is less than or equal to this
+        value.  Useful when a PSPLIB optimum or accepted target makespan is
+        known.
+    max_evals : int, optional
+        Stop before starting a generation that would exceed this many GA
+        fitness evaluations.  This counts calls to the serial SGS decoder made
+        by ``_evaluate``; FBF local-improvement calls are not counted, so set
+        ``fb_improvement=False`` for a strict decoder-call budget.
+    stall_generations : int, optional
+        Stop after this many consecutive generations without a Hall-of-Fame
+        improvement larger than ``stall_tolerance``.
+    stall_tolerance : float
+        Minimum decrease in best fitness required to reset the stall counter.
+    fitness_std_tol : float, optional
+        Stop when population fitness standard deviation remains at or below
+        this threshold for ``std_generations`` consecutive generations.
+    std_generations : int
+        Consecutive low-variance generations required by ``fitness_std_tol``.
+    max_unique_schedules : int, optional
+        Stop after observing this many unique decoded start-time schedules.
+        Schedule uniqueness is tracked only when this option is supplied.
     """
 
     # DEAP creator type names (module-level singletons; guarded against
@@ -198,6 +220,13 @@ class RCPSPGeneticAlgorithm:
         mutation: str = 'adjacent_swap',
         fb_improvement: bool = True,
         fb_freq: int = 0,
+        target_fitness: Optional[float] = None,
+        max_evals: Optional[int] = None,
+        stall_generations: Optional[int] = None,
+        stall_tolerance: float = 1e-9,
+        fitness_std_tol: Optional[float] = None,
+        std_generations: int = 1,
+        max_unique_schedules: Optional[int] = None,
     ) -> None:
         if crossover not in self._CROSSOVER_METHODS:
             raise ValueError(
@@ -221,6 +250,18 @@ class RCPSPGeneticAlgorithm:
             raise ValueError("n_random must be non-negative.")
         if hof_size <= 0:
             raise ValueError("hof_size must be positive.")
+        if max_evals is not None and max_evals < pop_size:
+            raise ValueError("max_evals must be at least pop_size.")
+        if stall_generations is not None and stall_generations <= 0:
+            raise ValueError("stall_generations must be positive when supplied.")
+        if stall_tolerance < 0:
+            raise ValueError("stall_tolerance must be non-negative.")
+        if fitness_std_tol is not None and fitness_std_tol < 0:
+            raise ValueError("fitness_std_tol must be non-negative when supplied.")
+        if std_generations <= 0:
+            raise ValueError("std_generations must be positive.")
+        if max_unique_schedules is not None and max_unique_schedules <= 0:
+            raise ValueError("max_unique_schedules must be positive when supplied.")
 
         self.pert = pert
         self.pop_size = pop_size
@@ -234,6 +275,18 @@ class RCPSPGeneticAlgorithm:
         self.mutation = mutation
         self.fb_improvement = fb_improvement
         self.fb_freq = fb_freq
+        self.target_fitness = target_fitness
+        self.max_evals = max_evals
+        self.stall_generations = stall_generations
+        self.stall_tolerance = stall_tolerance
+        self.fitness_std_tol = fitness_std_tol
+        self.std_generations = std_generations
+        self.max_unique_schedules = max_unique_schedules
+        self.stop_reason: Optional[str] = None
+
+        self._eval_count = 0
+        self._unique_schedule_signatures: set[Tuple[Tuple[int, Optional[float]], ...]] = set()
+        self._track_unique_schedules = max_unique_schedules is not None
 
         random.seed(seed)
         np.random.seed(seed)
@@ -606,6 +659,45 @@ class RCPSPGeneticAlgorithm:
     # Fitness evaluation                                                       #
     # ---------------------------------------------------------------------- #
 
+    def _reset_run_counters(self) -> None:
+        """Reset counters used by optional stopping criteria."""
+        self.stop_reason = None
+        self._eval_count = 0
+        self._unique_schedule_signatures = set()
+        self._track_unique_schedules = self.max_unique_schedules is not None
+
+    def _schedule_signature(self) -> Tuple[Tuple[int, Optional[float]], ...]:
+        """
+        Canonical start-time signature for the schedule left by the SGS decoder.
+
+        Two chromosomes can decode to the same start-time schedule.  The
+        optional ``max_unique_schedules`` stopping rule follows that schedule
+        space rather than raw chromosome count.
+        """
+        project_start = getattr(self.pert, 'startTime', None)
+        signature: List[Tuple[int, Optional[float]]] = []
+        for idx, act in enumerate(self._activities):
+            start_time = getattr(act, 'startTime', None)
+            if project_start is None or start_time is None:
+                offset = None
+            else:
+                offset = round(
+                    (start_time - project_start).total_seconds() / 3600.0,
+                    9,
+                )
+            signature.append((idx, offset))
+        return tuple(signature)
+
+    def _note_fitness_evaluation(self) -> None:
+        """Update evaluation and unique-schedule counters after SGS decoding."""
+        self._eval_count += 1
+        if self._track_unique_schedules:
+            self._unique_schedule_signatures.add(self._schedule_signature())
+
+    def _unique_schedule_count(self) -> int:
+        """Number of unique decoded schedules tracked in this run."""
+        return len(self._unique_schedule_signatures)
+
     def _evaluate(self, individual: List[int]) -> Tuple[float, ...]:
         """
         Decode an activity list chromosome and evaluate fitness using the
@@ -630,6 +722,7 @@ class RCPSPGeneticAlgorithm:
         """
         ordered_acts = self._chromosome_to_activities(individual)
         out = self.pert.calculateSerialScheduleWithResources(_ordered=ordered_acts)
+        self._note_fitness_evaluation()
         return (out['scheduled_duration'] - 2,)
 
     # ---------------------------------------------------------------------- #
@@ -1078,6 +1171,28 @@ class RCPSPGeneticAlgorithm:
     # Main optimisation loop                                                   #
     # ---------------------------------------------------------------------- #
 
+    def _stopping_reason(
+        self,
+        best_fitness: float,
+        stall: int,
+        std_stall: int,
+    ) -> Optional[str]:
+        """Return the active stopping reason, if an optional criterion fired."""
+        if self.target_fitness is not None and best_fitness <= self.target_fitness:
+            return 'target_fitness'
+        if (
+            self.max_unique_schedules is not None
+            and self._unique_schedule_count() >= self.max_unique_schedules
+        ):
+            return 'max_unique_schedules'
+        if self.max_evals is not None and self._eval_count >= self.max_evals:
+            return 'max_evals'
+        if self.stall_generations is not None and stall >= self.stall_generations:
+            return 'stall_generations'
+        if self.fitness_std_tol is not None and std_stall >= self.std_generations:
+            return 'fitness_std_tol'
+        return None
+
     def run(self) -> Tuple[tools.HallOfFame, tools.Logbook]:
         """
         Execute the genetic algorithm.
@@ -1102,9 +1217,12 @@ class RCPSPGeneticAlgorithm:
             by a final FBF pass before being returned.
         log : deap.tools.Logbook
             Per-generation statistics:
-            ``gen``, ``nevals``, ``min``, ``avg``, ``std``, ``max``.
+            ``gen``, ``nevals``, ``evals``, ``best``, ``stall``,
+            ``unique_schedules``, ``stop_reason``, ``min``, ``avg``, ``std``,
+            ``max``.
         """
         # ── Generation 0 ─────────────────────────────────────────────────────
+        self._reset_run_counters()
         pop = self.generate_initial_population()
         if not pop:
             raise RuntimeError("Initial population is empty; GA cannot run.")
@@ -1121,56 +1239,118 @@ class RCPSPGeneticAlgorithm:
         stats.register("max", np.max)
 
         log = tools.Logbook()
-        log.header = ["gen", "nevals"] + stats.fields
+        log.header = [
+            "gen", "nevals", "evals", "best", "stall",
+            "unique_schedules", "stop_reason",
+        ] + stats.fields
         hof.update(pop)
         record = stats.compile(pop)
-        log.record(gen=0, nevals=len(pop), **record)
+        best_ever = hof[0].fitness.values[0]
+        stall = 0
+        std_stall = (
+            1
+            if self.fitness_std_tol is not None
+            and record['std'] <= self.fitness_std_tol
+            else 0
+        )
+        stop_reason = self._stopping_reason(best_ever, stall, std_stall)
+        log.record(
+            gen=0,
+            nevals=len(pop),
+            evals=self._eval_count,
+            best=best_ever,
+            stall=stall,
+            unique_schedules=self._unique_schedule_count(),
+            stop_reason=stop_reason or '',
+            **record,
+        )
         if self.verbose:
             print(log.stream)
 
         # ── Generational loop ─────────────────────────────────────────────────
-        for gen in range(1, self.n_gen + 1):
-            # Selection
-            offspring = list(
-                map(self.toolbox.clone, self.toolbox.select(pop, len(pop)))
-            )
+        if stop_reason is None:
+            for gen in range(1, self.n_gen + 1):
+                if self.max_evals is not None and self._eval_count >= self.max_evals:
+                    stop_reason = 'max_evals'
+                    break
 
-            # Crossover
-            for child1, child2 in zip(offspring[::2], offspring[1::2]):
-                if random.random() < self.cxpb:
-                    self.toolbox.mate(child1, child2)
-                    del child1.fitness.values
-                    del child2.fitness.values
+                # Selection
+                offspring = list(
+                    map(self.toolbox.clone, self.toolbox.select(pop, len(pop)))
+                )
 
-            # Mutation
-            for mutant in offspring:
-                if random.random() < self.mutpb:
-                    self.toolbox.mutate(mutant)
-                    del mutant.fitness.values
+                # Crossover
+                for child1, child2 in zip(offspring[::2], offspring[1::2]):
+                    if random.random() < self.cxpb:
+                        self.toolbox.mate(child1, child2)
+                        del child1.fitness.values
+                        del child2.fitness.values
 
-            # Evaluate invalidated individuals
-            invalid = [ind for ind in offspring if not ind.fitness.valid]
-            for ind, fit in zip(invalid, map(self.toolbox.evaluate, invalid)):
-                ind.fitness.values = fit
+                # Mutation
+                for mutant in offspring:
+                    if random.random() < self.mutpb:
+                        self.toolbox.mutate(mutant)
+                        del mutant.fitness.values
 
-            # Generational replacement
-            pop[:] = offspring
-            hof.update(pop)
+                # Evaluate invalidated individuals
+                invalid = [ind for ind in offspring if not ind.fitness.valid]
+                if self.max_evals is not None:
+                    remaining_evals = self.max_evals - self._eval_count
+                    if len(invalid) > remaining_evals:
+                        stop_reason = 'max_evals'
+                        break
+                for ind, fit in zip(invalid, map(self.toolbox.evaluate, invalid)):
+                    ind.fitness.values = fit
 
-            # Periodic FBF improvement (optional)
-            if self.fb_improvement and self.fb_freq > 0 and gen % self.fb_freq == 0:
-                n_fb = self.apply_fb_improvement(pop)
+                # Generational replacement
+                pop[:] = offspring
                 hof.update(pop)
-                if self.verbose and n_fb:
-                    print(
-                        f"  [FBF gen {gen}] {n_fb}/{len(pop)} improved"
-                        f" | best = {hof[0].fitness.values[0]:.2f} h"
-                    )
 
-            record = stats.compile(pop)
-            log.record(gen=gen, nevals=len(invalid), **record)
-            if self.verbose:
-                print(log.stream)
+                # Periodic FBF improvement (optional)
+                if self.fb_improvement and self.fb_freq > 0 and gen % self.fb_freq == 0:
+                    n_fb = self.apply_fb_improvement(pop)
+                    hof.update(pop)
+                    if self.verbose and n_fb:
+                        print(
+                            f"  [FBF gen {gen}] {n_fb}/{len(pop)} improved"
+                            f" | best = {hof[0].fitness.values[0]:.2f} h"
+                        )
+
+                record = stats.compile(pop)
+                gen_best = hof[0].fitness.values[0]
+                if gen_best < best_ever - self.stall_tolerance:
+                    best_ever = gen_best
+                    stall = 0
+                else:
+                    stall += 1
+
+                if (
+                    self.fitness_std_tol is not None
+                    and record['std'] <= self.fitness_std_tol
+                ):
+                    std_stall += 1
+                else:
+                    std_stall = 0
+
+                stop_reason = self._stopping_reason(best_ever, stall, std_stall)
+                log.record(
+                    gen=gen,
+                    nevals=len(invalid),
+                    evals=self._eval_count,
+                    best=best_ever,
+                    stall=stall,
+                    unique_schedules=self._unique_schedule_count(),
+                    stop_reason=stop_reason or '',
+                    **record,
+                )
+                if self.verbose:
+                    print(log.stream)
+                if stop_reason is not None:
+                    break
+
+        self.stop_reason = stop_reason or 'max_generations'
+        if log:
+            log[-1]['stop_reason'] = self.stop_reason
 
         # Final FBF polish on the full population; update HoF from result
         if self.fb_improvement:
@@ -1240,6 +1420,116 @@ class RCPSPGeneticAlgorithm:
         """
         return [self._activities[i].returnName() for i in hof[0]]
 
+    def plot_convergence(
+        self,
+        log: tools.Logbook,
+        filename: Optional[str] = None,
+        show: bool = False,
+        include_avg: bool = True,
+        include_std: bool = True,
+        include_max: bool = False,
+        title: Optional[str] = None,
+        ax: Any = None,
+        dpi: int = 150,
+    ) -> Tuple[Any, Any]:
+        """
+        Plot GA convergence from the ``Logbook`` returned by ``run()``.
+
+        The plot shows per-generation population minimum fitness and the
+        cumulative best-so-far curve.  The population average and +/- one
+        standard-deviation band can be included to show convergence pressure.
+
+        Parameters
+        ----------
+        log : deap.tools.Logbook
+            Logbook returned by ``run()``.  Expected fields are ``gen``, ``min``,
+            ``avg``, ``std``, and optionally ``max``.
+        filename : str, optional
+            If supplied, save the figure to this path.
+        show : bool
+            If True, call ``matplotlib.pyplot.show()`` before returning.
+        include_avg : bool
+            Plot the population average fitness curve.
+        include_std : bool
+            Fill the average +/- one standard-deviation band.  Ignored when
+            ``include_avg`` is False.
+        include_max : bool
+            Plot the population maximum fitness curve.
+        title : str, optional
+            Custom plot title.  A default title is used when omitted.
+        ax : matplotlib.axes.Axes, optional
+            Existing axes to draw into.  If omitted, a new figure is created.
+        dpi : int
+            DPI used when saving ``filename``.
+
+        Returns
+        -------
+        (fig, ax)
+            Matplotlib figure and axes objects.
+        """
+        records = list(log)
+        if not records:
+            raise ValueError("Cannot plot an empty GA logbook.")
+
+        def _series(field: str) -> List[float]:
+            try:
+                return [float(row[field]) for row in records]
+            except KeyError as exc:
+                raise ValueError(
+                    f"GA logbook is missing required field '{field}'."
+                ) from exc
+
+        gens = _series('gen')
+        gen_min = _series('min')
+        gen_avg = _series('avg') if include_avg else []
+        gen_std = _series('std') if include_avg and include_std else []
+        best_so_far: List[float] = []
+        current_best = float('inf')
+        for value in gen_min:
+            current_best = min(current_best, value)
+            best_so_far.append(current_best)
+
+        import matplotlib.pyplot as plt
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(8, 4.5))
+        else:
+            fig = ax.figure
+
+        ax.plot(gens, gen_min, color='tab:blue', linewidth=1.4,
+                label='Generation min')
+        ax.plot(gens, best_so_far, color='tab:green', linewidth=2.0,
+                label='Best so far')
+
+        if include_avg:
+            ax.plot(gens, gen_avg, color='tab:orange', linewidth=1.2,
+                    label='Population avg')
+            if include_std:
+                lower = [avg - std for avg, std in zip(gen_avg, gen_std)]
+                upper = [avg + std for avg, std in zip(gen_avg, gen_std)]
+                ax.fill_between(gens, lower, upper, color='tab:orange',
+                                alpha=0.15, linewidth=0,
+                                label='Avg +/- std')
+
+        if include_max:
+            gen_max = _series('max')
+            ax.plot(gens, gen_max, color='tab:red', linewidth=1.0,
+                    alpha=0.65, label='Population max')
+
+        ax.set_title(title or 'GA Convergence')
+        ax.set_xlabel('Generation')
+        ax.set_ylabel('Schedule duration (h)')
+        ax.grid(True, linestyle=':', linewidth=0.8, alpha=0.7)
+        ax.legend()
+        fig.tight_layout()
+
+        if filename:
+            fig.savefig(filename, dpi=dpi, bbox_inches='tight')
+        if show:
+            plt.show()
+
+        return fig, ax
+
     def get_convergence_summary(self, log: tools.Logbook) -> Dict:
         """
         Extract a concise convergence summary from the logbook.
@@ -1253,15 +1543,21 @@ class RCPSPGeneticAlgorithm:
         -------
         dict with keys:
             ``n_gen``, ``best_duration``, ``initial_best``, ``improvement``,
-            ``final_avg``, ``final_std``.
+            ``final_avg``, ``final_std``, ``n_evals``, ``n_unique_schedules``,
+            ``stop_reason``.
         """
         gen0 = log[0]
         final = log[-1]
+        initial_best = gen0.get('best', gen0['min'])
+        final_best = final.get('best', final['min'])
         return {
             'n_gen': len(log) - 1,
-            'best_duration': final['min'],
-            'initial_best': gen0['min'],
-            'improvement': gen0['min'] - final['min'],
+            'best_duration': final_best,
+            'initial_best': initial_best,
+            'improvement': initial_best - final_best,
             'final_avg': final['avg'],
             'final_std': final['std'],
+            'n_evals': final.get('evals', sum(row.get('nevals', 0) for row in log)),
+            'n_unique_schedules': final.get('unique_schedules', 0),
+            'stop_reason': final.get('stop_reason', 'max_generations'),
         }
