@@ -329,6 +329,23 @@ class TestConstructor:
         )
         assert g.fb_improvement is False
 
+    def test_invalid_max_evals_raises(self, pert):
+        with pytest.raises(ValueError, match="max_evals"):
+            RCPSPGeneticAlgorithm(
+                pert,
+                pop_size=5,
+                max_evals=4,
+                verbose=False,
+            )
+
+    def test_invalid_stall_generations_raises(self, pert):
+        with pytest.raises(ValueError, match="stall_generations"):
+            RCPSPGeneticAlgorithm(
+                pert,
+                stall_generations=0,
+                verbose=False,
+            )
+
     def test_custom_fb_freq(self, pert):
         g = RCPSPGeneticAlgorithm(
             pert, pop_size=3, n_gen=1, verbose=False, fb_freq=5
@@ -771,6 +788,11 @@ class TestRun:
         g, _, log = run_results
         assert len(log) == g.n_gen + 1
 
+    def test_log_has_stopping_fields(self, run_results):
+        _, _, log = run_results
+        expected = {'evals', 'best', 'stall', 'unique_schedules', 'stop_reason'}
+        assert expected.issubset(log[-1].keys())
+
     def test_best_fitness_is_finite(self, run_results):
         _, hof, _ = run_results
         best = hof[0].fitness.values[0]
@@ -797,11 +819,28 @@ class TestRun:
         act_list = g.get_best_activity_list(hof)
         assert all(isinstance(name, str) for name in act_list)
 
+    def test_plot_convergence_returns_figure(self, run_results, tmp_path):
+        """GA convergence log should render and optionally save to disk."""
+        import matplotlib
+        matplotlib.use('Agg', force=True)
+        import matplotlib.pyplot as plt
+
+        g, _, log = run_results
+        output = tmp_path / 'ga_convergence.png'
+        fig, ax = g.plot_convergence(log, filename=str(output), show=False)
+
+        assert output.exists()
+        assert ax.get_xlabel() == 'Generation'
+        assert ax.get_ylabel() == 'Schedule duration (h)'
+        assert len(ax.lines) >= 2
+        plt.close(fig)
+
     def test_get_convergence_summary_keys(self, run_results):
         g, _, log = run_results
         summary = g.get_convergence_summary(log)
         expected = {'n_gen', 'best_duration', 'initial_best',
-                    'improvement', 'final_avg', 'final_std'}
+                    'improvement', 'final_avg', 'final_std',
+                    'n_evals', 'n_unique_schedules', 'stop_reason'}
         assert expected == set(summary.keys())
 
     def test_convergence_summary_n_gen(self, run_results):
@@ -814,6 +853,67 @@ class TestRun:
         summary = g.get_convergence_summary(log)
         assert summary['improvement'] >= -1e-9, \
             f"Unexpected regression: {summary['improvement']}"
+
+    def test_target_fitness_stops_after_initial_population(self, pert):
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=5,
+            n_gen=20,
+            target_fitness=10_000.0,
+            fb_improvement=False,
+            verbose=False,
+            seed=3,
+        )
+        _, log = g.run()
+        assert len(log) == 1
+        assert g.stop_reason == 'target_fitness'
+        assert log[-1]['stop_reason'] == 'target_fitness'
+
+    def test_max_evals_stops_before_extra_generation(self, pert):
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=5,
+            n_gen=20,
+            max_evals=5,
+            fb_improvement=False,
+            verbose=False,
+            seed=4,
+        )
+        _, log = g.run()
+        assert len(log) == 1
+        assert log[-1]['evals'] == 5
+        assert g.stop_reason == 'max_evals'
+
+    def test_stall_generations_stops_early(self, pert):
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=5,
+            n_gen=20,
+            cxpb=0.0,
+            mutpb=0.0,
+            stall_generations=1,
+            fb_improvement=False,
+            verbose=False,
+            seed=5,
+        )
+        _, log = g.run()
+        assert len(log) <= 2
+        assert g.stop_reason == 'stall_generations'
+
+    def test_unique_schedule_budget_is_tracked(self, pert):
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=5,
+            n_gen=20,
+            max_unique_schedules=1,
+            fb_improvement=False,
+            verbose=False,
+            seed=6,
+        )
+        _, log = g.run()
+        assert len(log) == 1
+        assert log[-1]['unique_schedules'] >= 1
+        assert g.stop_reason == 'max_unique_schedules'
 
     @pytest.mark.parametrize("cx,mut", [
         ('one_point',    'swap'),
