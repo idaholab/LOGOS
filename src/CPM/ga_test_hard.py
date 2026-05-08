@@ -45,15 +45,31 @@ BEST_RESULTS_PATH = Path(__file__).parent / "benchmarks" / "best_results.json"
 CASES = [
     ("j12051_6",  "benchmarks/PSPLIB_Json/j120/j12051_6.json"),
     ("j12031_10", "benchmarks/PSPLIB_Json/j120/j12031_10.json"),
-    # ("j12036_6",  "benchmarks/PSPLIB_Json/j120/j12036_6.json"),
-    # ("j12056_7",  "benchmarks/PSPLIB_Json/j120/j12056_7.json"),
-    # ("j12051_5",  "benchmarks/PSPLIB_Json/j120/j12051_5.json"),
-    # ("j12056_1",  "benchmarks/PSPLIB_Json/j120/j12056_1.json"),
-    # ("j12026_10", "benchmarks/PSPLIB_Json/j120/j12026_10.json"),
-    # ("j12051_7",  "benchmarks/PSPLIB_Json/j120/j12051_7.json"),
-    # ("j12056_5",  "benchmarks/PSPLIB_Json/j120/j12056_5.json"),
-    # ("j12056_9",  "benchmarks/PSPLIB_Json/j120/j12056_9.json"),
+    ("j12036_6",  "benchmarks/PSPLIB_Json/j120/j12036_6.json"),
+    ("j12056_7",  "benchmarks/PSPLIB_Json/j120/j12056_7.json"),
+    ("j12051_5",  "benchmarks/PSPLIB_Json/j120/j12051_5.json"),
+    ("j12056_1",  "benchmarks/PSPLIB_Json/j120/j12056_1.json"),
+    ("j12026_10", "benchmarks/PSPLIB_Json/j120/j12026_10.json"),
+    ("j12051_7",  "benchmarks/PSPLIB_Json/j120/j12051_7.json"),
+    ("j12056_5",  "benchmarks/PSPLIB_Json/j120/j12056_5.json"),
+    ("j12056_9",  "benchmarks/PSPLIB_Json/j120/j12056_9.json"),
 ]
+
+# ================================================================================
+# SUMMARY — GA (Activity List, two-point crossover, adjacent-swap mutation, Serial SGS)
+# ================================================================================
+#   Case              N    CPM (h)   Best Serial  Best Parallel    Best GA   Best Known    GA-BK    Δ (h)
+#   --------------------------------------------------------------------------------------------------
+#   j12051_6        122     106.00        262.00         256.00     230.00       214.00    16.00    26.00
+#   j12031_10       122      92.00        285.00         266.00     254.00       225.00    29.00    12.00
+#   j12036_6        122     103.00        271.00         263.00     251.00       224.00    27.00    12.00
+#   j12056_7        122     119.00        336.00         320.00     303.00       282.00    21.00    17.00
+#   j12051_5        122     104.00        280.00         266.00     259.00       229.00    30.00     7.00
+#   j12056_1        122      97.00        279.00         273.00     259.00       236.00    23.00    14.00
+#   j12026_10       122     124.00        224.00         219.00     200.00       183.00    17.00    19.00
+#   j12051_7        122      93.00        254.00         247.00     235.00       211.00    24.00    12.00
+#   j12056_5        122     119.00        338.00         315.00     309.00       279.00    30.00     6.00
+#   j12056_9        122     103.00        341.00         325.00     314.00       287.00    27.00    11.00
 
 
 def load_best_known_results() -> dict[str, float]:
@@ -80,6 +96,9 @@ def run_ga_case(
     verbose: bool = True,
     crossover: str = 'two_point',
     mutation: str = 'adjacent_swap',
+    fb_improvement: bool = True,
+    fb_freq: int = 0,
+    initial_population_mode: str = 'mixed',
 ) -> dict:
     """
     Run the GA on a single PSPLIB benchmark case.
@@ -108,6 +127,12 @@ def run_ga_case(
     mutation : str
         Mutation operator name passed to ``RCPSPGeneticAlgorithm``.
         One of ``'swap'``, ``'adjacent_swap'``, ``'insertion_window'``.
+    fb_improvement : bool
+        Apply Forward-Backward-Forward local improvement as a final
+        polishing step on the full population.  Default ``True``.
+    fb_freq : int
+        Also apply FBF every ``fb_freq`` generations during evolution
+        (``0`` = only at the end).
 
     Returns
     -------
@@ -181,6 +206,9 @@ def run_ga_case(
         verbose=verbose,
         crossover=crossover,
         mutation=mutation,
+        fb_improvement=fb_improvement,
+        fb_freq=fb_freq,
+        initial_population_mode=initial_population_mode,
     )
     hof, log = ga.run()
 
@@ -234,6 +262,8 @@ def main() -> None:
             verbose=False,
             crossover='two_point',
             mutation='consensus_reorder',
+            fb_improvement=True,
+            fb_freq=0,
         )
         best_known = get_best_known_result(best_results, json_file)
         result['best_known'] = best_known

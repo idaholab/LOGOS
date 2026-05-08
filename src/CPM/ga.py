@@ -41,12 +41,21 @@ the ``_ordered`` keyword added in this release.  Fitness =
 
 Initial population
 ------------------
-One individual per entry in ``PRIORITY_RULES`` is seeded using
-``priority_calculation`` to build the ordering.  The schedule durations from
-both serial SGS (``calculateSerialScheduleWithResources``) and parallel SGS
+The initial population strategy is configurable:
+
+* ``'mixed'`` preserves the historical behavior: seed from ``PRIORITY_RULES``
+  first, then fill remaining population slots with random precedence-feasible
+  permutations.
+* ``'random'`` creates every individual from a random precedence-feasible
+  permutation.
+* ``'priority_rules'`` creates individuals only from deterministic named
+  priority rules and does not add random fill if fewer valid rules are available
+  than ``pop_size``.
+
+For priority-rule seeds, schedule durations from both serial SGS
+(``calculateSerialScheduleWithResources``) and parallel SGS
 (``calculateScheduleWithResources(sgs='max_use_res_ranked')``) are recorded
-for the same priority rule for benchmarking purposes only.  Remaining
-population slots are filled with random precedence-feasible permutations.
+for benchmarking purposes only.
 
 Crossover — Hartmann (1998) one-point crossover for activity lists
 ------------------------------------------------------------------
@@ -87,6 +96,7 @@ Requirements
 from __future__ import annotations
 
 import logging
+import math
 import random
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -124,9 +134,9 @@ class RCPSPGeneticAlgorithm:
         A fully initialised ``Pert`` object.  ``generateInfo()`` must have
         been called so that ``infoDict`` entries are populated.
     pop_size : int
-        Total population size.  The first ``min(len(PRIORITY_RULES), pop_size)``
-        slots are seeded from named priority rules; the rest are random
-        precedence-feasible permutations.
+        Target population size.  ``priority_rules`` initialization can produce
+        fewer individuals if fewer valid deterministic priority-rule seeds are
+        available.
     n_gen : int
         Number of GA generations.
     cxpb : float
@@ -154,6 +164,51 @@ class RCPSPGeneticAlgorithm:
         * ``'adjacent_swap'``     — adjacent-swap with feasibility check (default)
         * ``'insertion_window'``  — precedence-window insertion
         * ``'consensus_reorder'`` — local reorder guided by consensus references
+    fb_improvement : bool
+        Apply Forward-Backward-Forward (FBF) local improvement (Valls et al., 2005)
+        as a final polish on the full population after evolution completes, then
+        update the Hall of Fame from the improved population.  Default ``True``.
+    fb_freq : int
+        If > 0, also apply FBF every ``fb_freq`` generations during evolution
+        (applied to the whole population).  ``0`` (default) disables periodic
+        in-run application and limits FBF to the final polishing step.
+    initial_population_mode : str
+        Initial population source.  ``'mixed'`` seeds from priority rules then
+        fills with random chromosomes, ``'random'`` uses only random
+        precedence-feasible chromosomes, and ``'priority_rules'`` uses only
+        deterministic named priority rules.
+    target_fitness : float, optional
+        Stop once the Hall-of-Fame best fitness is less than or equal to this
+        value.  Useful when a PSPLIB optimum or accepted target makespan is
+        known.
+    max_evals : int, optional
+        Stop before starting a generation that would exceed this many GA
+        fitness evaluations.  This counts calls to the serial SGS decoder made
+        by ``_evaluate``; FBF local-improvement calls are not counted, so set
+        ``fb_improvement=False`` for a strict decoder-call budget.
+    stall_generations : int, optional
+        Stop after this many consecutive generations without a Hall-of-Fame
+        improvement larger than ``stall_tolerance``.
+    stall_tolerance : float
+        Minimum decrease in best fitness required to reset the stall counter.
+    fitness_std_tol : float, optional
+        Stop when population fitness standard deviation remains at or below
+        this threshold for ``std_generations`` consecutive generations.
+    std_generations : int
+        Consecutive low-variance generations required by ``fitness_std_tol``.
+    max_unique_schedules : int, optional
+        Stop after observing this many unique decoded start-time schedules.
+        Schedule uniqueness is tracked only when this option is supplied.
+    consensus_update_freq : int, optional
+        Generation interval for refreshing the consensus library when
+        ``mutation='consensus_reorder'``.  ``None`` uses the bounded automatic
+        rule ``min(20, max(5, n_gen // 10))``; ``0`` disables in-run refreshes.
+        Updates are ignored for other mutation operators.
+    consensus_elite_frac : float
+        Fraction of the current population to include when refreshing the
+        consensus library.  The best ``ceil(pop_size * consensus_elite_frac)``
+        valid individuals are used, along with Hall-of-Fame entries, the
+        original static references, and a few fresh random feasible orderings.
     """
 
     # DEAP creator type names (module-level singletons; guarded against
@@ -174,6 +229,7 @@ class RCPSPGeneticAlgorithm:
         'insertion_window': '_mutate_insertion_window',
         'consensus_reorder': '_mutate_consensus_reorder',
     }
+    _INITIAL_POPULATION_MODES = {'mixed', 'random', 'priority_rules'}
 
     def __init__(
         self,
@@ -188,6 +244,18 @@ class RCPSPGeneticAlgorithm:
         verbose: bool = True,
         crossover: str = 'two_point',
         mutation: str = 'adjacent_swap',
+        fb_improvement: bool = True,
+        fb_freq: int = 0,
+        initial_population_mode: str = 'mixed',
+        target_fitness: Optional[float] = None,
+        max_evals: Optional[int] = None,
+        stall_generations: Optional[int] = None,
+        stall_tolerance: float = 1e-9,
+        fitness_std_tol: Optional[float] = None,
+        std_generations: int = 1,
+        max_unique_schedules: Optional[int] = None,
+        consensus_update_freq: Optional[int] = None,
+        consensus_elite_frac: float = 0.2,
     ) -> None:
         if crossover not in self._CROSSOVER_METHODS:
             raise ValueError(
@@ -199,6 +267,39 @@ class RCPSPGeneticAlgorithm:
                 f"Unknown mutation '{mutation}'. "
                 f"Choose from: {list(self._MUTATION_METHODS)}"
             )
+        if initial_population_mode not in self._INITIAL_POPULATION_MODES:
+            raise ValueError(
+                f"Unknown initial_population_mode '{initial_population_mode}'. "
+                f"Choose from: {sorted(self._INITIAL_POPULATION_MODES)}"
+            )
+        if pop_size <= 0:
+            raise ValueError("pop_size must be positive.")
+        if n_gen < 0:
+            raise ValueError("n_gen must be non-negative.")
+        if not 0.0 <= cxpb <= 1.0:
+            raise ValueError("cxpb must be in [0, 1].")
+        if not 0.0 <= mutpb <= 1.0:
+            raise ValueError("mutpb must be in [0, 1].")
+        if n_random < 0:
+            raise ValueError("n_random must be non-negative.")
+        if hof_size <= 0:
+            raise ValueError("hof_size must be positive.")
+        if max_evals is not None and max_evals < pop_size:
+            raise ValueError("max_evals must be at least pop_size.")
+        if stall_generations is not None and stall_generations <= 0:
+            raise ValueError("stall_generations must be positive when supplied.")
+        if stall_tolerance < 0:
+            raise ValueError("stall_tolerance must be non-negative.")
+        if fitness_std_tol is not None and fitness_std_tol < 0:
+            raise ValueError("fitness_std_tol must be non-negative when supplied.")
+        if std_generations <= 0:
+            raise ValueError("std_generations must be positive.")
+        if max_unique_schedules is not None and max_unique_schedules <= 0:
+            raise ValueError("max_unique_schedules must be positive when supplied.")
+        if consensus_update_freq is not None and consensus_update_freq < 0:
+            raise ValueError("consensus_update_freq must be non-negative.")
+        if not 0.0 < consensus_elite_frac <= 1.0:
+            raise ValueError("consensus_elite_frac must be in (0, 1].")
 
         self.pert = pert
         self.pop_size = pop_size
@@ -210,6 +311,31 @@ class RCPSPGeneticAlgorithm:
         self.verbose = verbose
         self.crossover = crossover
         self.mutation = mutation
+        self.fb_improvement = fb_improvement
+        self.fb_freq = fb_freq
+        self.initial_population_mode = initial_population_mode
+        self.target_fitness = target_fitness
+        self.max_evals = max_evals
+        self.stall_generations = stall_generations
+        self.stall_tolerance = stall_tolerance
+        self.fitness_std_tol = fitness_std_tol
+        self.std_generations = std_generations
+        self.max_unique_schedules = max_unique_schedules
+        self.consensus_elite_frac = consensus_elite_frac
+        if mutation == 'consensus_reorder':
+            if consensus_update_freq is None:
+                self.consensus_update_freq = (
+                    min(20, max(5, n_gen // 10)) if n_gen > 0 else 0
+                )
+            else:
+                self.consensus_update_freq = consensus_update_freq
+        else:
+            self.consensus_update_freq = 0
+        self.stop_reason: Optional[str] = None
+
+        self._eval_count = 0
+        self._unique_schedule_signatures: set[Tuple[Tuple[int, Optional[float]], ...]] = set()
+        self._track_unique_schedules = max_unique_schedules is not None
 
         random.seed(seed)
         np.random.seed(seed)
@@ -220,6 +346,7 @@ class RCPSPGeneticAlgorithm:
         self._act_to_idx: Dict[Any, int] = {
             a: i for i, a in enumerate(self._activities)
         }
+        self._static_consensus_library: List[List[int]] = []
         self._consensus_library: List[List[int]] = []
         self._consensus_position_maps: List[Dict[int, int]] = []
 
@@ -306,8 +433,8 @@ class RCPSPGeneticAlgorithm:
 
     def _build_consensus_library(self, n_random: int) -> None:
         """
-        Build a small library of precedence-feasible reference orderings used
-        by consensus-guided mutation.
+        Build the static precedence-feasible references used as the base of
+        the consensus-guided mutation library.
         """
         references: List[List[int]] = []
         seen: set[Tuple[int, ...]] = set()
@@ -334,54 +461,274 @@ class RCPSPGeneticAlgorithm:
                 references.append(chromosome)
                 seen.add(key)
 
-        self._consensus_library = references
+        self._static_consensus_library = [
+            list(chromosome) for chromosome in references
+        ]
+        self._set_consensus_library(references)
+
+    def _set_consensus_library(self, references: List[List[int]]) -> int:
+        """
+        Deduplicate and install consensus reference orderings.
+
+        Returns
+        -------
+        int
+            Number of valid unique references installed.
+        """
+        expected_genes = set(range(self._n))
+        unique: List[List[int]] = []
+        seen: set[Tuple[int, ...]] = set()
+
+        for chromosome in references:
+            if len(chromosome) != self._n or set(chromosome) != expected_genes:
+                logger.debug("Skipping invalid consensus reference.")
+                continue
+            key = tuple(chromosome)
+            if key in seen:
+                continue
+            unique.append(list(chromosome))
+            seen.add(key)
+
+        self._consensus_library = unique
         self._consensus_position_maps = [
             {gene: pos for pos, gene in enumerate(chromosome)}
-            for chromosome in references
+            for chromosome in unique
         ]
+        return len(unique)
+
+    def _consensus_updates_enabled(self) -> bool:
+        """Return True when the dynamic consensus refresh strategy is active."""
+        return (
+            self.mutation == 'consensus_reorder'
+            and self.consensus_update_freq > 0
+        )
+
+    def _should_update_consensus_library(
+        self,
+        gen: int,
+        best_improved: bool,
+    ) -> bool:
+        """
+        Refresh periodically and immediately after a new best solution appears.
+        """
+        return (
+            self._consensus_updates_enabled()
+            and (best_improved or gen % self.consensus_update_freq == 0)
+        )
+
+    def update_consensus_library(
+        self,
+        population: Optional[List[Any]] = None,
+        hof: Optional[Any] = None,
+    ) -> int:
+        """
+        Refresh the consensus library from static, elite, and random references.
+
+        The base priority-rule/random references are always retained.  Dynamic
+        updates add Hall-of-Fame individuals, the best fraction of the current
+        population, and up to four fresh random feasible chromosomes.  The
+        installed library is deduplicated before mutation samples from it.
+
+        Parameters
+        ----------
+        population : list, optional
+            Current GA population.  Only individuals with valid fitness are
+            considered, and the best ``consensus_elite_frac`` share is used.
+        hof : HallOfFame, optional
+            Current Hall of Fame; all entries are included.
+
+        Returns
+        -------
+        int
+            Number of unique references in the refreshed library.
+        """
+        references = [
+            list(chromosome) for chromosome in self._static_consensus_library
+        ]
+
+        if hof is not None:
+            references.extend(list(ind) for ind in hof)
+
+        if population:
+            valid = [
+                ind for ind in population
+                if hasattr(ind, 'fitness') and ind.fitness.valid
+            ]
+            valid.sort(key=lambda ind: ind.fitness.values[0])
+            top_count = max(1, math.ceil(len(valid) * self.consensus_elite_frac))
+            references.extend(list(ind) for ind in valid[:top_count])
+
+        # Keep a small amount of fresh diversity in every refresh without
+        # letting random references dominate the elite signal.
+        for _ in range(min(self.n_random, 4)):
+            try:
+                references.append(self._rule_to_chromosome('random'))
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "Skipping random reference during consensus refresh: %s",
+                    exc,
+                )
+
+        return self._set_consensus_library(references)
+
+    # ---------------------------------------------------------------------- #
+    # Forward-Backward-Forward (FBF) improvement                               #
+    # ---------------------------------------------------------------------- #
+
+    def _compute_backward_chromosome(
+        self, forward_chromosome: List[int]
+    ) -> Tuple[List[int], float]:
+        """
+        Run a forward SGS pass, compute ALAP times by backward sweep,
+        and return a new chromosome sorted by ALAP late-start.
+
+        This is the 'F→B' leg of Forward-Backward-Forward improvement.
+
+        After the forward schedule the successor start-times are used to
+        tighten the ALAP bound for each activity:
+
+            alap_lf(a)  =  min(alap_ls(s)  for s in successors(a))
+                           or makespan if a has no successors
+            alap_ls(a)  =  alap_lf(a) − duration(a)
+
+        Activities are then sorted by alap_ls (ascending) and repaired for
+        precedence feasibility via ``reorder_by_dependencies``.
+
+        Parameters
+        ----------
+        forward_chromosome : list of int
+            Precedence-feasible activity index permutation used for the
+            forward SGS call.
+
+        Returns
+        -------
+        backward_chromosome : list of int
+        makespan_h : float
+            Raw ``scheduled_duration`` (hours) from the forward SGS call.
+        """
+        acts = self._chromosome_to_activities(forward_chromosome)
+        out = self.pert.calculateSerialScheduleWithResources(_ordered=acts)
+        makespan_h: float = out['scheduled_duration']
+
+        # Backward ALAP sweep — pure precedence, no resource constraints.
+        # Iterate in reverse topological order; every successor is already
+        # processed so alap_ls[s] is available when we handle activity a.
+        alap_ls: Dict[Any, float] = {}
+        for gene in reversed(forward_chromosome):
+            a = self._activities[gene]
+            d = self.pert.infoDict[a]['duration']
+            succs = self.pert.forwardDict.get(a, [])
+            succ_ls = [alap_ls[s] for s in succs if s in alap_ls]
+            alap_lf = min(succ_ls) if succ_ls else makespan_h
+            alap_ls[a] = alap_lf - d
+
+        # Reorder by ALAP late-start; repair for precedence feasibility.
+        ranked = [(a, alap_ls.get(a, 0.0)) for a in self._activities]
+        repaired = self.pert.reorder_by_dependencies(ranked, self.pert.forwardDict)
+        backward_chromosome = [self._act_to_idx[a] for a, _ in repaired]
+        return backward_chromosome, makespan_h
+
+    def _fb_improvement(
+        self, chromosome: List[int]
+    ) -> Tuple[List[int], float]:
+        """
+        One Forward-Backward-Forward (FBF) improvement pass.
+
+        Algorithm (Valls, Ballestin, Quintanilla 2005):
+
+        F1  Serial SGS with *chromosome* → scheduled start-times, makespan T₁.
+        B   ALAP backward sweep using T₁ as the backward horizon and the
+            actual forward-scheduled successor times to derive tight ALAP
+            bounds → new precedence-feasible ordering λ_B.
+        F2  Serial SGS with λ_B → makespan T₂.
+
+        Returns whichever of (chromosome, T₁) or (λ_B, T₂) has the smaller
+        makespan, so the operator can never worsen a solution.
+
+        Parameters
+        ----------
+        chromosome : list of int
+
+        Returns
+        -------
+        best_chromosome : list of int
+        best_fitness    : float   (scheduled_duration − 2)
+        """
+        backward_chromosome, makespan_f1 = self._compute_backward_chromosome(
+            chromosome
+        )
+        fitness_f1 = makespan_f1 - 2
+
+        acts_b = self._chromosome_to_activities(backward_chromosome)
+        out_f2 = self.pert.calculateSerialScheduleWithResources(_ordered=acts_b)
+        fitness_f2 = out_f2['scheduled_duration'] - 2
+
+        if fitness_f2 <= fitness_f1:
+            return backward_chromosome, fitness_f2
+        return chromosome, fitness_f1
+
+    def apply_fb_improvement(self, individuals: List[Any]) -> int:
+        """
+        Apply Forward-Backward-Forward improvement in-place to a sequence of
+        DEAP individuals, updating each individual and its stored fitness when
+        a shorter schedule is found.
+
+        Parameters
+        ----------
+        individuals : list of IndividualRCPSP
+            Typically ``pop`` (the full population) or ``list(hof)``.
+
+        Returns
+        -------
+        n_improved : int
+            Number of individuals whose fitness was strictly improved.
+        """
+        n_improved = 0
+        for ind in individuals:
+            new_chr, new_fit = self._fb_improvement(list(ind))
+            if new_fit < ind.fitness.values[0]:
+                ind[:] = new_chr
+                ind.fitness.values = (new_fit,)
+                n_improved += 1
+        return n_improved
 
     # ---------------------------------------------------------------------- #
     # Initial population                                                       #
     # ---------------------------------------------------------------------- #
 
-    def generate_initial_population(self) -> List[Any]:
+    def _priority_seed_rules(
+        self,
+        initial_population_mode: Optional[str] = None,
+    ) -> List[str]:
         """
-        Build the initial population.
+        Return the priority rules used by the selected initialization mode.
 
-        For each rule in ``PRIORITY_RULES`` (up to ``pop_size``):
-
-        1. Derive a precedence-feasible activity list chromosome via
-           ``_rule_to_chromosome(rule)``.
-        2. Record the schedule duration produced by the same priority rule
-           under *both* SGS variants for benchmarking:
-
-           - Serial SGS: ``calculateSerialScheduleWithResources(priority_rule=rule)``
-           - Parallel SGS: ``calculateScheduleWithResources(sgs='max_use_res_ranked',
-             priority_rule=rule)``
-
-        Remaining slots are filled with random precedence-feasible permutations
-        obtained by calling ``_rule_to_chromosome('random')``, which applies
-        ``priority_calculation`` with ``priority_rule='random'`` and thereby
-        uses ``reorder_by_dependencies`` to enforce topological feasibility.
-
-        ``pert.priorities`` is cleared to ``None`` before each named-rule SGS
-        call so that any previously injected external priorities do not
-        interfere.
-
-        Returns
-        -------
-        list of IndividualRCPSP
+        ``mixed`` preserves the historical behavior and includes the ``random``
+        rule entry from ``PRIORITY_RULES``.  ``priority_rules`` excludes that
+        entry so the mode is deterministic apart from GA tie-breaking and later
+        genetic operators.
         """
-        population: List[Any] = []
-        seed_info: Dict[str, Dict[str, float]] = {}
+        mode = initial_population_mode or self.initial_population_mode
+        if mode == 'priority_rules':
+            return [rule for rule in PRIORITY_RULES if rule != 'random']
+        return PRIORITY_RULES
 
-        for rule in PRIORITY_RULES:
+    def _append_priority_rule_seeds(
+        self,
+        population: List[Any],
+        seed_info: Dict[str, Dict[str, float]],
+        initial_population_mode: Optional[str] = None,
+    ) -> int:
+        """Append priority-rule chromosomes to the initial population."""
+        n_seeded = 0
+        for rule in self._priority_seed_rules(initial_population_mode):
             if len(population) >= self.pop_size:
                 break
             try:
                 # --- chromosome from rule ordering ---
                 chromosome = self._rule_to_chromosome(rule)
                 population.append(self._Ind(chromosome))
+                n_seeded += 1
 
                 # --- serial SGS duration (informational) ---
                 self.pert.priorities = None
@@ -404,42 +751,198 @@ class RCPSPGeneticAlgorithm:
                 logger.warning(
                     "Skipping rule '%s' during population seeding: %s", rule, exc
                 )
+        return n_seeded
 
-        # --- fill remaining slots with random precedence-feasible permutations ---
+    def _fill_random_population(self, population: List[Any]) -> int:
+        """Fill population slots with random precedence-feasible chromosomes."""
         n_random = 0
+        random_failures = 0
+        max_random_failures = max(10, self.pop_size * 2)
         while len(population) < self.pop_size:
-            chromosome = self._rule_to_chromosome('random')
+            try:
+                chromosome = self._rule_to_chromosome('random')
+            except Exception as exc:  # noqa: BLE001
+                random_failures += 1
+                logger.warning(
+                    "Random chromosome generation failed during population "
+                    "seeding (%d/%d): %s",
+                    random_failures,
+                    max_random_failures,
+                    exc,
+                )
+                if random_failures >= max_random_failures:
+                    break
+                continue
             population.append(self._Ind(chromosome))
             n_random += 1
+        return n_random
 
-        if seed_info and self.verbose:
-            all_dur = [v for info in seed_info.values() for v in info.values()]
-            print(
-                f"\nInitial population: {len(seed_info)} rule-seeded + "
-                f"{n_random} random  |  best seeded = {min(all_dur):.2f} h\n"
+    def generate_initial_population(
+        self,
+        initial_population_mode: Optional[str] = None,
+    ) -> List[Any]:
+        """
+        Build the initial population according to ``initial_population_mode``.
+
+        Modes
+        -----
+        mixed
+            Historical behavior.  Seed from ``PRIORITY_RULES`` first, then
+            fill remaining slots with random precedence-feasible chromosomes.
+        random
+            Create every individual with ``priority_rule='random'``.
+        priority_rules
+            Seed only from deterministic named priority rules.  No random fill
+            is added, so the returned population can be smaller than
+            ``pop_size`` when fewer valid priority-rule seeds are available.
+
+        For priority-rule seeds, the function records the schedule duration
+        produced by the same priority rule under *both* SGS variants:
+
+        - Serial SGS: ``calculateSerialScheduleWithResources(priority_rule=rule)``
+        - Parallel SGS: ``calculateScheduleWithResources(sgs='max_use_res_ranked',
+          priority_rule=rule)``
+
+        ``pert.priorities`` is cleared to ``None`` before each named-rule SGS
+        call so that any previously injected external priorities do not
+        interfere.
+
+        Parameters
+        ----------
+        initial_population_mode : str, optional
+            Override ``self.initial_population_mode`` for this call.
+
+        Returns
+        -------
+        list of IndividualRCPSP
+        """
+        mode = initial_population_mode or self.initial_population_mode
+        if mode not in self._INITIAL_POPULATION_MODES:
+            raise ValueError(
+                f"Unknown initial_population_mode '{mode}'. "
+                f"Choose from: {sorted(self._INITIAL_POPULATION_MODES)}"
             )
-            print(f"  {'Rule':<22} {'Serial (h)':>12} {'Parallel (h)':>14}")
-            print("  " + "-" * 50)
-            for r, info in seed_info.items():
-                print(
-                    f"  {r:<22} {info['serial']:>12.2f} {info['parallel']:>14.2f}"
-                )
-            print()
-        elif seed_info:
-            all_dur = [v for info in seed_info.values() for v in info.values()]
+
+        population: List[Any] = []
+        seed_info: Dict[str, Dict[str, float]] = {}
+        n_rule_seeded = 0
+        n_random = 0
+
+        if mode in {'mixed', 'priority_rules'}:
+            n_rule_seeded = self._append_priority_rule_seeds(
+                population,
+                seed_info,
+                mode,
+            )
+
+        if mode in {'mixed', 'random'}:
+            n_random = self._fill_random_population(population)
+
+        if not population:
+            raise RuntimeError(
+                "Failed to generate any valid individuals for the initial population."
+            )
+
+        if (
+            mode == 'priority_rules'
+            and len(population) < self.pop_size
+        ):
             logger.info(
-                "Initial population: %d rule-seeded + %d random | "
-                "best seeded duration = %.2f h",
-                len(seed_info),
-                n_random,
-                min(all_dur),
+                "Initial population mode 'priority_rules' produced %d/%d "
+                "requested individuals because no random fill is used.",
+                len(population),
+                self.pop_size,
             )
+
+        best_seeded = None
+        if seed_info:
+            all_dur = [v for info in seed_info.values() for v in info.values()]
+            best_seeded = min(all_dur)
+
+        if self.verbose:
+            msg = (
+                f"\nInitial population ({mode}): "
+                f"{n_rule_seeded} rule-seeded + {n_random} random"
+                f"  |  total = {len(population)}"
+            )
+            if best_seeded is not None:
+                msg += f"  |  best seeded = {best_seeded:.2f} h"
+            print(f"{msg}\n")
+            if seed_info:
+                print(f"  {'Rule':<22} {'Serial (h)':>12} {'Parallel (h)':>14}")
+                print("  " + "-" * 50)
+                for r, info in seed_info.items():
+                    print(
+                        f"  {r:<22} {info['serial']:>12.2f} "
+                        f"{info['parallel']:>14.2f}"
+                    )
+                print()
+        else:
+            msg = (
+                "Initial population (%s): %d rule-seeded + %d random | total = %d"
+            )
+            if best_seeded is not None:
+                logger.info(
+                    msg + " | best seeded duration = %.2f h",
+                    mode,
+                    n_rule_seeded,
+                    n_random,
+                    len(population),
+                    best_seeded,
+                )
+            else:
+                logger.info(
+                    msg,
+                    mode,
+                    n_rule_seeded,
+                    n_random,
+                    len(population),
+                )
 
         return population
 
     # ---------------------------------------------------------------------- #
     # Fitness evaluation                                                       #
     # ---------------------------------------------------------------------- #
+
+    def _reset_run_counters(self) -> None:
+        """Reset counters used by optional stopping criteria."""
+        self.stop_reason = None
+        self._eval_count = 0
+        self._unique_schedule_signatures = set()
+        self._track_unique_schedules = self.max_unique_schedules is not None
+
+    def _schedule_signature(self) -> Tuple[Tuple[int, Optional[float]], ...]:
+        """
+        Canonical start-time signature for the schedule left by the SGS decoder.
+
+        Two chromosomes can decode to the same start-time schedule.  The
+        optional ``max_unique_schedules`` stopping rule follows that schedule
+        space rather than raw chromosome count.
+        """
+        project_start = getattr(self.pert, 'startTime', None)
+        signature: List[Tuple[int, Optional[float]]] = []
+        for idx, act in enumerate(self._activities):
+            start_time = getattr(act, 'startTime', None)
+            if project_start is None or start_time is None:
+                offset = None
+            else:
+                offset = round(
+                    (start_time - project_start).total_seconds() / 3600.0,
+                    9,
+                )
+            signature.append((idx, offset))
+        return tuple(signature)
+
+    def _note_fitness_evaluation(self) -> None:
+        """Update evaluation and unique-schedule counters after SGS decoding."""
+        self._eval_count += 1
+        if self._track_unique_schedules:
+            self._unique_schedule_signatures.add(self._schedule_signature())
+
+    def _unique_schedule_count(self) -> int:
+        """Number of unique decoded schedules tracked in this run."""
+        return len(self._unique_schedule_signatures)
 
     def _evaluate(self, individual: List[int]) -> Tuple[float, ...]:
         """
@@ -465,6 +968,7 @@ class RCPSPGeneticAlgorithm:
         """
         ordered_acts = self._chromosome_to_activities(individual)
         out = self.pert.calculateSerialScheduleWithResources(_ordered=ordered_acts)
+        self._note_fitness_evaluation()
         return (out['scheduled_duration'] - 2,)
 
     # ---------------------------------------------------------------------- #
@@ -518,16 +1022,20 @@ class RCPSPGeneticAlgorithm:
 
         q = random.randint(1, n - 1)
 
+        # Save originals so Child 2 reads the unmodified first parent.
+        orig1 = list(ind1)
+        orig2 = list(ind2)
+
         # --- Child 1: prefix from ind1 (mother), suffix from ind2 (father) ---
-        prefix1 = list(ind1[:q])
+        prefix1 = list(orig1[:q])
         taken1 = set(prefix1)
-        suffix1 = [gene for gene in ind2 if gene not in taken1]
+        suffix1 = [gene for gene in orig2 if gene not in taken1]
         ind1[:] = prefix1 + suffix1
 
         # --- Child 2: prefix from ind2 (mother), suffix from ind1 (father) ---
-        prefix2 = list(ind2[:q])
+        prefix2 = list(orig2[:q])
         taken2 = set(prefix2)
-        suffix2 = [gene for gene in ind1 if gene not in taken2]
+        suffix2 = [gene for gene in orig1 if gene not in taken2]
         ind2[:] = prefix2 + suffix2
 
         return ind1, ind2
@@ -909,32 +1417,64 @@ class RCPSPGeneticAlgorithm:
     # Main optimisation loop                                                   #
     # ---------------------------------------------------------------------- #
 
+    def _stopping_reason(
+        self,
+        best_fitness: float,
+        stall: int,
+        std_stall: int,
+    ) -> Optional[str]:
+        """Return the active stopping reason, if an optional criterion fired."""
+        if self.target_fitness is not None and best_fitness <= self.target_fitness:
+            return 'target_fitness'
+        if (
+            self.max_unique_schedules is not None
+            and self._unique_schedule_count() >= self.max_unique_schedules
+        ):
+            return 'max_unique_schedules'
+        if self.max_evals is not None and self._eval_count >= self.max_evals:
+            return 'max_evals'
+        if self.stall_generations is not None and stall >= self.stall_generations:
+            return 'stall_generations'
+        if self.fitness_std_tol is not None and std_stall >= self.std_generations:
+            return 'fitness_std_tol'
+        return None
+
     def run(self) -> Tuple[tools.HallOfFame, tools.Logbook]:
         """
         Execute the genetic algorithm.
 
         Workflow
         --------
-        1. Generate initial population (priority-rule seeding + random fill).
+        1. Generate initial population using ``initial_population_mode``.
         2. Evaluate fitness for every individual in generation 0.
         3. For each of ``n_gen`` generations:
            a. Tournament selection.
            b. Pairwise crossover with probability ``cxpb``.
            c. Apply the configured mutation operator with probability ``mutpb``.
            d. Re-evaluate invalidated offspring.
-           d. Generational replacement.
-           e. Update Hall of Fame and statistics logbook.
+           e. Generational replacement.
+           f. Update Hall of Fame.
+           g. Refresh the consensus library when ``consensus_reorder`` is active
+              and the configured generation interval or improvement trigger fires.
+           h. Update statistics logbook.
 
         Returns
         -------
         hof : deap.tools.HallOfFame
             Top ``hof_size`` individuals found across all generations.
+            When ``fb_improvement=True`` the HoF individuals are polished
+            by a final FBF pass before being returned.
         log : deap.tools.Logbook
             Per-generation statistics:
-            ``gen``, ``nevals``, ``min``, ``avg``, ``std``, ``max``.
+            ``gen``, ``nevals``, ``evals``, ``best``, ``stall``,
+            ``unique_schedules``, ``stop_reason``, ``min``, ``avg``, ``std``,
+            ``max``.
         """
         # ── Generation 0 ─────────────────────────────────────────────────────
+        self._reset_run_counters()
         pop = self.generate_initial_population()
+        if not pop:
+            raise RuntimeError("Initial population is empty; GA cannot run.")
 
         fitnesses = list(map(self.toolbox.evaluate, pop))
         for ind, fit in zip(pop, fitnesses):
@@ -948,52 +1488,157 @@ class RCPSPGeneticAlgorithm:
         stats.register("max", np.max)
 
         log = tools.Logbook()
-        log.header = ["gen", "nevals"] + stats.fields
+        log.header = [
+            "gen", "nevals", "evals", "best", "stall",
+            "unique_schedules", "stop_reason",
+        ] + stats.fields
         hof.update(pop)
+        if self._consensus_updates_enabled():
+            self.update_consensus_library(pop, hof)
         record = stats.compile(pop)
-        log.record(gen=0, nevals=len(pop), **record)
+        best_ever = hof[0].fitness.values[0]
+        stall = 0
+        std_stall = (
+            1
+            if self.fitness_std_tol is not None
+            and record['std'] <= self.fitness_std_tol
+            else 0
+        )
+        stop_reason = self._stopping_reason(best_ever, stall, std_stall)
+        log.record(
+            gen=0,
+            nevals=len(pop),
+            evals=self._eval_count,
+            best=best_ever,
+            stall=stall,
+            unique_schedules=self._unique_schedule_count(),
+            stop_reason=stop_reason or '',
+            **record,
+        )
         if self.verbose:
             print(log.stream)
 
         # ── Generational loop ─────────────────────────────────────────────────
-        for gen in range(1, self.n_gen + 1):
-            # Selection
-            offspring = list(
-                map(self.toolbox.clone, self.toolbox.select(pop, len(pop)))
+        if stop_reason is None:
+            for gen in range(1, self.n_gen + 1):
+                if self.max_evals is not None and self._eval_count >= self.max_evals:
+                    stop_reason = 'max_evals'
+                    break
+
+                # Selection
+                offspring = list(
+                    map(self.toolbox.clone, self.toolbox.select(pop, len(pop)))
+                )
+
+                # Crossover
+                for child1, child2 in zip(offspring[::2], offspring[1::2]):
+                    if random.random() < self.cxpb:
+                        self.toolbox.mate(child1, child2)
+                        del child1.fitness.values
+                        del child2.fitness.values
+
+                # Mutation
+                for mutant in offspring:
+                    if random.random() < self.mutpb:
+                        self.toolbox.mutate(mutant)
+                        del mutant.fitness.values
+
+                # Evaluate invalidated individuals
+                invalid = [ind for ind in offspring if not ind.fitness.valid]
+                if self.max_evals is not None:
+                    remaining_evals = self.max_evals - self._eval_count
+                    if len(invalid) > remaining_evals:
+                        stop_reason = 'max_evals'
+                        break
+                for ind, fit in zip(invalid, map(self.toolbox.evaluate, invalid)):
+                    ind.fitness.values = fit
+
+                # Generational replacement
+                pop[:] = offspring
+                hof.update(pop)
+
+                # Periodic FBF improvement (optional)
+                if self.fb_improvement and self.fb_freq > 0 and gen % self.fb_freq == 0:
+                    n_fb = self.apply_fb_improvement(pop)
+                    hof.update(pop)
+                    if self.verbose and n_fb:
+                        print(
+                            f"  [FBF gen {gen}] {n_fb}/{len(pop)} improved"
+                            f" | best = {hof[0].fitness.values[0]:.2f} h"
+                        )
+
+                record = stats.compile(pop)
+                gen_best = hof[0].fitness.values[0]
+                best_improved = gen_best < best_ever - self.stall_tolerance
+                if best_improved:
+                    best_ever = gen_best
+                    stall = 0
+                else:
+                    stall += 1
+
+                if self._should_update_consensus_library(gen, best_improved):
+                    n_refs = self.update_consensus_library(pop, hof)
+                    if self.verbose:
+                        reason = (
+                            "new best"
+                            if best_improved
+                            else f"freq={self.consensus_update_freq}"
+                        )
+                        print(
+                            f"  [Consensus gen {gen}] refreshed "
+                            f"{n_refs} references ({reason})"
+                        )
+
+                if (
+                    self.fitness_std_tol is not None
+                    and record['std'] <= self.fitness_std_tol
+                ):
+                    std_stall += 1
+                else:
+                    std_stall = 0
+
+                stop_reason = self._stopping_reason(best_ever, stall, std_stall)
+                log.record(
+                    gen=gen,
+                    nevals=len(invalid),
+                    evals=self._eval_count,
+                    best=best_ever,
+                    stall=stall,
+                    unique_schedules=self._unique_schedule_count(),
+                    stop_reason=stop_reason or '',
+                    **record,
+                )
+                if self.verbose:
+                    print(log.stream)
+                if stop_reason is not None:
+                    break
+
+        self.stop_reason = stop_reason or 'max_generations'
+        if log:
+            log[-1]['stop_reason'] = self.stop_reason
+
+        # Final FBF polish on the full population; update HoF from result
+        if self.fb_improvement:
+            n_fb = self.apply_fb_improvement(pop)
+            hof.update(pop)
+            if self.verbose:
+                msg = (
+                    f"FBF final polish: {n_fb}/{len(pop)} improved"
+                    f" | best = {hof[0].fitness.values[0]:.2f} h"
+                )
+                print(f"\n{msg}")
+            logger.info(
+                "FBF final polish: %d/%d improved | best = %.2f h",
+                n_fb,
+                len(pop),
+                hof[0].fitness.values[0],
             )
 
-            # Crossover
-            for child1, child2 in zip(offspring[::2], offspring[1::2]):
-                if random.random() < self.cxpb:
-                    self.toolbox.mate(child1, child2)
-                    del child1.fitness.values
-                    del child2.fitness.values
-
-            # Mutation
-            for mutant in offspring:
-                if random.random() < self.mutpb:
-                    self.toolbox.mutate(mutant)
-                    del mutant.fitness.values
-
-            # Evaluate invalidated individuals
-            invalid = [ind for ind in offspring if not ind.fitness.valid]
-            for ind, fit in zip(invalid, map(self.toolbox.evaluate, invalid)):
-                ind.fitness.values = fit
-
-            # Generational replacement
-            pop[:] = offspring
-            hof.update(pop)
-
-            record = stats.compile(pop)
-            log.record(gen=gen, nevals=len(invalid), **record)
-            if self.verbose:
-                print(log.stream)
-
         logger.info(
-            "GA finished | best = %.2f h | generations = %d | pop_size = %d",
+            "GA finished | best = %.2f h | generations = %d | population = %d",
             hof[0].fitness.values[0],
             self.n_gen,
-            self.pop_size,
+            len(pop),
         )
         return hof, log
 
@@ -1040,6 +1685,116 @@ class RCPSPGeneticAlgorithm:
         """
         return [self._activities[i].returnName() for i in hof[0]]
 
+    def plot_convergence(
+        self,
+        log: tools.Logbook,
+        filename: Optional[str] = None,
+        show: bool = False,
+        include_avg: bool = True,
+        include_std: bool = True,
+        include_max: bool = False,
+        title: Optional[str] = None,
+        ax: Any = None,
+        dpi: int = 150,
+    ) -> Tuple[Any, Any]:
+        """
+        Plot GA convergence from the ``Logbook`` returned by ``run()``.
+
+        The plot shows per-generation population minimum fitness and the
+        cumulative best-so-far curve.  The population average and +/- one
+        standard-deviation band can be included to show convergence pressure.
+
+        Parameters
+        ----------
+        log : deap.tools.Logbook
+            Logbook returned by ``run()``.  Expected fields are ``gen``, ``min``,
+            ``avg``, ``std``, and optionally ``max``.
+        filename : str, optional
+            If supplied, save the figure to this path.
+        show : bool
+            If True, call ``matplotlib.pyplot.show()`` before returning.
+        include_avg : bool
+            Plot the population average fitness curve.
+        include_std : bool
+            Fill the average +/- one standard-deviation band.  Ignored when
+            ``include_avg`` is False.
+        include_max : bool
+            Plot the population maximum fitness curve.
+        title : str, optional
+            Custom plot title.  A default title is used when omitted.
+        ax : matplotlib.axes.Axes, optional
+            Existing axes to draw into.  If omitted, a new figure is created.
+        dpi : int
+            DPI used when saving ``filename``.
+
+        Returns
+        -------
+        (fig, ax)
+            Matplotlib figure and axes objects.
+        """
+        records = list(log)
+        if not records:
+            raise ValueError("Cannot plot an empty GA logbook.")
+
+        def _series(field: str) -> List[float]:
+            try:
+                return [float(row[field]) for row in records]
+            except KeyError as exc:
+                raise ValueError(
+                    f"GA logbook is missing required field '{field}'."
+                ) from exc
+
+        gens = _series('gen')
+        gen_min = _series('min')
+        gen_avg = _series('avg') if include_avg else []
+        gen_std = _series('std') if include_avg and include_std else []
+        best_so_far: List[float] = []
+        current_best = float('inf')
+        for value in gen_min:
+            current_best = min(current_best, value)
+            best_so_far.append(current_best)
+
+        import matplotlib.pyplot as plt
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(8, 4.5))
+        else:
+            fig = ax.figure
+
+        ax.plot(gens, gen_min, color='tab:blue', linewidth=1.4,
+                label='Generation min')
+        ax.plot(gens, best_so_far, color='tab:green', linewidth=2.0,
+                label='Best so far')
+
+        if include_avg:
+            ax.plot(gens, gen_avg, color='tab:orange', linewidth=1.2,
+                    label='Population avg')
+            if include_std:
+                lower = [avg - std for avg, std in zip(gen_avg, gen_std)]
+                upper = [avg + std for avg, std in zip(gen_avg, gen_std)]
+                ax.fill_between(gens, lower, upper, color='tab:orange',
+                                alpha=0.15, linewidth=0,
+                                label='Avg +/- std')
+
+        if include_max:
+            gen_max = _series('max')
+            ax.plot(gens, gen_max, color='tab:red', linewidth=1.0,
+                    alpha=0.65, label='Population max')
+
+        ax.set_title(title or 'GA Convergence')
+        ax.set_xlabel('Generation')
+        ax.set_ylabel('Schedule duration (h)')
+        ax.grid(True, linestyle=':', linewidth=0.8, alpha=0.7)
+        ax.legend()
+        fig.tight_layout()
+
+        if filename:
+            fig.savefig(filename, dpi=dpi, bbox_inches='tight')
+        if show:
+            plt.show()
+
+        return fig, ax
+
     def get_convergence_summary(self, log: tools.Logbook) -> Dict:
         """
         Extract a concise convergence summary from the logbook.
@@ -1053,15 +1808,21 @@ class RCPSPGeneticAlgorithm:
         -------
         dict with keys:
             ``n_gen``, ``best_duration``, ``initial_best``, ``improvement``,
-            ``final_avg``, ``final_std``.
+            ``final_avg``, ``final_std``, ``n_evals``, ``n_unique_schedules``,
+            ``stop_reason``.
         """
         gen0 = log[0]
         final = log[-1]
+        initial_best = gen0.get('best', gen0['min'])
+        final_best = final.get('best', final['min'])
         return {
             'n_gen': len(log) - 1,
-            'best_duration': final['min'],
-            'initial_best': gen0['min'],
-            'improvement': gen0['min'] - final['min'],
+            'best_duration': final_best,
+            'initial_best': initial_best,
+            'improvement': initial_best - final_best,
             'final_avg': final['avg'],
             'final_std': final['std'],
+            'n_evals': final.get('evals', sum(row.get('nevals', 0) for row in log)),
+            'n_unique_schedules': final.get('unique_schedules', 0),
+            'stop_reason': final.get('stop_reason', 'max_generations'),
         }
