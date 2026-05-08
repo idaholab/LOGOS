@@ -74,6 +74,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mutpb", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
+        "--initial-population-mode",
+        choices=["mixed", "random", "priority_rules"],
+        default="mixed",
+        help=(
+            "Initial GA population source: priority-rule seeds plus random fill "
+            "(mixed), all random, or deterministic priority rules only."
+        ),
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Disable verbose per-generation output.",
@@ -181,6 +190,7 @@ def run_ga_case(
     mutation: str = 'adjacent_swap',
     fb_improvement: bool = True,
     fb_freq: int = 0,
+    initial_population_mode: str = 'mixed',
     plot_convergence: bool = True,
     plot_dir: str | Path | None = None,
     target_fitness: float | None = None,
@@ -234,6 +244,9 @@ def run_ga_case(
     fb_freq : int
         Also apply FBF every ``fb_freq`` generations during evolution
         (``0`` = only at the end).
+    initial_population_mode : str
+        Initial GA population source: ``'mixed'``, ``'random'``, or
+        ``'priority_rules'``.
     plot_convergence : bool
         Save a convergence plot for the GA logbook returned by ``run()``.
     plot_dir : str or Path, optional
@@ -329,6 +342,7 @@ def run_ga_case(
         mutation=mutation,
         fb_improvement=fb_improvement,
         fb_freq=fb_freq,
+        initial_population_mode=initial_population_mode,
         target_fitness=target_fitness,
         max_evals=max_evals,
         stall_generations=stall_generations,
@@ -438,6 +452,7 @@ def main() -> None:
             mutation=args.mutation,
             fb_improvement=not args.no_fb_improvement,
             fb_freq=args.fb_freq,
+            initial_population_mode=args.initial_population_mode,
             plot_convergence=not args.no_plot,
             plot_dir=args.plot_dir,
             target_fitness=target_fitness,

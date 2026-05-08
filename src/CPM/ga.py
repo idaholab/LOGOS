@@ -41,12 +41,21 @@ the ``_ordered`` keyword added in this release.  Fitness =
 
 Initial population
 ------------------
-One individual per entry in ``PRIORITY_RULES`` is seeded using
-``priority_calculation`` to build the ordering.  The schedule durations from
-both serial SGS (``calculateSerialScheduleWithResources``) and parallel SGS
+The initial population strategy is configurable:
+
+* ``'mixed'`` preserves the historical behavior: seed from ``PRIORITY_RULES``
+  first, then fill remaining population slots with random precedence-feasible
+  permutations.
+* ``'random'`` creates every individual from a random precedence-feasible
+  permutation.
+* ``'priority_rules'`` creates individuals only from deterministic named
+  priority rules and does not add random fill if fewer valid rules are available
+  than ``pop_size``.
+
+For priority-rule seeds, schedule durations from both serial SGS
+(``calculateSerialScheduleWithResources``) and parallel SGS
 (``calculateScheduleWithResources(sgs='max_use_res_ranked')``) are recorded
-for the same priority rule for benchmarking purposes only.  Remaining
-population slots are filled with random precedence-feasible permutations.
+for benchmarking purposes only.
 
 Crossover — Hartmann (1998) one-point crossover for activity lists
 ------------------------------------------------------------------
@@ -87,6 +96,7 @@ Requirements
 from __future__ import annotations
 
 import logging
+import math
 import random
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -124,9 +134,9 @@ class RCPSPGeneticAlgorithm:
         A fully initialised ``Pert`` object.  ``generateInfo()`` must have
         been called so that ``infoDict`` entries are populated.
     pop_size : int
-        Total population size.  The first ``min(len(PRIORITY_RULES), pop_size)``
-        slots are seeded from named priority rules; the rest are random
-        precedence-feasible permutations.
+        Target population size.  ``priority_rules`` initialization can produce
+        fewer individuals if fewer valid deterministic priority-rule seeds are
+        available.
     n_gen : int
         Number of GA generations.
     cxpb : float
@@ -162,6 +172,11 @@ class RCPSPGeneticAlgorithm:
         If > 0, also apply FBF every ``fb_freq`` generations during evolution
         (applied to the whole population).  ``0`` (default) disables periodic
         in-run application and limits FBF to the final polishing step.
+    initial_population_mode : str
+        Initial population source.  ``'mixed'`` seeds from priority rules then
+        fills with random chromosomes, ``'random'`` uses only random
+        precedence-feasible chromosomes, and ``'priority_rules'`` uses only
+        deterministic named priority rules.
     target_fitness : float, optional
         Stop once the Hall-of-Fame best fitness is less than or equal to this
         value.  Useful when a PSPLIB optimum or accepted target makespan is
@@ -184,6 +199,16 @@ class RCPSPGeneticAlgorithm:
     max_unique_schedules : int, optional
         Stop after observing this many unique decoded start-time schedules.
         Schedule uniqueness is tracked only when this option is supplied.
+    consensus_update_freq : int, optional
+        Generation interval for refreshing the consensus library when
+        ``mutation='consensus_reorder'``.  ``None`` uses the bounded automatic
+        rule ``min(20, max(5, n_gen // 10))``; ``0`` disables in-run refreshes.
+        Updates are ignored for other mutation operators.
+    consensus_elite_frac : float
+        Fraction of the current population to include when refreshing the
+        consensus library.  The best ``ceil(pop_size * consensus_elite_frac)``
+        valid individuals are used, along with Hall-of-Fame entries, the
+        original static references, and a few fresh random feasible orderings.
     """
 
     # DEAP creator type names (module-level singletons; guarded against
@@ -204,6 +229,7 @@ class RCPSPGeneticAlgorithm:
         'insertion_window': '_mutate_insertion_window',
         'consensus_reorder': '_mutate_consensus_reorder',
     }
+    _INITIAL_POPULATION_MODES = {'mixed', 'random', 'priority_rules'}
 
     def __init__(
         self,
@@ -220,6 +246,7 @@ class RCPSPGeneticAlgorithm:
         mutation: str = 'adjacent_swap',
         fb_improvement: bool = True,
         fb_freq: int = 0,
+        initial_population_mode: str = 'mixed',
         target_fitness: Optional[float] = None,
         max_evals: Optional[int] = None,
         stall_generations: Optional[int] = None,
@@ -227,6 +254,8 @@ class RCPSPGeneticAlgorithm:
         fitness_std_tol: Optional[float] = None,
         std_generations: int = 1,
         max_unique_schedules: Optional[int] = None,
+        consensus_update_freq: Optional[int] = None,
+        consensus_elite_frac: float = 0.2,
     ) -> None:
         if crossover not in self._CROSSOVER_METHODS:
             raise ValueError(
@@ -237,6 +266,11 @@ class RCPSPGeneticAlgorithm:
             raise ValueError(
                 f"Unknown mutation '{mutation}'. "
                 f"Choose from: {list(self._MUTATION_METHODS)}"
+            )
+        if initial_population_mode not in self._INITIAL_POPULATION_MODES:
+            raise ValueError(
+                f"Unknown initial_population_mode '{initial_population_mode}'. "
+                f"Choose from: {sorted(self._INITIAL_POPULATION_MODES)}"
             )
         if pop_size <= 0:
             raise ValueError("pop_size must be positive.")
@@ -262,6 +296,10 @@ class RCPSPGeneticAlgorithm:
             raise ValueError("std_generations must be positive.")
         if max_unique_schedules is not None and max_unique_schedules <= 0:
             raise ValueError("max_unique_schedules must be positive when supplied.")
+        if consensus_update_freq is not None and consensus_update_freq < 0:
+            raise ValueError("consensus_update_freq must be non-negative.")
+        if not 0.0 < consensus_elite_frac <= 1.0:
+            raise ValueError("consensus_elite_frac must be in (0, 1].")
 
         self.pert = pert
         self.pop_size = pop_size
@@ -275,6 +313,7 @@ class RCPSPGeneticAlgorithm:
         self.mutation = mutation
         self.fb_improvement = fb_improvement
         self.fb_freq = fb_freq
+        self.initial_population_mode = initial_population_mode
         self.target_fitness = target_fitness
         self.max_evals = max_evals
         self.stall_generations = stall_generations
@@ -282,6 +321,16 @@ class RCPSPGeneticAlgorithm:
         self.fitness_std_tol = fitness_std_tol
         self.std_generations = std_generations
         self.max_unique_schedules = max_unique_schedules
+        self.consensus_elite_frac = consensus_elite_frac
+        if mutation == 'consensus_reorder':
+            if consensus_update_freq is None:
+                self.consensus_update_freq = (
+                    min(20, max(5, n_gen // 10)) if n_gen > 0 else 0
+                )
+            else:
+                self.consensus_update_freq = consensus_update_freq
+        else:
+            self.consensus_update_freq = 0
         self.stop_reason: Optional[str] = None
 
         self._eval_count = 0
@@ -297,6 +346,7 @@ class RCPSPGeneticAlgorithm:
         self._act_to_idx: Dict[Any, int] = {
             a: i for i, a in enumerate(self._activities)
         }
+        self._static_consensus_library: List[List[int]] = []
         self._consensus_library: List[List[int]] = []
         self._consensus_position_maps: List[Dict[int, int]] = []
 
@@ -383,8 +433,8 @@ class RCPSPGeneticAlgorithm:
 
     def _build_consensus_library(self, n_random: int) -> None:
         """
-        Build a small library of precedence-feasible reference orderings used
-        by consensus-guided mutation.
+        Build the static precedence-feasible references used as the base of
+        the consensus-guided mutation library.
         """
         references: List[List[int]] = []
         seen: set[Tuple[int, ...]] = set()
@@ -411,11 +461,115 @@ class RCPSPGeneticAlgorithm:
                 references.append(chromosome)
                 seen.add(key)
 
-        self._consensus_library = references
+        self._static_consensus_library = [
+            list(chromosome) for chromosome in references
+        ]
+        self._set_consensus_library(references)
+
+    def _set_consensus_library(self, references: List[List[int]]) -> int:
+        """
+        Deduplicate and install consensus reference orderings.
+
+        Returns
+        -------
+        int
+            Number of valid unique references installed.
+        """
+        expected_genes = set(range(self._n))
+        unique: List[List[int]] = []
+        seen: set[Tuple[int, ...]] = set()
+
+        for chromosome in references:
+            if len(chromosome) != self._n or set(chromosome) != expected_genes:
+                logger.debug("Skipping invalid consensus reference.")
+                continue
+            key = tuple(chromosome)
+            if key in seen:
+                continue
+            unique.append(list(chromosome))
+            seen.add(key)
+
+        self._consensus_library = unique
         self._consensus_position_maps = [
             {gene: pos for pos, gene in enumerate(chromosome)}
-            for chromosome in references
+            for chromosome in unique
         ]
+        return len(unique)
+
+    def _consensus_updates_enabled(self) -> bool:
+        """Return True when the dynamic consensus refresh strategy is active."""
+        return (
+            self.mutation == 'consensus_reorder'
+            and self.consensus_update_freq > 0
+        )
+
+    def _should_update_consensus_library(
+        self,
+        gen: int,
+        best_improved: bool,
+    ) -> bool:
+        """
+        Refresh periodically and immediately after a new best solution appears.
+        """
+        return (
+            self._consensus_updates_enabled()
+            and (best_improved or gen % self.consensus_update_freq == 0)
+        )
+
+    def update_consensus_library(
+        self,
+        population: Optional[List[Any]] = None,
+        hof: Optional[Any] = None,
+    ) -> int:
+        """
+        Refresh the consensus library from static, elite, and random references.
+
+        The base priority-rule/random references are always retained.  Dynamic
+        updates add Hall-of-Fame individuals, the best fraction of the current
+        population, and up to four fresh random feasible chromosomes.  The
+        installed library is deduplicated before mutation samples from it.
+
+        Parameters
+        ----------
+        population : list, optional
+            Current GA population.  Only individuals with valid fitness are
+            considered, and the best ``consensus_elite_frac`` share is used.
+        hof : HallOfFame, optional
+            Current Hall of Fame; all entries are included.
+
+        Returns
+        -------
+        int
+            Number of unique references in the refreshed library.
+        """
+        references = [
+            list(chromosome) for chromosome in self._static_consensus_library
+        ]
+
+        if hof is not None:
+            references.extend(list(ind) for ind in hof)
+
+        if population:
+            valid = [
+                ind for ind in population
+                if hasattr(ind, 'fitness') and ind.fitness.valid
+            ]
+            valid.sort(key=lambda ind: ind.fitness.values[0])
+            top_count = max(1, math.ceil(len(valid) * self.consensus_elite_frac))
+            references.extend(list(ind) for ind in valid[:top_count])
+
+        # Keep a small amount of fresh diversity in every refresh without
+        # letting random references dominate the elite signal.
+        for _ in range(min(self.n_random, 4)):
+            try:
+                references.append(self._rule_to_chromosome('random'))
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "Skipping random reference during consensus refresh: %s",
+                    exc,
+                )
+
+        return self._set_consensus_library(references)
 
     # ---------------------------------------------------------------------- #
     # Forward-Backward-Forward (FBF) improvement                               #
@@ -542,44 +696,39 @@ class RCPSPGeneticAlgorithm:
     # Initial population                                                       #
     # ---------------------------------------------------------------------- #
 
-    def generate_initial_population(self) -> List[Any]:
+    def _priority_seed_rules(
+        self,
+        initial_population_mode: Optional[str] = None,
+    ) -> List[str]:
         """
-        Build the initial population.
+        Return the priority rules used by the selected initialization mode.
 
-        For each rule in ``PRIORITY_RULES`` (up to ``pop_size``):
-
-        1. Derive a precedence-feasible activity list chromosome via
-           ``_rule_to_chromosome(rule)``.
-        2. Record the schedule duration produced by the same priority rule
-           under *both* SGS variants for benchmarking:
-
-           - Serial SGS: ``calculateSerialScheduleWithResources(priority_rule=rule)``
-           - Parallel SGS: ``calculateScheduleWithResources(sgs='max_use_res_ranked',
-             priority_rule=rule)``
-
-        Remaining slots are filled with random precedence-feasible permutations
-        obtained by calling ``_rule_to_chromosome('random')``, which applies
-        ``priority_calculation`` with ``priority_rule='random'`` and thereby
-        uses ``reorder_by_dependencies`` to enforce topological feasibility.
-
-        ``pert.priorities`` is cleared to ``None`` before each named-rule SGS
-        call so that any previously injected external priorities do not
-        interfere.
-
-        Returns
-        -------
-        list of IndividualRCPSP
+        ``mixed`` preserves the historical behavior and includes the ``random``
+        rule entry from ``PRIORITY_RULES``.  ``priority_rules`` excludes that
+        entry so the mode is deterministic apart from GA tie-breaking and later
+        genetic operators.
         """
-        population: List[Any] = []
-        seed_info: Dict[str, Dict[str, float]] = {}
+        mode = initial_population_mode or self.initial_population_mode
+        if mode == 'priority_rules':
+            return [rule for rule in PRIORITY_RULES if rule != 'random']
+        return PRIORITY_RULES
 
-        for rule in PRIORITY_RULES:
+    def _append_priority_rule_seeds(
+        self,
+        population: List[Any],
+        seed_info: Dict[str, Dict[str, float]],
+        initial_population_mode: Optional[str] = None,
+    ) -> int:
+        """Append priority-rule chromosomes to the initial population."""
+        n_seeded = 0
+        for rule in self._priority_seed_rules(initial_population_mode):
             if len(population) >= self.pop_size:
                 break
             try:
                 # --- chromosome from rule ordering ---
                 chromosome = self._rule_to_chromosome(rule)
                 population.append(self._Ind(chromosome))
+                n_seeded += 1
 
                 # --- serial SGS duration (informational) ---
                 self.pert.priorities = None
@@ -602,8 +751,10 @@ class RCPSPGeneticAlgorithm:
                 logger.warning(
                     "Skipping rule '%s' during population seeding: %s", rule, exc
                 )
+        return n_seeded
 
-        # --- fill remaining slots with random precedence-feasible permutations ---
+    def _fill_random_population(self, population: List[Any]) -> int:
+        """Fill population slots with random precedence-feasible chromosomes."""
         n_random = 0
         random_failures = 0
         max_random_failures = max(10, self.pop_size * 2)
@@ -624,34 +775,129 @@ class RCPSPGeneticAlgorithm:
                 continue
             population.append(self._Ind(chromosome))
             n_random += 1
+        return n_random
+
+    def generate_initial_population(
+        self,
+        initial_population_mode: Optional[str] = None,
+    ) -> List[Any]:
+        """
+        Build the initial population according to ``initial_population_mode``.
+
+        Modes
+        -----
+        mixed
+            Historical behavior.  Seed from ``PRIORITY_RULES`` first, then
+            fill remaining slots with random precedence-feasible chromosomes.
+        random
+            Create every individual with ``priority_rule='random'``.
+        priority_rules
+            Seed only from deterministic named priority rules.  No random fill
+            is added, so the returned population can be smaller than
+            ``pop_size`` when fewer valid priority-rule seeds are available.
+
+        For priority-rule seeds, the function records the schedule duration
+        produced by the same priority rule under *both* SGS variants:
+
+        - Serial SGS: ``calculateSerialScheduleWithResources(priority_rule=rule)``
+        - Parallel SGS: ``calculateScheduleWithResources(sgs='max_use_res_ranked',
+          priority_rule=rule)``
+
+        ``pert.priorities`` is cleared to ``None`` before each named-rule SGS
+        call so that any previously injected external priorities do not
+        interfere.
+
+        Parameters
+        ----------
+        initial_population_mode : str, optional
+            Override ``self.initial_population_mode`` for this call.
+
+        Returns
+        -------
+        list of IndividualRCPSP
+        """
+        mode = initial_population_mode or self.initial_population_mode
+        if mode not in self._INITIAL_POPULATION_MODES:
+            raise ValueError(
+                f"Unknown initial_population_mode '{mode}'. "
+                f"Choose from: {sorted(self._INITIAL_POPULATION_MODES)}"
+            )
+
+        population: List[Any] = []
+        seed_info: Dict[str, Dict[str, float]] = {}
+        n_rule_seeded = 0
+        n_random = 0
+
+        if mode in {'mixed', 'priority_rules'}:
+            n_rule_seeded = self._append_priority_rule_seeds(
+                population,
+                seed_info,
+                mode,
+            )
+
+        if mode in {'mixed', 'random'}:
+            n_random = self._fill_random_population(population)
 
         if not population:
             raise RuntimeError(
                 "Failed to generate any valid individuals for the initial population."
             )
 
-        if seed_info and self.verbose:
-            all_dur = [v for info in seed_info.values() for v in info.values()]
-            print(
-                f"\nInitial population: {len(seed_info)} rule-seeded + "
-                f"{n_random} random  |  best seeded = {min(all_dur):.2f} h\n"
-            )
-            print(f"  {'Rule':<22} {'Serial (h)':>12} {'Parallel (h)':>14}")
-            print("  " + "-" * 50)
-            for r, info in seed_info.items():
-                print(
-                    f"  {r:<22} {info['serial']:>12.2f} {info['parallel']:>14.2f}"
-                )
-            print()
-        elif seed_info:
-            all_dur = [v for info in seed_info.values() for v in info.values()]
+        if (
+            mode == 'priority_rules'
+            and len(population) < self.pop_size
+        ):
             logger.info(
-                "Initial population: %d rule-seeded + %d random | "
-                "best seeded duration = %.2f h",
-                len(seed_info),
-                n_random,
-                min(all_dur),
+                "Initial population mode 'priority_rules' produced %d/%d "
+                "requested individuals because no random fill is used.",
+                len(population),
+                self.pop_size,
             )
+
+        best_seeded = None
+        if seed_info:
+            all_dur = [v for info in seed_info.values() for v in info.values()]
+            best_seeded = min(all_dur)
+
+        if self.verbose:
+            msg = (
+                f"\nInitial population ({mode}): "
+                f"{n_rule_seeded} rule-seeded + {n_random} random"
+                f"  |  total = {len(population)}"
+            )
+            if best_seeded is not None:
+                msg += f"  |  best seeded = {best_seeded:.2f} h"
+            print(f"{msg}\n")
+            if seed_info:
+                print(f"  {'Rule':<22} {'Serial (h)':>12} {'Parallel (h)':>14}")
+                print("  " + "-" * 50)
+                for r, info in seed_info.items():
+                    print(
+                        f"  {r:<22} {info['serial']:>12.2f} "
+                        f"{info['parallel']:>14.2f}"
+                    )
+                print()
+        else:
+            msg = (
+                "Initial population (%s): %d rule-seeded + %d random | total = %d"
+            )
+            if best_seeded is not None:
+                logger.info(
+                    msg + " | best seeded duration = %.2f h",
+                    mode,
+                    n_rule_seeded,
+                    n_random,
+                    len(population),
+                    best_seeded,
+                )
+            else:
+                logger.info(
+                    msg,
+                    mode,
+                    n_rule_seeded,
+                    n_random,
+                    len(population),
+                )
 
         return population
 
@@ -1199,15 +1445,18 @@ class RCPSPGeneticAlgorithm:
 
         Workflow
         --------
-        1. Generate initial population (priority-rule seeding + random fill).
+        1. Generate initial population using ``initial_population_mode``.
         2. Evaluate fitness for every individual in generation 0.
         3. For each of ``n_gen`` generations:
            a. Tournament selection.
            b. Pairwise crossover with probability ``cxpb``.
            c. Apply the configured mutation operator with probability ``mutpb``.
            d. Re-evaluate invalidated offspring.
-           d. Generational replacement.
-           e. Update Hall of Fame and statistics logbook.
+           e. Generational replacement.
+           f. Update Hall of Fame.
+           g. Refresh the consensus library when ``consensus_reorder`` is active
+              and the configured generation interval or improvement trigger fires.
+           h. Update statistics logbook.
 
         Returns
         -------
@@ -1244,6 +1493,8 @@ class RCPSPGeneticAlgorithm:
             "unique_schedules", "stop_reason",
         ] + stats.fields
         hof.update(pop)
+        if self._consensus_updates_enabled():
+            self.update_consensus_library(pop, hof)
         record = stats.compile(pop)
         best_ever = hof[0].fitness.values[0]
         stall = 0
@@ -1318,11 +1569,25 @@ class RCPSPGeneticAlgorithm:
 
                 record = stats.compile(pop)
                 gen_best = hof[0].fitness.values[0]
-                if gen_best < best_ever - self.stall_tolerance:
+                best_improved = gen_best < best_ever - self.stall_tolerance
+                if best_improved:
                     best_ever = gen_best
                     stall = 0
                 else:
                     stall += 1
+
+                if self._should_update_consensus_library(gen, best_improved):
+                    n_refs = self.update_consensus_library(pop, hof)
+                    if self.verbose:
+                        reason = (
+                            "new best"
+                            if best_improved
+                            else f"freq={self.consensus_update_freq}"
+                        )
+                        print(
+                            f"  [Consensus gen {gen}] refreshed "
+                            f"{n_refs} references ({reason})"
+                        )
 
                 if (
                     self.fitness_std_tol is not None
@@ -1370,10 +1635,10 @@ class RCPSPGeneticAlgorithm:
             )
 
         logger.info(
-            "GA finished | best = %.2f h | generations = %d | pop_size = %d",
+            "GA finished | best = %.2f h | generations = %d | population = %d",
             hof[0].fitness.values[0],
             self.n_gen,
-            self.pop_size,
+            len(pop),
         )
         return hof, log
 
