@@ -98,6 +98,7 @@ def run_ga_case(
     mutation: str = 'adjacent_swap',
     fb_improvement: bool = True,
     fb_freq: int = 0,
+    initial_population_mode: str = 'mixed',
 ) -> dict:
     """
     Run the GA on a single PSPLIB benchmark case.
@@ -207,6 +208,7 @@ def run_ga_case(
         mutation=mutation,
         fb_improvement=fb_improvement,
         fb_freq=fb_freq,
+        initial_population_mode=initial_population_mode,
     )
     hof, log = ga.run()
 
