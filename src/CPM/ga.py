@@ -54,8 +54,10 @@ The initial population strategy is configurable:
 
 For priority-rule seeds, schedule durations from both serial SGS
 (``calculateSerialScheduleWithResources``) and parallel SGS
-(``calculateScheduleWithResources(sgs='max_use_res_ranked')``) are recorded
-for benchmarking purposes only.
+(``calculateScheduleWithResources(sgs='max_use_res_ranked')``) are recorded.
+The activity order implied by the parallel SGS schedule is also converted back
+to a precedence-feasible chromosome and added to the initial population when
+space is available.
 
 Crossover — Hartmann (1998) one-point crossover for activity lists
 ------------------------------------------------------------------
@@ -118,7 +120,8 @@ logger = logging.getLogger(__name__)
 PRIORITY_RULES: List[str] = [
     'es', 'ef', 'ls', 'lf', 'duration', 'random',
     'mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr',
-    'maxrr', 'minrr', 'irsm', 'wcs', 'acs',
+    'maxrr', 'minrr',
+    # 'irsm', 'wcs', 'acs',
     'mehh_8000_b', 'mehh_3375_b', 'mehh_1000_b', 'mehh_125_b', 'gphh_b',
 ]
 
@@ -431,6 +434,66 @@ class RCPSPGeneticAlgorithm:
         repaired = self.pert.reorder_by_dependencies(ranked, self.pert.forwardDict)
         return [self._act_to_idx[a] for a, _ in repaired]
 
+    @staticmethod
+    def _activity_name(activity: Any) -> str:
+        """Return the stable activity name used in Pert.schedule_log."""
+        if hasattr(activity, "returnName"):
+            return activity.returnName()
+        return getattr(activity, "name", str(activity))
+
+    def _schedule_to_chromosome(
+        self,
+        fallback_chromosome: Optional[List[int]] = None,
+    ) -> List[int]:
+        """
+        Convert the current schedule left on ``self.pert`` into a chromosome.
+
+        Parallel SGS records the chronological decision order in
+        ``pert.schedule_log[*]['selected']``.  That order is the closest
+        activity-list representation of the parallel schedule.  If the log is
+        missing any activities, append scheduled activities by actual start time
+        and finally any unscheduled activities by the fallback order, then repair
+        the result for precedence feasibility.
+        """
+        fallback_pos = (
+            {gene: pos for pos, gene in enumerate(fallback_chromosome)}
+            if fallback_chromosome is not None
+            else {}
+        )
+        default_pos = lambda gene: fallback_pos.get(gene, gene)
+        name_to_idx = {
+            self._activity_name(activity): idx
+            for idx, activity in enumerate(self._activities)
+        }
+
+        chromosome: List[int] = []
+        seen: set[int] = set()
+        for step in getattr(self.pert, "schedule_log", []) or []:
+            for name in step.get("selected", []):
+                idx = name_to_idx.get(name)
+                if idx is not None and idx not in seen:
+                    chromosome.append(idx)
+                    seen.add(idx)
+
+        scheduled_remainder: List[Tuple[Any, Any, int, int]] = []
+        unscheduled_remainder: List[int] = []
+        for idx, activity in enumerate(self._activities):
+            if idx in seen:
+                continue
+            start_time, end_time = activity.returnAbsTimes()
+            if start_time is None:
+                unscheduled_remainder.append(idx)
+            else:
+                scheduled_remainder.append(
+                    (start_time, end_time or start_time, default_pos(idx), idx)
+                )
+
+        scheduled_remainder.sort(key=lambda item: (item[0], item[1], item[2]))
+        chromosome.extend(idx for _, _, _, idx in scheduled_remainder)
+        chromosome.extend(sorted(unscheduled_remainder, key=default_pos))
+
+        return self._repair_chromosome(chromosome)
+
     def _build_consensus_library(self, n_random: int) -> None:
         """
         Build the static precedence-feasible references used as the base of
@@ -741,6 +804,12 @@ class RCPSPGeneticAlgorithm:
                 parallel_out = self.pert.calculateScheduleWithResources(
                     sgs='max_use_res_ranked', priority_rule=rule
                 )
+                parallel_chromosome = self._schedule_to_chromosome(
+                    fallback_chromosome=chromosome
+                )
+                if len(population) < self.pop_size:
+                    population.append(self._Ind(parallel_chromosome))
+                    n_seeded += 1
 
                 seed_info[rule] = {
                     'serial': serial_out['scheduled_duration'] - 2,
@@ -803,6 +872,10 @@ class RCPSPGeneticAlgorithm:
         - Parallel SGS: ``calculateScheduleWithResources(sgs='max_use_res_ranked',
           priority_rule=rule)``
 
+        The chronological selected/start order left by the parallel SGS call is
+        converted back into an activity-list chromosome and added as another
+        seed while there is room in the population.
+
         ``pert.priorities`` is cleared to ``None`` before each named-rule SGS
         call so that any previously injected external priorities do not
         interfere.
@@ -862,7 +935,7 @@ class RCPSPGeneticAlgorithm:
         if self.verbose:
             msg = (
                 f"\nInitial population ({mode}): "
-                f"{n_rule_seeded} rule-seeded + {n_random} random"
+                f"{n_rule_seeded} rule/parallel-seeded + {n_random} random"
                 f"  |  total = {len(population)}"
             )
             if best_seeded is not None:
@@ -879,7 +952,8 @@ class RCPSPGeneticAlgorithm:
                 print()
         else:
             msg = (
-                "Initial population (%s): %d rule-seeded + %d random | total = %d"
+                "Initial population (%s): %d rule/parallel-seeded + %d random "
+                "| total = %d"
             )
             if best_seeded is not None:
                 logger.info(

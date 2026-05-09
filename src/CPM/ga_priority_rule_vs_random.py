@@ -20,6 +20,8 @@ Examples:
     python -m src.CPM.ga_priority_rule_vs_random src/CPM/j1201_1.json --n-gen 100
     python -m src.CPM.ga_priority_rule_vs_random j1201_1.json --mutations all
     python -m src.CPM.ga_priority_rule_vs_random j1201_1.json --no-fb-improvement
+    python -m src.CPM.ga_priority_rule_vs_random LPP_Json/LPP_1.json --target-best-known
+    python -m src.CPM.ga_priority_rule_vs_random RG300_Json/RG300_1.json --rcplib-best-key LB-lit
 """
 
 from __future__ import annotations
@@ -51,9 +53,11 @@ logger = logging.getLogger(__name__)
 CPM_DIR = Path(__file__).parent
 SCHEMA = CPM_DIR / "outage_schema.json"
 BEST_RESULTS_PATH = CPM_DIR / "benchmarks" / "best_results.json"
+RCPLIB_SOLUTIONS_PATH = CPM_DIR / "benchmarks" / "rcplib_solution_results.json"
 DEFAULT_OUTPUT_DIR = CPM_DIR / "results" / "ga_priority_rule_vs_random"
 FIXED_CROSSOVER = "uniform_order"
 DEFAULT_INITIAL_POPULATION_MODES = ["mixed", "random"]
+DEFAULT_RCPLIB_BEST_KEY = "LB-lit"
 
 
 def _available_mutations() -> list[str]:
@@ -84,13 +88,14 @@ def _parse_name_list(raw: str | list[str], choices: list[str], label: str) -> li
 
 
 def _resolve_json_path(path: str | Path) -> Path:
-    """Resolve JSON input from cwd, absolute path, or src/CPM-relative path."""
+    """Resolve JSON input from cwd, src/CPM, or src/CPM/benchmarks."""
     candidate = Path(path).expanduser()
     if candidate.exists():
         return candidate.resolve()
-    cpm_candidate = CPM_DIR / candidate
-    if cpm_candidate.exists():
-        return cpm_candidate.resolve()
+    for base in (CPM_DIR, CPM_DIR / "benchmarks"):
+        base_candidate = base / candidate
+        if base_candidate.exists():
+            return base_candidate.resolve()
     raise FileNotFoundError(f"Could not find JSON input: {path}")
 
 
@@ -131,11 +136,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--pop-size", type=int, default=50)
     parser.add_argument("--n-gen", type=int, default=100)
-    parser.add_argument("--cxpb", type=float, default=0.9)
-    parser.add_argument("--mutpb", type=float, default=0.1)
+    parser.add_argument("--cxpb", type=float, default=0.6)
+    parser.add_argument("--mutpb", type=float, default=0.4)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--n-random", type=int, default=8)
-    parser.add_argument("--hof-size", type=int, default=5)
+    parser.add_argument("--n-random", type=int, default=10)
+    parser.add_argument("--hof-size", type=int, default=10)
     parser.add_argument(
         "--consensus-update-freq",
         type=int,
@@ -176,6 +181,35 @@ def parse_args() -> argparse.Namespace:
     stopping.add_argument("--std-generations", type=int, default=1)
     stopping.add_argument("--max-unique-schedules", type=int)
 
+    references = parser.add_argument_group("best-known references")
+    references.add_argument(
+        "--best-known-source",
+        choices=["auto", "psplib", "rcplib", "none"],
+        default="auto",
+        help=(
+            "Reference source for best-known durations. 'auto' uses "
+            "best_results.json for PSPLIB .sm instances and "
+            "rcplib_solution_results.json for .rcp instances such as LPP/RG300."
+        ),
+    )
+    references.add_argument(
+        "--rcplib-solutions",
+        type=Path,
+        default=RCPLIB_SOLUTIONS_PATH,
+        help=(
+            "Path to rcplib_solution_results.json for LPP/RG300 references "
+            f"(default: {RCPLIB_SOLUTIONS_PATH})."
+        ),
+    )
+    references.add_argument(
+        "--rcplib-best-key",
+        default=DEFAULT_RCPLIB_BEST_KEY,
+        help=(
+            "Second-level key in rcplib_solution_results.json to use as the "
+            f"best-known value for .rcp instances (default: {DEFAULT_RCPLIB_BEST_KEY})."
+        ),
+    )
+
     output = parser.add_argument_group("output")
     output.add_argument(
         "--output-dir",
@@ -197,6 +231,14 @@ def parse_args() -> argparse.Namespace:
         "--delta-csv-file",
         type=Path,
         help="Path for paired mixed-vs-random delta CSV. Defaults under --output-dir.",
+    )
+    output.add_argument(
+        "--curve-csv-file",
+        type=Path,
+        help=(
+            "Path for per-generation convergence CSV containing result['gens'] "
+            "and result['best_curve']. Defaults under --output-dir."
+        ),
     )
     output.add_argument(
         "--no-plot",
@@ -233,8 +275,54 @@ def load_best_known_results() -> dict[str, float]:
         return json.load(f)
 
 
-def get_best_known_result(best_results: dict[str, float], json_path: Path) -> float | None:
-    return best_results.get(f"{json_path.stem}.sm")
+def load_rcplib_solution_results(path: Path) -> dict[str, dict[str, Any]]:
+    if not path.exists():
+        return {}
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _to_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def get_best_known_result(
+    best_results: dict[str, float],
+    rcplib_results: dict[str, dict[str, Any]],
+    json_path: Path,
+    source: str,
+    rcplib_best_key: str,
+) -> tuple[float | None, str]:
+    """Resolve the benchmark reference value for PSPLIB or RCPLIB JSON input."""
+    psplib_key = f"{json_path.stem}.sm"
+    rcplib_key = f"{json_path.stem}.rcp"
+
+    if source in {"auto", "rcplib"} and rcplib_key in rcplib_results:
+        entry = rcplib_results[rcplib_key]
+        value = _to_float(entry.get(rcplib_best_key))
+        if value is not None:
+            return value, f"rcplib:{rcplib_key}:{rcplib_best_key}"
+        if source == "rcplib":
+            return None, f"rcplib:{rcplib_key}:{rcplib_best_key}:missing"
+
+    if source in {"auto", "psplib"} and psplib_key in best_results:
+        value = _to_float(best_results[psplib_key])
+        if value is not None:
+            return value, f"psplib:{psplib_key}"
+        if source == "psplib":
+            return None, f"psplib:{psplib_key}:missing"
+
+    if source == "none":
+        return None, "none"
+
+    if source == "auto":
+        return None, "auto:not-found"
+    return None, f"{source}:not-found"
 
 
 def load_pert(json_path: Path) -> Any:
@@ -300,6 +388,7 @@ def run_case(
     target_fitness: float | None,
     best_rule_overall: float,
     best_known: float | None,
+    best_known_source: str,
 ) -> dict[str, Any]:
     """Run one mutation/initialization-mode combination on a fresh Pert instance."""
     print(
@@ -350,6 +439,7 @@ def run_case(
         "improvement_gen0": summary["improvement"],
         "improvement_vs_seed": best_rule_overall - best_ga,
         "best_known": best_known,
+        "best_known_source": best_known_source,
         "gap_to_best_known": (
             best_ga - best_known if best_known is not None else float("nan")
         ),
@@ -458,6 +548,8 @@ def write_csv(results: list[dict[str, Any]], filename: Path) -> None:
         "mutation",
         "initial_population_mode",
         "best_ga",
+        "best_known",
+        "best_known_source",
         "gap_to_best_known",
         "improvement_vs_seed",
         "initial_best",
@@ -502,10 +594,58 @@ def write_delta_csv(delta_rows: list[dict[str, Any]], filename: Path) -> None:
         writer.writerows(delta_rows)
 
 
+def write_curve_csv(results: list[dict[str, Any]], filename: Path) -> None:
+    """Write one row per run/generation from result['gens'] and result['best_curve']."""
+    filename.parent.mkdir(parents=True, exist_ok=True)
+    fields = [
+        "run_rank",
+        "crossover",
+        "mutation",
+        "initial_population_mode",
+        "label",
+        "point_index",
+        "gen",
+        "best_curve",
+        "best_ga",
+        "best_known",
+        "gap_to_best_known",
+        "stop_reason",
+    ]
+    with filename.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        for run_rank, result in enumerate(results, start=1):
+            gens = result.get("gens") or []
+            best_curve = result.get("best_curve") or []
+            for point_index, (gen, best_value) in enumerate(
+                zip(gens, best_curve),
+                start=1,
+            ):
+                writer.writerow(
+                    {
+                        "run_rank": run_rank,
+                        "crossover": result.get("crossover"),
+                        "mutation": result.get("mutation"),
+                        "initial_population_mode": result.get(
+                            "initial_population_mode"
+                        ),
+                        "label": result.get("label"),
+                        "point_index": point_index,
+                        "gen": gen,
+                        "best_curve": best_value,
+                        "best_ga": result.get("best_ga"),
+                        "best_known": result.get("best_known"),
+                        "gap_to_best_known": result.get("gap_to_best_known"),
+                        "stop_reason": result.get("stop_reason"),
+                    }
+                )
+
+
 def print_full_comparison(
     results: list[dict[str, Any]],
     baseline: dict[str, Any],
     best_known: float | None,
+    best_known_source: str,
 ) -> None:
     print()
     print("=" * 124)
@@ -515,7 +655,7 @@ def print_full_comparison(
     print(f"CPM duration      : {baseline['cpm_duration']:.2f} h")
     print(f"Best serial seed  : {baseline['best_serial']:.2f} h")
     print(f"Best parallel seed: {baseline['best_parallel']:.2f} h")
-    print(f"Best known        : {_safe_float(best_known)} h")
+    print(f"Best known        : {_safe_float(best_known)} h ({best_known_source})")
     print(f"Crossover         : {FIXED_CROSSOVER}")
     print("-" * 124)
     print(
@@ -576,7 +716,14 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     best_results = load_best_known_results()
-    best_known = get_best_known_result(best_results, args.json_path)
+    rcplib_results = load_rcplib_solution_results(args.rcplib_solutions)
+    best_known, best_known_source = get_best_known_result(
+        best_results,
+        rcplib_results,
+        args.json_path,
+        args.best_known_source,
+        args.rcplib_best_key,
+    )
     target_fitness = best_known if args.target_best_known else args.target_fitness
     baseline = compute_priority_baseline(args.json_path)
 
@@ -585,6 +732,8 @@ def main() -> None:
     print(f"Crossover                : {FIXED_CROSSOVER}")
     print(f"Mutations                : {', '.join(args.mutations)}")
     print(f"Initial population modes : {', '.join(args.initial_population_modes)}")
+    print(f"Best-known source        : {best_known_source}")
+    print(f"Best-known value         : {_safe_float(best_known)}")
     print(f"Runs                     : {len(args.mutations) * len(args.initial_population_modes)}")
     print("=" * 84)
 
@@ -599,6 +748,7 @@ def main() -> None:
                 target_fitness,
                 baseline["best_rule_overall"],
                 best_known,
+                best_known_source,
             )
             results.append(result)
 
@@ -622,6 +772,9 @@ def main() -> None:
     delta_csv_file = args.delta_csv_file or (
         args.output_dir / f"{stem}_priority_vs_random_delta_seed{args.seed}.csv"
     )
+    curve_csv_file = args.curve_csv_file or (
+        args.output_dir / f"{stem}_priority_vs_random_curves_seed{args.seed}.csv"
+    )
 
     if not args.no_plot:
         plot_combined_convergence(
@@ -636,8 +789,10 @@ def main() -> None:
     print(f"Comparison CSV: {csv_file}")
     write_delta_csv(delta_rows, delta_csv_file)
     print(f"Mixed-vs-random delta CSV: {delta_csv_file}")
+    write_curve_csv(results, curve_csv_file)
+    print(f"Convergence curves CSV: {curve_csv_file}")
 
-    print_full_comparison(results, baseline, best_known)
+    print_full_comparison(results, baseline, best_known, best_known_source)
     print_delta_comparison(delta_rows)
     if not args.no_fb_improvement:
         print()
