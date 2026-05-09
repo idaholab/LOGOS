@@ -29,7 +29,8 @@ from .outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, 
 from .validate_outage_data import OutageDataValidator
 from .cpm_utils import CUSTOM_PRIORITY_FUNCS, sigmoid_bipolar, sigmoid_inv, normalize_tuples
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
+logging.disable(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 class Pert:
@@ -61,7 +62,7 @@ class Pert:
         self.backwardDict = {}
         self.infoDict = {}
         self.nxgraph = None
-        self._max_time_factor = 10
+        self._max_time_factor = 10000
         self._list_priority_names = [
             'lf', 'ls', 'ef', 'es', 'duration', 'random',
             'mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr',
