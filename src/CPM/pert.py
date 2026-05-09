@@ -68,7 +68,7 @@ class Pert:
             'mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr',
             'maxrr', 'minrr','mehh_8000_b','mehh_3375_b',
             'mehh_1000_b','mehh_125_b','gphh_b',
-            'wcs', 'acs', 'irsm',
+            # 'wcs', 'acs', 'irsm',
             ]
 
         self.task_to_activity = {} # dictionary in the form: {act_ID: act_instance}
