@@ -68,7 +68,7 @@ class Pert:
             'mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr',
             'maxrr', 'minrr','mehh_8000_b','mehh_3375_b',
             'mehh_1000_b','mehh_125_b','gphh_b',
-            # 'wcs', 'acs', 'irsm',
+            'wcs', 'acs', 'irsm',
             ]
 
         self.task_to_activity = {} # dictionary in the form: {act_ID: act_instance}
@@ -3290,7 +3290,10 @@ class Pert:
                 time, current_hours, value_assignment
             )
 
-        for act in list(self._ready):
+        for act in sorted(
+            self._ready,
+            key=lambda a: a.returnName() if hasattr(a, "returnName") else str(a),
+        ):
             # _ready guarantees all predecessors are complete (_pending_preds==0);
             # the counter check is O(1) and acts as a safety net for drift.
             if self._pending_preds.get(act, 0) != 0:
