@@ -28,6 +28,7 @@ Examples:
     python -m src.CPM.ga_test --max-evals 5000
     python -m src.CPM.ga_test --stall-generations 25 --fitness-std-tol 0.01
     python -m src.CPM.ga_test --target-best-known --case j30
+    python -m src.CPM.ga_test --replacement-strategy elitist
 """
 
 import argparse
@@ -75,11 +76,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--initial-population-mode",
-        choices=["mixed", "random", "priority_rules"],
-        default="mixed",
+        choices=list(RCPSPGeneticAlgorithm._INITIAL_POPULATION_MODES),
+        default="priority_rules",
         help=(
-            "Initial GA population source: priority-rule seeds plus random fill "
-            "(mixed), all random, or deterministic priority rules only."
+            "Initial GA population source: priority_rules uses best "
+            "serial/parallel priority-rule seeds plus random fill; random uses "
+            "pure random fill."
         ),
     )
     parser.add_argument(
@@ -90,12 +92,30 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--crossover",
         default="two_point",
-        choices=["one_point", "two_point", "uniform_order"],
+        choices=list(RCPSPGeneticAlgorithm._CROSSOVER_METHODS),
     )
     parser.add_argument(
         "--mutation",
         default="adjacent_swap",
         choices=["swap", "adjacent_swap", "insertion_window"],
+    )
+    parser.add_argument(
+        "--replacement-strategy",
+        default="diverse_elitist",
+        choices=["generational", "elitist", "steady_state", "diverse_elitist"],
+        help="Population update method applied after each offspring generation.",
+    )
+    parser.add_argument(
+        "--elite-size",
+        type=int,
+        default=1,
+        help="Minimum parent elites preserved by steady_state replacement.",
+    )
+    parser.add_argument(
+        "--replacement-fraction",
+        type=float,
+        default=0.5,
+        help="Population fraction replaced by offspring under steady_state.",
     )
     parser.add_argument(
         "--no-fb-improvement",
@@ -188,9 +208,12 @@ def run_ga_case(
     verbose: bool = True,
     crossover: str = 'two_point',
     mutation: str = 'adjacent_swap',
+    replacement_strategy: str = 'diverse_elitist',
+    elite_size: int = 1,
+    replacement_fraction: float = 0.5,
     fb_improvement: bool = True,
     fb_freq: int = 0,
-    initial_population_mode: str = 'mixed',
+    initial_population_mode: str = 'priority_rules',
     plot_convergence: bool = True,
     plot_dir: str | Path | None = None,
     target_fitness: float | None = None,
@@ -234,10 +257,19 @@ def run_ga_case(
         Print per-generation stats and seeding table.
     crossover : str
         Crossover operator name passed to ``RCPSPGeneticAlgorithm``.
-        One of ``'one_point'``, ``'two_point'``, ``'uniform_order'``.
+        One of ``'one_point'``, ``'two_point'``, ``'uniform_order'``,
+        ``'decuple'``.
     mutation : str
         Mutation operator name passed to ``RCPSPGeneticAlgorithm``.
         One of ``'swap'``, ``'adjacent_swap'``, ``'insertion_window'``.
+    replacement_strategy : str
+        Population update strategy passed to ``RCPSPGeneticAlgorithm``.
+        One of ``'generational'``, ``'elitist'``, ``'steady_state'``,
+        ``'diverse_elitist'``.
+    elite_size : int
+        Minimum parent elites preserved by ``steady_state`` replacement.
+    replacement_fraction : float
+        Population fraction replaced by offspring under ``steady_state``.
     fb_improvement : bool
         Apply Forward-Backward-Forward local improvement as a final
         polishing step on the full population.  Default ``True``.
@@ -245,8 +277,7 @@ def run_ga_case(
         Also apply FBF every ``fb_freq`` generations during evolution
         (``0`` = only at the end).
     initial_population_mode : str
-        Initial GA population source: ``'mixed'``, ``'random'``, or
-        ``'priority_rules'``.
+        Initial GA population source: ``'priority_rules'`` or ``'random'``.
     plot_convergence : bool
         Save a convergence plot for the GA logbook returned by ``run()``.
     plot_dir : str or Path, optional
@@ -329,7 +360,11 @@ def run_ga_case(
         print()
 
     # ── Run GA ───────────────────────────────────────────────────────────────
-    print(f"Running GA (crossover={crossover!r}, mutation={mutation!r}, Serial SGS)...")
+    print(
+        "Running GA "
+        f"(crossover={crossover!r}, mutation={mutation!r}, "
+        f"replacement={replacement_strategy!r}, Serial SGS)..."
+    )
     ga = RCPSPGeneticAlgorithm(
         pert,
         pop_size=pop_size,
@@ -340,6 +375,9 @@ def run_ga_case(
         verbose=verbose,
         crossover=crossover,
         mutation=mutation,
+        replacement_strategy=replacement_strategy,
+        elite_size=elite_size,
+        replacement_fraction=replacement_fraction,
         fb_improvement=fb_improvement,
         fb_freq=fb_freq,
         initial_population_mode=initial_population_mode,
@@ -359,7 +397,10 @@ def run_ga_case(
         out_dir.mkdir(parents=True, exist_ok=True)
         plot_path = (
             out_dir
-            / f"{case_name}_ga_convergence_{crossover}_{mutation}_seed{seed}.png"
+            / (
+                f"{case_name}_ga_convergence_{crossover}_{mutation}_"
+                f"{replacement_strategy}_seed{seed}.png"
+            )
         )
         try:
             import matplotlib
@@ -418,6 +459,7 @@ def run_ga_case(
         'best_parallel_seed': best_parallel,
         'best_ga': best_ga,
         'improvement': best_rule_overall - best_ga,
+        'replacement_strategy': replacement_strategy,
         'convergence_plot': str(plot_path) if plot_path else None,
         'stop_reason': summary['stop_reason'],
         'n_gen_executed': summary['n_gen'],
@@ -450,6 +492,9 @@ def main() -> None:
             verbose=not args.quiet,
             crossover=args.crossover,
             mutation=args.mutation,
+            replacement_strategy=args.replacement_strategy,
+            elite_size=args.elite_size,
+            replacement_fraction=args.replacement_fraction,
             fb_improvement=not args.no_fb_improvement,
             fb_freq=args.fb_freq,
             initial_population_mode=args.initial_population_mode,
@@ -474,7 +519,8 @@ def main() -> None:
     print(
         "SUMMARY — GA "
         f"(Activity List, {args.crossover} crossover, "
-        f"{args.mutation} mutation, Serial SGS)"
+        f"{args.mutation} mutation, {args.replacement_strategy} replacement, "
+        "Serial SGS)"
     )
     print("=" * 80)
     print(

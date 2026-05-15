@@ -7,7 +7,7 @@ Tests are organized in four tiers:
        _crossover_one_point, _crossover_two_point, _crossover_uniform_order
 
   2. Structural tests using a small Pert fixture (example_10.json, 12 tasks)
-       __init__ (default/custom operators, invalid inputs),
+       _crossover_decuple, __init__ (default/custom operators, invalid inputs),
        _rule_to_chromosome, generate_initial_population, _evaluate
 
   3. Mutation operator tests (require Pert)
@@ -261,7 +261,63 @@ class TestCrossoverUniformOrder:
 
 
 # =============================================================================
-# 4. Structural tests — constructor and chromosome helpers
+# 4. Instance crossover tests — _crossover_decuple
+# =============================================================================
+
+class TestCrossoverDecuple:
+
+    def test_outputs_are_valid_permutations_without_evaluation(
+        self,
+        pert,
+        monkeypatch,
+    ):
+        """DCS must select valid children without decoding candidates."""
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=4,
+            n_gen=1,
+            crossover='decuple',
+            mutation='adjacent_swap',
+            fb_improvement=False,
+            verbose=False,
+        )
+        parent1 = g._Ind(g._rule_to_chromosome('es'))
+        parent2 = g._Ind(g._rule_to_chromosome('lf'))
+        expected = set(range(g._n))
+
+        def fail_evaluate(_):
+            raise AssertionError("_crossover_decuple must not evaluate candidates")
+
+        monkeypatch.setattr(g, "_evaluate", fail_evaluate)
+        before = g._eval_count
+        child1, child2 = g._crossover_decuple(parent1, parent2)
+
+        assert set(child1) == expected
+        assert set(child2) == expected
+        assert len(child1) == g._n
+        assert len(child2) == g._n
+        assert not child1.fitness.valid
+        assert not child2.fitness.valid
+        assert g._eval_count == before
+
+    def test_decuple_candidate_selection_maximizes_diversity(self, ga):
+        candidates = [
+            [0, 1, 2, 3],
+            [0, 1, 3, 2],
+            [3, 2, 1, 0],
+            [0, 1, 2, 3],
+        ]
+
+        selected = ga._select_best_decuple_candidates(candidates)
+
+        assert selected == [
+            [0, 1, 2, 3],
+            [3, 2, 1, 0],
+        ]
+
+
+# =============================================================================
+# 5. Structural tests — constructor and chromosome helpers
 # =============================================================================
 
 class TestConstructor:
@@ -295,10 +351,27 @@ class TestConstructor:
         """Default consensus-library random reference count must be 8."""
         assert ga.n_random == 8
 
+    def test_supported_initialization_modes(self, pert):
+        assert RCPSPGeneticAlgorithm._INITIAL_POPULATION_MODES == {
+            'priority_rules', 'random'
+        }
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            initial_population_mode='random',
+            verbose=False,
+        )
+        assert g.initial_population_mode == 'random'
+        with pytest.raises(ValueError, match="initial_population_mode"):
+            RCPSPGeneticAlgorithm(
+                pert,
+                initial_population_mode='mixed',
+                verbose=False,
+            )
+
     def test_crossover_method_map(self):
         """_CROSSOVER_METHODS must contain all documented choices."""
         assert set(RCPSPGeneticAlgorithm._CROSSOVER_METHODS) == {
-            'one_point', 'two_point', 'uniform_order'
+            'one_point', 'two_point', 'uniform_order', 'decuple'
         }
 
     def test_mutation_method_map(self):
@@ -362,6 +435,7 @@ class TestConstructor:
         ('one_point',    'swap'),
         ('two_point',    'adjacent_swap'),
         ('uniform_order', 'insertion_window'),
+        ('decuple',      'adjacent_swap'),
         ('one_point',    'insertion_window'),
         ('uniform_order', 'swap'),
         ('two_point',    'consensus_reorder'),
@@ -378,7 +452,7 @@ class TestConstructor:
 
 
 # =============================================================================
-# 5. rule_to_chromosome tests
+# 6. rule_to_chromosome tests
 # =============================================================================
 
 class TestRuleToChromosome:
@@ -401,7 +475,7 @@ class TestRuleToChromosome:
 
 
 # =============================================================================
-# 6. generate_initial_population tests
+# 7. generate_initial_population tests
 # =============================================================================
 
 class TestInitialPopulation:
@@ -423,9 +497,107 @@ class TestInitialPopulation:
         for ind in pop:
             assert isinstance(ind, list)
 
+    def test_priority_rule_seed_candidates_not_limited_by_pop_size(self, ga):
+        candidates, seed_info = ga._append_priority_rule_seeds()
+        assert len(candidates) > ga.pop_size
+        assert len(candidates) == sum(len(info) for info in seed_info.values())
+        assert {candidate['source'] for candidate in candidates} == {
+            'serial', 'parallel'
+        }
+
+    def test_priority_rule_mode_keeps_best_20_percent_then_random_fills(
+        self,
+        pert,
+        monkeypatch,
+    ):
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=10,
+            n_gen=1,
+            fb_improvement=False,
+            verbose=False,
+        )
+        best = g._rule_to_chromosome('lf')
+        second = g._rule_to_chromosome('es')
+        third = g._rule_to_chromosome('duration')
+        random_fill = g._rule_to_chromosome('random')
+
+        def fake_priority_seeds():
+            return (
+                [
+                    {
+                        'rule': 'duration',
+                        'source': 'serial',
+                        'chromosome': third,
+                        'duration': 30.0,
+                    },
+                    {
+                        'rule': 'lf',
+                        'source': 'serial',
+                        'chromosome': best,
+                        'duration': 10.0,
+                    },
+                    {
+                        'rule': 'es',
+                        'source': 'parallel',
+                        'chromosome': second,
+                        'duration': 20.0,
+                    },
+                ],
+                {
+                    'duration': {'serial': 30.0},
+                    'lf': {'serial': 10.0},
+                    'es': {'parallel': 20.0},
+                },
+            )
+
+        def fake_random_fill(population):
+            n_added = 0
+            while len(population) < g.pop_size:
+                population.append(g._Ind(random_fill))
+                n_added += 1
+            return n_added
+
+        monkeypatch.setattr(g, '_append_priority_rule_seeds', fake_priority_seeds)
+        monkeypatch.setattr(g, '_fill_random_population', fake_random_fill)
+
+        pop = g.generate_initial_population()
+        assert len(pop) == 10
+        assert list(pop[0]) == best
+        assert list(pop[1]) == second
+        assert all(list(ind) == random_fill for ind in pop[2:])
+
+    def test_random_mode_skips_priority_rule_seeds(self, pert, monkeypatch):
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=5,
+            n_gen=1,
+            initial_population_mode='random',
+            fb_improvement=False,
+            verbose=False,
+        )
+        random_fill = g._rule_to_chromosome('random')
+
+        def fail_priority_seeds():
+            raise AssertionError("random mode must not build priority-rule seeds")
+
+        def fake_random_fill(population):
+            n_added = 0
+            while len(population) < g.pop_size:
+                population.append(g._Ind(random_fill))
+                n_added += 1
+            return n_added
+
+        monkeypatch.setattr(g, '_append_priority_rule_seeds', fail_priority_seeds)
+        monkeypatch.setattr(g, '_fill_random_population', fake_random_fill)
+
+        pop = g.generate_initial_population()
+        assert len(pop) == g.pop_size
+        assert all(list(ind) == random_fill for ind in pop)
+
 
 # =============================================================================
-# 7. Fitness evaluation
+# 8. Fitness evaluation
 # =============================================================================
 
 class TestEvaluate:
@@ -450,7 +622,7 @@ class TestEvaluate:
 
 
 # =============================================================================
-# 8. Mutation — _mutate_swap
+# 9. Mutation — _mutate_swap
 # =============================================================================
 
 class TestMutateSwap:
@@ -523,7 +695,7 @@ class TestMutateSwap:
 
 
 # =============================================================================
-# 9. Mutation — _mutate_adjacent_swap
+# 10. Mutation — _mutate_adjacent_swap
 # =============================================================================
 
 class TestMutateAdjacentSwap:
@@ -588,7 +760,7 @@ class TestMutateAdjacentSwap:
 
 
 # =============================================================================
-# 10. Mutation — _mutate_insertion_window
+# 11. Mutation — _mutate_insertion_window
 # =============================================================================
 
 class TestMutateInsertionWindow:
@@ -656,7 +828,7 @@ class TestMutateInsertionWindow:
 
 
 # =============================================================================
-# 11. Forward-Backward-Forward improvement
+# 12. Forward-Backward-Forward improvement
 # =============================================================================
 
 class TestFBImprovement:
@@ -754,7 +926,7 @@ class TestFBImprovement:
 
 
 # =============================================================================
-# 12. End-to-end run
+# 13. End-to-end run
 # =============================================================================
 
 class TestRun:
@@ -919,6 +1091,7 @@ class TestRun:
         ('one_point',    'swap'),
         ('two_point',    'adjacent_swap'),
         ('uniform_order', 'insertion_window'),
+        ('decuple',      'adjacent_swap'),
         ('two_point',    'consensus_reorder'),
     ])
     def test_all_operator_combinations_complete(self, pert, cx, mut):

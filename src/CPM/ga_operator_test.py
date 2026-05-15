@@ -132,11 +132,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hof-size", type=int, default=5)
     parser.add_argument(
         "--initial-population-mode",
-        choices=["mixed", "random", "priority_rules"],
-        default="mixed",
+        choices=list(RCPSPGeneticAlgorithm._INITIAL_POPULATION_MODES),
+        default="priority_rules",
         help=(
-            "Initial GA population source: priority-rule seeds plus random fill "
-            "(mixed), all random, or deterministic priority rules only."
+            "Initial GA population source: priority_rules uses best "
+            "serial/parallel priority-rule seeds plus random fill; random uses "
+            "pure random fill."
         ),
     )
     parser.add_argument(

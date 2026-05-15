@@ -1,14 +1,13 @@
 """
-ga_priority_rule_vs_random.py - Compare mixed vs random GA initialization.
+ga_priority_rule_vs_random.py - Compare priority-rule vs random GA initialization.
 
-This script fixes crossover to ``uniform_order`` and runs every selected
-mutation operator twice:
+The GA supports:
 
-* ``initial_population_mode='mixed'``: priority-rule seeds plus random fill.
-* ``initial_population_mode='random'``: all random precedence-feasible seeds.
-
-The output is intended to isolate how much the priority-rule seeded initial
-population helps relative to fully random initialization.
+* ``initial_population_mode='priority_rules'``: rank deterministic
+  priority-rule serial/parallel seeds, keep the best 20% of ``pop_size``, then
+  fill the rest randomly.
+* ``initial_population_mode='random'``: fill the full initial population with
+  random precedence-feasible chromosomes.
 
 Usage from the repo root:
     python -m src.CPM.ga_priority_rule_vs_random src/CPM/j1201_1.json
@@ -19,6 +18,7 @@ Usage from the src/CPM directory:
 Examples:
     python -m src.CPM.ga_priority_rule_vs_random src/CPM/j1201_1.json --n-gen 100
     python -m src.CPM.ga_priority_rule_vs_random j1201_1.json --mutations all
+    python -m src.CPM.ga_priority_rule_vs_random j1201_1.json --replacement-strategies elitist
     python -m src.CPM.ga_priority_rule_vs_random j1201_1.json --no-fb-improvement
     python -m src.CPM.ga_priority_rule_vs_random LPP_Json/LPP_1.json --target-best-known
     python -m src.CPM.ga_priority_rule_vs_random RG300_Json/RG300_1.json --rcplib-best-key LB-lit
@@ -55,13 +55,20 @@ SCHEMA = CPM_DIR / "outage_schema.json"
 BEST_RESULTS_PATH = CPM_DIR / "benchmarks" / "best_results.json"
 RCPLIB_SOLUTIONS_PATH = CPM_DIR / "benchmarks" / "rcplib_solution_results.json"
 DEFAULT_OUTPUT_DIR = CPM_DIR / "results" / "ga_priority_rule_vs_random"
-FIXED_CROSSOVER = "uniform_order"
-DEFAULT_INITIAL_POPULATION_MODES = ["mixed", "random"]
+FIXED_CROSSOVER = "decuple"
+DEFAULT_INITIAL_POPULATION_MODES = ["priority_rules", "random"]
+DEFAULT_REPLACEMENT_STRATEGIES = ["generational"]
 DEFAULT_RCPLIB_BEST_KEY = "LB-lit"
 
 
 def _available_mutations() -> list[str]:
     return list(RCPSPGeneticAlgorithm._MUTATION_METHODS)
+
+
+def _available_replacement_strategies() -> list[str]:
+    preferred_order = ["generational", "elitist", "steady_state", "diverse_elitist"]
+    available = RCPSPGeneticAlgorithm._REPLACEMENT_STRATEGIES
+    return [strategy for strategy in preferred_order if strategy in available]
 
 
 def _parse_name_list(raw: str | list[str], choices: list[str], label: str) -> list[str]:
@@ -107,11 +114,12 @@ def _safe_float(value: float | None) -> str:
 
 def parse_args() -> argparse.Namespace:
     mutations = _available_mutations()
+    replacement_strategies = _available_replacement_strategies()
     initial_modes = DEFAULT_INITIAL_POPULATION_MODES
 
     parser = argparse.ArgumentParser(
         description=(
-            "Compare mixed priority-rule seeding vs fully random initialization "
+            "Compare priority-rule seeded initialization vs pure random fill "
             f"with fixed {FIXED_CROSSOVER!r} crossover."
         )
     )
@@ -130,14 +138,36 @@ def parse_args() -> argparse.Namespace:
         nargs="+",
         default=initial_modes,
         help=(
-            "Initialization modes to compare. Default: mixed random. "
+            "Initialization modes to compare. Default: priority_rules random. "
             f"Choices: {initial_modes}."
         ),
     )
+    parser.add_argument(
+        "--replacement-strategies",
+        nargs="+",
+        default=DEFAULT_REPLACEMENT_STRATEGIES,
+        help=(
+            "Selected population replacement strategies, or 'all'. "
+            "Default: generational. "
+            f"Choices: {replacement_strategies}."
+        ),
+    )
+    parser.add_argument(
+        "--elite-size",
+        type=int,
+        default=1,
+        help="Minimum parent elites preserved by steady_state replacement.",
+    )
+    parser.add_argument(
+        "--replacement-fraction",
+        type=float,
+        default=0.9,
+        help="Population fraction replaced by offspring under steady_state.",
+    )
     parser.add_argument("--pop-size", type=int, default=50)
     parser.add_argument("--n-gen", type=int, default=100)
-    parser.add_argument("--cxpb", type=float, default=0.6)
-    parser.add_argument("--mutpb", type=float, default=0.4)
+    parser.add_argument("--cxpb", type=float, default=0.8)
+    parser.add_argument("--mutpb", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--n-random", type=int, default=10)
     parser.add_argument("--hof-size", type=int, default=10)
@@ -230,7 +260,10 @@ def parse_args() -> argparse.Namespace:
     output.add_argument(
         "--delta-csv-file",
         type=Path,
-        help="Path for paired mixed-vs-random delta CSV. Defaults under --output-dir.",
+        help=(
+            "Path for paired priority_rules-vs-random delta CSV. "
+            "Defaults under --output-dir."
+        ),
     )
     output.add_argument(
         "--curve-csv-file",
@@ -261,6 +294,11 @@ def parse_args() -> argparse.Namespace:
             args.initial_population_modes,
             initial_modes,
             "initial population mode",
+        )
+        args.replacement_strategies = _parse_name_list(
+            args.replacement_strategies,
+            replacement_strategies,
+            "replacement strategy",
         )
         args.json_path = _resolve_json_path(args.json_input)
     except (argparse.ArgumentTypeError, FileNotFoundError) as exc:
@@ -382,6 +420,7 @@ def _best_series(log: Any) -> tuple[list[float], list[float]]:
 
 def run_case(
     json_path: Path,
+    replacement_strategy: str,
     mutation: str,
     initial_population_mode: str,
     args: argparse.Namespace,
@@ -393,7 +432,8 @@ def run_case(
     """Run one mutation/initialization-mode combination on a fresh Pert instance."""
     print(
         "Running GA: "
-        f"crossover={FIXED_CROSSOVER}, mutation={mutation}, "
+        f"crossover={FIXED_CROSSOVER}, replacement={replacement_strategy}, "
+        f"mutation={mutation}, "
         f"initial_population_mode={initial_population_mode}"
     )
     pert = load_pert(json_path)
@@ -409,6 +449,9 @@ def run_case(
         verbose=not args.quiet,
         crossover=FIXED_CROSSOVER,
         mutation=mutation,
+        replacement_strategy=replacement_strategy,
+        elite_size=args.elite_size,
+        replacement_fraction=args.replacement_fraction,
         fb_improvement=not args.no_fb_improvement,
         fb_freq=args.fb_freq,
         initial_population_mode=initial_population_mode,
@@ -430,9 +473,12 @@ def run_case(
 
     return {
         "crossover": FIXED_CROSSOVER,
+        "replacement_strategy": replacement_strategy,
+        "elite_size": args.elite_size,
+        "replacement_fraction": args.replacement_fraction,
         "mutation": mutation,
         "initial_population_mode": initial_population_mode,
-        "label": f"{initial_population_mode}/{mutation}",
+        "label": f"{replacement_strategy}/{initial_population_mode}/{mutation}",
         "best_ga": best_ga,
         "logged_best": summary["best_duration"],
         "initial_best": summary["initial_best"],
@@ -455,45 +501,46 @@ def run_case(
 
 
 def build_delta_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Build paired mixed-vs-random comparisons by mutation."""
-    by_mutation: dict[str, dict[str, dict[str, Any]]] = {}
+    """Build paired priority_rules-vs-random comparisons."""
+    by_pair: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
     for result in results:
-        by_mutation.setdefault(result["mutation"], {})[
-            result["initial_population_mode"]
-        ] = result
+        key = (result["replacement_strategy"], result["mutation"])
+        by_pair.setdefault(key, {})[result["initial_population_mode"]] = result
 
     rows: list[dict[str, Any]] = []
-    for mutation in _available_mutations():
-        pair = by_mutation.get(mutation, {})
-        mixed = pair.get("mixed")
-        random_result = pair.get("random")
-        if mixed is None or random_result is None:
-            continue
-        delta = random_result["best_ga"] - mixed["best_ga"]
-        if delta > 0:
-            winner = "mixed"
-        elif delta < 0:
-            winner = "random"
-        else:
-            winner = "tie"
-        rows.append(
-            {
-                "mutation": mutation,
-                "mixed_best_ga": mixed["best_ga"],
-                "random_best_ga": random_result["best_ga"],
-                "delta_random_minus_mixed": delta,
-                "winner": winner,
-                "mixed_gap_to_best_known": mixed["gap_to_best_known"],
-                "random_gap_to_best_known": random_result["gap_to_best_known"],
-                "mixed_initial_best": mixed["initial_best"],
-                "random_initial_best": random_result["initial_best"],
-                "mixed_n_evals": mixed["n_evals"],
-                "random_n_evals": random_result["n_evals"],
-                "mixed_stop_reason": mixed["stop_reason"],
-                "random_stop_reason": random_result["stop_reason"],
-            }
-        )
-    rows.sort(key=lambda row: abs(row["delta_random_minus_mixed"]), reverse=True)
+    for replacement_strategy in _available_replacement_strategies():
+        for mutation in _available_mutations():
+            pair = by_pair.get((replacement_strategy, mutation), {})
+            priority = pair.get("priority_rules")
+            random_result = pair.get("random")
+            if priority is None or random_result is None:
+                continue
+            delta = random_result["best_ga"] - priority["best_ga"]
+            if delta > 0:
+                winner = "priority_rules"
+            elif delta < 0:
+                winner = "random"
+            else:
+                winner = "tie"
+            rows.append(
+                {
+                    "replacement_strategy": replacement_strategy,
+                    "mutation": mutation,
+                    "priority_best_ga": priority["best_ga"],
+                    "random_best_ga": random_result["best_ga"],
+                    "delta_random_minus_priority": delta,
+                    "winner": winner,
+                    "priority_gap_to_best_known": priority["gap_to_best_known"],
+                    "random_gap_to_best_known": random_result["gap_to_best_known"],
+                    "priority_initial_best": priority["initial_best"],
+                    "random_initial_best": random_result["initial_best"],
+                    "priority_n_evals": priority["n_evals"],
+                    "random_n_evals": random_result["n_evals"],
+                    "priority_stop_reason": priority["stop_reason"],
+                    "random_stop_reason": random_result["stop_reason"],
+                }
+            )
+    rows.sort(key=lambda row: abs(row["delta_random_minus_priority"]), reverse=True)
     return rows
 
 
@@ -512,7 +559,11 @@ def plot_combined_convergence(
     filename.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(11, 6.5))
     for result in results:
-        linestyle = "-" if result["initial_population_mode"] == "mixed" else "--"
+        linestyle = (
+            "-"
+            if result["initial_population_mode"] == "priority_rules"
+            else "--"
+        )
         ax.plot(
             result["gens"],
             result["best_curve"],
@@ -545,6 +596,9 @@ def write_csv(results: list[dict[str, Any]], filename: Path) -> None:
     fields = [
         "rank",
         "crossover",
+        "replacement_strategy",
+        "elite_size",
+        "replacement_fraction",
         "mutation",
         "initial_population_mode",
         "best_ga",
@@ -574,18 +628,19 @@ def write_csv(results: list[dict[str, Any]], filename: Path) -> None:
 def write_delta_csv(delta_rows: list[dict[str, Any]], filename: Path) -> None:
     filename.parent.mkdir(parents=True, exist_ok=True)
     fields = [
+        "replacement_strategy",
         "mutation",
-        "mixed_best_ga",
+        "priority_best_ga",
         "random_best_ga",
-        "delta_random_minus_mixed",
+        "delta_random_minus_priority",
         "winner",
-        "mixed_gap_to_best_known",
+        "priority_gap_to_best_known",
         "random_gap_to_best_known",
-        "mixed_initial_best",
+        "priority_initial_best",
         "random_initial_best",
-        "mixed_n_evals",
+        "priority_n_evals",
         "random_n_evals",
-        "mixed_stop_reason",
+        "priority_stop_reason",
         "random_stop_reason",
     ]
     with filename.open("w", newline="", encoding="utf-8") as f:
@@ -600,6 +655,9 @@ def write_curve_csv(results: list[dict[str, Any]], filename: Path) -> None:
     fields = [
         "run_rank",
         "crossover",
+        "replacement_strategy",
+        "elite_size",
+        "replacement_fraction",
         "mutation",
         "initial_population_mode",
         "label",
@@ -625,6 +683,9 @@ def write_curve_csv(results: list[dict[str, Any]], filename: Path) -> None:
                     {
                         "run_rank": run_rank,
                         "crossover": result.get("crossover"),
+                        "replacement_strategy": result.get("replacement_strategy"),
+                        "elite_size": result.get("elite_size"),
+                        "replacement_fraction": result.get("replacement_fraction"),
                         "mutation": result.get("mutation"),
                         "initial_population_mode": result.get(
                             "initial_population_mode"
@@ -648,35 +709,37 @@ def print_full_comparison(
     best_known_source: str,
 ) -> None:
     print()
-    print("=" * 124)
+    print("=" * 146)
     print("GA INITIAL POPULATION COMPARISON")
-    print("=" * 124)
+    print("=" * 146)
     print(f"Activities        : {baseline['n_activities']}")
     print(f"CPM duration      : {baseline['cpm_duration']:.2f} h")
     print(f"Best serial seed  : {baseline['best_serial']:.2f} h")
     print(f"Best parallel seed: {baseline['best_parallel']:.2f} h")
     print(f"Best known        : {_safe_float(best_known)} h ({best_known_source})")
     print(f"Crossover         : {FIXED_CROSSOVER}")
-    print("-" * 124)
+    print("-" * 146)
     print(
-        f"{'Rank':>4} {'Init Mode':<10} {'Mutation':<18} "
+        f"{'Rank':>4} {'Replacement':<16} {'Init Mode':<10} {'Mutation':<18} "
         f"{'Best':>8} {'BK Gap':>8} {'Seed Gap':>9} "
         f"{'Initial':>8} {'Gen':>5} {'Evals':>8} {'Avg/Std':>17} {'Stop':>20}"
     )
-    print("-" * 124)
+    print("-" * 146)
     for rank, r in enumerate(results, start=1):
         avg_std = f"{r['final_avg']:.2f}/{r['final_std']:.2f}"
         print(
-            f"{rank:>4} {r['initial_population_mode']:<10} {r['mutation']:<18} "
+            f"{rank:>4} {r['replacement_strategy']:<16} "
+            f"{r['initial_population_mode']:<10} {r['mutation']:<18} "
             f"{r['best_ga']:>8.2f} {_safe_float(r['gap_to_best_known']):>8} "
             f"{r['improvement_vs_seed']:>9.2f} {r['initial_best']:>8.2f} "
             f"{r['n_gen_executed']:>5} {r['n_evals']:>8} "
             f"{avg_std:>17} {r['stop_reason']:>20}"
         )
-    print("-" * 124)
+    print("-" * 146)
     best = results[0]
     print(
         "Best run: "
+        f"{best['replacement_strategy']} replacement + "
         f"{best['initial_population_mode']} initialization + "
         f"{best['mutation']} mutation with final duration "
         f"{best['best_ga']:.2f} h"
@@ -688,27 +751,31 @@ def print_delta_comparison(delta_rows: list[dict[str, Any]]) -> None:
         return
 
     print()
-    print("=" * 90)
-    print("MIXED VS RANDOM BY MUTATION")
-    print("=" * 90)
+    print("=" * 112)
+    print("PRIORITY_RULES VS RANDOM BY REPLACEMENT STRATEGY AND MUTATION")
+    print("=" * 112)
     print(
-        f"{'Mutation':<18} {'Mixed':>8} {'Random':>8} "
-        f"{'Random-Mixed':>14} {'Winner':>10} "
-        f"{'Mixed Init':>11} {'Random Init':>12}"
+        f"{'Replacement':<16} {'Mutation':<18} {'Priority':>10} {'Random':>8} "
+        f"{'Random-Priority':>16} {'Winner':>14} "
+        f"{'Priority Init':>13} {'Random Init':>12}"
     )
-    print("-" * 90)
+    print("-" * 112)
     for row in delta_rows:
         print(
+            f"{row['replacement_strategy']:<16} "
             f"{row['mutation']:<18} "
-            f"{row['mixed_best_ga']:>8.2f} "
+            f"{row['priority_best_ga']:>10.2f} "
             f"{row['random_best_ga']:>8.2f} "
-            f"{row['delta_random_minus_mixed']:>14.2f} "
-            f"{row['winner']:>10} "
-            f"{row['mixed_initial_best']:>11.2f} "
+            f"{row['delta_random_minus_priority']:>16.2f} "
+            f"{row['winner']:>14} "
+            f"{row['priority_initial_best']:>13.2f} "
             f"{row['random_initial_best']:>12.2f}"
         )
-    print("-" * 90)
-    print("Positive Random-Mixed means mixed initialization produced a shorter schedule.")
+    print("-" * 112)
+    print(
+        "Positive Random-Priority means priority_rules initialization produced "
+        "a shorter schedule."
+    )
 
 
 def main() -> None:
@@ -730,32 +797,39 @@ def main() -> None:
     print("=" * 84)
     print(f"Input                    : {args.json_path}")
     print(f"Crossover                : {FIXED_CROSSOVER}")
+    print(f"Replacement strategies   : {', '.join(args.replacement_strategies)}")
     print(f"Mutations                : {', '.join(args.mutations)}")
     print(f"Initial population modes : {', '.join(args.initial_population_modes)}")
     print(f"Best-known source        : {best_known_source}")
     print(f"Best-known value         : {_safe_float(best_known)}")
-    print(f"Runs                     : {len(args.mutations) * len(args.initial_population_modes)}")
+    print(
+        "Runs                     : "
+        f"{len(args.replacement_strategies) * len(args.mutations) * len(args.initial_population_modes)}"
+    )
     print("=" * 84)
 
     results: list[dict[str, Any]] = []
-    for mutation in args.mutations:
-        for mode in args.initial_population_modes:
-            result = run_case(
-                args.json_path,
-                mutation,
-                mode,
-                args,
-                target_fitness,
-                baseline["best_rule_overall"],
-                best_known,
-                best_known_source,
-            )
-            results.append(result)
+    for replacement_strategy in args.replacement_strategies:
+        for mutation in args.mutations:
+            for mode in args.initial_population_modes:
+                result = run_case(
+                    args.json_path,
+                    replacement_strategy,
+                    mutation,
+                    mode,
+                    args,
+                    target_fitness,
+                    baseline["best_rule_overall"],
+                    best_known,
+                    best_known_source,
+                )
+                results.append(result)
 
     results.sort(
         key=lambda r: (
             r["best_ga"],
             r["n_evals"],
+            r["replacement_strategy"],
             r["mutation"],
             r["initial_population_mode"],
         )
@@ -763,17 +837,23 @@ def main() -> None:
     delta_rows = build_delta_rows(results)
 
     stem = args.json_path.stem
+    replacement_suffix = ""
+    if args.replacement_strategies != DEFAULT_REPLACEMENT_STRATEGIES:
+        if len(args.replacement_strategies) == 1:
+            replacement_suffix = f"_{args.replacement_strategies[0]}"
+        else:
+            replacement_suffix = "_replacement_multi"
     plot_file = args.plot_file or (
-        args.output_dir / f"{stem}_priority_vs_random_convergence_seed{args.seed}.png"
+        args.output_dir / f"{stem}_priority_vs_random{replacement_suffix}_convergence_seed{args.seed}.png"
     )
     csv_file = args.csv_file or (
-        args.output_dir / f"{stem}_priority_vs_random_comparison_seed{args.seed}.csv"
+        args.output_dir / f"{stem}_priority_vs_random{replacement_suffix}_comparison_seed{args.seed}.csv"
     )
     delta_csv_file = args.delta_csv_file or (
-        args.output_dir / f"{stem}_priority_vs_random_delta_seed{args.seed}.csv"
+        args.output_dir / f"{stem}_priority_vs_random{replacement_suffix}_delta_seed{args.seed}.csv"
     )
     curve_csv_file = args.curve_csv_file or (
-        args.output_dir / f"{stem}_priority_vs_random_curves_seed{args.seed}.csv"
+        args.output_dir / f"{stem}_priority_vs_random{replacement_suffix}_curves_seed{args.seed}.csv"
     )
 
     if not args.no_plot:
