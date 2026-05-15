@@ -3,11 +3,16 @@
 """
 ga.py — Genetic Algorithm for Resource-Constrained Project Scheduling (RCPSP)
 
-Implements the Activity List representation and one-point crossover operator
-from Hartmann (1998) / Kolisch & Hartmann (1999), using DEAP as the GA engine.
+Implements the Activity List representation and crossover operators for RCPSP,
+including Hartmann (1998) one-point crossover and a Decuple Crossover Scheme
+(DCS) adaptation, using DEAP as the GA engine.
 
 References
 ----------
+Derouiche, H., Elarbi, M. and Bechikh, S. (2026). A decuple crossover scheme
+in genetic algorithms: a step toward deep evolution. Evolutionary Intelligence
+19, 9. https://doi.org/10.1007/s12065-025-01123-w
+
 Kolisch, R. and Hartmann, S. (1999). Heuristic Algorithms for Solving the
 Resource-Constrained Project Scheduling Problem: Classification and
 Computational Analysis. In J. Weglarz (ed.), Project Scheduling: Recent
@@ -41,23 +46,20 @@ the ``_ordered`` keyword added in this release.  Fitness =
 
 Initial population
 ------------------
-The initial population strategy is configurable:
+The initial population strategy supports two modes:
 
-* ``'mixed'`` preserves the historical behavior: seed from ``PRIORITY_RULES``
-  first, then fill remaining population slots with random precedence-feasible
-  permutations.
-* ``'random'`` creates every individual from a random precedence-feasible
-  permutation.
-* ``'priority_rules'`` creates individuals only from deterministic named
-  priority rules and does not add random fill if fewer valid rules are available
-  than ``pop_size``.
+* ``'priority_rules'`` runs every deterministic named priority rule through
+  both serial and parallel SGS, ranks the resulting candidates by makespan,
+  keeps the best 20% of ``pop_size``, and fills the remaining slots with
+  random precedence-feasible permutations.
+* ``'random'`` fills the entire initial population with random
+  precedence-feasible permutations.
 
 For priority-rule seeds, schedule durations from both serial SGS
 (``calculateSerialScheduleWithResources``) and parallel SGS
 (``calculateScheduleWithResources(sgs='max_use_res_ranked')``) are recorded.
-The activity order implied by the parallel SGS schedule is also converted back
-to a precedence-feasible chromosome and added to the initial population when
-space is available.
+The activity order implied by each parallel SGS schedule is converted back to a
+precedence-feasible chromosome before ranking the seed pool.
 
 Crossover — Hartmann (1998) one-point crossover for activity lists
 ------------------------------------------------------------------
@@ -71,6 +73,16 @@ Hartmann (1998) proves that a child produced this way from two
 precedence-feasible parents is itself precedence-feasible.
 
 Two children are produced symmetrically (roles of mother and father swapped).
+
+Crossover — Decuple Crossover Scheme (DCS)
+------------------------------------------
+The ``'decuple'`` crossover implements the hierarchical scheme of Derouiche,
+Elarbi & Bechikh (2026), adapted to RCPSP activity lists.  A parent pair first
+produces two initial children.  Each initial child is then recombined with each
+original parent, yielding eight more candidates and ten offspring total.  The
+RCPSP adaptation uses the GA's uniform order-preserving activity-list crossover
+as the inner recombination operator, then keeps the two most mutually diverse
+candidates without decoding the full DCS candidate pool.
 
 Mutation — swap mutation with topological repair
 -------------------------------------------------
@@ -137,9 +149,9 @@ class RCPSPGeneticAlgorithm:
         A fully initialised ``Pert`` object.  ``generateInfo()`` must have
         been called so that ``infoDict`` entries are populated.
     pop_size : int
-        Target population size.  ``priority_rules`` initialization can produce
-        fewer individuals if fewer valid deterministic priority-rule seeds are
-        available.
+        Target population size.  ``priority_rules`` initialization keeps the
+        best priority-rule serial/parallel seeds for 20% of this size and fills
+        the rest with random precedence-feasible individuals.
     n_gen : int
         Number of GA generations.
     cxpb : float
@@ -160,6 +172,7 @@ class RCPSPGeneticAlgorithm:
         * ``'one_point'``    — Hartmann (1998) one-point crossover
         * ``'two_point'``    — two-point crossover (default)
         * ``'uniform_order'`` — uniform order-preserving crossover (UOX)
+        * ``'decuple'``      — DCS: ten RCPSP candidates, keep diverse pair
     mutation : str
         Mutation operator to use.  Choices:
 
@@ -176,10 +189,10 @@ class RCPSPGeneticAlgorithm:
         (applied to the whole population).  ``0`` (default) disables periodic
         in-run application and limits FBF to the final polishing step.
     initial_population_mode : str
-        Initial population source.  ``'mixed'`` seeds from priority rules then
-        fills with random chromosomes, ``'random'`` uses only random
-        precedence-feasible chromosomes, and ``'priority_rules'`` uses only
-        deterministic named priority rules.
+        Initial population source.  ``'priority_rules'`` ranks deterministic
+        priority-rule serial/parallel seeds, keeps the best 20% of
+        ``pop_size``, and fills the rest randomly.  ``'random'`` fills the
+        whole population randomly.
     target_fitness : float, optional
         Stop once the Hall-of-Fame best fitness is less than or equal to this
         value.  Useful when a PSPLIB optimum or accepted target makespan is
@@ -212,6 +225,22 @@ class RCPSPGeneticAlgorithm:
         consensus library.  The best ``ceil(pop_size * consensus_elite_frac)``
         valid individuals are used, along with Hall-of-Fame entries, the
         original static references, and a few fresh random feasible orderings.
+    replacement_strategy : str
+        Population update method applied after offspring are evaluated:
+
+        * ``'generational'`` — replace the whole population with offspring.
+        * ``'elitist'`` — ``(mu + lambda)`` survival; parents and offspring
+          compete and the best ``pop_size`` survive.
+        * ``'steady_state'`` — keep the best parent fraction and fill the
+          replacement gap with the best offspring.
+        * ``'diverse_elitist'`` — elitist survival that first keeps unique
+          chromosomes, then fills any remaining slots by fitness.
+    elite_size : int
+        Minimum number of best parent individuals preserved by
+        ``steady_state`` replacement.
+    replacement_fraction : float
+        Fraction of the population replaced by offspring under
+        ``steady_state`` replacement.
     """
 
     # DEAP creator type names (module-level singletons; guarded against
@@ -225,6 +254,7 @@ class RCPSPGeneticAlgorithm:
         'one_point':    '_crossover_one_point',
         'two_point':    '_crossover_two_point',
         'uniform_order': '_crossover_uniform_order',
+        'decuple':      '_crossover_decuple',
     }
     _MUTATION_METHODS: Dict[str, str] = {
         'swap':             '_mutate_swap',
@@ -232,7 +262,14 @@ class RCPSPGeneticAlgorithm:
         'insertion_window': '_mutate_insertion_window',
         'consensus_reorder': '_mutate_consensus_reorder',
     }
-    _INITIAL_POPULATION_MODES = {'mixed', 'random', 'priority_rules'}
+    _INITIAL_POPULATION_MODES = {'priority_rules', 'random'}
+    _PRIORITY_SEED_FRACTION = 0.2
+    _REPLACEMENT_STRATEGIES = {
+        'generational',
+        'elitist',
+        'steady_state',
+        'diverse_elitist',
+    }
 
     def __init__(
         self,
@@ -249,7 +286,7 @@ class RCPSPGeneticAlgorithm:
         mutation: str = 'adjacent_swap',
         fb_improvement: bool = True,
         fb_freq: int = 0,
-        initial_population_mode: str = 'mixed',
+        initial_population_mode: str = 'priority_rules',
         target_fitness: Optional[float] = None,
         max_evals: Optional[int] = None,
         stall_generations: Optional[int] = None,
@@ -259,6 +296,9 @@ class RCPSPGeneticAlgorithm:
         max_unique_schedules: Optional[int] = None,
         consensus_update_freq: Optional[int] = None,
         consensus_elite_frac: float = 0.2,
+        replacement_strategy: str = 'diverse_elitist',
+        elite_size: int = 1,
+        replacement_fraction: float = 0.5,
     ) -> None:
         if crossover not in self._CROSSOVER_METHODS:
             raise ValueError(
@@ -303,6 +343,15 @@ class RCPSPGeneticAlgorithm:
             raise ValueError("consensus_update_freq must be non-negative.")
         if not 0.0 < consensus_elite_frac <= 1.0:
             raise ValueError("consensus_elite_frac must be in (0, 1].")
+        if replacement_strategy not in self._REPLACEMENT_STRATEGIES:
+            raise ValueError(
+                f"Unknown replacement_strategy '{replacement_strategy}'. "
+                f"Choose from: {sorted(self._REPLACEMENT_STRATEGIES)}"
+            )
+        if elite_size < 0:
+            raise ValueError("elite_size must be non-negative.")
+        if not 0.0 < replacement_fraction <= 1.0:
+            raise ValueError("replacement_fraction must be in (0, 1].")
 
         self.pert = pert
         self.pop_size = pop_size
@@ -325,6 +374,9 @@ class RCPSPGeneticAlgorithm:
         self.std_generations = std_generations
         self.max_unique_schedules = max_unique_schedules
         self.consensus_elite_frac = consensus_elite_frac
+        self.replacement_strategy = replacement_strategy
+        self.elite_size = elite_size
+        self.replacement_fraction = replacement_fraction
         if mutation == 'consensus_reorder':
             if consensus_update_freq is None:
                 self.consensus_update_freq = (
@@ -759,47 +811,56 @@ class RCPSPGeneticAlgorithm:
     # Initial population                                                       #
     # ---------------------------------------------------------------------- #
 
-    def _priority_seed_rules(
-        self,
-        initial_population_mode: Optional[str] = None,
-    ) -> List[str]:
-        """
-        Return the priority rules used by the selected initialization mode.
-
-        ``mixed`` preserves the historical behavior and includes the ``random``
-        rule entry from ``PRIORITY_RULES``.  ``priority_rules`` excludes that
-        entry so the mode is deterministic apart from GA tie-breaking and later
-        genetic operators.
-        """
-        mode = initial_population_mode or self.initial_population_mode
-        if mode == 'priority_rules':
-            return [rule for rule in PRIORITY_RULES if rule != 'random']
-        return PRIORITY_RULES
+    def _priority_seed_rules(self) -> List[str]:
+        """Return deterministic priority rules used for seed candidates."""
+        return [rule for rule in PRIORITY_RULES if rule != 'random']
 
     def _append_priority_rule_seeds(
         self,
-        population: List[Any],
-        seed_info: Dict[str, Dict[str, float]],
-        initial_population_mode: Optional[str] = None,
-    ) -> int:
-        """Append priority-rule chromosomes to the initial population."""
-        n_seeded = 0
-        for rule in self._priority_seed_rules(initial_population_mode):
-            if len(population) >= self.pop_size:
-                break
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, float]]]:
+        """
+        Build all serial and parallel priority-rule seed candidates.
+
+        This function intentionally does not check ``pop_size``.  The caller
+        ranks the complete seed pool and decides how many seeds to keep.
+        """
+        seed_candidates: List[Dict[str, Any]] = []
+        seed_info: Dict[str, Dict[str, float]] = {}
+
+        for rule in self._priority_seed_rules():
+            rule_info: Dict[str, float] = {}
             try:
                 # --- chromosome from rule ordering ---
                 chromosome = self._rule_to_chromosome(rule)
-                population.append(self._Ind(chromosome))
-                n_seeded += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Skipping rule '%s' during priority chromosome seeding: %s",
+                    rule,
+                    exc,
+                )
+                continue
 
-                # --- serial SGS duration (informational) ---
+            try:
+                # --- serial SGS candidate ---
                 self.pert.priorities = None
                 serial_out = self.pert.calculateSerialScheduleWithResources(
                     priority_rule=rule
                 )
+                serial_duration = serial_out['scheduled_duration'] - 2
+                seed_candidates.append(
+                    {
+                        'rule': rule,
+                        'source': 'serial',
+                        'chromosome': chromosome,
+                        'duration': serial_duration,
+                    }
+                )
+                rule_info['serial'] = serial_duration
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Skipping serial seed for rule '%s': %s", rule, exc)
 
-                # --- parallel SGS duration (informational) ---
+            try:
+                # --- parallel SGS candidate ---
                 self.pert.priorities = None
                 parallel_out = self.pert.calculateScheduleWithResources(
                     sgs='max_use_res_ranked', priority_rule=rule
@@ -807,20 +868,23 @@ class RCPSPGeneticAlgorithm:
                 parallel_chromosome = self._schedule_to_chromosome(
                     fallback_chromosome=chromosome
                 )
-                if len(population) < self.pop_size:
-                    population.append(self._Ind(parallel_chromosome))
-                    n_seeded += 1
-
-                seed_info[rule] = {
-                    'serial': serial_out['scheduled_duration'] - 2,
-                    'parallel': parallel_out['scheduled_duration'] - 2,
-                }
-
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "Skipping rule '%s' during population seeding: %s", rule, exc
+                parallel_duration = parallel_out['scheduled_duration'] - 2
+                seed_candidates.append(
+                    {
+                        'rule': rule,
+                        'source': 'parallel',
+                        'chromosome': parallel_chromosome,
+                        'duration': parallel_duration,
+                    }
                 )
-        return n_seeded
+                rule_info['parallel'] = parallel_duration
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Skipping parallel seed for rule '%s': %s", rule, exc)
+
+            if rule_info:
+                seed_info[rule] = rule_info
+
+        return seed_candidates, seed_info
 
     def _fill_random_population(self, population: List[Any]) -> int:
         """Fill population slots with random precedence-feasible chromosomes."""
@@ -851,19 +915,15 @@ class RCPSPGeneticAlgorithm:
         initial_population_mode: Optional[str] = None,
     ) -> List[Any]:
         """
-        Build the initial population according to ``initial_population_mode``.
+        Build the initial population using the selected initialization mode.
 
-        Modes
-        -----
-        mixed
-            Historical behavior.  Seed from ``PRIORITY_RULES`` first, then
-            fill remaining slots with random precedence-feasible chromosomes.
-        random
-            Create every individual with ``priority_rule='random'``.
-        priority_rules
-            Seed only from deterministic named priority rules.  No random fill
-            is added, so the returned population can be smaller than
-            ``pop_size`` when fewer valid priority-rule seeds are available.
+        ``'priority_rules'`` first builds a complete candidate pool from every
+        deterministic priority rule under both serial and parallel SGS, then
+        keeps the best ``ceil(20% * pop_size)`` candidates by makespan.  The
+        remaining slots are filled with random precedence-feasible chromosomes.
+
+        ``'random'`` skips priority-rule seeding and fills all population slots
+        with random precedence-feasible chromosomes.
 
         For priority-rule seeds, the function records the schedule duration
         produced by the same priority rule under *both* SGS variants:
@@ -873,8 +933,8 @@ class RCPSPGeneticAlgorithm:
           priority_rule=rule)``
 
         The chronological selected/start order left by the parallel SGS call is
-        converted back into an activity-list chromosome and added as another
-        seed while there is room in the population.
+        converted back into an activity-list chromosome before candidates are
+        ranked.
 
         ``pert.priorities`` is cleared to ``None`` before each named-rule SGS
         call so that any previously injected external priorities do not
@@ -897,32 +957,43 @@ class RCPSPGeneticAlgorithm:
             )
 
         population: List[Any] = []
+        seed_candidates: List[Dict[str, Any]] = []
         seed_info: Dict[str, Dict[str, float]] = {}
         n_rule_seeded = 0
-        n_random = 0
 
-        if mode in {'mixed', 'priority_rules'}:
-            n_rule_seeded = self._append_priority_rule_seeds(
-                population,
-                seed_info,
-                mode,
+        if mode == 'priority_rules':
+            seed_candidates, seed_info = self._append_priority_rule_seeds()
+            seed_candidates.sort(
+                key=lambda candidate: (
+                    candidate['duration'],
+                    candidate['rule'],
+                    candidate['source'],
+                )
             )
 
-        if mode in {'mixed', 'random'}:
-            n_random = self._fill_random_population(population)
+            n_seed_target = min(
+                self.pop_size,
+                len(seed_candidates),
+                max(1, math.ceil(self.pop_size * self._PRIORITY_SEED_FRACTION)),
+            )
+            selected_seed_candidates = seed_candidates[:n_seed_target]
+            for candidate in selected_seed_candidates:
+                population.append(self._Ind(candidate['chromosome']))
+
+            n_rule_seeded = len(selected_seed_candidates)
+
+        n_random = self._fill_random_population(population)
 
         if not population:
             raise RuntimeError(
                 "Failed to generate any valid individuals for the initial population."
             )
 
-        if (
-            mode == 'priority_rules'
-            and len(population) < self.pop_size
-        ):
+        if len(population) < self.pop_size:
             logger.info(
-                "Initial population mode 'priority_rules' produced %d/%d "
-                "requested individuals because no random fill is used.",
+                "Initial population mode '%s' produced %d/%d "
+                "requested individuals because random fill was exhausted.",
+                mode,
                 len(population),
                 self.pop_size,
             )
@@ -935,7 +1006,8 @@ class RCPSPGeneticAlgorithm:
         if self.verbose:
             msg = (
                 f"\nInitial population ({mode}): "
-                f"{n_rule_seeded} rule/parallel-seeded + {n_random} random"
+                f"{n_rule_seeded}/{len(seed_candidates)} best rule/parallel seeds "
+                f"+ {n_random} random"
                 f"  |  total = {len(population)}"
             )
             if best_seeded is not None:
@@ -945,14 +1017,16 @@ class RCPSPGeneticAlgorithm:
                 print(f"  {'Rule':<22} {'Serial (h)':>12} {'Parallel (h)':>14}")
                 print("  " + "-" * 50)
                 for r, info in seed_info.items():
+                    serial = info.get('serial', float('nan'))
+                    parallel = info.get('parallel', float('nan'))
                     print(
-                        f"  {r:<22} {info['serial']:>12.2f} "
-                        f"{info['parallel']:>14.2f}"
+                        f"  {r:<22} {serial:>12.2f} "
+                        f"{parallel:>14.2f}"
                     )
                 print()
         else:
             msg = (
-                "Initial population (%s): %d rule/parallel-seeded + %d random "
+                "Initial population (%s): %d/%d best rule/parallel seeds + %d random "
                 "| total = %d"
             )
             if best_seeded is not None:
@@ -960,6 +1034,7 @@ class RCPSPGeneticAlgorithm:
                     msg + " | best seeded duration = %.2f h",
                     mode,
                     n_rule_seeded,
+                    len(seed_candidates),
                     n_random,
                     len(population),
                     best_seeded,
@@ -969,6 +1044,7 @@ class RCPSPGeneticAlgorithm:
                     msg,
                     mode,
                     n_rule_seeded,
+                    len(seed_candidates),
                     n_random,
                     len(population),
                 )
@@ -1249,6 +1325,137 @@ class RCPSPGeneticAlgorithm:
 
         return ind1, ind2
 
+    def _decuple_inner_crossover(
+        self,
+        parent1: List[int],
+        parent2: List[int],
+    ) -> Tuple[List[int], List[int]]:
+        """
+        Return two RCPSP-safe children for one DCS recombination edge.
+
+        The DCS paper defines a hierarchy around a standard crossover operator.
+        For this RCPSP adaptation, the inner operator is the existing uniform
+        order-preserving crossover for activity-list chromosomes.
+        """
+        child1 = list(parent1)
+        child2 = list(parent2)
+        self._crossover_uniform_order(child1, child2)
+        return child1, child2
+
+    @staticmethod
+    def _chromosome_diversity_distance(
+        chromosome1: List[int],
+        chromosome2: List[int],
+    ) -> int:
+        """Return positional diversity between two activity-list chromosomes."""
+        return (
+            sum(gene1 != gene2 for gene1, gene2 in zip(chromosome1, chromosome2))
+            + abs(len(chromosome1) - len(chromosome2))
+        )
+
+    def _select_best_decuple_candidates(
+        self,
+        candidates: List[List[int]],
+    ) -> List[List[int]]:
+        """
+        Return the two most mutually diverse DCS candidates without decoding.
+
+        Diversity is measured as positional Hamming distance between activity
+        lists.  Exact duplicate chromosomes are collapsed before selection.  If
+        multiple pairs have the same mutual distance, prefer the pair with the
+        larger total distance to the whole unique candidate pool, then the
+        earliest generated pair for deterministic tie-breaking.
+        """
+        unique: List[Tuple[int, List[int]]] = []
+        seen: set[Tuple[int, ...]] = set()
+        for i, chromosome in enumerate(candidates):
+            key = tuple(chromosome)
+            if key in seen:
+                continue
+            unique.append((i, list(chromosome)))
+            seen.add(key)
+
+        if len(unique) <= 2:
+            return [chromosome for _, chromosome in unique]
+
+        pool_diversity: List[int] = []
+        for i, (_, chromosome) in enumerate(unique):
+            pool_diversity.append(
+                sum(
+                    self._chromosome_diversity_distance(chromosome, other)
+                    for j, (_, other) in enumerate(unique)
+                    if i != j
+                )
+            )
+
+        best_pair: Optional[Tuple[int, int]] = None
+        best_key: Optional[Tuple[int, int, int, int]] = None
+        for i in range(len(unique) - 1):
+            idx_i, chromosome_i = unique[i]
+            for j in range(i + 1, len(unique)):
+                idx_j, chromosome_j = unique[j]
+                distance = self._chromosome_diversity_distance(
+                    chromosome_i,
+                    chromosome_j,
+                )
+                tie_key = (
+                    distance,
+                    pool_diversity[i] + pool_diversity[j],
+                    -idx_i,
+                    -idx_j,
+                )
+                if best_key is None or tie_key > best_key:
+                    best_key = tie_key
+                    best_pair = (i, j)
+
+        if best_pair is None:
+            return []
+
+        return [
+            list(unique[best_pair[0]][1]),
+            list(unique[best_pair[1]][1]),
+        ]
+
+    def _crossover_decuple(
+        self,
+        ind1: List[int],
+        ind2: List[int],
+    ) -> Tuple[List[int], List[int]]:
+        """
+        Decuple Crossover Scheme (DCS), adapted to RCPSP activity lists.
+
+        DCS generates ten offspring for one parent pair:
+
+        1. ``P1 x P2`` produces initial children ``Ch1`` and ``Ch2``.
+        2. ``Ch1`` is recombined with ``P1`` and ``P2``.
+        3. ``Ch2`` is recombined with ``P1`` and ``P2``.
+        4. The two most mutually diverse candidates replace ``ind1`` and
+           ``ind2``.  Fitness evaluation is left to the normal invalid-offspring
+           evaluation path.
+        """
+        if len(ind1) < 2:
+            candidates = [list(ind1), list(ind2)]
+        else:
+            parent1 = list(ind1)
+            parent2 = list(ind2)
+            ch1, ch2 = self._decuple_inner_crossover(parent1, parent2)
+
+            candidates = [ch1, ch2]
+            for initial_child in (ch1, ch2):
+                for parent in (parent1, parent2):
+                    c1, c2 = self._decuple_inner_crossover(initial_child, parent)
+                    candidates.extend([c1, c2])
+
+        selected = self._select_best_decuple_candidates(candidates)
+        if len(selected) < 2:
+            return ind1, ind2
+
+        child1, child2 = selected[:2]
+        ind1[:] = child1
+        ind2[:] = child2
+
+        return ind1, ind2
+
     # ---------------------------------------------------------------------- #
     # Mutation — swap with topological repair                                  #
     # ---------------------------------------------------------------------- #
@@ -1488,6 +1695,94 @@ class RCPSPGeneticAlgorithm:
         return (individual,)
 
     # ---------------------------------------------------------------------- #
+    # Population replacement                                                    #
+    # ---------------------------------------------------------------------- #
+
+    @staticmethod
+    def _fitness_value(individual: List[int]) -> float:
+        """Return the scalar makespan fitness used by this single-objective GA."""
+        return individual.fitness.values[0]
+
+    def _select_diverse_elites(
+        self,
+        candidates: List[List[int]],
+        k: int,
+    ) -> List[List[int]]:
+        """
+        Select the best ``k`` candidates while preferring unique chromosomes.
+
+        This is still elitist survivor selection, but it avoids filling the next
+        generation with duplicate activity lists when crossover or repair creates
+        identical chromosomes. If fewer than ``k`` unique chromosomes exist, the
+        remaining slots are filled by normal fitness order.
+        """
+        ranked = sorted(candidates, key=self._fitness_value)
+        selected: List[List[int]] = []
+        selected_ids = set()
+        seen_chromosomes = set()
+
+        for individual in ranked:
+            chromosome = tuple(individual)
+            if chromosome in seen_chromosomes:
+                continue
+            selected.append(individual)
+            selected_ids.add(id(individual))
+            seen_chromosomes.add(chromosome)
+            if len(selected) == k:
+                return selected
+
+        for individual in ranked:
+            if id(individual) in selected_ids:
+                continue
+            selected.append(individual)
+            if len(selected) == k:
+                break
+
+        return selected
+
+    def _replace_population(
+        self,
+        parents: List[List[int]],
+        offspring: List[List[int]],
+    ) -> List[List[int]]:
+        """
+        Build the next generation using the configured survivor strategy.
+
+        ``parents`` and ``offspring`` must already have valid fitness values.
+        Lower fitness is better because the RCPSP objective is makespan
+        minimisation.
+        """
+        target_size = len(parents)
+
+        if self.replacement_strategy == 'generational':
+            return list(offspring)
+
+        if self.replacement_strategy == 'elitist':
+            return tools.selBest(list(parents) + list(offspring), target_size)
+
+        if self.replacement_strategy == 'steady_state':
+            replace_count = min(
+                target_size,
+                max(1, math.ceil(target_size * self.replacement_fraction)),
+            )
+            keep_count = target_size - replace_count
+            max_parent_keep = target_size - 1 if target_size > 1 else target_size
+            keep_count = max(keep_count, min(self.elite_size, max_parent_keep))
+            replace_count = target_size - keep_count
+
+            survivors = tools.selBest(parents, keep_count)
+            entrants = tools.selBest(offspring, replace_count)
+            return survivors + entrants
+
+        if self.replacement_strategy == 'diverse_elitist':
+            return self._select_diverse_elites(
+                list(parents) + list(offspring),
+                target_size,
+            )
+
+        raise RuntimeError(f"Unsupported replacement_strategy: {self.replacement_strategy}")
+
+    # ---------------------------------------------------------------------- #
     # Main optimisation loop                                                   #
     # ---------------------------------------------------------------------- #
 
@@ -1526,7 +1821,7 @@ class RCPSPGeneticAlgorithm:
            b. Pairwise crossover with probability ``cxpb``.
            c. Apply the configured mutation operator with probability ``mutpb``.
            d. Re-evaluate invalidated offspring.
-           e. Generational replacement.
+           e. Apply the configured population replacement strategy.
            f. Update Hall of Fame.
            g. Refresh the consensus library when ``consensus_reorder`` is active
               and the configured generation interval or improvement trigger fires.
@@ -1598,6 +1893,7 @@ class RCPSPGeneticAlgorithm:
                 if self.max_evals is not None and self._eval_count >= self.max_evals:
                     stop_reason = 'max_evals'
                     break
+                gen_eval_start = self._eval_count
 
                 # Selection
                 offspring = list(
@@ -1612,10 +1908,11 @@ class RCPSPGeneticAlgorithm:
                         del child2.fitness.values
 
                 # Mutation
-                for mutant in offspring:
-                    if random.random() < self.mutpb:
-                        self.toolbox.mutate(mutant)
-                        del mutant.fitness.values
+                if stop_reason is None:
+                    for mutant in offspring:
+                        if random.random() < self.mutpb:
+                            self.toolbox.mutate(mutant)
+                            del mutant.fitness.values
 
                 # Evaluate invalidated individuals
                 invalid = [ind for ind in offspring if not ind.fitness.valid]
@@ -1627,8 +1924,8 @@ class RCPSPGeneticAlgorithm:
                 for ind, fit in zip(invalid, map(self.toolbox.evaluate, invalid)):
                     ind.fitness.values = fit
 
-                # Generational replacement
-                pop[:] = offspring
+                # Population replacement
+                pop[:] = self._replace_population(pop, offspring)
                 hof.update(pop)
 
                 # Periodic FBF improvement (optional)
@@ -1671,10 +1968,11 @@ class RCPSPGeneticAlgorithm:
                 else:
                     std_stall = 0
 
-                stop_reason = self._stopping_reason(best_ever, stall, std_stall)
+                if stop_reason is None:
+                    stop_reason = self._stopping_reason(best_ever, stall, std_stall)
                 log.record(
                     gen=gen,
-                    nevals=len(invalid),
+                    nevals=self._eval_count - gen_eval_start,
                     evals=self._eval_count,
                     best=best_ever,
                     stall=stall,
