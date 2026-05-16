@@ -64,7 +64,8 @@ logger = logging.getLogger(__name__)
 PRIORITY_RULES: List[str] = [
     'es', 'ef', 'ls', 'lf', 'duration', 'random',
     'mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr',
-    'maxrr', 'minrr', 'irsm', 'wcs', 'acs',
+    'maxrr', 'minrr',
+    # 'irsm', 'wcs', 'acs',
     'mehh_8000_b', 'mehh_3375_b', 'mehh_1000_b', 'mehh_125_b', 'gphh_b',
 ]
 
@@ -87,8 +88,9 @@ class RCPSPHybridGANS:
     pert : Pert
         Fully initialized ``Pert`` object with ``generateInfo()`` called.
     pop_size : int
-        Population size.  Priority-rule seeds fill up to ``len(PRIORITY_RULES)``
-        slots; the rest are random precedence-feasible permutations.
+        Population size.  ``priority_rules`` initialization keeps the best
+        priority-rule serial/parallel seeds for 20% of this size and fills the
+        rest with random precedence-feasible permutations.
     lambda_max : int
         Total budget of SGS evaluations (stopping criterion).
     ga_stall_limit : int
@@ -110,7 +112,15 @@ class RCPSPHybridGANS:
         RNG seed.
     verbose : bool
         Print per-generation and NS statistics.
+    initial_population_mode : str
+        Initial population source.  ``'priority_rules'`` ranks deterministic
+        priority-rule serial/parallel seeds, keeps the best 20% of
+        ``pop_size``, and fills the rest randomly.  ``'random'`` fills the
+        whole population randomly.
     """
+
+    _INITIAL_POPULATION_MODES = {'priority_rules', 'random'}
+    _PRIORITY_SEED_FRACTION = 0.2
 
     def __init__(
         self,
@@ -126,7 +136,14 @@ class RCPSPHybridGANS:
         parents_size: int = 10,
         seed: int = 42,
         verbose: bool = True,
+        initial_population_mode: str = 'priority_rules',
     ) -> None:
+        if initial_population_mode not in self._INITIAL_POPULATION_MODES:
+            raise ValueError(
+                f"Unknown initial_population_mode '{initial_population_mode}'. "
+                f"Choose from: {sorted(self._INITIAL_POPULATION_MODES)}"
+            )
+
         self.pert = pert
         self.pop_size = max(4, pop_size)
         self.lambda_max = lambda_max
@@ -138,6 +155,8 @@ class RCPSPHybridGANS:
         self.sigma2 = sigma2
         self.parents_size = min(parents_size, pop_size)
         self.verbose = verbose
+        self.initial_population_mode = initial_population_mode
+        self._last_initial_evals = 0
 
         random.seed(seed)
         np.random.seed(seed)
@@ -665,44 +684,276 @@ class RCPSPHybridGANS:
     # Initial population                                                   #
     # ------------------------------------------------------------------ #
 
-    def _build_initial_population(self) -> List[Individual]:
-        """
-        Build initial population from priority rules + random fill.
-        No FBI applied (too expensive for initial population).
-        """
-        pop: List[Individual] = []
-        seed_info: Dict[str, float] = {}
+    @staticmethod
+    def _activity_name(activity: Any) -> str:
+        """Return the stable activity name used in Pert.schedule_log."""
+        if hasattr(activity, "returnName"):
+            return activity.returnName()
+        return getattr(activity, "name", str(activity))
 
-        for rule in PRIORITY_RULES:
-            if len(pop) >= self.pop_size:
-                break
+    def _schedule_to_order(
+        self,
+        fallback_order: Optional[List[int]] = None,
+    ) -> List[int]:
+        """
+        Convert the current parallel-SGS schedule on ``self.pert`` into an order.
+
+        The parallel SGS records chronological selected activities in
+        ``pert.schedule_log[*]['selected']``.  Missing activities are appended
+        by scheduled start time and then by the fallback order before repairing
+        precedence feasibility.
+        """
+        fallback_pos = (
+            {gene: pos for pos, gene in enumerate(fallback_order)}
+            if fallback_order is not None
+            else {}
+        )
+        default_pos = lambda gene: fallback_pos.get(gene, gene)
+        name_to_idx = {
+            self._activity_name(activity): idx
+            for idx, activity in enumerate(self._activities)
+        }
+
+        order: List[int] = []
+        seen: Set[int] = set()
+        for step in getattr(self.pert, "schedule_log", []) or []:
+            for name in step.get("selected", []):
+                idx = name_to_idx.get(name)
+                if idx is not None and idx not in seen:
+                    order.append(idx)
+                    seen.add(idx)
+
+        scheduled_remainder: List[Tuple[Any, Any, int, int]] = []
+        unscheduled_remainder: List[int] = []
+        for idx, activity in enumerate(self._activities):
+            if idx in seen:
+                continue
+            start_time, end_time = activity.returnAbsTimes()
+            if start_time is None:
+                unscheduled_remainder.append(idx)
+            else:
+                scheduled_remainder.append(
+                    (start_time, end_time or start_time, default_pos(idx), idx)
+                )
+
+        scheduled_remainder.sort(key=lambda item: (item[0], item[1], item[2]))
+        order.extend(idx for _, _, _, idx in scheduled_remainder)
+        order.extend(sorted(unscheduled_remainder, key=default_pos))
+
+        return self._repair(order)
+
+    def _priority_seed_rules(self) -> List[str]:
+        """Return deterministic priority rules used for seed candidates."""
+        return [rule for rule in PRIORITY_RULES if rule != 'random']
+
+    def _append_priority_rule_seeds(
+        self,
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, float]]]:
+        """
+        Build all serial and parallel priority-rule seed candidates.
+
+        This function intentionally does not check ``pop_size``.  The caller
+        ranks the complete seed pool and decides how many seeds to keep.
+        """
+        seed_candidates: List[Dict[str, Any]] = []
+        seed_info: Dict[str, Dict[str, float]] = {}
+
+        for rule in self._priority_seed_rules():
+            rule_info: Dict[str, float] = {}
+            try:
+                order = self._rule_to_order(rule)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Skipping rule '%s' during priority order seeding: %s",
+                    rule,
+                    exc,
+                )
+                continue
+
             try:
                 self.pert.priorities = None
-                order = self._rule_to_order(rule)
-                ind = self._evaluate_no_fbi(order)
-                pop.append(ind)
-                seed_info[rule] = ind['fitness']
-            except Exception as exc:
-                logger.warning("Skipping rule '%s': %s", rule, exc)
+                serial_out = self.pert.calculateSerialScheduleWithResources(
+                    priority_rule=rule
+                )
+                serial_fitness = serial_out['scheduled_duration'] - 2
+                seed_candidates.append({
+                    'rule': rule,
+                    'source': 'serial',
+                    'order': order,
+                    'fitness': serial_fitness,
+                })
+                rule_info['serial'] = serial_fitness
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Skipping serial seed for rule '%s': %s", rule, exc)
 
-        while len(pop) < self.pop_size:
+            try:
+                self.pert.priorities = None
+                parallel_out = self.pert.calculateScheduleWithResources(
+                    sgs='max_use_res_ranked',
+                    priority_rule=rule,
+                )
+                parallel_order = self._schedule_to_order(fallback_order=order)
+                parallel_fitness = parallel_out['scheduled_duration'] - 2
+                seed_candidates.append({
+                    'rule': rule,
+                    'source': 'parallel',
+                    'order': parallel_order,
+                    'fitness': parallel_fitness,
+                })
+                rule_info['parallel'] = parallel_fitness
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Skipping parallel seed for rule '%s': %s", rule, exc)
+
+            if rule_info:
+                seed_info[rule] = rule_info
+
+        return seed_candidates, seed_info
+
+    def _fill_random_population(self, population: List[Individual]) -> int:
+        """Fill population slots with random precedence-feasible individuals."""
+        n_random = 0
+        random_failures = 0
+        max_random_failures = max(10, self.pop_size * 2)
+        while len(population) < self.pop_size:
             try:
                 self.pert.priorities = None
                 order = self._rule_to_order('random')
-                pop.append(self._evaluate_no_fbi(order))
-            except Exception:
-                break
+                population.append(self._evaluate_no_fbi(order))
+                n_random += 1
+            except Exception as exc:  # noqa: BLE001
+                random_failures += 1
+                logger.warning(
+                    "Random order generation failed during GANS population "
+                    "seeding (%d/%d): %s",
+                    random_failures,
+                    max_random_failures,
+                    exc,
+                )
+                if random_failures >= max_random_failures:
+                    break
 
-        n_rand = len(pop) - len(seed_info)
-        if self.verbose and seed_info:
-            best_s = min(seed_info.values())
-            print(f"\nGANS initial population: {len(seed_info)} rule-seeded "
-                  f"+ {n_rand} random  |  best seeded = {best_s:.2f} h\n")
-            print(f"  {'Rule':<22} {'Fitness (h)':>12}")
-            print("  " + "-" * 36)
-            for r, f in seed_info.items():
-                print(f"  {r:<22} {f:>12.2f}")
-            print()
+        return n_random
+
+    def _build_initial_population(
+        self,
+        initial_population_mode: Optional[str] = None,
+    ) -> List[Individual]:
+        """
+        Build the initial population using the selected initialization mode.
+
+        ``'priority_rules'`` builds a complete seed pool from every
+        deterministic priority rule under both serial and parallel SGS, keeps
+        the best ``ceil(20% * pop_size)`` candidates by fitness, then fills the
+        rest with random precedence-feasible individuals.
+
+        ``'random'`` skips priority-rule seeding and fills the full population
+        randomly.  No FBI is applied because it is too expensive for initial
+        population construction.
+        """
+        mode = initial_population_mode or self.initial_population_mode
+        if mode not in self._INITIAL_POPULATION_MODES:
+            raise ValueError(
+                f"Unknown initial_population_mode '{mode}'. "
+                f"Choose from: {sorted(self._INITIAL_POPULATION_MODES)}"
+            )
+
+        pop: List[Individual] = []
+        seed_candidates: List[Dict[str, Any]] = []
+        seed_info: Dict[str, Dict[str, float]] = {}
+        n_rule_seeded = 0
+
+        if mode == 'priority_rules':
+            seed_candidates, seed_info = self._append_priority_rule_seeds()
+            seed_candidates.sort(
+                key=lambda candidate: (
+                    candidate['fitness'],
+                    candidate['rule'],
+                    candidate['source'],
+                )
+            )
+
+            n_seed_target = min(
+                self.pop_size,
+                len(seed_candidates),
+                max(1, math.ceil(self.pop_size * self._PRIORITY_SEED_FRACTION)),
+            )
+            selected_seed_candidates = seed_candidates[:n_seed_target]
+            for candidate in selected_seed_candidates:
+                pop.append(
+                    self._make_individual(
+                        candidate['order'],
+                        candidate['fitness'],
+                    )
+                )
+            n_rule_seeded = len(selected_seed_candidates)
+
+        n_random = self._fill_random_population(pop)
+        self._last_initial_evals = max(len(pop), len(seed_candidates) + n_random)
+
+        if not pop:
+            raise RuntimeError(
+                "Failed to generate any valid individuals for the initial population."
+            )
+
+        if len(pop) < self.pop_size:
+            logger.info(
+                "GANS initial population mode '%s' produced %d/%d requested "
+                "individuals because random fill was exhausted.",
+                mode,
+                len(pop),
+                self.pop_size,
+            )
+
+        best_seeded = None
+        if seed_info:
+            all_seed_fitness = [
+                fitness for info in seed_info.values() for fitness in info.values()
+            ]
+            best_seeded = min(all_seed_fitness)
+
+        if self.verbose:
+            msg = (
+                f"\nGANS initial population ({mode}): "
+                f"{n_rule_seeded}/{len(seed_candidates)} best rule/parallel seeds "
+                f"+ {n_random} random"
+                f"  |  total = {len(pop)}"
+            )
+            if best_seeded is not None:
+                msg += f"  |  best seeded = {best_seeded:.2f} h"
+            print(f"{msg}\n")
+            if seed_info:
+                print(f"  {'Rule':<22} {'Serial (h)':>12} {'Parallel (h)':>14}")
+                print("  " + "-" * 50)
+                for rule, info in seed_info.items():
+                    serial = info.get('serial', float('nan'))
+                    parallel = info.get('parallel', float('nan'))
+                    print(f"  {rule:<22} {serial:>12.2f} {parallel:>14.2f}")
+                print()
+        else:
+            msg = (
+                "GANS initial population (%s): %d/%d best rule/parallel seeds "
+                "+ %d random | total = %d"
+            )
+            if best_seeded is not None:
+                logger.info(
+                    msg + " | best seeded duration = %.2f h",
+                    mode,
+                    n_rule_seeded,
+                    len(seed_candidates),
+                    n_random,
+                    len(pop),
+                    best_seeded,
+                )
+            else:
+                logger.info(
+                    msg,
+                    mode,
+                    n_rule_seeded,
+                    len(seed_candidates),
+                    n_random,
+                    len(pop),
+                )
+
         return pop
 
     # ------------------------------------------------------------------ #
@@ -1000,7 +1251,7 @@ class RCPSPHybridGANS:
         # ── Initialisation ─────────────────────────────────────────────
         pop = self._build_initial_population()
         pop.sort(key=lambda x: x['fitness'])
-        n_evals = len(pop)
+        n_evals = max(len(pop), self._last_initial_evals)
 
         best = self._make_individual(pop[0]['order'], pop[0]['fitness'])
         self._assign_subset_params(best['fitness'])

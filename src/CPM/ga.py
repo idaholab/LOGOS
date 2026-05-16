@@ -133,7 +133,7 @@ PRIORITY_RULES: List[str] = [
     'es', 'ef', 'ls', 'lf', 'duration', 'random',
     'mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr',
     'maxrr', 'minrr',
-    'irsm', 'wcs', 'acs',
+    # 'irsm', 'wcs', 'acs',
     'mehh_8000_b', 'mehh_3375_b', 'mehh_1000_b', 'mehh_125_b', 'gphh_b',
 ]
 

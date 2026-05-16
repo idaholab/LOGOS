@@ -92,6 +92,23 @@ class TestConstructor:
                              lambda_max=50, verbose=False)
         assert g.parents_size <= g.pop_size
 
+    def test_supported_initialization_modes(self, pert):
+        assert RCPSPHybridGANS._INITIAL_POPULATION_MODES == {
+            'priority_rules', 'random'
+        }
+        g = RCPSPHybridGANS(
+            pert,
+            initial_population_mode='random',
+            verbose=False,
+        )
+        assert g.initial_population_mode == 'random'
+        with pytest.raises(ValueError, match="initial_population_mode"):
+            RCPSPHybridGANS(
+                pert,
+                initial_population_mode='mixed',
+                verbose=False,
+            )
+
     def test_default_block_size_stored(self, gans):
         assert gans.block_size == 3
         assert gans._block_size == 3
@@ -467,6 +484,104 @@ class TestInitialPopulation:
             assert isinstance(ind, dict)
             assert 'order' in ind
             assert 'fitness' in ind
+
+    def test_priority_rule_seed_candidates_not_limited_by_pop_size(self, gans):
+        candidates, seed_info = gans._append_priority_rule_seeds()
+        assert len(candidates) > gans.pop_size
+        assert len(candidates) == sum(len(info) for info in seed_info.values())
+        assert {candidate['source'] for candidate in candidates} == {
+            'serial', 'parallel'
+        }
+
+    def test_priority_rule_mode_keeps_best_20_percent_then_random_fills(
+        self,
+        pert,
+        monkeypatch,
+    ):
+        g = RCPSPHybridGANS(
+            pert,
+            pop_size=10,
+            lambda_max=50,
+            verbose=False,
+        )
+        best = g._rule_to_order('lf')
+        second = g._rule_to_order('es')
+        third = g._rule_to_order('duration')
+        random_fill = g._rule_to_order('random')
+
+        def fake_priority_seeds():
+            return (
+                [
+                    {
+                        'rule': 'duration',
+                        'source': 'serial',
+                        'order': third,
+                        'fitness': 30.0,
+                    },
+                    {
+                        'rule': 'lf',
+                        'source': 'serial',
+                        'order': best,
+                        'fitness': 10.0,
+                    },
+                    {
+                        'rule': 'es',
+                        'source': 'parallel',
+                        'order': second,
+                        'fitness': 20.0,
+                    },
+                ],
+                {
+                    'duration': {'serial': 30.0},
+                    'lf': {'serial': 10.0},
+                    'es': {'parallel': 20.0},
+                },
+            )
+
+        def fake_random_fill(population):
+            n_added = 0
+            while len(population) < g.pop_size:
+                population.append(g._make_individual(random_fill, 99.0))
+                n_added += 1
+            return n_added
+
+        monkeypatch.setattr(g, '_append_priority_rule_seeds', fake_priority_seeds)
+        monkeypatch.setattr(g, '_fill_random_population', fake_random_fill)
+
+        pop = g._build_initial_population()
+        assert len(pop) == 10
+        assert pop[0]['order'] == best
+        assert pop[0]['fitness'] == 10.0
+        assert pop[1]['order'] == second
+        assert pop[1]['fitness'] == 20.0
+        assert all(ind['order'] == random_fill for ind in pop[2:])
+
+    def test_random_mode_skips_priority_rule_seeds(self, pert, monkeypatch):
+        g = RCPSPHybridGANS(
+            pert,
+            pop_size=5,
+            lambda_max=50,
+            initial_population_mode='random',
+            verbose=False,
+        )
+        random_fill = g._rule_to_order('random')
+
+        def fail_priority_seeds():
+            raise AssertionError("random mode must not build priority-rule seeds")
+
+        def fake_random_fill(population):
+            n_added = 0
+            while len(population) < g.pop_size:
+                population.append(g._make_individual(random_fill, 99.0))
+                n_added += 1
+            return n_added
+
+        monkeypatch.setattr(g, '_append_priority_rule_seeds', fail_priority_seeds)
+        monkeypatch.setattr(g, '_fill_random_population', fake_random_fill)
+
+        pop = g._build_initial_population()
+        assert len(pop) == g.pop_size
+        assert all(ind['order'] == random_fill for ind in pop)
 
 
 class TestSelectParents:

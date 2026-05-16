@@ -222,8 +222,8 @@ def main() -> None:
         r = run_case(
             case_name=case_name,
             json_file=json_file,
-            ga_pop_size=30,
-            ga_n_gen=500,
+            ga_pop_size=50,
+            ga_n_gen=100,
             alns_n_iter=2000,
             gans_pop_size=60,
             gans_lambda_max=5000,
