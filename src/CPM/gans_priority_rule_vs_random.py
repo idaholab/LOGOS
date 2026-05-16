@@ -156,6 +156,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resource-threshold", type=float, default=0.75)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
+        "--no-fast-large-instance",
+        action="store_true",
+        help=(
+            "Disable GANS large-instance fast mode and use exact three-pass "
+            "FBI even for large schedules."
+        ),
+    )
+    parser.add_argument(
+        "--large-instance-threshold",
+        type=int,
+        default=1000,
+        help="Activity-count threshold for enabling fast large-instance mode.",
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Disable verbose GANS output for each run.",
@@ -397,6 +411,8 @@ def run_case(
         seed=args.seed,
         verbose=not args.quiet,
         initial_population_mode=initial_population_mode,
+        fast_large_instance=not args.no_fast_large_instance,
+        large_instance_threshold=args.large_instance_threshold,
     )
     best, log = gans.run()
     summary = gans.get_convergence_summary(log)
@@ -432,6 +448,8 @@ def run_case(
         "block_size": args.block_size,
         "resource_threshold": args.resource_threshold,
         "seed": args.seed,
+        "fast_large_instance": not args.no_fast_large_instance,
+        "large_instance_threshold": args.large_instance_threshold,
         "evals": evals,
         "best_curve": best_curve,
     }
@@ -556,6 +574,8 @@ def write_csv(results: list[dict[str, Any]], filename: Path) -> None:
         "block_size",
         "resource_threshold",
         "seed",
+        "fast_large_instance",
+        "large_instance_threshold",
     ]
     with filename.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
@@ -713,6 +733,8 @@ def main() -> None:
     print(f"pop_size                 : {args.pop_size}")
     print(f"lambda_max               : {args.lambda_max}")
     print(f"seed                     : {args.seed}")
+    print(f"fast large-instance mode : {not args.no_fast_large_instance}")
+    print(f"large-instance threshold : {args.large_instance_threshold}")
     print(
         "Runs                     : "
         f"{len(cases) * len(args.initial_population_modes)}"

@@ -459,17 +459,7 @@ class RCPSPGeneticAlgorithm:
         -------
         list of int, length ``self._n``
         """
-        all_acts = list(self.pert.forwardDict.keys())
-        raw = self.pert.priority_calculation(all_acts, priority_rule=rule)
-
-        # priority_calculation returns [(Activity, raw_val, inv_rank), ...] for
-        # all rules (including 'random' after normalize_tuples + reorder).
-        # Extract the ordered Activity list.
-        if raw and isinstance(raw[0], tuple):
-            ordered_acts = [a for (a, _, _) in raw]
-        else:
-            ordered_acts = list(raw)  # fallback (shouldn't occur)
-
+        ordered_acts = self.pert.priority_activity_order(priority_rule=rule)
         return [self._act_to_idx[a] for a in ordered_acts]
 
     def _chromosome_to_activities(self, chromosome: List[int]) -> List[Any]:
@@ -482,16 +472,8 @@ class RCPSPGeneticAlgorithm:
         as closely as possible.
         """
         acts = self._chromosome_to_activities(chromosome)
-        ranked = [(a, pos) for pos, a in enumerate(acts)]
-        repaired = self.pert.reorder_by_dependencies(ranked, self.pert.forwardDict)
-        return [self._act_to_idx[a] for a, _ in repaired]
-
-    @staticmethod
-    def _activity_name(activity: Any) -> str:
-        """Return the stable activity name used in Pert.schedule_log."""
-        if hasattr(activity, "returnName"):
-            return activity.returnName()
-        return getattr(activity, "name", str(activity))
+        repaired = self.pert.repair_activity_order(acts)
+        return [self._act_to_idx[a] for a in repaired]
 
     def _schedule_to_chromosome(
         self,
@@ -507,44 +489,16 @@ class RCPSPGeneticAlgorithm:
         and finally any unscheduled activities by the fallback order, then repair
         the result for precedence feasibility.
         """
-        fallback_pos = (
-            {gene: pos for pos, gene in enumerate(fallback_chromosome)}
+        fallback_order = (
+            self._chromosome_to_activities(fallback_chromosome)
             if fallback_chromosome is not None
-            else {}
+            else None
         )
-        default_pos = lambda gene: fallback_pos.get(gene, gene)
-        name_to_idx = {
-            self._activity_name(activity): idx
-            for idx, activity in enumerate(self._activities)
-        }
-
-        chromosome: List[int] = []
-        seen: set[int] = set()
-        for step in getattr(self.pert, "schedule_log", []) or []:
-            for name in step.get("selected", []):
-                idx = name_to_idx.get(name)
-                if idx is not None and idx not in seen:
-                    chromosome.append(idx)
-                    seen.add(idx)
-
-        scheduled_remainder: List[Tuple[Any, Any, int, int]] = []
-        unscheduled_remainder: List[int] = []
-        for idx, activity in enumerate(self._activities):
-            if idx in seen:
-                continue
-            start_time, end_time = activity.returnAbsTimes()
-            if start_time is None:
-                unscheduled_remainder.append(idx)
-            else:
-                scheduled_remainder.append(
-                    (start_time, end_time or start_time, default_pos(idx), idx)
-                )
-
-        scheduled_remainder.sort(key=lambda item: (item[0], item[1], item[2]))
-        chromosome.extend(idx for _, _, _, idx in scheduled_remainder)
-        chromosome.extend(sorted(unscheduled_remainder, key=default_pos))
-
-        return self._repair_chromosome(chromosome)
+        ordered = self.pert.current_schedule_activity_order(
+            fallback_order=fallback_order,
+            activities=self._activities,
+        )
+        return [self._act_to_idx[a] for a in ordered]
 
     def _build_consensus_library(self, n_random: int) -> None:
         """

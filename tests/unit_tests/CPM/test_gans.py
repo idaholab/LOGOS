@@ -109,6 +109,27 @@ class TestConstructor:
                 verbose=False,
             )
 
+    def test_large_instance_fast_mode_defaults(self, gans):
+        assert gans.fast_large_instance is True
+        assert gans.large_instance_threshold == 1000
+        assert gans._use_fast_improvement is False
+
+    def test_large_instance_fast_mode_can_be_forced_for_tests(self, pert):
+        g = RCPSPHybridGANS(
+            pert,
+            large_instance_threshold=1,
+            verbose=False,
+        )
+        assert g._use_fast_improvement is True
+
+    def test_invalid_large_instance_threshold_raises(self, pert):
+        with pytest.raises(ValueError, match="large_instance_threshold"):
+            RCPSPHybridGANS(
+                pert,
+                large_instance_threshold=0,
+                verbose=False,
+            )
+
     def test_default_block_size_stored(self, gans):
         assert gans.block_size == 3
         assert gans._block_size == 3

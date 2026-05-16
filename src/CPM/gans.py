@@ -50,7 +50,7 @@ from __future__ import annotations
 import logging
 import math
 import random
-from collections import deque
+from collections import OrderedDict, deque
 from datetime import timedelta
 from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
 
@@ -117,6 +117,12 @@ class RCPSPHybridGANS:
         priority-rule serial/parallel seeds, keeps the best 20% of
         ``pop_size``, and fills the rest randomly.  ``'random'`` fills the
         whole population randomly.
+    fast_large_instance : bool
+        Use a single-pass improvement instead of three-pass FBI on large
+        instances.  This keeps exact FBI for small benchmarks while avoiding a
+        3x serial-SGS multiplier on LPP-sized schedules.
+    large_instance_threshold : int
+        Activity-count threshold for ``fast_large_instance``.
     """
 
     _INITIAL_POPULATION_MODES = {'priority_rules', 'random'}
@@ -137,12 +143,16 @@ class RCPSPHybridGANS:
         seed: int = 42,
         verbose: bool = True,
         initial_population_mode: str = 'priority_rules',
+        fast_large_instance: bool = True,
+        large_instance_threshold: int = 1000,
     ) -> None:
         if initial_population_mode not in self._INITIAL_POPULATION_MODES:
             raise ValueError(
                 f"Unknown initial_population_mode '{initial_population_mode}'. "
                 f"Choose from: {sorted(self._INITIAL_POPULATION_MODES)}"
             )
+        if large_instance_threshold < 1:
+            raise ValueError("large_instance_threshold must be positive.")
 
         self.pert = pert
         self.pop_size = max(4, pop_size)
@@ -157,6 +167,12 @@ class RCPSPHybridGANS:
         self.verbose = verbose
         self.initial_population_mode = initial_population_mode
         self._last_initial_evals = 0
+        self._schedule_cache_limit = max(32, 2 * self.pop_size)
+        self._schedule_cache: OrderedDict[Tuple[int, ...], Dict[str, Any]] = (
+            OrderedDict()
+        )
+        self.fast_large_instance = fast_large_instance
+        self.large_instance_threshold = large_instance_threshold
 
         random.seed(seed)
         np.random.seed(seed)
@@ -165,6 +181,10 @@ class RCPSPHybridGANS:
         self._activities: List[Any] = list(pert.forwardDict.keys())
         self._n: int = len(self._activities)
         self._act_to_idx: Dict[Any, int] = {a: i for i, a in enumerate(self._activities)}
+        self._use_fast_improvement = (
+            self.fast_large_instance
+            and self._n >= self.large_instance_threshold
+        )
 
         # Dummy START/END activities excluded from operator targets
         _start = getattr(pert, 'startActivity', None)
@@ -281,12 +301,7 @@ class RCPSPHybridGANS:
         return [self._activities[i] for i in order]
 
     def _rule_to_order(self, rule: str) -> List[int]:
-        all_acts = list(self.pert.forwardDict.keys())
-        raw = self.pert.priority_calculation(all_acts, priority_rule=rule)
-        if raw and isinstance(raw[0], tuple):
-            ordered = [a for (a, _, _) in raw]
-        else:
-            ordered = list(raw)
+        ordered = self.pert.priority_activity_order(priority_rule=rule)
         return [self._act_to_idx[a] for a in ordered if a in self._act_to_idx]
 
     def _make_individual(self, order: List[int], fitness: float = math.inf) -> Individual:
@@ -300,8 +315,41 @@ class RCPSPHybridGANS:
         acts = self._chromosome_to_activities(order)
         return self.pert.calculateSerialScheduleWithResources(_ordered=acts)
 
+    def _decode_schedule_data(self, order: List[int]) -> Dict[str, Any]:
+        """
+        Decode an order once and cache schedule-derived data.
+
+        GANS repeatedly asks for the same parent schedules to compute dense
+        genes, tabu keys, and FBI passes.  On large instances the serial SGS
+        dominates runtime, so caching immutable schedule summaries avoids
+        re-running identical decodes while keeping the public algorithm
+        unchanged.
+        """
+        key = tuple(order)
+        cached = self._schedule_cache.get(key)
+        if cached is not None:
+            self._schedule_cache.move_to_end(key)
+            return cached
+
+        out = self._decode(order)
+        times = self._get_schedule_times()
+        scheduled_duration = out['scheduled_duration']
+        data: Dict[str, Any] = {
+            'scheduled_duration': scheduled_duration,
+            'fitness': scheduled_duration - 2,
+            'times': times,
+            'schedule_order': self._order_from_schedule(times),
+            'dense_genes': None,
+            'schedule_graph': None,
+            'tabu_key': None,
+        }
+        self._schedule_cache[key] = data
+        if len(self._schedule_cache) > self._schedule_cache_limit:
+            self._schedule_cache.popitem(last=False)
+        return data
+
     def _decode_fitness(self, order: List[int]) -> float:
-        return self._decode(order)['scheduled_duration'] - 2
+        return self._decode_schedule_data(order)['fitness']
 
     def _get_schedule_times(self) -> Dict[Any, Tuple[float, float]]:
         """
@@ -345,29 +393,44 @@ class RCPSPHybridGANS:
         Each pass counts as one evaluation toward lambda_max.
         """
         # Pass 1: forward
-        out1 = self._decode(order)
-        f1 = out1['scheduled_duration'] - 2
-        t1 = self._get_schedule_times()
-        o1 = self._order_from_schedule(t1)
+        data1 = self._decode_schedule_data(order)
+        f1 = data1['fitness']
+        o1 = data1['schedule_order']
 
         # Pass 2: backward (reverse order → SGS pushes activities as late as possible)
-        out2 = self._decode(list(reversed(o1)))
-        f2 = out2['scheduled_duration'] - 2
-        t2 = self._get_schedule_times()
-        o2 = self._order_from_schedule(t2)
+        data2 = self._decode_schedule_data(list(reversed(o1)))
+        f2 = data2['fitness']
+        o2 = data2['schedule_order']
 
         # Pass 3: forward again from backward-adjusted order
-        out3 = self._decode(o2)
-        f3 = out3['scheduled_duration'] - 2
-        t3 = self._get_schedule_times()
-        o3 = self._order_from_schedule(t3)
+        data3 = self._decode_schedule_data(o2)
+        f3 = data3['fitness']
+        o3 = data3['schedule_order']
 
         candidates = [(f1, o1), (f2, o2), (f3, o3)]
         best_f, best_o = min(candidates, key=lambda x: x[0])
         return best_f, best_o
 
+    def _fast_improvement(self, order: List[int]) -> Tuple[float, List[int]]:
+        """
+        Single-pass large-instance improvement.
+
+        LPP-sized schedules make the three serial-SGS FBI passes the dominant
+        runtime cost.  The fast path evaluates the repaired child once and
+        keeps that same chromosome, preserving a valid activity list while
+        avoiding two extra full decodes per operator application.
+        """
+        data = self._decode_schedule_data(order)
+        return data['fitness'], list(order)
+
+    def _improve_order(self, order: List[int]) -> Tuple[float, List[int]]:
+        """Apply exact FBI unless large-instance fast mode is active."""
+        if self._use_fast_improvement:
+            return self._fast_improvement(order)
+        return self._fbi(order)
+
     def _evaluate_with_fbi(self, order: List[int]) -> Individual:
-        fitness, best_order = self._fbi(order)
+        fitness, best_order = self._improve_order(order)
         return self._make_individual(best_order, fitness)
 
     def _evaluate_no_fbi(self, order: List[int]) -> Individual:
@@ -412,30 +475,72 @@ class RCPSPHybridGANS:
         Returns a list of frozensets, each being a non-overlapping dense gene.
         Ordered by v_t (best first).
         """
-        # Collect all event times
-        events: Set[float] = set()
+        events: List[Tuple[float, int, Any]] = []
         for a in self._activities:
             s, e = times.get(a, (0.0, 0.0))
             if e > s:
-                events.add(s)
-                events.add(e)
+                events.append((s, 1, a))
+                events.append((e, -1, a))
         if not events:
             return []
 
-        sorted_events = sorted(events)
-        # Build (interval_start, active_set, v_t) for each interval
+        events.sort(key=lambda item: item[0])
         dense_candidates: List[Tuple[float, FrozenSet[Any], float]] = []
-        for i in range(len(sorted_events) - 1):
-            t_mid = (sorted_events[i] + sorted_events[i + 1]) / 2.0
-            active = [
-                a for a in self._activities
-                if times.get(a, (0.0, 0.0))[0] <= t_mid < times.get(a, (0.0, 0.0))[1]
-            ]
-            if not active:
+        active: Set[Any] = set()
+        active_demand: Dict[str, float] = {sk: 0.0 for sk in self._skill_ids}
+        n_total = max(1, len(self._activities))
+
+        def _add_activity(act: Any) -> None:
+            active.add(act)
+            if self._skill_ids:
+                for sk, amount in self._activity_demand[act].items():
+                    if sk in active_demand:
+                        active_demand[sk] += amount
+
+        def _remove_activity(act: Any) -> None:
+            if act not in active:
+                return
+            active.remove(act)
+            if self._skill_ids:
+                for sk, amount in self._activity_demand[act].items():
+                    if sk in active_demand:
+                        active_demand[sk] -= amount
+
+        def _current_residual() -> float:
+            if not self._skill_ids:
+                return max(0.0, 1.0 - len(active) / n_total)
+            value = 0.0
+            for sk in self._skill_ids:
+                cap = self._skill_capacity.get(sk, 1.0)
+                if cap <= 0:
+                    continue
+                used = active_demand.get(sk, 0.0)
+                residual = max(0.0, cap - used)
+                value += residual * self._resource_weights.get(sk, 1.0) / cap
+            return value
+
+        i = 0
+        n_events = len(events)
+        while i < n_events:
+            t = events[i][0]
+            group: List[Tuple[float, int, Any]] = []
+            while i < n_events and events[i][0] == t:
+                group.append(events[i])
+                i += 1
+
+            for _time, kind, act in group:
+                if kind < 0:
+                    _remove_activity(act)
+            for _time, kind, act in group:
+                if kind > 0:
+                    _add_activity(act)
+
+            if i >= n_events or events[i][0] <= t or not active:
                 continue
-            v = self._weighted_residual(active)
+
+            v = _current_residual()
             if v < self.resource_threshold:
-                dense_candidates.append((sorted_events[i], frozenset(active), v))
+                dense_candidates.append((t, frozenset(active), v))
 
         if not dense_candidates:
             return []
@@ -451,9 +556,130 @@ class RCPSPHybridGANS:
                 covered |= gene
         return result
 
+    def _dense_genes_from_data(
+        self,
+        order: List[int],
+        data: Dict[str, Any],
+    ) -> List[FrozenSet[Any]]:
+        """Return cached dense genes for a decoded schedule."""
+        genes = data.get('dense_genes')
+        if genes is None:
+            genes = self._dense_activities(order, data['times'])
+            data['dense_genes'] = genes
+        return genes
+
+    def _schedule_graph_from_data(
+        self,
+        data: Dict[str, Any],
+    ) -> Dict[Any, List[Any]]:
+        """Return cached tight schedule graph for a decoded schedule."""
+        graph = data.get('schedule_graph')
+        if graph is None:
+            graph = self._build_schedule_graph(data['times'])
+            data['schedule_graph'] = graph
+        return graph
+
     # ------------------------------------------------------------------ #
     # Crossover A — dense-gene greedy merge                                #
     # ------------------------------------------------------------------ #
+
+    def _order_preserving_fallback_crossover(
+        self,
+        mother: List[int],
+        father: List[int],
+    ) -> List[int]:
+        """
+        Build a standard activity-list child when no dense genes are available.
+
+        Dense-gene crossovers can be empty on large sparse-resource instances.
+        Returning the shorter parent in that case stalls exploration, so this
+        fallback preserves a random prefix from one parent and fills from the
+        other parent while keeping every activity exactly once.
+        """
+        n = min(len(mother), len(father))
+        if n < 2:
+            return list(mother)
+
+        cut = random.randint(1, n - 1)
+        child = list(mother[:cut])
+        present = set(child)
+        child.extend(gene for gene in father if gene not in present)
+        present = set(child)
+        child.extend(gene for gene in range(self._n) if gene not in present)
+        return self._repair(child)
+
+    def _crossover_A_from_decoded(
+        self,
+        p1: Individual,
+        p2: Individual,
+        data1: Dict[str, Any],
+        data2: Dict[str, Any],
+        genes1: Optional[List[FrozenSet[Any]]] = None,
+        genes2: Optional[List[FrozenSet[Any]]] = None,
+    ) -> Individual:
+        """Build Crossover-A child using already decoded parent schedules."""
+        if genes1 is None:
+            genes1 = self._dense_genes_from_data(p1['order'], data1)
+        if genes2 is None:
+            genes2 = self._dense_genes_from_data(p2['order'], data2)
+
+        if not genes1 and not genes2:
+            if self._use_fast_improvement:
+                if random.random() < 0.5:
+                    child_order = self._order_preserving_fallback_crossover(
+                        p1['order'], p2['order']
+                    )
+                else:
+                    child_order = self._order_preserving_fallback_crossover(
+                        p2['order'], p1['order']
+                    )
+            else:
+                child_order = list(
+                    p1['order']
+                    if data1['scheduled_duration'] <= data2['scheduled_duration']
+                    else p2['order']
+                )
+            return self._evaluate_with_fbi(child_order)
+
+        merged: List[Tuple[FrozenSet[Any], int, float]] = []
+        for gene in genes1:
+            merged.append((gene, 1, self._weighted_residual(list(gene))))
+        for gene in genes2:
+            merged.append((gene, 2, self._weighted_residual(list(gene))))
+        merged.sort(key=lambda x: x[2])
+
+        acts1 = self._chromosome_to_activities(p1['order'])
+        acts2 = self._chromosome_to_activities(p2['order'])
+        pos1 = {a: i for i, a in enumerate(acts1)}
+        pos2 = {a: i for i, a in enumerate(acts2)}
+
+        added: Set[int] = set()
+        child_acts: List[Any] = []
+
+        for gene, parent_idx, _v in merged:
+            parent_pos = pos1 if parent_idx == 1 else pos2
+            for a in sorted(gene, key=lambda act: parent_pos.get(act, self._n)):
+                idx = self._act_to_idx[a]
+                if idx not in added:
+                    child_acts.append(a)
+                    added.add(idx)
+
+        shorter = (
+            acts1
+            if data1['scheduled_duration'] <= data2['scheduled_duration']
+            else acts2
+        )
+        for a in shorter:
+            idx = self._act_to_idx[a]
+            if idx not in added:
+                child_acts.append(a)
+                added.add(idx)
+
+        child_order = [
+            self._act_to_idx[a] for a in child_acts if a in self._act_to_idx
+        ]
+        child_order = self._repair(child_order)
+        return self._evaluate_with_fbi(child_order)
 
     def _crossover_A(self, p1: Individual, p2: Individual) -> Individual:
         """
@@ -464,51 +690,9 @@ class RCPSPHybridGANS:
         best (lowest v_t) dense gene, skipping already-added activities,
         then fill remainder from the shorter-duration parent.
         """
-        out1 = self._decode(p1['order']); t1 = self._get_schedule_times()
-        genes1 = self._dense_activities(p1['order'], t1)
-
-        out2 = self._decode(p2['order']); t2 = self._get_schedule_times()
-        genes2 = self._dense_activities(p2['order'], t2)
-
-        # Build a merged gene list (activity set, parent index, v_t)
-        # Recompute v_t for each gene
-        merged: List[Tuple[FrozenSet[Any], int, float]] = []
-        for g in genes1:
-            active = list(g)
-            v = self._weighted_residual(active)
-            merged.append((g, 1, v))
-        for g in genes2:
-            active = list(g)
-            v = self._weighted_residual(active)
-            merged.append((g, 2, v))
-        merged.sort(key=lambda x: x[2])  # best (lowest) first
-
-        acts1 = self._chromosome_to_activities(p1['order'])
-        acts2 = self._chromosome_to_activities(p2['order'])
-
-        added: Set[int] = set()
-        child_acts: List[Any] = []
-
-        for gene, parent_idx, _v in merged:
-            parent_list = acts1 if parent_idx == 1 else acts2
-            for a in parent_list:
-                idx = self._act_to_idx[a]
-                if a in gene and idx not in added:
-                    child_acts.append(a)
-                    added.add(idx)
-
-        # Fill remainder from shorter-duration parent
-        shorter = acts1 if out1.get('scheduled_duration', math.inf) <= out2.get('scheduled_duration', math.inf) else acts2
-        for a in shorter:
-            idx = self._act_to_idx[a]
-            if idx not in added:
-                child_acts.append(a)
-                added.add(idx)
-
-        # Repair precedence
-        child_order = [self._act_to_idx[a] for a in child_acts if a in self._act_to_idx]
-        child_order = self._repair(child_order)
-        return self._evaluate_with_fbi(child_order)
+        data1 = self._decode_schedule_data(p1['order'])
+        data2 = self._decode_schedule_data(p2['order'])
+        return self._crossover_A_from_decoded(p1, p2, data1, data2)
 
     # ------------------------------------------------------------------ #
     # Crossover B — dense-gene network swap                                #
@@ -559,24 +743,22 @@ class RCPSPHybridGANS:
         network in the OTHER parent's schedule graph, locates the segment span
         in that parent's activity list, and swaps it in.
         """
-        out1 = self._decode(p1['order']); t1 = self._get_schedule_times()
-        genes1 = self._dense_activities(p1['order'], t1)
-        gs1 = self._build_schedule_graph(t1)
-
-        out2 = self._decode(p2['order']); t2 = self._get_schedule_times()
-        genes2 = self._dense_activities(p2['order'], t2)
-        gs2 = self._build_schedule_graph(t2)
+        data1 = self._decode_schedule_data(p1['order'])
+        data2 = self._decode_schedule_data(p2['order'])
+        genes1 = self._dense_genes_from_data(p1['order'], data1)
+        genes2 = self._dense_genes_from_data(p2['order'], data2)
 
         acts1 = self._chromosome_to_activities(p1['order'])
         acts2 = self._chromosome_to_activities(p2['order'])
 
         if not genes1 or not genes2:
-            # Fall back to Crossover A when no dense genes found
-            return self._crossover_A(p1, p2)
+            return self._crossover_A_from_decoded(
+                p1, p2, data1, data2, genes1, genes2
+            )
 
         # Select best dense gene from each parent
         best_g1 = genes1[0]
-        best_g2 = genes2[0]
+        gs2 = self._schedule_graph_from_data(data2)
 
         # For gene from parent1, find its network in parent2's schedule graph
         network_in_p2: Set[Any] = set()
@@ -587,7 +769,9 @@ class RCPSPHybridGANS:
         pos2 = {a: i for i, a in enumerate(acts2)}
         span_positions = [pos2[a] for a in network_in_p2 if a in pos2]
         if not span_positions:
-            return self._crossover_A(p1, p2)
+            return self._crossover_A_from_decoded(
+                p1, p2, data1, data2, genes1, genes2
+            )
 
         lo2, hi2 = min(span_positions), max(span_positions)
         segment = acts2[lo2: hi2 + 1]
@@ -673,23 +857,15 @@ class RCPSPHybridGANS:
     def _repair(self, order: List[int]) -> List[int]:
         """Repair precedence feasibility via reorder_by_dependencies."""
         acts = self._chromosome_to_activities(order)
-        ranked = [(a, i) for i, a in enumerate(acts)]
         try:
-            repaired = self.pert.reorder_by_dependencies(ranked, self.pert.forwardDict)
-            return [self._act_to_idx[a] for a, _ in repaired if a in self._act_to_idx]
+            repaired = self.pert.repair_activity_order(acts)
+            return [self._act_to_idx[a] for a in repaired if a in self._act_to_idx]
         except Exception:
             return order
 
     # ------------------------------------------------------------------ #
     # Initial population                                                   #
     # ------------------------------------------------------------------ #
-
-    @staticmethod
-    def _activity_name(activity: Any) -> str:
-        """Return the stable activity name used in Pert.schedule_log."""
-        if hasattr(activity, "returnName"):
-            return activity.returnName()
-        return getattr(activity, "name", str(activity))
 
     def _schedule_to_order(
         self,
@@ -703,44 +879,16 @@ class RCPSPHybridGANS:
         by scheduled start time and then by the fallback order before repairing
         precedence feasibility.
         """
-        fallback_pos = (
-            {gene: pos for pos, gene in enumerate(fallback_order)}
+        fallback_activities = (
+            self._chromosome_to_activities(fallback_order)
             if fallback_order is not None
-            else {}
+            else None
         )
-        default_pos = lambda gene: fallback_pos.get(gene, gene)
-        name_to_idx = {
-            self._activity_name(activity): idx
-            for idx, activity in enumerate(self._activities)
-        }
-
-        order: List[int] = []
-        seen: Set[int] = set()
-        for step in getattr(self.pert, "schedule_log", []) or []:
-            for name in step.get("selected", []):
-                idx = name_to_idx.get(name)
-                if idx is not None and idx not in seen:
-                    order.append(idx)
-                    seen.add(idx)
-
-        scheduled_remainder: List[Tuple[Any, Any, int, int]] = []
-        unscheduled_remainder: List[int] = []
-        for idx, activity in enumerate(self._activities):
-            if idx in seen:
-                continue
-            start_time, end_time = activity.returnAbsTimes()
-            if start_time is None:
-                unscheduled_remainder.append(idx)
-            else:
-                scheduled_remainder.append(
-                    (start_time, end_time or start_time, default_pos(idx), idx)
-                )
-
-        scheduled_remainder.sort(key=lambda item: (item[0], item[1], item[2]))
-        order.extend(idx for _, _, _, idx in scheduled_remainder)
-        order.extend(sorted(unscheduled_remainder, key=default_pos))
-
-        return self._repair(order)
+        ordered = self.pert.current_schedule_activity_order(
+            fallback_order=fallback_activities,
+            activities=self._activities,
+        )
+        return [self._act_to_idx[a] for a in ordered if a in self._act_to_idx]
 
     def _priority_seed_rules(self) -> List[str]:
         """Return deterministic priority rules used for seed candidates."""
@@ -992,27 +1140,21 @@ class RCPSPHybridGANS:
         """
         s_j, e_j = times.get(core_act, (0.0, 0.0))
         p_j = e_j - s_j  # duration in hours
-        others = [a for a in self._activities if a is not core_act]
-        random.shuffle(others)
-
         block: List[Any] = [core_act]
-        b = 0.0
         max_b = self._cpm_duration
+        candidates: List[Tuple[float, float, Any]] = []
 
-        while len(block) < P and b <= max_b:
-            added_this_round = False
-            for a in others:
-                if a in block:
-                    continue
-                s_i, e_i = times.get(a, (0.0, 0.0))
-                p_i = e_i - s_i
-                if s_j - p_i - b <= s_i <= s_j + p_j + b:
-                    block.append(a)
-                    if len(block) >= P:
-                        break
-                    added_this_round = True
-            if not added_this_round:
-                b += max(0.5, p_j / 4.0)
+        for a in self._activities:
+            if a is core_act:
+                continue
+            s_i, e_i = times.get(a, (0.0, 0.0))
+            p_i = e_i - s_i
+            distance = max(0.0, s_j - p_i - s_i, s_i - s_j - p_j)
+            if distance <= max_b:
+                candidates.append((distance, random.random(), a))
+
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        block.extend(a for _distance, _tie, a in candidates[:max(0, P - 1)])
 
         return block
 
@@ -1024,9 +1166,9 @@ class RCPSPHybridGANS:
         re-inserted at their earliest feasible positions in the remaining list.
         """
         evals_used = 1  # initial decode for timing / block construction
-        out = self._decode(ind['order'])
-        times = self._get_schedule_times()
-        order = self._order_from_schedule(times)
+        data = self._decode_schedule_data(ind['order'])
+        times = data['times']
+        order = data['schedule_order']
 
         non_dummy = [a for a in self._activities if a not in self._dummy_acts]
         if not non_dummy:
@@ -1069,7 +1211,7 @@ class RCPSPHybridGANS:
             pos_residual = {idx: p for p, idx in enumerate(residual)}
 
         child_order = self._repair(residual)
-        fitness, best_order = self._fbi(child_order)
+        fitness, best_order = self._improve_order(child_order)
         evals_used += 3  # FBI
         return self._make_individual(best_order, fitness), evals_used
 
@@ -1146,9 +1288,9 @@ class RCPSPHybridGANS:
         core_idx = order.index(self._act_to_idx[core])
 
         # Decode for timing to build block
-        self._decode(order)
+        data = self._decode_schedule_data(order)
         evals_used += 1
-        times = self._get_schedule_times()
+        times = data['times']
         block_acts = self._create_block(core, times, self._block_size)
 
         # Exclude block members from the full order
@@ -1177,7 +1319,7 @@ class RCPSPHybridGANS:
         child_order += [i for i in range(self._n) if i not in present]
 
         child_order = self._repair(child_order)
-        fitness, best_order = self._fbi(child_order)
+        fitness, best_order = self._improve_order(child_order)
         evals_used += 3  # FBI
         return self._make_individual(best_order, fitness), evals_used
 
@@ -1213,11 +1355,11 @@ class RCPSPHybridGANS:
         cpm = max(self._cpm_duration, 1.0)
         sigma = (best_fitness - cpm) / cpm
         if sigma < self.sigma1:
-            subset, self.ga_stall_limit, self.ns_steps = 1, 80, 50
+            subset, self.ga_stall_limit, self.ns_steps = 1, 30, 10
         elif sigma <= self.sigma2:
-            subset, self.ga_stall_limit, self.ns_steps = 2, 50, 150
+            subset, self.ga_stall_limit, self.ns_steps = 2, 20, 20
         else:
-            subset, self.ga_stall_limit, self.ns_steps = 3, 20, 300
+            subset, self.ga_stall_limit, self.ns_steps = 3, 10, 30
         if self.verbose:
             print(f"  σ = {sigma:.3f} → subset {subset} | "
                   f"ga_stall={self.ga_stall_limit} | ns_steps={self.ns_steps}")
@@ -1228,9 +1370,10 @@ class RCPSPHybridGANS:
 
     def _tabu_key(self, ind: Individual) -> int:
         """Sum of start times as tabu signature (Paper Section 6)."""
-        self._decode(ind['order'])
-        times = self._get_schedule_times()
-        return int(sum(s for s, _ in times.values()))
+        data = self._decode_schedule_data(ind['order'])
+        if data.get('tabu_key') is None:
+            data['tabu_key'] = int(sum(s for s, _ in data['times'].values()))
+        return data['tabu_key']
 
     # ------------------------------------------------------------------ #
     # Main optimisation loop                                               #
@@ -1275,6 +1418,11 @@ class RCPSPHybridGANS:
             print(f"{'n_evals':>8}  {'best (h)':>10}  {'event':<16}")
             print("-" * 40)
             print(f"{n_evals:>8}  {best['fitness']:>10.2f}  {'init':<16}")
+            if self._use_fast_improvement:
+                print(
+                    "large-instance fast improvement enabled "
+                    f"(n={self._n}, threshold={self.large_instance_threshold})"
+                )
 
         # ── Main loop ──────────────────────────────────────────────────
         gen = 0

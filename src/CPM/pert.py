@@ -5523,6 +5523,121 @@ class Pert:
         # Map back to tuples
         return [key_to_tuple[k] for k in sorted_keys]
 
+    @staticmethod
+    def activity_name(activity):
+        """Return the stable activity name used in schedule logs."""
+        if hasattr(activity, "returnName"):
+            return activity.returnName()
+        return getattr(activity, "name", str(activity))
+
+    def priority_activity_order(
+        self,
+        priority_rule: str = 'lf',
+        activities: Optional[List['Activity']] = None,
+        current_time: datetime = None,
+        tie_breaker: str = 'mehh_8000_b',
+    ) -> List['Activity']:
+        """
+        Return a precedence-feasible activity order for a named priority rule.
+
+        This normalizes the tuple format returned by ``priority_calculation`` so
+        GA/GANS callers do not need to duplicate the extraction logic.
+        """
+        eligible = list(activities) if activities is not None else list(self.forwardDict.keys())
+        raw = self.priority_calculation(
+            eligible,
+            priority_rule=priority_rule,
+            current_time=current_time,
+            tie_breaker=tie_breaker,
+        )
+        if raw and isinstance(raw[0], tuple):
+            return [item[0] for item in raw]
+        return list(raw)
+
+    def repair_activity_order(self, activities: List['Activity']) -> List['Activity']:
+        """
+        Repair precedence feasibility for an activity order.
+
+        The relative order is preserved as much as possible using the same
+        dependency-aware topological sort used by priority rules.
+        """
+        ranked = [(activity, pos) for pos, activity in enumerate(activities)]
+        repaired = self.reorder_by_dependencies(ranked, self.forwardDict)
+        return [activity for activity, _ in repaired]
+
+    def current_schedule_activity_order(
+        self,
+        fallback_order: Optional[List['Activity']] = None,
+        activities: Optional[List['Activity']] = None,
+        repair: bool = True,
+    ) -> List['Activity']:
+        """
+        Convert the current schedule left on this Pert object into an activity order.
+
+        Parallel SGS records chronological decision order in
+        ``schedule_log[*]['selected']``.  Serial SGS records one ``activity`` per
+        log row.  If the log is incomplete, remaining scheduled activities are
+        appended by actual start time and unscheduled activities by the fallback
+        order.  The result is repaired for precedence feasibility by default.
+        """
+        activity_list = list(activities) if activities is not None else list(self.forwardDict.keys())
+        activity_set = set(activity_list)
+        fallback_pos = (
+            {activity: pos for pos, activity in enumerate(fallback_order)}
+            if fallback_order is not None
+            else {}
+        )
+        default_pos = lambda activity: fallback_pos.get(activity, len(fallback_pos))
+        name_to_activity = {
+            self.activity_name(activity): activity
+            for activity in activity_list
+        }
+
+        ordered: List['Activity'] = []
+        seen = set()
+
+        def _append_logged(value) -> None:
+            activity = value if value in activity_set else name_to_activity.get(str(value))
+            if activity is not None and activity not in seen:
+                ordered.append(activity)
+                seen.add(activity)
+
+        for step in getattr(self, "schedule_log", []) or []:
+            selected = step.get("selected")
+            if selected:
+                for value in selected:
+                    _append_logged(value)
+            elif "activity" in step:
+                _append_logged(step["activity"])
+
+        scheduled_remainder = []
+        unscheduled_remainder = []
+        for activity in activity_list:
+            if activity in seen:
+                continue
+            if hasattr(activity, "returnAbsTimes"):
+                start_time, end_time = activity.returnAbsTimes()
+            else:
+                start_time = getattr(activity, "startTime", None)
+                end_time = getattr(activity, "endTime", None)
+            if start_time is None:
+                unscheduled_remainder.append(activity)
+            else:
+                scheduled_remainder.append(
+                    (
+                        start_time,
+                        end_time or start_time,
+                        default_pos(activity),
+                        activity,
+                    )
+                )
+
+        scheduled_remainder.sort(key=lambda item: (item[0], item[1], item[2]))
+        ordered.extend(activity for _, _, _, activity in scheduled_remainder)
+        ordered.extend(sorted(unscheduled_remainder, key=default_pos))
+
+        return self.repair_activity_order(ordered) if repair else ordered
+
 
 
     # =========================================================================
