@@ -2268,7 +2268,16 @@ class Pert:
                 break
 
             iteration += 1
-            self._update_ongoing_list(time_index)
+            newly_completed = self._update_ongoing_list(time_index)
+
+            if self.lag_dict:
+                for act in newly_completed:
+                    for succ in self.forwardDict.get(act, []):
+                        lag_h = self.lag_dict.get((act, succ), 0.0)
+                        if lag_h > 0:
+                            lag_event = act.endTime + timedelta(hours=lag_h)
+                            if lag_event > time_index:
+                                heapq.heappush(event_heap, lag_event)
 
             if len(self.completed) == n_activities:
                 break
@@ -2967,7 +2976,18 @@ class Pert:
 
             # Update ongoing activities (move completed to completed list)
             # ── Move finished activities to completed ────────────────────────
-            self._update_ongoing_list(time_index)
+            newly_completed = self._update_ongoing_list(time_index)
+
+            # Push lag-end events so finish-to-start lags are enforced even
+            # when the predecessor was delayed beyond its CPM early finish.
+            if self.lag_dict:
+                for act in newly_completed:
+                    for succ in self.forwardDict.get(act, []):
+                        lag_h = self.lag_dict.get((act, succ), 0.0)
+                        if lag_h > 0:
+                            lag_event = act.endTime + timedelta(hours=lag_h)
+                            if lag_event > time_index:
+                                heapq.heappush(event_heap, lag_event)
 
             if len(self.completed) == n_activities:
                 break   # finished exactly on this event
@@ -3183,6 +3203,22 @@ class Pert:
                 pushed_back.append(act)
                 continue
 
+            # Lag enforcement: verify actual predecessor end + lag <= current time.
+            # The CPM-based ES gate above is insufficient when a lagged predecessor
+            # was delayed beyond its CPM early finish.
+            lag_unmet = False
+            if self.lag_dict:
+                for pred in self.backwardDict.get(act, []):
+                    lag_h = self.lag_dict.get((pred, act), 0.0)
+                    if lag_h > 0:
+                        _, pred_end = pred.returnAbsTimes()
+                        if pred_end is not None and pred_end + timedelta(hours=lag_h) > time:
+                            lag_unmet = True
+                            break
+            if lag_unmet:
+                pushed_back.append(act)
+                continue
+
             # Time-window enforcement
             windows = self._resolve_windows(act)
             if windows:
@@ -3289,6 +3325,21 @@ class Pert:
             if abs_es > time:
                 continue
 
+            # Lag enforcement: verify actual predecessor end + lag <= current time.
+            # The CPM-based ES gate above is insufficient when a lagged predecessor
+            # was delayed beyond its CPM early finish.
+            if self.lag_dict:
+                lag_unmet = False
+                for pred in self.backwardDict.get(act, []):
+                    lag_h = self.lag_dict.get((pred, act), 0.0)
+                    if lag_h > 0:
+                        _, pred_end = pred.returnAbsTimes()
+                        if pred_end is not None and pred_end + timedelta(hours=lag_h) > time:
+                            lag_unmet = True
+                            break
+                if lag_unmet:
+                    continue
+
             # ── Time-window enforcement ──────────────────────────────────────
             # Works for both single-window (legacy fields) and multi-window
             # (time_windows list) activities via _resolve_windows().
@@ -3354,7 +3405,10 @@ class Pert:
                 candidates[act]['value'] = self.priorities.get(act_name, 0.5)
         # use priority rules to compute candidate
         elif value_assignment.lower() in self._list_priority_names:
-            acts = list(candidates.keys())
+            # Sort by name first so priority_calculation receives a deterministic
+            # input regardless of Python's hash-based set/dict iteration order
+            # (PYTHONHASHSEED varies between process invocations).
+            acts = sorted(candidates.keys(), key=lambda a: a.returnName())
             priority = self.priority_calculation(acts, value_assignment, current_time=time)
             for (a, _, val) in priority:
                 candidates[a]['value'] = val
@@ -3747,10 +3801,29 @@ class Pert:
             list: List of Activity objects selected to start
         """
         if choice == 'first':
-            # Select first candidate
-            # Need to rank by value since Dict is not ordered
+            # Serial SGS: try each candidate in priority order and start the
+            # highest-priority one that is resource-feasible at time_index.
+            # If nothing fits, return [] so the event loop advances to the next
+            # event (activity completion / resource release) and retries.
             ordered = self._rank_by_value(candidates)
-            return [next(iter(ordered))]
+            for act in ordered:
+                eff = self._effective_duration(act)
+                cand_end = time_index + timedelta(hours=eff)
+                res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid = \
+                    self._build_capacity_snapshots(
+                        time_index, cand_end, extra_boundaries={cand_end}
+                    )
+                if self._fits_with_tentative(
+                    act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                ):
+                    # Apply tentative state (consumable deduction, system-state
+                    # acquire) so the pool reflects the commitment for subsequent
+                    # feasibility checks and validator audits.
+                    self._apply_tentative(
+                        act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                    )
+                    return [act]
+            return []
 
         if choice in ('max_use_res_ranked', 'max_use_res_shuffled'):
             # Order candidates
@@ -4183,9 +4256,20 @@ class Pert:
         pb = Activity(name='PB', duration=pb_size, description='Project Buffer')
         pb.buffer_type = 'project'
 
-        # Splice: terminal → PB → original successors of terminal
-        terminal  = self.constrained_chain_list[-1]
-        successors = list(self.forwardDict.get(terminal, []))
+        # Splice: terminal → PB → original successors of terminal.
+        # If the chain ends at the project end-milestone (endActivity), step back
+        # one position so PB is inserted between the last real work activity and
+        # the milestone rather than after it.  Inserting PB after the end
+        # milestone creates a dangling sink that forces generateInfo() to use
+        # the old project_duration as the backward-pass ceiling, producing
+        # incorrect (negative) slack for every critical-chain activity.
+        terminal = self.constrained_chain_list[-1]
+        if self.endActivity is not None and terminal is self.endActivity:
+            if len(self.constrained_chain_list) >= 2:
+                terminal = self.constrained_chain_list[-2]
+            successors = [self.endActivity]
+        else:
+            successors = list(self.forwardDict.get(terminal, []))
         self._splice_buffer_activity(pb, predecessors=[terminal], successors=successors)
 
         logger.info(
@@ -4670,11 +4754,13 @@ class Pert:
     def _rank_by_value(self, candidates: Dict) -> List:
         """
         Rank candidates by priority value (descending).
+        Activity name is used as a stable, deterministic tiebreaker so that
+        equal-priority candidates always resolve in the same order regardless
+        of Python's hash-based set iteration (PYTHONHASHSEED).
         """
         sorted_items = sorted(
             candidates.items(),
-            key=lambda item: item[1]['value'],
-            reverse=True
+            key=lambda item: (-item[1]['value'], item[0].returnName()),
         )
         return [act for act, info in sorted_items]
 
@@ -4721,11 +4807,17 @@ class Pert:
         random.shuffle(activities)
         return activities
 
-    def _update_ongoing_list(self, time_index: datetime):
+    def _update_ongoing_list(self, time_index: datetime) -> list:
         """
         Update ongoing activities list.
 
         Move activities from ongoing to completed if their end time has been reached.
+
+        Returns
+        -------
+        completed_now : list[Activity]
+            Activities that finished at this time step.  Returned so the
+            caller can push finish-to-start lag events onto the event heap.
         """
         completed_now = []
 
@@ -4764,6 +4856,8 @@ class Pert:
                     self.system_state_pool.release(
                         req['system_id'], req['required_state']
                     )
+
+        return completed_now
 
     def get_schedule_dataframe(self):
         """
@@ -5298,26 +5392,31 @@ class Pert:
         # Include one extra hour past j_end + d_i to ensure _fits_with_tentative
         # can always find valid data for any candidate start in the window.
         scan_end = j_end + d_i + timedelta(hours=1)
-        # _build_capacity_snapshots now returns a 5-tuple.  This method scans
-        # hour-by-hour (t_n, t_n+1h, …) so we keep the hour-by-hour fallback
-        # (grid=None) for _apply_tentative and _fits_with_tentative to preserve
-        # correctness of the sequential overlap check.
+        # _build_capacity_snapshots returns a sparse boundary grid.  Pass _grid
+        # to _apply_tentative / _fits_with_tentative so they operate on boundary
+        # keys that actually exist in the dicts (avoids KeyError on non-boundary hours).
         res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, _grid = \
             self._build_capacity_snapshots(t_n, scan_end)
 
-        # Commit j into the capacity snapshots (hour-by-hour path)
-        self._apply_tentative(act_j, t_n, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem)
+        # Commit j into the capacity snapshots using the boundary grid so that
+        # only grid-point keys (which exist in the sparse dicts) are accessed.
+        self._apply_tentative(act_j, t_n, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem,
+                              grid=_grid)
 
         # Check simultaneous start (SP case)
-        if self._fits_with_tentative(act_i, t_n, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem):
+        if self._fits_with_tentative(act_i, t_n, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem,
+                                     grid=_grid):
             return t_n
 
-        # Scan hour-by-hour up through j's completion (TFP case)
-        t = t_n + timedelta(hours=1)
-        while t < j_end:
-            if self._fits_with_tentative(act_i, t, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem):
+        # Scan boundary grid points up through j's completion (TFP case).
+        # Between consecutive boundary points capacity is constant, so checking
+        # at each boundary is sufficient and avoids KeyErrors on non-boundary hours.
+        for t in _grid:
+            if t <= t_n or t >= j_end:
+                continue
+            if self._fits_with_tentative(act_i, t, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem,
+                                         grid=_grid):
                 return t
-            t += timedelta(hours=1)
 
         # GFP: i must start no earlier than when j finishes
         return j_end
@@ -5509,6 +5608,47 @@ class Pert:
     # SERIAL SGS
     # =========================================================================
 
+    def _enforce_window_serial(
+        self,
+        act,
+        feasible_start: datetime,
+        eff: float,
+        windows: list,
+        schedule_profile: List[tuple],
+        max_time: datetime,
+    ):
+        """
+        Given a resource-feasible start time, enforce time-window constraints
+        for the Serial SGS.
+
+        Iterates through windows in earliest-first order.  For each window that
+        hasn't been missed yet, advances feasible_start to the window open time
+        (if needed) then re-runs the resource feasibility scan within the window.
+        Returns the adjusted feasible_start, or None if no window can fit the
+        activity before max_time.
+        """
+        cur_h = (feasible_start - self.startTime).total_seconds() / 3600.0
+
+        for west_h, wlf_h in sorted(windows, key=lambda w: w[0]):
+            # Window already closed — can't fit
+            if cur_h + eff > wlf_h:
+                continue
+            # Advance to window open if we're before it
+            candidate = max(feasible_start,
+                            self.startTime + timedelta(hours=west_h))
+            cand_h = (candidate - self.startTime).total_seconds() / 3600.0
+            if cand_h + eff > wlf_h:
+                continue  # even after advancing, won't fit in this window
+            # Re-scan resources from the window start (may be later than original)
+            if candidate > feasible_start:
+                candidate = self._find_earliest_feasible_start_serial(
+                    act, candidate, schedule_profile
+                )
+            cand_h = (candidate - self.startTime).total_seconds() / 3600.0
+            if cand_h + eff <= wlf_h and candidate <= max_time:
+                return candidate
+        return None  # no window fits
+
     def _serial_check_feasibility(
         self,
         activity:          'Activity',
@@ -5602,6 +5742,48 @@ class Pert:
                     if cap['max_workers'] - workers_in_use < workers_needed:
                         return False
 
+        # ── Consumable inventory ─────────────────────────────────────────────
+        # Consumables are deducted at activity start (deduct-on-start contract).
+        # We compute "virtual available" = remaining + pending restocks up to
+        # at_hour WITHOUT advancing the cursor, so the check is side-effect-free.
+        # (consumable_pool.fits(at_hour=...) would permanently apply restocks,
+        # letting earlier candidate times incorrectly see post-restock inventory.)
+        if self.consumable_pool:
+            at_hour = (start_time - self.startTime).total_seconds() / 3600.0
+            for req in activity.getRequiredConsumables():
+                item_id = req['item_id']
+                if item_id not in self.consumable_pool.items:
+                    continue
+                current_remaining = self.consumable_pool.remaining.get(item_id, 0.0)
+                cursor = self.consumable_pool._restock_cursor.get(item_id, -1.0)
+                pending = sum(
+                    qty for h, qty in self.consumable_pool.restocks.get(item_id, [])
+                    if cursor < h <= at_hour
+                )
+                if current_remaining + pending < float(req['quantity_needed']):
+                    return False
+
+        # ── System-state conflicts ────────────────────────────────────────────
+        # For each system state required by this activity, reject the slot if
+        # any overlapping already-scheduled activity demands a different state
+        # for the same system (two incompatible plant states cannot coexist).
+        if self.system_state_pool:
+            duration = self._effective_duration(activity)
+            end_time = start_time + timedelta(hours=duration)
+            cand_states = {
+                req['system_id']: req['required_state']
+                for req in activity.getRequiredSystemStates()
+            }
+            if cand_states:
+                for (a, s, e) in schedule_profile:
+                    if s >= end_time or e <= start_time:
+                        continue  # no overlap
+                    for req in a.getRequiredSystemStates():
+                        sys_id = req['system_id']
+                        if (sys_id in cand_states
+                                and req['required_state'] != cand_states[sys_id]):
+                            return False
+
         return True
 
     def _find_earliest_feasible_start_serial(
@@ -5648,6 +5830,30 @@ class Pert:
         for (_, _, end_t) in schedule_profile:
             if end_t >= min_start:
                 candidates.add(end_t)
+
+        # Consumable restock delivery times: a blocked consumable may become
+        # available after a restock delivery.
+        if self.consumable_pool:
+            for item_id in self.consumable_pool.get_all_item_ids():
+                for delivery_hour, _ in self.consumable_pool.restocks.get(item_id, []):
+                    restock_dt = self.startTime + timedelta(hours=delivery_hour)
+                    if restock_dt >= min_start:
+                        candidates.add(restock_dt)
+
+        # System-state release times: when a conflicting activity finishes,
+        # the state is freed and the candidate may become feasible.
+        if self.system_state_pool:
+            cand_states = {
+                req['system_id']: req['required_state']
+                for req in activity.getRequiredSystemStates()
+            }
+            if cand_states:
+                for (a, s, e) in schedule_profile:
+                    for req in a.getRequiredSystemStates():
+                        if (req['system_id'] in cand_states
+                                and req['required_state'] != cand_states[req['system_id']]
+                                and e >= min_start):
+                            candidates.add(e)
 
         # Scan in ascending order
         for t in sorted(candidates):
@@ -5766,11 +5972,13 @@ class Pert:
         n_scheduled = 0
 
         for act in ordered:
-            # ── Step 1: precedence-based earliest start ───────────────────────
+            # ── Step 1: precedence-based earliest start (with lag enforcement) ─
             preds = self.backwardDict.get(act, [])
             if preds:
                 pred_end = max(
-                    actual_end.get(p, self.startTime) for p in preds
+                    actual_end.get(p, self.startTime)
+                    + timedelta(hours=self.lag_dict.get((p, act), 0.0))
+                    for p in preds
                 )
             else:
                 pred_end = self.startTime
@@ -5791,6 +5999,28 @@ class Pert:
                 act, min_start, schedule_profile
             )
 
+            # ── Step 2b: time-window enforcement ─────────────────────────────
+            windows = self._resolve_windows(act)
+            if windows:
+                eff = self._effective_duration(act)
+                feasible_start = self._enforce_window_serial(
+                    act, feasible_start, eff, windows, schedule_profile, max_time
+                )
+                if feasible_start is None:
+                    current_hours = (min_start - self.startTime).total_seconds() / 3600.0
+                    logger.warning(
+                        "Serial SGS: %s cannot fit in any time window — skipped.",
+                        act.name
+                    )
+                    self._window_violations.append({
+                        'activity':       act.name,
+                        'reason':         'window_missed',
+                        'windows':        [{'earliest': w[0], 'latest': w[1]} for w in windows],
+                        'current_hours':  current_hours,
+                        'duration_hours': eff,
+                    })
+                    continue
+
             if feasible_start > max_time:
                 logger.warning(
                     "Serial SGS: activity %s feasible start %s exceeds cutoff — skipped.",
@@ -5804,6 +6034,13 @@ class Pert:
             actual_end[act] = abs_end
 
             schedule_profile.append((act, feasible_start, abs_end))
+
+            # Deduct consumables at activity start (deduct-on-start contract).
+            if self.consumable_pool:
+                at_h = (feasible_start - self.startTime).total_seconds() / 3600.0
+                self.consumable_pool.apply_restocks_up_to(at_h)
+                for req in act.getRequiredConsumables():
+                    self.consumable_pool.consume(req['item_id'], float(req['quantity_needed']))
 
             # Delay = gap between precedence-driven min_start and actual start
             wait_hours = (feasible_start - min_start).total_seconds() / 3600.0
@@ -6289,32 +6526,39 @@ def plot_gantt_chart(pert, filename='gantt_chart.html', show_delays=True, tol: f
     import plotly.express as px
     df = pert.get_schedule_dataframe()
 
+    CRITICAL_CHAIN  = 'Critical chain'
+    NEAR_CRITICAL   = 'Near-critical (zero float)'
+    HAS_FLOAT       = 'Has float'
+
     def classify(row):
-        in_chain = row['on_resource_constrained_chain']
-        tf = row['tf_actual_hours']
+        in_chain   = row['on_resource_constrained_chain']
+        tf         = row['tf_actual_hours']
         is_zero_tf = (tf is not None) and (abs(tf) <= tol)
         if in_chain:
-            return 'Red'     # Bucket 1
+            return CRITICAL_CHAIN
         elif is_zero_tf:
-            return 'Orange'  # Bucket 2
+            return NEAR_CRITICAL
         else:
-            return 'Blue'    # Bucket 3
+            return HAS_FLOAT
 
-    df['color'] = df.apply(classify, axis=1)
+    df['status'] = df.apply(classify, axis=1)
+    # Fix category order so the legend reads top-to-bottom: critical → near-critical → float
+    category_order = [CRITICAL_CHAIN, NEAR_CRITICAL, HAS_FLOAT]
 
     fig = px.timeline(
         df,
         x_start='start_time', x_end='end_time',
         y='activity_id',
-        color='color',
+        color='status',
         hover_data=['description', 'duration', 'delay', 'tf_actual_hours', 'on_resource_constrained_chain'],
         title='Project Schedule – Gantt Chart',
-        labels={'activity_id': 'Activity', 'color': 'Status'},
+        labels={'activity_id': 'Activity', 'status': 'Status'},
         color_discrete_map={
-            'Red':    '#d62728',
-            'Orange': '#ff7f0e',
-            'Blue':   '#1f77b4'
-        }
+            CRITICAL_CHAIN: '#d62728',
+            NEAR_CRITICAL:  '#ff7f0e',
+            HAS_FLOAT:      '#1f77b4',
+        },
+        category_orders={'status': category_order},
     )
     fig.update_yaxes(autorange="reversed", title="Activities")
     fig.update_xaxes(title="Timeline", tickangle=45, tickformat='%Y-%m-%d %H:%M')
@@ -6353,19 +6597,28 @@ def plot_resource_utilization(pert, resource_type, filename=None,
     # Create hourly time index
     time_range = pd.date_range(start=start_time, end=end_time, freq='h')
 
-    # Calculate usage at each hour
+    # Calculate usage at each hour.
+    # Use _actual_resources_for_start (the resolved allocation recorded by the
+    # scheduler) rather than getRequiredResources() (declared requirements).
+    # The two differ when skill substitution kicks in: e.g. an activity that
+    # declares 4 MECHANIC but was served by 1 MECHANIC + 3 WELDER would
+    # otherwise appear as 4 MECHANIC in the plot, falsely implying over-use.
     usage = []
     available = []
 
     for time_point in time_range:
-        # Count workers in use across all scheduled activities
         workers_in_use = 0
         for act in pert.forwardDict.keys():
             act_start, act_end = act.returnAbsTimes()
             if act_start and act_end and act_start <= time_point < act_end:
-                for res_req in act.getRequiredResources():
-                    if res_req['skill_type'] == resource_type:
-                        workers_in_use += res_req['crew_count']
+                actual = getattr(act, '_actual_resources_for_start', None)
+                if actual is not None:
+                    workers_in_use += actual.get(resource_type, 0)
+                else:
+                    # Fallback for activities without recorded allocation
+                    for res_req in act.getRequiredResources():
+                        if res_req['skill_type'] == resource_type:
+                            workers_in_use += res_req['crew_count']
 
         usage.append(workers_in_use)
 
@@ -6377,13 +6630,15 @@ def plot_resource_utilization(pert, resource_type, filename=None,
     # Create plot
     fig = go.Figure()
 
-    # Add usage trace
+    # Add usage trace — line_shape='hv' draws horizontal-then-vertical steps
+    # so each hourly bucket is rendered as a proper rectangle instead of a
+    # diagonal ramp, which would produce false spikes for single-hour changes.
     fig.add_trace(go.Scatter(
         x=time_range,
         y=usage,
         name=f'{resource_type} In Use',
         fill='tozeroy',
-        line=dict(color='#3498db', width=2)
+        line=dict(color='#3498db', width=2, shape='hv')
     ))
 
     # Add available trace
@@ -6392,7 +6647,7 @@ def plot_resource_utilization(pert, resource_type, filename=None,
             x=time_range,
             y=available,
             name=f'{resource_type} Available',
-            line=dict(color='#2ecc71', width=2, dash='dash')
+            line=dict(color='#2ecc71', width=2, dash='dash', shape='hv')
         ))
 
     # Layout
@@ -6475,13 +6730,13 @@ def plot_location_utilization(pert, location_id, filename=None):
         x=time_range, y=tasks_in_use,
         name='Tasks In Progress',
         fill='tozeroy',
-        line=dict(color='#3498db')
+        line=dict(color='#3498db', shape='hv')
     ))
 
     fig.add_trace(go.Scatter(
         x=time_range, y=max_tasks,
         name='Max Task Capacity',
-        line=dict(color='#e74c3c', dash='dash')
+        line=dict(color='#e74c3c', dash='dash', shape='hv')
     ))
 
     fig.update_layout(
@@ -6575,14 +6830,14 @@ def plot_equipment_utilization(pert, equipment_id, filename=None, show_available
             x=time_range, y=in_use,
             name=f"{equipment_id} In Use",
             fill='tozeroy',
-            line=dict(color='#3498db', width=2),
+            line=dict(color='#3498db', width=2, shape='hv'),
             hoverinfo='x+y',
         ))
         if show_available:
             fig.add_trace(go.Scatter(
                 x=time_range, y=available,
                 name=f"{equipment_id} Available",
-                line=dict(color='#2ecc71', width=2, dash='dash'),
+                line=dict(color='#2ecc71', width=2, dash='dash', shape='hv'),
                 hoverinfo='x+y',
             ))
         fig.update_layout(
@@ -6658,7 +6913,7 @@ def plot_equipment_utilization(pert, equipment_id, filename=None, show_available
         x=time_range, y=in_use,
         name=f"{equipment_id} In Use",
         fill='tozeroy',
-        line=dict(color='#3498db', width=2),
+        line=dict(color='#3498db', width=2, shape='hv'),
         hoverinfo='text',
         hovertext=[
             f"{t.strftime('%Y-%m-%d %H:%M')}<br>In Use: {val}<br>Consumers: {txt}"
@@ -6671,7 +6926,7 @@ def plot_equipment_utilization(pert, equipment_id, filename=None, show_available
         fig.add_trace(go.Scatter(
             x=time_range, y=available,
             name=f"{equipment_id} Available",
-            line=dict(color='#2ecc71', width=2, dash='dash'),
+            line=dict(color='#2ecc71', width=2, dash='dash', shape='hv'),
             hoverinfo='x+y',
         ))
 

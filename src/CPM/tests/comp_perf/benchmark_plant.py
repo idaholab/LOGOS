@@ -15,11 +15,12 @@ from benchmark_scheduler so no code is duplicated.
 Usage
 -----
     cd /Users/mandd/projects/LOGOS/src
-    python -m CPM.tests.benchmark_plant                            # defaults
-    python -m CPM.tests.benchmark_plant --sizes 1000 5000 15000
-    python -m CPM.tests.benchmark_plant --topologies plant_outage pipeline
-    python -m CPM.tests.benchmark_plant --pools plant tight
-    python -m CPM.tests.benchmark_plant --reps 1 --out plant_results.json
+    python -m CPM.tests.comp_perf.benchmark_plant                                  # defaults
+    python -m CPM.tests.comp_perf.benchmark_plant --sizes 1000 5000 15000
+    python -m CPM.tests.comp_perf.benchmark_plant --topologies plant_outage pipeline
+    python -m CPM.tests.comp_perf.benchmark_plant --pools plant tight
+    python -m CPM.tests.comp_perf.benchmark_plant --sgs first max_use_res_ranked
+    python -m CPM.tests.comp_perf.benchmark_plant --reps 1 --out plant_results.json
 
 Topologies
 ----------
@@ -49,8 +50,10 @@ import argparse
 import json
 import math
 import random
+import statistics as _stats
 import sys
 import time
+import tracemalloc
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -58,7 +61,7 @@ from typing import Callable
 # ---------------------------------------------------------------------------
 # sys.path: allow `python -m CPM.tests.benchmark_plant` from src/
 # ---------------------------------------------------------------------------
-_SRC = Path(__file__).resolve().parents[2]
+_SRC = Path(__file__).resolve().parents[3]          # …/LOGOS/src
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
@@ -68,7 +71,7 @@ logging.disable(logging.WARNING)
 # ---------------------------------------------------------------------------
 # Re-use everything available from benchmark_scheduler — no duplication
 # ---------------------------------------------------------------------------
-from CPM.tests.benchmark_scheduler import (
+from CPM.tests.comp_perf.benchmark_scheduler import (
     # topology generators
     make_serial_chain,
     make_wide_fan,
@@ -80,6 +83,7 @@ from CPM.tests.benchmark_scheduler import (
     _instrument_ready,
     _attach_pools,
     _add_resource_requirements,
+    _randomize_durations,
     # reporters (use their own _COL_WIDTHS / _HEADERS internally)
     print_markdown_table,
     print_scaling_summary,
@@ -88,6 +92,10 @@ from CPM.tests.benchmark_scheduler import (
     ACT_DURATION,
     CLUSTER_SIZE,
     POOL_HORIZON,
+    DURATION_CHOICES,
+    DURATION_WEIGHTS,
+    SGS_ALL,
+    SGS_DEFAULT,
 )
 
 from CPM.activity import Activity
@@ -102,7 +110,7 @@ from CPM.pert import Pert
 # Plant-scale defaults
 # ---------------------------------------------------------------------------
 SIZES_DEFAULT      = [1_000, 3_000, 5_000, 10_000, 15_000]
-REPS_DEFAULT       = 1
+REPS_DEFAULT       = 3
 TOPOLOGIES_DEFAULT = ['plant_outage', 'pipeline', 'fan']
 POOLS_DEFAULT      = ['plant', 'tight']
 OUT_DEFAULT        = Path(__file__).parent / 'benchmark_plant_results.json'
@@ -115,10 +123,6 @@ CROSS_STREAM_FRAC  = 0.15   # fraction of streams gated on prior stream completi
 MECH_COUNT         = 40
 ELEC_COUNT         = 20
 IC_COUNT           = 10
-
-# Activity duration distribution (hours) with plant-realistic weights
-DURATION_CHOICES = [1.0,  2.0,  4.0,  8.0, 16.0, 24.0]
-DURATION_WEIGHTS = [ 15,   20,   30,   20,   10,    5]
 
 # Skill-profile weights and resource lists
 # (weight, required_resources)
@@ -223,16 +227,6 @@ def make_plant_outage(
 # §2  Plant-specific setup helpers
 # ===========================================================================
 
-def _randomize_durations(p: Pert, seed: int = 42) -> None:
-    """Replace uniform durations with a plant-realistic distribution.
-
-    Zero-duration activities (START, END, gate nodes) are left unchanged.
-    """
-    rng = random.Random(seed)
-    for act in p.forwardDict:
-        if act.duration > 0.0:
-            act.duration = rng.choices(DURATION_CHOICES, weights=DURATION_WEIGHTS)[0]
-
 
 def _add_multi_skill_requirements(p: Pert, seed: int = 42) -> None:
     """Assign mixed skill requirements and location IDs to work activities.
@@ -254,8 +248,12 @@ def _add_multi_skill_requirements(p: Pert, seed: int = 42) -> None:
 
     for act in p.forwardDict:
         if act.duration > 0.0:
-            act.required_resources = rng.choices(skill_resources,
-                                                  weights=skill_weights)[0]
+            # Copy the profile so each activity owns its own list; sharing a
+            # reference to the module-level _SKILL_PROFILES list would corrupt
+            # the global constant if the scheduler mutates required_resources.
+            act.required_resources = [
+                dict(r) for r in rng.choices(skill_resources, weights=skill_weights)[0]
+            ]
             act.location_id = rng.choices(loc_choices, weights=loc_weights)[0]
 
 
@@ -295,6 +293,7 @@ def make_pools_plant(n_activities: int = 0) -> tuple:
 def run_one_plant(
     topology_name: str,
     pool_name: str,
+    sgs: str,
     n: int,
     topo_fn: Callable,
     pools_fn: Callable,
@@ -303,81 +302,127 @@ def run_one_plant(
 ) -> dict:
     """Plant-scale version of ``run_one`` from benchmark_scheduler.
 
-    Differences vs the base harness:
+    Builds a *fresh* Pert object for every repetition so no internal state
+    carries over between runs.  CPM timing and the safety-cutoff bound are
+    derived from a single reference instance built before the rep loop.
 
-    * ``_randomize_durations()`` is called for plant topologies so that the
-      event-heap density reflects real outage duration variance.
-    * ``_add_multi_skill_requirements()`` is used for the ``plant`` pool;
-      ``_add_resource_requirements()`` (MECH-only) is kept for other pools.
-
-    All timing logic — generateInfo timed once, calculateScheduleWithResources
-    timed over *reps* repetitions with the minimum reported — is identical to
-    the base harness imported from benchmark_scheduler.
+    Reports min, median, and p95 over *reps* measurements.
     """
-    # ── Build ──────────────────────────────────────────────────────────────
-    p     = topo_fn(n)
-    pools = pools_fn(n)
-    _attach_pools(p, pools)
+    def _build(seed_offset: int = 0) -> Pert:
+        """Return a fully configured, ready-to-schedule Pert instance."""
+        p = topo_fn(n)
+        _attach_pools(p, pools_fn(n))
+        if is_plant_topo:
+            _randomize_durations(p, seed=42 + seed_offset)
+        if pool_name == 'plant':
+            _add_multi_skill_requirements(p, seed=42 + seed_offset)
+        else:
+            _add_resource_requirements(p)
+        return p
 
-    # ── Duration distribution ───────────────────────────────────────────────
-    if is_plant_topo:
-        _randomize_durations(p)
+    # ── Reference instance: CPM time + safety-cutoff parameters ───────────
+    p_ref = _build()
+    p_ref.generateInfo()                       # warmup
+    t0 = time.perf_counter()
+    p_ref.generateInfo()
+    t_cpm_ms     = (time.perf_counter() - t0) * 1_000
+    cpm_duration = p_ref.getProjectDuration()  # unconstrained makespan (hours)
 
-    # ── Resource + location assignment ─────────────────────────────────────
-    if pool_name == 'plant':
-        _add_multi_skill_requirements(p)
-    else:
-        _add_resource_requirements(p)
+    total_work = sum(a.duration for a in p_ref.forwardDict if a.duration > 0.0)
+    max_time_h = cpm_duration * 4
+    for skill in list(p_ref.crew_pool.resources):
+        try:
+            avail = p_ref.crew_pool.get_availability(skill, START_DT)
+        except Exception:
+            avail = 1
+        avail = max(1, avail)
+        max_crew_for_skill = max(
+            (r['crew_count']
+             for a in p_ref.forwardDict
+             for r in (getattr(a, 'required_resources', None) or [])
+             if r.get('skill_type') == skill),
+            default=1,
+        )
+        max_time_h = max(max_time_h,
+                         math.ceil(total_work * max_crew_for_skill / avail) * 2)
 
-    # ── generateInfo (CPM, timed once) ─────────────────────────────────────
-    t0         = time.perf_counter()
-    p.generateInfo()
-    t_cpm_ms   = (time.perf_counter() - t0) * 1_000
+    # ── Rep loop: fresh Pert per rep ───────────────────────────────────────
+    times:        list[float] = []
+    peak_mems:    list[float] = []
+    all_samples:  list[int]   = []
+    result_dict:  dict        = {}
+    p_best:       Pert        = p_ref
+    t_best:       float       = float('inf')
 
-    # ── Instrument _ready set size ─────────────────────────────────────────
-    samples = _instrument_ready(p)
+    tracemalloc.start()
+    for rep_i in range(reps):
+        p = _build(seed_offset=rep_i)
+        p.generateInfo()                       # warmup per rep
 
-    # ── Safety cutoff (generous; never hit in practice) ────────────────────
-    total_work = sum(a.duration for a in p.forwardDict if a.duration > 0.0)
-    try:
-        mech_avail = p.crew_pool.get_availability('MECH', START_DT)
-    except Exception:
-        mech_avail = 2
-    mech_avail = max(2, mech_avail)
-    max_time_h = max(
-        p.getProjectDuration() * 4,
-        math.ceil(total_work * 2 / mech_avail) * 2,
-    )
+        rep_samples = _instrument_ready(p)
 
-    # ── calculateScheduleWithResources (min over reps) ─────────────────────
-    t_sched_min  = float('inf')
-    result_dict: dict = {}
-    for _ in range(reps):
-        samples.clear()
+        tracemalloc.reset_peak()
         t0 = time.perf_counter()
         result_dict = p.calculateScheduleWithResources(
-            sgs='max_use_res_ranked',
+            sgs=sgs,
             max_time_hours=max_time_h,
         )
         elapsed = (time.perf_counter() - t0) * 1_000
-        if elapsed < t_sched_min:
-            t_sched_min = elapsed
+        _, rep_peak = tracemalloc.get_traced_memory()
 
-    peak_ready = max(samples) if samples else 0
-    avg_ready  = (sum(samples) / len(samples)) if samples else 0.0
-    n_graph    = len(p.forwardDict)
+        times.append(elapsed)
+        peak_mems.append(rep_peak / 1024 / 1024)
+        all_samples.extend(rep_samples)
+
+        if elapsed < t_best:
+            t_best  = elapsed
+            p_best  = p            # keep fastest rep's object for validation
+    tracemalloc.stop()
+
+    # ── Timing statistics ──────────────────────────────────────────────────
+    times_s  = sorted(times)
+    t_min    = times_s[0]
+    t_median = _stats.median(times)
+    p95_idx  = min(len(times_s) - 1, math.ceil(0.95 * len(times_s)) - 1)
+    t_p95    = times_s[p95_idx]
+
+    peak_ready   = max(all_samples) if all_samples else 0
+    avg_ready    = (sum(all_samples) / len(all_samples)) if all_samples else 0.0
+    n_graph      = len(p_best.forwardDict)
+    n_completed  = result_dict.get('n_completed', 0)
+    sched_dur    = result_dict.get('scheduled_duration', None)
+    sched_ratio  = round(sched_dur / cpm_duration, 3) if (sched_dur and cpm_duration > 0) else None
+    peak_mem_mb  = round(max(peak_mems), 2)
+
+    # ── Schedule validation — fastest rep's Pert object ────────────────────
+    try:
+        val          = p_best.validate_schedule()
+        is_valid     = val.is_feasible
+        n_violations = len(val.violations)
+    except Exception:
+        is_valid     = False
+        n_violations = -1   # -1 = validation itself raised an exception
 
     return {
-        'topology':    topology_name,
-        'pool':        pool_name,
-        'n_work':      n,
-        'n_total':     n_graph,
-        't_cpm_ms':    round(t_cpm_ms, 2),
-        't_sched_ms':  round(t_sched_min, 2),
-        'iterations':  result_dict.get('iterations', 0),
-        'n_completed': result_dict.get('n_completed', 0),
-        'peak_ready':  peak_ready,
-        'avg_ready':   round(avg_ready, 1),
+        'topology':      topology_name,
+        'pool':          pool_name,
+        'sgs':           sgs,
+        'n_work':        n,
+        'n_total':       n_graph,
+        't_cpm_ms':      round(t_cpm_ms, 2),
+        't_sched_ms':    round(t_min, 2),
+        't_median_ms':   round(t_median, 2),
+        't_p95_ms':      round(t_p95, 2),
+        'peak_mem_mb':   peak_mem_mb,
+        'cpm_duration':  round(cpm_duration, 1),
+        'sched_ratio':   sched_ratio,
+        'iterations':    result_dict.get('iterations', 0),
+        'n_completed':   n_completed,
+        'is_complete':   n_completed == n_graph,
+        'is_valid':      is_valid,
+        'n_violations':  n_violations,
+        'peak_ready':    peak_ready,
+        'avg_ready':     round(avg_ready, 1),
     }
 
 
@@ -396,7 +441,7 @@ _TOPO_MAP: dict[str, tuple[Callable, bool]] = {
 
 _POOL_MAP: dict[str, Callable] = {
     'plant':         make_pools_plant,
-    'tight':         make_pools_tight,
+    'tight':         lambda n: make_pools_tight(),
     'unconstrained': lambda n: make_pools_unconstrained(),
 }
 
@@ -421,54 +466,67 @@ def main() -> None:
         '--pools', nargs='+', choices=list(_POOL_MAP), default=POOLS_DEFAULT,
     )
     parser.add_argument(
+        '--sgs', nargs='+', choices=SGS_ALL, default=SGS_DEFAULT,
+        metavar='SGS',
+        help='SGS variants to benchmark.  Each variant produces its own result row.',
+    )
+    parser.add_argument(
         '--reps', type=int, default=REPS_DEFAULT,
         help='Repetitions per configuration (minimum time reported).',
     )
     parser.add_argument('--out', type=Path, default=OUT_DEFAULT)
     args = parser.parse_args()
 
+    sgs_names = list(dict.fromkeys(args.sgs))   # deduplicate, preserve order
+
     results: list[dict] = []
-    total = len(args.topologies) * len(args.sizes) * len(args.pools)
+    total = len(args.topologies) * len(args.pools) * len(sgs_names) * len(args.sizes)
     done  = 0
 
     print(f'Running {total} configurations '
           f'({len(args.topologies)} topologies × '
-          f'{len(args.sizes)} sizes × '
-          f'{len(args.pools)} pool modes, '
+          f'{len(args.pools)} pool modes × '
+          f'{len(sgs_names)} SGS variants × '
+          f'{len(args.sizes)} sizes, '
           f'{args.reps} rep(s) each) …')
 
     for topo_name in args.topologies:
         topo_fn, is_plant = _TOPO_MAP[topo_name]
         for pool_name in args.pools:
             pools_fn = _POOL_MAP[pool_name]
-            for n in sorted(args.sizes):
-                done += 1
-                label = (f'[{done:>3}/{total}] {topo_name:<14} '
-                         f'{pool_name:<14} n={n:>6}')
-                print(f'  {label} … ', end='', flush=True)
-                try:
-                    rec = run_one_plant(
-                        topology_name=topo_name,
-                        pool_name=pool_name,
-                        n=n,
-                        topo_fn=topo_fn,
-                        pools_fn=pools_fn,
-                        reps=args.reps,
-                        is_plant_topo=is_plant,
-                    )
-                    results.append(rec)
-                    print(
-                        f'{rec["t_sched_ms"]:.1f} ms  '
-                        f'(iters={rec["iterations"]}, '
-                        f'peak_ready={rec["peak_ready"]}, '
-                        f'completed={rec["n_completed"]}/{rec["n_total"]})'
-                    )
-                except Exception as exc:
-                    print(f'ERROR: {exc}')
-                    results.append({
-                        'topology': topo_name, 'pool': pool_name,
-                        'n_work': n, 'error': str(exc),
-                    })
+            for sgs_name in sgs_names:
+                for n in sorted(args.sizes):
+                    done += 1
+                    label = (f'[{done:>3}/{total}] {topo_name:<14} '
+                             f'{pool_name:<14} {sgs_name:<22} n={n:>6}')
+                    print(f'  {label} … ', end='', flush=True)
+                    try:
+                        rec = run_one_plant(
+                            topology_name=topo_name,
+                            pool_name=pool_name,
+                            sgs=sgs_name,
+                            n=n,
+                            topo_fn=topo_fn,
+                            pools_fn=pools_fn,
+                            reps=args.reps,
+                            is_plant_topo=is_plant,
+                        )
+                        results.append(rec)
+                        valid_tag = 'OK' if rec.get('is_valid', True) else f'INVALID({rec.get("n_violations","?")})'
+                        print(
+                            f'min={rec["t_sched_ms"]:.1f} med={rec["t_median_ms"]:.1f} '
+                            f'p95={rec["t_p95_ms"]:.1f} ms  '
+                            f'(iters={rec["iterations"]}, '
+                            f'peak_ready={rec["peak_ready"]}, '
+                            f'completed={rec["n_completed"]}/{rec["n_total"]}, '
+                            f'valid={valid_tag})'
+                        )
+                    except Exception as exc:
+                        print(f'ERROR: {exc}')
+                        results.append({
+                            'topology': topo_name, 'pool': pool_name,
+                            'sgs': sgs_name, 'n_work': n, 'error': str(exc),
+                        })
 
     print_markdown_table(results)
     print_scaling_summary(results)
@@ -478,6 +536,7 @@ def main() -> None:
         'sizes':             args.sizes,
         'topologies':        args.topologies,
         'pools':             args.pools,
+        'sgs':               sgs_names,
         'reps':              args.reps,
         'n_streams':         N_STREAMS,
         'cross_stream_frac': CROSS_STREAM_FRAC,
