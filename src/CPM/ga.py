@@ -263,7 +263,8 @@ class RCPSPGeneticAlgorithm:
         'consensus_reorder': '_mutate_consensus_reorder',
     }
     _INITIAL_POPULATION_MODES = {'priority_rules', 'random'}
-    _PRIORITY_SEED_FRACTION = 0.2
+    # _PRIORITY_SEED_FRACTION = 0.2
+    _PRIORITY_SEED_FRACTION = 1.
     _REPLACEMENT_STRATEGIES = {
         'generational',
         'elitist',
