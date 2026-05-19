@@ -1,0 +1,3 @@
+rank,crossover,replacement_strategy,elite_size,replacement_fraction,mutation,initial_population_mode,best_ga,best_known,best_known_source,gap_to_best_known,improvement_vs_seed,initial_best,logged_best,improvement_gen0,final_avg,final_std,n_gen_executed,n_evals,n_unique_schedules,stop_reason
+1,decuple,generational,1,0.9,adjacent_swap,priority_rules,3530.0,2926.0,rcplib:LPP_20.rcp:LB-lit,604.0,0.0,3530.0,3530.0,0.0,3615.0,39.13515044049275,100,4119,0,max_generations
+2,decuple,generational,1,0.9,adjacent_swap,random,3911.0,2926.0,rcplib:LPP_20.rcp:LB-lit,985.0,-381.0,4107.0,3911.0,196.0,3915.7,12.947972814305722,100,4166,0,max_generations
