@@ -1,0 +1,5 @@
+crossover,runs,instances,seeds,wins,top3,win_rate,top3_rate,avg_rank,median_rank,avg_best_ga,avg_gap_to_best_known,avg_improvement_vs_seed,avg_logged_best,avg_final_avg,avg_final_std,avg_n_gen_executed,avg_n_evals,winning_instances,stop_reasons
+uniform_order,40,10,1,9,20,0.225,0.5,3.875,3.5,250.65,13.65,24.75,250.65,251.495,0.24432488856589943,100.0,4588.15,"j12026_10, j12031_10, j12036_6, j12051_5, j12051_6, j12056_1, j12056_5, j12056_7, j12056_9",max_generations:40
+decuple,40,10,1,1,10,0.025,0.25,5.175,5.0,253.325,16.325,22.075,253.325,253.523,0.06364662413908154,100.0,4608.025,j12051_7,max_generations:40
+two_point,40,10,1,0,0,0.0,0.0,12.3,12.0,265.775,28.775,9.625,265.775,265.791,0.012,100.0,4600.05,,max_generations:40
+one_point,40,10,1,0,0,0.0,0.0,12.65,13.0,266.8,29.8,8.6,266.8,266.866,0.022551420339069227,100.0,4595.475,,max_generations:40

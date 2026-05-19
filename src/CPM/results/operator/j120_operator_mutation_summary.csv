@@ -1,0 +1,5 @@
+mutation,runs,instances,seeds,wins,top3,win_rate,top3_rate,avg_rank,median_rank,avg_best_ga,avg_gap_to_best_known,avg_improvement_vs_seed,avg_logged_best,avg_final_avg,avg_final_std,avg_n_gen_executed,avg_n_evals,winning_instances,stop_reasons
+insertion_window,40,10,1,3,8,0.075,0.2,7.85,8.5,258.525,21.525,16.875,258.525,258.7505,0.08273619357763205,100.0,4596.35,"j12051_7, j12056_5, j12056_9",max_generations:40
+swap,40,10,1,1,6,0.025,0.15,8.675,8.5,259.15,22.15,16.25,259.15,259.424,0.06797590444045588,100.0,4603.5,j12051_6,max_generations:40
+adjacent_swap,40,10,1,3,10,0.075,0.25,8.675,9.0,259.6,22.6,15.8,259.6,259.824,0.07100033969729198,100.0,4582.75,"j12026_10, j12031_10, j12051_5",max_generations:40
+consensus_reorder,40,10,1,3,6,0.075,0.15,8.8,8.5,259.275,22.275,16.125,259.275,259.6765,0.12081049532867026,100.0,4609.1,"j12036_6, j12056_1, j12056_7",max_generations:40

@@ -1,0 +1,17 @@
+rank,crossover,mutation,best_ga,gap_to_best_known,improvement_vs_seed,initial_best,logged_best,improvement_gen0,final_avg,final_std,n_gen_executed,n_evals,n_unique_schedules,stop_reason
+1,uniform_order,consensus_reorder,290.0,8.0,30.0,320.0,290.0,30.0,290.0,0.0,100,4585,0,max_generations
+2,uniform_order,adjacent_swap,297.0,15.0,23.0,320.0,297.0,23.0,297.0,0.0,100,4571,0,max_generations
+3,decuple,swap,297.0,15.0,23.0,320.0,297.0,23.0,297.0,0.0,100,4641,0,max_generations
+4,decuple,insertion_window,299.0,17.0,21.0,320.0,299.0,21.0,299.0,0.0,100,4599,0,max_generations
+5,uniform_order,swap,300.0,18.0,20.0,320.0,300.0,20.0,300.0,0.0,100,4587,0,max_generations
+6,decuple,adjacent_swap,302.0,20.0,18.0,320.0,302.0,18.0,302.0,0.0,100,4573,0,max_generations
+7,decuple,consensus_reorder,302.0,20.0,18.0,320.0,302.0,18.0,302.0,0.0,100,4597,0,max_generations
+8,uniform_order,insertion_window,303.0,21.0,17.0,320.0,303.0,17.0,303.0,0.0,100,4601,0,max_generations
+9,one_point,insertion_window,308.0,26.0,12.0,320.0,308.0,12.0,308.0,0.0,100,4585,0,max_generations
+10,two_point,consensus_reorder,310.0,28.0,10.0,320.0,310.0,10.0,310.0,0.0,100,4659,0,max_generations
+11,one_point,consensus_reorder,312.0,30.0,8.0,320.0,312.0,8.0,312.0,0.0,100,4582,0,max_generations
+12,two_point,adjacent_swap,312.0,30.0,8.0,320.0,312.0,8.0,312.0,0.0,100,4584,0,max_generations
+13,one_point,swap,312.0,30.0,8.0,320.0,312.0,8.0,312.0,0.0,100,4590,0,max_generations
+14,two_point,swap,312.0,30.0,8.0,320.0,312.0,8.0,312.0,0.0,100,4596,0,max_generations
+15,two_point,insertion_window,316.0,34.0,4.0,320.0,316.0,4.0,316.0,0.0,100,4593,0,max_generations
+16,one_point,adjacent_swap,316.0,34.0,4.0,320.0,316.0,4.0,316.0,0.0,100,4603,0,max_generations
