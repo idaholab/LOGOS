@@ -9,14 +9,15 @@ The input CSV is expected to contain the columns written by
 * ``logos_best`` and ``gap_to_best_known``
 
 Unlike the PSPLIB plotter, this script does not use ``dev_sgs_*`` benchmark
-comparison columns. It reloads RCPLIB ``LB-lit`` values from
-``rcplib_solution_results.json`` by ``rcp_name`` and uses those values as
-``best_known`` before computing gaps.
+comparison columns. It reloads RCPLIB solution values from
+``rcplib_solution_results.json`` by ``rcp_name`` and uses the selected key as
+``best_known`` before computing gaps. The default key is ``UB-lit``.
 
 Usage
 -----
 python plot_rcplib_results.py --csv rg300_results.csv --output-dir rg300_plots/
 python plot_rcplib_results.py --csv lpp_results.csv --output-dir lpp_plots/
+python plot_rcplib_results.py --csv lpp_results.csv --best-key UB-lit
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ from typing import Any
 CSV_PATH = Path(__file__).parent / "rcplib_results.csv"
 OUTPUT_DIR = Path(__file__).parent / "results_rcplib"
 SOLUTION_PATH = Path(__file__).parent / "rcplib_solution_results.json"
-BEST_KNOWN_KEY = "LB-lit"
+BEST_KNOWN_KEY = "UB-lit"
 
 SETS = ["RG300", "LPP"]
 SET_COLORS = {"RG300": "steelblue", "LPP": "seagreen"}
@@ -253,7 +254,11 @@ def _hist_ax(ax, data: list[float], color: str, xlabel: str, title: str) -> None
     ax.legend(fontsize=7)
 
 
-def plot_gap_overall(rows: list[dict[str, Any]], output_path: Path) -> None:
+def plot_gap_overall(
+    rows: list[dict[str, Any]],
+    output_path: Path,
+    best_key: str,
+) -> None:
     plt = import_pyplot()
     abs_data = get_numeric(rows, "gap_to_best_known")
     rel_data = get_numeric(rows, "relative_gap_to_best_known")
@@ -264,17 +269,21 @@ def plot_gap_overall(rows: list[dict[str, Any]], output_path: Path) -> None:
         abs_data,
         "darkorange",
         "absolute gap (duration units)",
-        "Absolute Gap to LB-lit",
+        f"Absolute Gap to {best_key}",
     )
-    _hist_ax(ax2, rel_data, "tomato", "relative gap (%)", "Relative Gap to LB-lit")
-    fig.suptitle("RCPLIB Gap to LB-lit", fontsize=12)
+    _hist_ax(ax2, rel_data, "tomato", "relative gap (%)", f"Relative Gap to {best_key}")
+    fig.suptitle(f"RCPLIB Gap to {best_key}", fontsize=12)
     fig.tight_layout()
     fig.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"Saved plot -> {output_path}")
     plt.close(fig)
 
 
-def plot_gap_by_set(rows: list[dict[str, Any]], output_path: Path) -> None:
+def plot_gap_by_set(
+    rows: list[dict[str, Any]],
+    output_path: Path,
+    best_key: str,
+) -> None:
     plt = import_pyplot()
     sets = available_sets(rows)
     if not sets:
@@ -296,7 +305,7 @@ def plot_gap_by_set(rows: list[dict[str, Any]], output_path: Path) -> None:
 
     axes[0][0].set_ylabel("count - absolute gap", fontsize=8)
     axes[1][0].set_ylabel("count - relative gap", fontsize=8)
-    fig.suptitle("RCPLIB Gap to LB-lit by Benchmark Set", fontsize=12)
+    fig.suptitle(f"RCPLIB Gap to {best_key} by Benchmark Set", fontsize=12)
     fig.tight_layout()
     fig.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"Saved plot -> {output_path}")
@@ -308,6 +317,7 @@ def plot_priority_rule_deviations(
     output_path: Path,
     title: str,
     rule_labels: dict[str, str],
+    best_key: str,
     relative: bool = False,
 ) -> None:
     plt = import_pyplot()
@@ -320,9 +330,9 @@ def plot_priority_rule_deviations(
     nrows = math.ceil(len(cols) / ncols)
     color = "tomato" if relative else "steelblue"
     xlabel = (
-        "(rule - LB-lit) / LB-lit * 100 (%)"
+        f"(rule - {best_key}) / {best_key} * 100 (%)"
         if relative
-        else "rule - LB-lit (duration units)"
+        else f"rule - {best_key} (duration units)"
     )
 
     fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 4, nrows * 3))
@@ -360,6 +370,7 @@ def plot_best_gap_overall(
     abs_color: str,
     rel_color: str,
     suptitle: str,
+    best_key: str,
 ) -> None:
     plt = import_pyplot()
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
@@ -367,7 +378,7 @@ def plot_best_gap_overall(
         ax1,
         get_numeric(rows, abs_col),
         abs_color,
-        "best rule - LB-lit (duration units)",
+        f"best rule - {best_key} (duration units)",
         "Absolute Gap",
     )
     _hist_ax(
@@ -390,6 +401,7 @@ def plot_best_gap_by_set(
     abs_col: str,
     rel_col: str,
     suptitle: str,
+    best_key: str,
 ) -> None:
     plt = import_pyplot()
     sets = available_sets(rows)
@@ -398,7 +410,7 @@ def plot_best_gap_by_set(
 
     fig, axes = plt.subplots(2, len(sets), figsize=(len(sets) * 4, 8), squeeze=False)
     row_specs = [
-        (abs_col, "best rule - LB-lit (duration units)"),
+        (abs_col, f"best rule - {best_key} (duration units)"),
         (rel_col, "relative gap (%)"),
     ]
 
@@ -526,7 +538,11 @@ def export_gap_csv(gap_rows: list[dict[str, Any]], output_path: Path) -> dict[st
     return result
 
 
-def plot_overall_gap_bars(gap_result: dict[str, dict], output_path: Path) -> None:
+def plot_overall_gap_bars(
+    gap_result: dict[str, dict],
+    output_path: Path,
+    best_key: str,
+) -> None:
     plt = import_pyplot()
     specs = [
         (
@@ -534,14 +550,14 @@ def plot_overall_gap_bars(gap_result: dict[str, dict], output_path: Path) -> Non
             "Overall_abs_std",
             "steelblue",
             "Absolute gap (duration units)",
-            "Overall Absolute Gap to LB-lit",
+            f"Overall Absolute Gap to {best_key}",
         ),
         (
             "Overall_rel_mean",
             "Overall_rel_std",
             "tomato",
             "Relative gap (%)",
-            "Overall Relative Gap to LB-lit (%)",
+            f"Overall Relative Gap to {best_key} (%)",
         ),
     ]
 
@@ -581,7 +597,7 @@ def plot_overall_gap_bars(gap_result: dict[str, dict], output_path: Path) -> Non
         ax.tick_params(axis="y", labelsize=7)
         ax.tick_params(axis="x", labelsize=8)
 
-    fig.suptitle("RCPLIB Priority Rule Gap to LB-lit", fontsize=13)
+    fig.suptitle(f"RCPLIB Priority Rule Gap to {best_key}", fontsize=13)
     fig.tight_layout()
     fig.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"Saved plot -> {output_path}")
@@ -626,8 +642,17 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=SOLUTION_PATH,
         help=(
-            "Path to rcplib_solution_results.json used to load LB-lit values "
+            "Path to rcplib_solution_results.json used to load best-known values "
             f"(default: {SOLUTION_PATH})."
+        ),
+    )
+    parser.add_argument(
+        "--best-key",
+        default=BEST_KNOWN_KEY,
+        metavar="KEY",
+        help=(
+            "Second-level solution key to use as best known, such as LB-lit or "
+            f"UB-lit (default: {BEST_KNOWN_KEY})."
         ),
     )
     parser.add_argument(
@@ -647,16 +672,17 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     rows = load_results(args.csv)
-    apply_best_known_from_solutions(rows, args.solutions)
+    apply_best_known_from_solutions(rows, args.solutions, args.best_key)
     derive_gap_columns(rows)
     print(f"Loaded {len(rows)} rows from {args.csv}")
+    print(f"Using best-known key: {args.best_key}")
     print_summary(rows)
 
     # -- logos_best gap -------------------------------------------------------
-    plot_gap_overall(rows, args.output_dir / "rcplib_gap_overall.png")
-    plot_gap_by_set(rows, args.output_dir / "rcplib_gap_by_set.png")
+    plot_gap_overall(rows, args.output_dir / "rcplib_gap_overall.png", args.best_key)
+    plot_gap_by_set(rows, args.output_dir / "rcplib_gap_by_set.png", args.best_key)
 
-    # -- SGS per-rule deviations from LB-lit ---------------------------------
+    # -- SGS per-rule deviations from selected best-known key -----------------
     for relative, suffix, kind in [
         (False, "", "Absolute"),
         (True, "_rel", "Relative"),
@@ -664,8 +690,9 @@ def main() -> None:
         plot_priority_rule_deviations(
             rows,
             args.output_dir / f"rcplib_sgs_rule_dev{suffix}.png",
-            f"RCPLIB - SGS: Priority Rule {kind} Deviation from LB-lit",
+            f"RCPLIB - SGS: Priority Rule {kind} Deviation from {args.best_key}",
             SGS_RULE_LABELS,
+            args.best_key,
             relative=relative,
         )
         for set_name in available_sets(rows):
@@ -673,8 +700,9 @@ def main() -> None:
             plot_priority_rule_deviations(
                 subset,
                 args.output_dir / f"rcplib_sgs_rule_dev{suffix}_{set_name}.png",
-                f"RCPLIB ({set_name}) - SGS: Priority Rule {kind} Deviation from LB-lit",
+                f"RCPLIB ({set_name}) - SGS: Priority Rule {kind} Deviation from {args.best_key}",
                 SGS_RULE_LABELS,
+                args.best_key,
                 relative=relative,
             )
 
@@ -686,17 +714,19 @@ def main() -> None:
         "sgs_best_rel_gap",
         "steelblue",
         "cornflowerblue",
-        "Best SGS Priority Rule vs LB-lit",
+        f"Best SGS Priority Rule vs {args.best_key}",
+        args.best_key,
     )
     plot_best_gap_by_set(
         rows,
         args.output_dir / "rcplib_sgs_best_gap_by_set.png",
         "sgs_best_abs_gap",
         "sgs_best_rel_gap",
-        "Best SGS Priority Rule vs LB-lit by Benchmark Set",
+        f"Best SGS Priority Rule vs {args.best_key} by Benchmark Set",
+        args.best_key,
     )
 
-    # -- PGS per-rule deviations from LB-lit ---------------------------------
+    # -- PGS per-rule deviations from selected best-known key -----------------
     for relative, suffix, kind in [
         (False, "", "Absolute"),
         (True, "_rel", "Relative"),
@@ -704,8 +734,9 @@ def main() -> None:
         plot_priority_rule_deviations(
             rows,
             args.output_dir / f"rcplib_pgs_rule_dev{suffix}.png",
-            f"RCPLIB - PGS: Priority Rule {kind} Deviation from LB-lit",
+            f"RCPLIB - PGS: Priority Rule {kind} Deviation from {args.best_key}",
             PGS_RULE_LABELS,
+            args.best_key,
             relative=relative,
         )
         for set_name in available_sets(rows):
@@ -713,8 +744,9 @@ def main() -> None:
             plot_priority_rule_deviations(
                 subset,
                 args.output_dir / f"rcplib_pgs_rule_dev{suffix}_{set_name}.png",
-                f"RCPLIB ({set_name}) - PGS: Priority Rule {kind} Deviation from LB-lit",
+                f"RCPLIB ({set_name}) - PGS: Priority Rule {kind} Deviation from {args.best_key}",
                 PGS_RULE_LABELS,
+                args.best_key,
                 relative=relative,
             )
 
@@ -726,20 +758,26 @@ def main() -> None:
         "pgs_best_rel_gap",
         "mediumseagreen",
         "limegreen",
-        "Best PGS Priority Rule vs LB-lit",
+        f"Best PGS Priority Rule vs {args.best_key}",
+        args.best_key,
     )
     plot_best_gap_by_set(
         rows,
         args.output_dir / "rcplib_pgs_best_gap_by_set.png",
         "pgs_best_abs_gap",
         "pgs_best_rel_gap",
-        "Best PGS Priority Rule vs LB-lit by Benchmark Set",
+        f"Best PGS Priority Rule vs {args.best_key} by Benchmark Set",
+        args.best_key,
     )
 
     # -- CSV export + summary bar charts -------------------------------------
     gap_rows = build_gap_rows(rows)
     gap_result = export_gap_csv(gap_rows, args.output_dir / "rcplib_gap_analysis.csv")
-    plot_overall_gap_bars(gap_result, args.output_dir / "rcplib_gap_bars_overall.png")
+    plot_overall_gap_bars(
+        gap_result,
+        args.output_dir / "rcplib_gap_bars_overall.png",
+        args.best_key,
+    )
 
 
 if __name__ == "__main__":
