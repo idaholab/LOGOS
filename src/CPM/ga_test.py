@@ -50,13 +50,25 @@ SCHEMA = Path(__file__).parent / "outage_schema.json"
 BEST_RESULTS_PATH = Path(__file__).parent / "benchmarks" / "best_results.json"
 DEFAULT_PLOT_DIR = Path(__file__).parent / "results" / "ga_convergence"
 
-CASES = [
-    ("j30",  "j301_1.json"),
-    ("j60",  "j601_1.json"),
-    ("j90",  "j901_1.json"),
-    ("j120", "j1201_1.json"),
-]
+# CASES = [
+#     ("j30",  "j301_1.json"),
+#     ("j60",  "j601_1.json"),
+#     ("j90",  "j901_1.json"),
+#     ("j120", "j1201_1.json"),
+# ]
 
+CASES = [
+    ("j12051_6",  "benchmarks/PSPLIB_Json/j120/j12051_6.json"),
+    ("j12031_10", "benchmarks/PSPLIB_Json/j120/j12031_10.json"),
+    ("j12036_6",  "benchmarks/PSPLIB_Json/j120/j12036_6.json"),
+    ("j12056_7",  "benchmarks/PSPLIB_Json/j120/j12056_7.json"),
+    ("j12051_5",  "benchmarks/PSPLIB_Json/j120/j12051_5.json"),
+    ("j12056_1",  "benchmarks/PSPLIB_Json/j120/j12056_1.json"),
+    ("j12026_10", "benchmarks/PSPLIB_Json/j120/j12026_10.json"),
+    ("j12051_7",  "benchmarks/PSPLIB_Json/j120/j12051_7.json"),
+    ("j12056_5",  "benchmarks/PSPLIB_Json/j120/j12056_5.json"),
+    ("j12056_9",  "benchmarks/PSPLIB_Json/j120/j12056_9.json"),
+]
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line options for integration runs."""
