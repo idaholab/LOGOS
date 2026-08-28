@@ -32,7 +32,6 @@ extensions = ['sphinx.ext.intersphinx',
     # "sphinx.ext.autosummary",
     "nbsphinx",  # <- For Jupyter Notebook support
     "sphinx.ext.napoleon",  # <- For Google style docstrings
-    "sphinx.ext.imgmath",
     "sphinx.ext.viewcode",
     # 'autoapi.extension',
     'sphinx_copybutton',
@@ -65,6 +64,10 @@ numfig_format = {
     'code-block': 'Listing %s',
 }
 
+
+# Render math with MathJax (client-side JS) rather than LaTeX-generated images,
+# since the CI runner that builds/deploys these docs has no LaTeX toolchain installed.
+html_math_renderer = "mathjax"
 
 # Optional: automatically number displayed math
 math_number_all = True
