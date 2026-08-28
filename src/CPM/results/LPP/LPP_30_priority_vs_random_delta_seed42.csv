@@ -1,0 +1,2 @@
+replacement_strategy,mutation,priority_best_ga,random_best_ga,delta_random_minus_priority,winner,priority_gap_to_best_known,random_gap_to_best_known,priority_initial_best,random_initial_best,priority_n_evals,random_n_evals,priority_stop_reason,random_stop_reason
+generational,insertion_window,509.0,524.0,15.0,priority_rules,10.0,25.0,509.0,575.0,4135,4158,max_generations,max_generations

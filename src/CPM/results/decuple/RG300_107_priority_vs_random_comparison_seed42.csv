@@ -1,0 +1,9 @@
+rank,crossover,replacement_strategy,elite_size,replacement_fraction,mutation,initial_population_mode,best_ga,best_known,best_known_source,gap_to_best_known,improvement_vs_seed,initial_best,logged_best,improvement_gen0,final_avg,final_std,n_gen_executed,n_evals,n_unique_schedules,stop_reason
+1,decuple,generational,1,0.9,adjacent_swap,priority_rules,1149.0,1009.0,rcplib:RG300_107.rcp:LB-lit,140.0,26.0,1175.0,1149.0,26.0,1149.68,2.701407040784487,100,4089,0,max_generations
+2,decuple,generational,1,0.9,insertion_window,priority_rules,1153.0,1009.0,rcplib:RG300_107.rcp:LB-lit,144.0,22.0,1175.0,1153.0,22.0,1155.26,3.9990498871606994,100,4152,0,max_generations
+3,decuple,generational,1,0.9,swap,priority_rules,1157.0,1009.0,rcplib:RG300_107.rcp:LB-lit,148.0,18.0,1175.0,1157.0,18.0,1162.28,14.667024238065471,100,4102,0,max_generations
+4,decuple,generational,1,0.9,adjacent_swap,random,1158.0,1009.0,rcplib:RG300_107.rcp:LB-lit,149.0,17.0,1274.0,1158.0,116.0,1159.6,3.1749015732775088,100,4127,0,max_generations
+5,decuple,generational,1,0.9,swap,random,1158.0,1009.0,rcplib:RG300_107.rcp:LB-lit,149.0,17.0,1274.0,1158.0,116.0,1166.08,18.782800643141588,100,4152,0,max_generations
+6,decuple,generational,1,0.9,insertion_window,random,1172.0,1009.0,rcplib:RG300_107.rcp:LB-lit,163.0,3.0,1274.0,1172.0,102.0,1175.12,4.537135660303757,100,4108,0,max_generations
+7,decuple,generational,1,0.9,consensus_reorder,random,1174.0,1009.0,rcplib:RG300_107.rcp:LB-lit,165.0,1.0,1274.0,1174.0,100.0,1177.6,12.106196760337244,100,4194,0,max_generations
+8,decuple,generational,1,0.9,consensus_reorder,priority_rules,1175.0,1009.0,rcplib:RG300_107.rcp:LB-lit,166.0,0.0,1175.0,1175.0,0.0,1179.56,8.232034985348399,100,4104,0,max_generations

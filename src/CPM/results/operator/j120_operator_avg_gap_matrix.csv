@@ -1,0 +1,5 @@
+crossover,adjacent_swap,consensus_reorder,insertion_window,swap
+decuple,16.2000,16.3000,15.8000,17.0000
+one_point,30.3000,30.7000,28.1000,30.1000
+two_point,30.3000,28.6000,29.0000,27.2000
+uniform_order,13.6000,13.5000,13.2000,14.3000

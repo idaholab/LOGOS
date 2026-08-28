@@ -1,0 +1,17 @@
+crossover,mutation,runs,instances,seeds,wins,top3,win_rate,top3_rate,avg_rank,median_rank,avg_best_ga,avg_gap_to_best_known,avg_improvement_vs_seed,avg_logged_best,avg_final_avg,avg_final_std,avg_n_gen_executed,avg_n_evals,winning_instances,stop_reasons
+uniform_order,insertion_window,10,10,1,2,5,0.2,0.5,3.7,3.5,250.2,13.2,25.2,250.2,250.882,0.20023646130240297,100.0,4603.9,"j12056_5, j12056_9",max_generations:10
+uniform_order,adjacent_swap,10,10,1,3,6,0.3,0.6,3.7,3.0,250.6,13.6,24.8,250.6,251.17000000000002,0.13347037498748168,100.0,4571.0,"j12026_10, j12031_10, j12051_5",max_generations:10
+uniform_order,consensus_reorder,10,10,1,3,5,0.3,0.5,4.0,3.5,250.5,13.5,24.9,250.5,251.91,0.4552419813146811,100.0,4590.7,"j12036_6, j12056_1, j12056_7",max_generations:10
+uniform_order,swap,10,10,1,1,4,0.1,0.4,4.1,4.5,251.3,14.3,24.1,251.3,252.018,0.18835073665903196,100.0,4587.0,j12051_6,max_generations:10
+decuple,insertion_window,10,10,1,1,3,0.1,0.3,4.6,4.5,252.8,15.8,22.6,252.8,252.88,0.04,100.0,4608.4,j12051_7,max_generations:10
+decuple,adjacent_swap,10,10,1,0,4,0.0,0.4,4.6,5.5,253.2,16.2,22.2,253.2,253.526,0.15053098380168622,100.0,4573.0,,max_generations:10
+decuple,consensus_reorder,10,10,1,0,1,0.0,0.1,5.6,6.0,253.3,16.3,22.1,253.3,253.496,0.028000000000000004,100.0,4609.7,,max_generations:10
+decuple,swap,10,10,1,0,2,0.0,0.2,5.9,6.5,254.0,17.0,21.4,254.0,254.19,0.0360555127546399,100.0,4641.0,,max_generations:10
+one_point,insertion_window,10,10,1,0,0,0.0,0.0,10.9,10.5,265.1,28.1,10.3,265.1,265.176,0.042708313008125234,100.0,4573.2,,max_generations:10
+two_point,consensus_reorder,10,10,1,0,0,0.0,0.0,11.9,11.5,265.6,28.6,9.8,265.6,265.6,0.0,100.0,4620.3,,max_generations:10
+two_point,swap,10,10,1,0,0,0.0,0.0,12.1,12.0,264.2,27.2,11.2,264.2,264.2,0.0,100.0,4596.0,,max_generations:10
+two_point,insertion_window,10,10,1,0,0,0.0,0.0,12.2,12.5,266.0,29.0,9.4,266.0,266.064,0.048,100.0,4599.9,,max_generations:10
+one_point,swap,10,10,1,0,0,0.0,0.0,12.6,12.5,267.1,30.1,8.3,267.1,267.288,0.04749736834815167,100.0,4590.0,,max_generations:10
+two_point,adjacent_swap,10,10,1,0,0,0.0,0.0,13.0,12.0,267.3,30.3,8.1,267.3,267.3,0.0,100.0,4584.0,,max_generations:10
+one_point,adjacent_swap,10,10,1,0,0,0.0,0.0,13.4,13.0,267.3,30.3,8.1,267.3,267.3,0.0,100.0,4603.0,,max_generations:10
+one_point,consensus_reorder,10,10,1,0,0,0.0,0.0,13.7,14.5,267.7,30.7,7.7,267.7,267.7,0.0,100.0,4615.7,,max_generations:10

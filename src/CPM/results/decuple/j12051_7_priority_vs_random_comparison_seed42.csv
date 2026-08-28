@@ -1,0 +1,9 @@
+rank,crossover,replacement_strategy,elite_size,replacement_fraction,mutation,initial_population_mode,best_ga,best_known,best_known_source,gap_to_best_known,improvement_vs_seed,initial_best,logged_best,improvement_gen0,final_avg,final_std,n_gen_executed,n_evals,n_unique_schedules,stop_reason
+1,decuple,generational,1,0.9,insertion_window,random,211.0,211.0,psplib:j12051_7.sm,0.0,36.0,274.0,211.0,63.0,212.78,2.7589128293586946,100,4134,0,max_generations
+2,decuple,generational,1,0.9,consensus_reorder,priority_rules,213.0,211.0,psplib:j12051_7.sm,2.0,34.0,247.0,213.0,34.0,217.84,14.546972193552858,100,4110,0,max_generations
+3,decuple,generational,1,0.9,adjacent_swap,random,215.0,211.0,psplib:j12051_7.sm,4.0,32.0,274.0,215.0,59.0,215.78,3.2636789057748925,100,4116,0,max_generations
+4,decuple,generational,1,0.9,insertion_window,priority_rules,216.0,211.0,psplib:j12051_7.sm,5.0,31.0,247.0,216.0,31.0,220.22,3.074345458792815,100,4175,0,max_generations
+5,decuple,generational,1,0.9,swap,random,218.0,211.0,psplib:j12051_7.sm,7.0,29.0,274.0,218.0,56.0,223.4,18.22635454499884,100,4217,0,max_generations
+6,decuple,generational,1,0.9,swap,priority_rules,222.0,211.0,psplib:j12051_7.sm,11.0,25.0,247.0,222.0,25.0,231.24,15.618655511919071,100,4120,0,max_generations
+7,decuple,generational,1,0.9,adjacent_swap,priority_rules,222.0,211.0,psplib:j12051_7.sm,11.0,25.0,247.0,222.0,25.0,222.9,3.612478373637689,100,4146,0,max_generations
+8,decuple,generational,1,0.9,consensus_reorder,random,227.0,211.0,psplib:j12051_7.sm,16.0,20.0,274.0,227.0,47.0,235.16,9.533855463557227,100,4100,0,max_generations

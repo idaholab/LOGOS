@@ -19,7 +19,7 @@ import logging
 import sys
 import argparse
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Any
+from typing import Dict, List, Optional, Set, Tuple, Any
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class OutageDataValidator:
 
     # ------------------------- Schema Handling -------------------------
 
-    def _load_schema(self, schema_path: str | None) -> Dict:
+    def _load_schema(self, schema_path: Optional[str]) -> Dict:
         """Load schema from provided path, local file, or embedded default."""
         if schema_path:
             p = Path(schema_path)

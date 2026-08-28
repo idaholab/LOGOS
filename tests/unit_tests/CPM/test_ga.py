@@ -7,7 +7,7 @@ Tests are organized in four tiers:
        _crossover_one_point, _crossover_two_point, _crossover_uniform_order
 
   2. Structural tests using a small Pert fixture (example_10.json, 12 tasks)
-       __init__ (default/custom operators, invalid inputs),
+       _crossover_decuple, __init__ (default/custom operators, invalid inputs),
        _rule_to_chromosome, generate_initial_population, _evaluate
 
   3. Mutation operator tests (require Pert)
@@ -261,7 +261,63 @@ class TestCrossoverUniformOrder:
 
 
 # =============================================================================
-# 4. Structural tests — constructor and chromosome helpers
+# 4. Instance crossover tests — _crossover_decuple
+# =============================================================================
+
+class TestCrossoverDecuple:
+
+    def test_outputs_are_valid_permutations_without_evaluation(
+        self,
+        pert,
+        monkeypatch,
+    ):
+        """DCS must select valid children without decoding candidates."""
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=4,
+            n_gen=1,
+            crossover='decuple',
+            mutation='adjacent_swap',
+            fb_improvement=False,
+            verbose=False,
+        )
+        parent1 = g._Ind(g._rule_to_chromosome('es'))
+        parent2 = g._Ind(g._rule_to_chromosome('lf'))
+        expected = set(range(g._n))
+
+        def fail_evaluate(_):
+            raise AssertionError("_crossover_decuple must not evaluate candidates")
+
+        monkeypatch.setattr(g, "_evaluate", fail_evaluate)
+        before = g._eval_count
+        child1, child2 = g._crossover_decuple(parent1, parent2)
+
+        assert set(child1) == expected
+        assert set(child2) == expected
+        assert len(child1) == g._n
+        assert len(child2) == g._n
+        assert not child1.fitness.valid
+        assert not child2.fitness.valid
+        assert g._eval_count == before
+
+    def test_decuple_candidate_selection_maximizes_diversity(self, ga):
+        candidates = [
+            [0, 1, 2, 3],
+            [0, 1, 3, 2],
+            [3, 2, 1, 0],
+            [0, 1, 2, 3],
+        ]
+
+        selected = ga._select_best_decuple_candidates(candidates)
+
+        assert selected == [
+            [0, 1, 2, 3],
+            [3, 2, 1, 0],
+        ]
+
+
+# =============================================================================
+# 5. Structural tests — constructor and chromosome helpers
 # =============================================================================
 
 class TestConstructor:
@@ -295,10 +351,27 @@ class TestConstructor:
         """Default consensus-library random reference count must be 8."""
         assert ga.n_random == 8
 
+    def test_supported_initialization_modes(self, pert):
+        assert RCPSPGeneticAlgorithm._INITIAL_POPULATION_MODES == {
+            'priority_rules', 'random'
+        }
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            initial_population_mode='random',
+            verbose=False,
+        )
+        assert g.initial_population_mode == 'random'
+        with pytest.raises(ValueError, match="initial_population_mode"):
+            RCPSPGeneticAlgorithm(
+                pert,
+                initial_population_mode='mixed',
+                verbose=False,
+            )
+
     def test_crossover_method_map(self):
         """_CROSSOVER_METHODS must contain all documented choices."""
         assert set(RCPSPGeneticAlgorithm._CROSSOVER_METHODS) == {
-            'one_point', 'two_point', 'uniform_order'
+            'one_point', 'two_point', 'uniform_order', 'decuple'
         }
 
     def test_mutation_method_map(self):
@@ -317,6 +390,41 @@ class TestConstructor:
         with pytest.raises(ValueError, match="mutation"):
             RCPSPGeneticAlgorithm(pert, crossover='one_point', mutation='bogus')
 
+    def test_default_fb_improvement(self, ga):
+        assert ga.fb_improvement is True
+
+    def test_default_fb_freq(self, ga):
+        assert ga.fb_freq == 0
+
+    def test_custom_fb_improvement_false(self, pert):
+        g = RCPSPGeneticAlgorithm(
+            pert, pop_size=3, n_gen=1, verbose=False, fb_improvement=False
+        )
+        assert g.fb_improvement is False
+
+    def test_invalid_max_evals_raises(self, pert):
+        with pytest.raises(ValueError, match="max_evals"):
+            RCPSPGeneticAlgorithm(
+                pert,
+                pop_size=5,
+                max_evals=4,
+                verbose=False,
+            )
+
+    def test_invalid_stall_generations_raises(self, pert):
+        with pytest.raises(ValueError, match="stall_generations"):
+            RCPSPGeneticAlgorithm(
+                pert,
+                stall_generations=0,
+                verbose=False,
+            )
+
+    def test_custom_fb_freq(self, pert):
+        g = RCPSPGeneticAlgorithm(
+            pert, pop_size=3, n_gen=1, verbose=False, fb_freq=5
+        )
+        assert g.fb_freq == 5
+
     def test_toolbox_mate_registered(self, ga):
         assert hasattr(ga.toolbox, 'mate')
 
@@ -327,6 +435,7 @@ class TestConstructor:
         ('one_point',    'swap'),
         ('two_point',    'adjacent_swap'),
         ('uniform_order', 'insertion_window'),
+        ('decuple',      'adjacent_swap'),
         ('one_point',    'insertion_window'),
         ('uniform_order', 'swap'),
         ('two_point',    'consensus_reorder'),
@@ -343,7 +452,7 @@ class TestConstructor:
 
 
 # =============================================================================
-# 5. rule_to_chromosome tests
+# 6. rule_to_chromosome tests
 # =============================================================================
 
 class TestRuleToChromosome:
@@ -366,7 +475,7 @@ class TestRuleToChromosome:
 
 
 # =============================================================================
-# 6. generate_initial_population tests
+# 7. generate_initial_population tests
 # =============================================================================
 
 class TestInitialPopulation:
@@ -388,9 +497,107 @@ class TestInitialPopulation:
         for ind in pop:
             assert isinstance(ind, list)
 
+    def test_priority_rule_seed_candidates_not_limited_by_pop_size(self, ga):
+        candidates, seed_info = ga._append_priority_rule_seeds()
+        assert len(candidates) > ga.pop_size
+        assert len(candidates) == sum(len(info) for info in seed_info.values())
+        assert {candidate['source'] for candidate in candidates} == {
+            'serial', 'parallel'
+        }
+
+    def test_priority_rule_mode_keeps_best_20_percent_then_random_fills(
+        self,
+        pert,
+        monkeypatch,
+    ):
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=10,
+            n_gen=1,
+            fb_improvement=False,
+            verbose=False,
+        )
+        best = g._rule_to_chromosome('lf')
+        second = g._rule_to_chromosome('es')
+        third = g._rule_to_chromosome('duration')
+        random_fill = g._rule_to_chromosome('random')
+
+        def fake_priority_seeds():
+            return (
+                [
+                    {
+                        'rule': 'duration',
+                        'source': 'serial',
+                        'chromosome': third,
+                        'duration': 30.0,
+                    },
+                    {
+                        'rule': 'lf',
+                        'source': 'serial',
+                        'chromosome': best,
+                        'duration': 10.0,
+                    },
+                    {
+                        'rule': 'es',
+                        'source': 'parallel',
+                        'chromosome': second,
+                        'duration': 20.0,
+                    },
+                ],
+                {
+                    'duration': {'serial': 30.0},
+                    'lf': {'serial': 10.0},
+                    'es': {'parallel': 20.0},
+                },
+            )
+
+        def fake_random_fill(population):
+            n_added = 0
+            while len(population) < g.pop_size:
+                population.append(g._Ind(random_fill))
+                n_added += 1
+            return n_added
+
+        monkeypatch.setattr(g, '_append_priority_rule_seeds', fake_priority_seeds)
+        monkeypatch.setattr(g, '_fill_random_population', fake_random_fill)
+
+        pop = g.generate_initial_population()
+        assert len(pop) == 10
+        assert list(pop[0]) == best
+        assert list(pop[1]) == second
+        assert all(list(ind) == random_fill for ind in pop[2:])
+
+    def test_random_mode_skips_priority_rule_seeds(self, pert, monkeypatch):
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=5,
+            n_gen=1,
+            initial_population_mode='random',
+            fb_improvement=False,
+            verbose=False,
+        )
+        random_fill = g._rule_to_chromosome('random')
+
+        def fail_priority_seeds():
+            raise AssertionError("random mode must not build priority-rule seeds")
+
+        def fake_random_fill(population):
+            n_added = 0
+            while len(population) < g.pop_size:
+                population.append(g._Ind(random_fill))
+                n_added += 1
+            return n_added
+
+        monkeypatch.setattr(g, '_append_priority_rule_seeds', fail_priority_seeds)
+        monkeypatch.setattr(g, '_fill_random_population', fake_random_fill)
+
+        pop = g.generate_initial_population()
+        assert len(pop) == g.pop_size
+        assert all(list(ind) == random_fill for ind in pop)
+
 
 # =============================================================================
-# 7. Fitness evaluation
+# 8. Fitness evaluation
 # =============================================================================
 
 class TestEvaluate:
@@ -415,7 +622,7 @@ class TestEvaluate:
 
 
 # =============================================================================
-# 8. Mutation — _mutate_swap
+# 9. Mutation — _mutate_swap
 # =============================================================================
 
 class TestMutateSwap:
@@ -488,7 +695,7 @@ class TestMutateSwap:
 
 
 # =============================================================================
-# 9. Mutation — _mutate_adjacent_swap
+# 10. Mutation — _mutate_adjacent_swap
 # =============================================================================
 
 class TestMutateAdjacentSwap:
@@ -553,7 +760,7 @@ class TestMutateAdjacentSwap:
 
 
 # =============================================================================
-# 10. Mutation — _mutate_insertion_window
+# 11. Mutation — _mutate_insertion_window
 # =============================================================================
 
 class TestMutateInsertionWindow:
@@ -621,7 +828,105 @@ class TestMutateInsertionWindow:
 
 
 # =============================================================================
-# 11. End-to-end run
+# 12. Forward-Backward-Forward improvement
+# =============================================================================
+
+class TestFBImprovement:
+
+    def test_backward_chromosome_is_valid_permutation(self, ga):
+        """_compute_backward_chromosome must return a full permutation."""
+        chrom = ga._rule_to_chromosome('lf')
+        bwd_chrom, makespan_h = ga._compute_backward_chromosome(chrom)
+        assert sorted(bwd_chrom) == list(range(ga._n))
+        assert len(bwd_chrom) == ga._n
+
+    def test_backward_chromosome_makespan_positive(self, ga):
+        chrom = ga._rule_to_chromosome('lf')
+        _, makespan_h = ga._compute_backward_chromosome(chrom)
+        assert makespan_h > 0
+
+    def test_backward_chromosome_precedence_feasible(self, ga):
+        """The backward-ordered chromosome must respect all precedence constraints."""
+        chrom = ga._rule_to_chromosome('mts')
+        bwd_chrom, _ = ga._compute_backward_chromosome(chrom)
+        acts = ga._chromosome_to_activities(bwd_chrom)
+        pos = {a: i for i, a in enumerate(acts)}
+        for act, preds in ga.pert.backwardDict.items():
+            if act not in pos:
+                continue
+            for pred in preds:
+                if pred in pos:
+                    assert pos[pred] < pos[act], (
+                        f"Precedence violated: {pred} before {act}"
+                    )
+
+    def test_fb_improvement_returns_valid_permutation(self, ga):
+        """_fb_improvement must return a full permutation and a float fitness."""
+        chrom = ga._rule_to_chromosome('lf')
+        best_chrom, best_fit = ga._fb_improvement(chrom)
+        assert sorted(best_chrom) == list(range(ga._n))
+        assert isinstance(best_fit, (int, float))
+
+    @pytest.mark.parametrize("rule", ['es', 'lf', 'mts', 'grpw', 'random'])
+    def test_fb_improvement_never_worsens(self, ga, rule):
+        """FBF must return fitness ≤ the original forward-pass fitness."""
+        chrom = ga._rule_to_chromosome(rule)
+        (orig_fit,) = ga._evaluate(chrom)
+        _, fb_fit = ga._fb_improvement(chrom)
+        assert fb_fit <= orig_fit + 1e-9, (
+            f"FBF worsened '{rule}': {orig_fit:.2f} → {fb_fit:.2f}"
+        )
+
+    def test_fb_improvement_precedence_feasible(self, ga):
+        """The chromosome returned by _fb_improvement must be precedence-feasible."""
+        chrom = ga._rule_to_chromosome('mts')
+        best_chrom, _ = ga._fb_improvement(chrom)
+        acts = ga._chromosome_to_activities(best_chrom)
+        pos = {a: i for i, a in enumerate(acts)}
+        for act, preds in ga.pert.backwardDict.items():
+            if act not in pos:
+                continue
+            for pred in preds:
+                if pred in pos:
+                    assert pos[pred] < pos[act]
+
+    def test_apply_fb_improvement_returns_int(self, ga):
+        """apply_fb_improvement must return an int count of improved individuals."""
+        pop = ga.generate_initial_population()
+        for ind in pop:
+            ind.fitness.values = ga._evaluate(ind)
+        result = ga.apply_fb_improvement(pop)
+        assert isinstance(result, int)
+        assert 0 <= result <= len(pop)
+
+    def test_apply_fb_improvement_never_worsens(self, ga):
+        """No individual's fitness may increase after apply_fb_improvement."""
+        pop = ga.generate_initial_population()
+        for ind in pop:
+            ind.fitness.values = ga._evaluate(ind)
+        before = [ind.fitness.values[0] for ind in pop]
+        ga.apply_fb_improvement(pop)
+        for i, (ind, orig) in enumerate(zip(pop, before)):
+            assert ind.fitness.values[0] <= orig + 1e-9, (
+                f"Individual {i} worsened: {orig:.2f} → {ind.fitness.values[0]:.2f}"
+            )
+
+    def test_apply_fb_improvement_updates_fitness_when_improved(self, ga):
+        """Individuals that improve must have updated fitness values."""
+        pop = ga.generate_initial_population()
+        for ind in pop:
+            ind.fitness.values = ga._evaluate(ind)
+        before = [ind.fitness.values[0] for ind in pop]
+        n_improved = ga.apply_fb_improvement(pop)
+        actual_improved = sum(
+            1 for ind, orig in zip(pop, before)
+            if ind.fitness.values[0] < orig - 1e-9
+        )
+        assert n_improved == actual_improved
+
+
+# =============================================================================
+# 13. End-to-end run
 # =============================================================================
 
 class TestRun:
@@ -655,6 +960,11 @@ class TestRun:
         g, _, log = run_results
         assert len(log) == g.n_gen + 1
 
+    def test_log_has_stopping_fields(self, run_results):
+        _, _, log = run_results
+        expected = {'evals', 'best', 'stall', 'unique_schedules', 'stop_reason'}
+        assert expected.issubset(log[-1].keys())
+
     def test_best_fitness_is_finite(self, run_results):
         _, hof, _ = run_results
         best = hof[0].fitness.values[0]
@@ -681,11 +991,28 @@ class TestRun:
         act_list = g.get_best_activity_list(hof)
         assert all(isinstance(name, str) for name in act_list)
 
+    def test_plot_convergence_returns_figure(self, run_results, tmp_path):
+        """GA convergence log should render and optionally save to disk."""
+        import matplotlib
+        matplotlib.use('Agg', force=True)
+        import matplotlib.pyplot as plt
+
+        g, _, log = run_results
+        output = tmp_path / 'ga_convergence.png'
+        fig, ax = g.plot_convergence(log, filename=str(output), show=False)
+
+        assert output.exists()
+        assert ax.get_xlabel() == 'Generation'
+        assert ax.get_ylabel() == 'Schedule duration (h)'
+        assert len(ax.lines) >= 2
+        plt.close(fig)
+
     def test_get_convergence_summary_keys(self, run_results):
         g, _, log = run_results
         summary = g.get_convergence_summary(log)
         expected = {'n_gen', 'best_duration', 'initial_best',
-                    'improvement', 'final_avg', 'final_std'}
+                    'improvement', 'final_avg', 'final_std',
+                    'n_evals', 'n_unique_schedules', 'stop_reason'}
         assert expected == set(summary.keys())
 
     def test_convergence_summary_n_gen(self, run_results):
@@ -699,10 +1026,72 @@ class TestRun:
         assert summary['improvement'] >= -1e-9, \
             f"Unexpected regression: {summary['improvement']}"
 
+    def test_target_fitness_stops_after_initial_population(self, pert):
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=5,
+            n_gen=20,
+            target_fitness=10_000.0,
+            fb_improvement=False,
+            verbose=False,
+            seed=3,
+        )
+        _, log = g.run()
+        assert len(log) == 1
+        assert g.stop_reason == 'target_fitness'
+        assert log[-1]['stop_reason'] == 'target_fitness'
+
+    def test_max_evals_stops_before_extra_generation(self, pert):
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=5,
+            n_gen=20,
+            max_evals=5,
+            fb_improvement=False,
+            verbose=False,
+            seed=4,
+        )
+        _, log = g.run()
+        assert len(log) == 1
+        assert log[-1]['evals'] == 5
+        assert g.stop_reason == 'max_evals'
+
+    def test_stall_generations_stops_early(self, pert):
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=5,
+            n_gen=20,
+            cxpb=0.0,
+            mutpb=0.0,
+            stall_generations=1,
+            fb_improvement=False,
+            verbose=False,
+            seed=5,
+        )
+        _, log = g.run()
+        assert len(log) <= 2
+        assert g.stop_reason == 'stall_generations'
+
+    def test_unique_schedule_budget_is_tracked(self, pert):
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=5,
+            n_gen=20,
+            max_unique_schedules=1,
+            fb_improvement=False,
+            verbose=False,
+            seed=6,
+        )
+        _, log = g.run()
+        assert len(log) == 1
+        assert log[-1]['unique_schedules'] >= 1
+        assert g.stop_reason == 'max_unique_schedules'
+
     @pytest.mark.parametrize("cx,mut", [
         ('one_point',    'swap'),
         ('two_point',    'adjacent_swap'),
         ('uniform_order', 'insertion_window'),
+        ('decuple',      'adjacent_swap'),
         ('two_point',    'consensus_reorder'),
     ])
     def test_all_operator_combinations_complete(self, pert, cx, mut):
@@ -714,6 +1103,46 @@ class TestRun:
         hof, log = g.run()
         assert len(hof) > 0
         assert len(log) == g.n_gen + 1
+
+    def test_run_fb_improvement_disabled(self, pert):
+        """GA must complete when FBF improvement is disabled."""
+        g = RCPSPGeneticAlgorithm(
+            pert, pop_size=5, n_gen=2, verbose=False,
+            fb_improvement=False, seed=1,
+        )
+        hof, log = g.run()
+        assert len(hof) > 0
+        assert len(log) == g.n_gen + 1
+
+    def test_run_fb_freq_periodic(self, pert):
+        """GA must complete with periodic FBF enabled and log length unchanged."""
+        g = RCPSPGeneticAlgorithm(
+            pert, pop_size=5, n_gen=4, verbose=False,
+            fb_improvement=True, fb_freq=2, seed=2,
+        )
+        hof, log = g.run()
+        assert len(hof) > 0
+        assert len(log) == g.n_gen + 1  # FBF does not add log entries
+
+    def test_run_fb_hof_fitness_not_worse_than_pre_fb(self, pert):
+        """HoF best fitness with FBF must be ≤ HoF best fitness without FBF."""
+        g_no_fb = RCPSPGeneticAlgorithm(
+            pert, pop_size=8, n_gen=5, verbose=False,
+            fb_improvement=False, seed=3,
+        )
+        hof_no_fb, _ = g_no_fb.run()
+        best_no_fb = hof_no_fb[0].fitness.values[0]
+
+        g_fb = RCPSPGeneticAlgorithm(
+            pert, pop_size=8, n_gen=5, verbose=False,
+            fb_improvement=True, seed=3,
+        )
+        hof_fb, _ = g_fb.run()
+        best_fb = hof_fb[0].fitness.values[0]
+
+        assert best_fb <= best_no_fb + 1e-9, (
+            f"FBF worsened HoF best: {best_no_fb:.2f} → {best_fb:.2f}"
+        )
 
 
 # =============================================================================

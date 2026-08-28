@@ -1,0 +1,5 @@
+replacement_strategy,mutation,priority_best_ga,random_best_ga,delta_random_minus_priority,winner,priority_gap_to_best_known,random_gap_to_best_known,priority_initial_best,random_initial_best,priority_n_evals,random_n_evals,priority_stop_reason,random_stop_reason
+generational,consensus_reorder,213.0,227.0,14.0,priority_rules,2.0,16.0,247.0,274.0,4110,4100,max_generations,max_generations
+generational,adjacent_swap,222.0,215.0,-7.0,random,11.0,4.0,247.0,274.0,4146,4116,max_generations,max_generations
+generational,insertion_window,216.0,211.0,-5.0,random,5.0,0.0,247.0,274.0,4175,4134,max_generations,max_generations
+generational,swap,222.0,218.0,-4.0,random,11.0,7.0,247.0,274.0,4120,4217,max_generations,max_generations

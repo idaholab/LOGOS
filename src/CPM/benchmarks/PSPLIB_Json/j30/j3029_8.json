@@ -1,0 +1,977 @@
+{
+  "outage": {
+    "outage_id": "J3029_8",
+    "start_date": "2026-01-01",
+    "target_end_date": null,
+    "working_hours_per_day": 24
+  },
+  "tasks": [
+    {
+      "task_id": "J1",
+      "description": "Activity 1",
+      "duration": 1.0,
+      "successors": [
+        "J2",
+        "J3",
+        "J4"
+      ],
+      "location_id": null,
+      "required_resources": [],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J2",
+      "description": "Activity 2",
+      "duration": 9.0,
+      "successors": [
+        "J8",
+        "J24",
+        "J29"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 1
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 1
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 3
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J3",
+      "description": "Activity 3",
+      "duration": 10.0,
+      "successors": [
+        "J11",
+        "J12",
+        "J17"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 7
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 8
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 7
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J4",
+      "description": "Activity 4",
+      "duration": 7.0,
+      "successors": [
+        "J5",
+        "J6",
+        "J10"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 4
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 4
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 7
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J5",
+      "description": "Activity 5",
+      "duration": 2.0,
+      "successors": [
+        "J9",
+        "J23",
+        "J25"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 1
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J6",
+      "description": "Activity 6",
+      "duration": 9.0,
+      "successors": [
+        "J7",
+        "J18"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 4
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 9
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 5
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J7",
+      "description": "Activity 7",
+      "duration": 8.0,
+      "successors": [
+        "J14",
+        "J15",
+        "J27"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 8
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 6
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 6
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 7
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J8",
+      "description": "Activity 8",
+      "duration": 6.0,
+      "successors": [
+        "J12",
+        "J13",
+        "J19"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 6
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 3
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 2
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J9",
+      "description": "Activity 9",
+      "duration": 4.0,
+      "successors": [
+        "J20",
+        "J21"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 4
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 3
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 2
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J10",
+      "description": "Activity 10",
+      "duration": 9.0,
+      "successors": [
+        "J19"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 4
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 7
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 7
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J11",
+      "description": "Activity 11",
+      "duration": 2.0,
+      "successors": [
+        "J16",
+        "J18",
+        "J20"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 1
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 8
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 2
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 9
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J12",
+      "description": "Activity 12",
+      "duration": 10.0,
+      "successors": [
+        "J14",
+        "J30"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 7
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 3
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 2
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J13",
+      "description": "Activity 13",
+      "duration": 7.0,
+      "successors": [
+        "J20",
+        "J21"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 6
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 7
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 8
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 1
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J14",
+      "description": "Activity 14",
+      "duration": 2.0,
+      "successors": [
+        "J25"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 9
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 4
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J15",
+      "description": "Activity 15",
+      "duration": 8.0,
+      "successors": [
+        "J22"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 3
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 6
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 1
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J16",
+      "description": "Activity 16",
+      "duration": 5.0,
+      "successors": [
+        "J31"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 2
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 8
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 1
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J17",
+      "description": "Activity 17",
+      "duration": 6.0,
+      "successors": [
+        "J27",
+        "J29"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 2
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 8
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 7
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J18",
+      "description": "Activity 18",
+      "duration": 7.0,
+      "successors": [
+        "J22",
+        "J29",
+        "J30"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 9
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 7
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 3
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 8
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J19",
+      "description": "Activity 19",
+      "duration": 10.0,
+      "successors": [
+        "J21",
+        "J23",
+        "J25"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 3
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 4
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J20",
+      "description": "Activity 20",
+      "duration": 7.0,
+      "successors": [
+        "J27"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 3
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 3
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 2
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 10
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J21",
+      "description": "Activity 21",
+      "duration": 9.0,
+      "successors": [
+        "J22",
+        "J26"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 8
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 6
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 8
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J22",
+      "description": "Activity 22",
+      "duration": 5.0,
+      "successors": [
+        "J28"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 9
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 9
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 1
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J23",
+      "description": "Activity 23",
+      "duration": 4.0,
+      "successors": [
+        "J31"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 6
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 4
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 1
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J24",
+      "description": "Activity 24",
+      "duration": 7.0,
+      "successors": [
+        "J26",
+        "J30"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 9
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 1
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 6
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 5
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J25",
+      "description": "Activity 25",
+      "duration": 3.0,
+      "successors": [
+        "J26"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 4
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 3
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 9
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 8
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J26",
+      "description": "Activity 26",
+      "duration": 2.0,
+      "successors": [
+        "J28"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 5
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J27",
+      "description": "Activity 27",
+      "duration": 7.0,
+      "successors": [
+        "J28"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 10
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 7
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 4
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 10
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J28",
+      "description": "Activity 28",
+      "duration": 2.0,
+      "successors": [
+        "J31"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 1
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 9
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 6
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 1
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J29",
+      "description": "Activity 29",
+      "duration": 9.0,
+      "successors": [
+        "J32"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 8
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 7
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 6
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J30",
+      "description": "Activity 30",
+      "duration": 6.0,
+      "successors": [
+        "J32"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 9
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 3
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 6
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 4
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J31",
+      "description": "Activity 31",
+      "duration": 8.0,
+      "successors": [
+        "J32"
+      ],
+      "location_id": null,
+      "required_resources": [
+        {
+          "skill_type": "R1",
+          "crew_count": 5
+        },
+        {
+          "skill_type": "R2",
+          "crew_count": 3
+        },
+        {
+          "skill_type": "R3",
+          "crew_count": 4
+        },
+        {
+          "skill_type": "R4",
+          "crew_count": 3
+        }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "J32",
+      "description": "Activity 32",
+      "duration": 1.0,
+      "successors": [],
+      "location_id": null,
+      "required_resources": [],
+      "required_equipment": [],
+      "is_hold_point": false
+    }
+  ],
+  "resources": [
+    {
+      "skill_type": "R1",
+      "availability_periods": [
+        {
+          "start_date": "2026-01-01T00:00:00",
+          "end_date": "2026-01-08T22:00:00",
+          "available_count": 19,
+          "reason": "PSPLIB constant capacity"
+        }
+      ]
+    },
+    {
+      "skill_type": "R2",
+      "availability_periods": [
+        {
+          "start_date": "2026-01-01T00:00:00",
+          "end_date": "2026-01-08T22:00:00",
+          "available_count": 17,
+          "reason": "PSPLIB constant capacity"
+        }
+      ]
+    },
+    {
+      "skill_type": "R3",
+      "availability_periods": [
+        {
+          "start_date": "2026-01-01T00:00:00",
+          "end_date": "2026-01-08T22:00:00",
+          "available_count": 19,
+          "reason": "PSPLIB constant capacity"
+        }
+      ]
+    },
+    {
+      "skill_type": "R4",
+      "availability_periods": [
+        {
+          "start_date": "2026-01-01T00:00:00",
+          "end_date": "2026-01-08T22:00:00",
+          "available_count": 16,
+          "reason": "PSPLIB constant capacity"
+        }
+      ]
+    }
+  ],
+  "equipment": [],
+  "locations": []
+}

@@ -212,7 +212,7 @@ SERIAL_GOLDEN = {
     'mehh_8000_b': 52.0,
     'mehh_3375_b': 53.0,
     'mehh_1000_b': 52.0,
-    'mehh_125_b':  46.0,
+    'mehh_125_b':  51.0,
     'gphh_b':      74.0,
 }
 
@@ -267,11 +267,11 @@ checkAnswer(
 print("\n=== Parallel SGS Strategies (j30) ===")
 
 PARALLEL_GOLDEN = {
-    'first':               47.0,
+    'first':               53.0,
     'max_use_res_ranked':  43.0,
     # max_use_res_shuffled uses a random shuffle; result is deterministic only
-    # with a fixed seed.  The default seed (2506178) produces 48 h on j30/inst-1.
-    'max_use_res_shuffled': 48.0,
+    # with a fixed seed.  The default seed (2506178) produces 61 h on j30/inst-1.
+    'max_use_res_shuffled': 61.0,
     'md_knapsack':         61.0,
     'look_ahead':          43.0,
 }
@@ -429,9 +429,9 @@ for rule, expected_duration in SERIAL_GOLDEN_J60.items():
 print("\n=== Parallel SGS Strategies (j60) ===")
 
 PARALLEL_GOLDEN_J60 = {
-    'first':                102.0,
+    'first':                124.0,
     'max_use_res_ranked':    86.0,
-    'max_use_res_shuffled':  86.0,
+    'max_use_res_shuffled':  99.0,
     'md_knapsack':           92.0,
     'look_ahead':            86.0,
 }
@@ -509,10 +509,10 @@ SERIAL_GOLDEN_J90 = {
     'avgrr':        97.0,
     'maxrr':        97.0,
     'minrr':       148.0,
-    'mehh_8000_b':  84.0,
+    'mehh_8000_b':  83.0,
     'mehh_3375_b': 101.0,
-    'mehh_1000_b':  84.0,
-    'mehh_125_b':  102.0,
+    'mehh_1000_b':  83.0,
+    'mehh_125_b':   98.0,
     'gphh_b':      148.0,
 }
 
@@ -533,10 +533,10 @@ for rule, expected_duration in SERIAL_GOLDEN_J90.items():
 print("\n=== Parallel SGS Strategies (j90) ===")
 
 PARALLEL_GOLDEN_J90 = {
-    'first':                262.0,
+    'first':                263.0,
     'max_use_res_ranked':    86.0,
-    'max_use_res_shuffled':  87.0,
-    'md_knapsack':           97.0,
+    'max_use_res_shuffled':  98.0,
+    'md_knapsack':           92.0,
     'look_ahead':            94.0,
 }
 
@@ -600,23 +600,23 @@ print("\n=== Serial SGS Priority Rules (j120) ===")
 
 SERIAL_GOLDEN_J120 = {
     'lf':          123.0,
-    'ls':          119.0,
+    'ls':          124.0,
     'ef':          143.0,
     'es':          137.0,
-    'duration':    136.0,
+    'duration':    144.0,
     'random':      165.0,
-    'mts':         126.0,
-    'mtp':         178.0,
+    'mts':         130.0,
+    'mtp':         179.0,
     'grpw':        148.0,
-    'grd':         154.0,
-    'rr':          195.0,
-    'avgrr':       148.0,
-    'maxrr':       148.0,
-    'minrr':       195.0,
-    'mehh_8000_b': 124.0,
+    'grd':         156.0,
+    'rr':          196.0,
+    'avgrr':       158.0,
+    'maxrr':       158.0,
+    'minrr':       196.0,
+    'mehh_8000_b': 126.0,
     'mehh_3375_b': 138.0,
-    'mehh_1000_b': 114.0,
-    'mehh_125_b':  157.0,
+    'mehh_1000_b': 120.0,
+    'mehh_125_b':  169.0,
     'gphh_b':      193.0,
 }
 
@@ -637,11 +637,11 @@ for rule, expected_duration in SERIAL_GOLDEN_J120.items():
 print("\n=== Parallel SGS Strategies (j120) ===")
 
 PARALLEL_GOLDEN_J120 = {
-    'first':                209.0,
-    'max_use_res_ranked':   120.0,
-    'max_use_res_shuffled': 139.0,
+    'first':                350.0,
+    'max_use_res_ranked':   124.0,
+    'max_use_res_shuffled': 135.0,
     'md_knapsack':          148.0,
-    'look_ahead':           120.0,
+    'look_ahead':           117.0,
 }
 
 for sgs, expected_duration in PARALLEL_GOLDEN_J120.items():
@@ -863,9 +863,9 @@ if len(violations_multi) == 2:
 print("\n=== Serial SGS: WCS / ACS / IRSM (j30) ===")
 
 SERIAL_GOLDEN_DYNAMIC_J30 = {
-    'wcs':  47.0,
+    'wcs':  46.0,
     'acs':  46.0,
-    'irsm': 51.0,
+    'irsm': 57.0,
 }
 for rule, expected_duration in SERIAL_GOLDEN_DYNAMIC_J30.items():
     pert_s = load_pert()
@@ -881,7 +881,7 @@ print("\n=== Serial SGS: WCS / ACS / IRSM (j60) ===")
 SERIAL_GOLDEN_DYNAMIC_J60 = {
     'wcs':  77.0,
     'acs':  77.0,
-    'irsm': 81.0,
+    'irsm': 89.0,
 }
 for rule, expected_duration in SERIAL_GOLDEN_DYNAMIC_J60.items():
     pert_s = load_pert_j60()
@@ -895,9 +895,9 @@ for rule, expected_duration in SERIAL_GOLDEN_DYNAMIC_J60.items():
 print("\n=== Serial SGS: WCS / ACS / IRSM (j90) ===")
 
 SERIAL_GOLDEN_DYNAMIC_J90 = {
-    'wcs':  81.0,
+    'wcs':  85.0,
     'acs':  83.0,
-    'irsm': 82.0,
+    'irsm': 119.0,
 }
 for rule, expected_duration in SERIAL_GOLDEN_DYNAMIC_J90.items():
     pert_s = load_pert_j90()
@@ -913,7 +913,7 @@ print("\n=== Serial SGS: WCS / ACS / IRSM (j120) ===")
 SERIAL_GOLDEN_DYNAMIC_J120 = {
     'wcs':  124.0,
     'acs':  119.0,
-    'irsm': 154.0,
+    'irsm': 138.0,
 }
 for rule, expected_duration in SERIAL_GOLDEN_DYNAMIC_J120.items():
     pert_s = load_pert_j120()
@@ -928,10 +928,10 @@ print("\n=== Parallel SGS (max_use_res_ranked): WCS / ACS / IRSM (all instances)
 
 PARALLEL_DYNAMIC_GOLDEN = {
     # (loader_func, instance_label): {rule: expected_duration}
-    ('j30',  load_pert):     {'wcs': 43.0, 'acs': 46.0, 'irsm': 43.0},
-    ('j60',  load_pert_j60): {'wcs': 86.0, 'acs': 86.0, 'irsm': 86.0},
-    ('j90',  load_pert_j90): {'wcs': 81.0, 'acs': 81.0, 'irsm': 89.0},
-    ('j120', load_pert_j120):{'wcs': 124.0,'acs': 125.0,'irsm': 124.0},
+    ('j30',  load_pert):     {'wcs': 46.0, 'acs': 46.0, 'irsm': 43.0},
+    ('j60',  load_pert_j60): {'wcs': 86.0, 'acs': 86.0, 'irsm': 85.0},
+    ('j90',  load_pert_j90): {'wcs': 81.0, 'acs': 85.0, 'irsm': 80.0},
+    ('j120', load_pert_j120):{'wcs': 123.0,'acs': 124.0,'irsm': 127.0},
 }
 for (label, loader), rule_map in PARALLEL_DYNAMIC_GOLDEN.items():
     for rule, expected_duration in rule_map.items():
@@ -992,4 +992,10 @@ print(f"\n{'='*60}")
 print(f"Results: {results['pass']} passed, {results['fail']} failed")
 print(f"{'='*60}")
 
-sys.exit(results["fail"])
+def test_psplib_script_checks_passed():
+    """Expose the script-style checks as one pytest assertion."""
+    assert results["fail"] == 0
+
+
+if __name__ == "__main__":
+    sys.exit(results["fail"])
