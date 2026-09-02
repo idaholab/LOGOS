@@ -19,7 +19,7 @@ import logging
 import sys
 import argparse
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Any
+from typing import Dict, List, Optional, Set, Tuple, Any
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class OutageDataValidator:
 
     # ------------------------- Schema Handling -------------------------
 
-    def _load_schema(self, schema_path: str | None) -> Dict:
+    def _load_schema(self, schema_path: Optional[str]) -> Dict:
         """Load schema from provided path, local file, or embedded default."""
         if schema_path:
             p = Path(schema_path)
@@ -163,14 +163,15 @@ class OutageDataValidator:
         valid = True
         for t in tasks:
             tid = t.get("task_id")
-            # successors exist and not self
+            # successors exist and not self — handle both string and {task_id, lag_hours} forms
             for succ in t.get("successors", []):
-                if succ not in task_ids:
+                succ_id = succ["task_id"] if isinstance(succ, dict) else succ
+                if succ_id not in task_ids:
                     self.errors.append(
-                        f"Task '{tid}' references non-existent successor '{succ}'"
+                        f"Task '{tid}' references non-existent successor '{succ_id}'"
                     )
                     valid = False
-                if succ == tid:
+                if succ_id == tid:
                     self.errors.append(
                         f"Task '{tid}' lists itself as a successor (self-reference)"
                     )
@@ -275,7 +276,10 @@ class OutageDataValidator:
         """
         Check for cycles over successors and blocks_tasks using DFS.
         """
-        graph: Dict[str, List[str]] = {t["task_id"]: list(t.get("successors", [])) for t in tasks}
+        def _succ_ids(succs):
+            return [s["task_id"] if isinstance(s, dict) else s for s in succs]
+
+        graph: Dict[str, List[str]] = {t["task_id"]: _succ_ids(t.get("successors", [])) for t in tasks}
         # incorporate hold edges
         for t in tasks:
             if t.get("is_hold_point", False):

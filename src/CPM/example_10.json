@@ -12,9 +12,46 @@
       "task_id": "START",
       "description": "Outage start (anchor)",
       "duration": 1,
-      "successors": ["C101"],
+      "successors": ["P001"],
       "location_id": null,
       "required_resources": [],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "P001",
+      "description": "Outage mobilization — crew check-in, safety briefings, ALARA training, and radiation work permit preparation",
+      "duration": 4,
+      "successors": ["P002"],
+      "location_id": null,
+      "required_resources": [],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "P002",
+      "description": "Equipment, rigging, and scaffolding material staging — complete tool kit assembly for all containment work packages",
+      "duration": 20,
+      "successors": ["P003"],
+      "location_id": null,
+      "required_resources": [
+        { "skill_type": "MECHANIC", "crew_count": 2 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "P003",
+      "description": "Polar crane pre-operational check (exterior) — wire rope inspection, limit switch test, lubrication, and pre-lift rigging hardware setup",
+      "duration": 7,
+      "successors": ["C101"],
+      "location_id": null,
+      "required_resources": [
+        { "skill_type": "MECHANIC", "crew_count": 2 }
+      ],
       "required_equipment": [],
       "is_hold_point": false
     },
