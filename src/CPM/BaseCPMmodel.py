@@ -47,6 +47,14 @@ class BaseCPMmodel(ExternalModelPluginBase):
                          # 2) activity_priority: RAVEN sample acitivty priority values
     self.sgs = None
 
+    self.startTime = None # time when project schedule will start (datetime)
+    self.resources = None # pandas dataframe of resource availability
+
+    self.analysis = None # type of analysis to be performed in raven:
+                         # 1) activity_duration: RAVEN sample acitivty duration values
+                         # 2) activity_priority: RAVEN sample acitivty priority values
+    self.sgs = None
+
   def _readMoreXML(self, container, xmlNode):
     """
       Method to read the portion of the XML that belongs to the CPM model
@@ -104,14 +112,12 @@ class BaseCPMmodel(ExternalModelPluginBase):
 
     self.pert.generateInfo()
 
-
   def run(self, container, inputDict):
     """
       This method calculates the CP of the schedule project and its end time
       @ In, container, object, self-like object where all the variables can be stored
       @ In, inputDict, dict, dictionary of inputs from RAVEN
     """
-
     try:
         inputDict_durations = dict(
             zip(self.duration_vars, itemgetter(*self.duration_vars)(inputDict))
@@ -134,3 +140,4 @@ class BaseCPMmodel(ExternalModelPluginBase):
 
     endTime = self.pert.getProjectDuration()
     container.__dict__[self.CPtime] = np.asarray(float(endTime))
+
