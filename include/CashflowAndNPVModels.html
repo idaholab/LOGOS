@@ -20,6 +20,8 @@
       <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "tags": "ams", "tagSide": "right", "tagIndent": "0.8em"}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -57,7 +59,7 @@
 <li class="toctree-l1"><a class="reference internal" href="rcpsp.html">Resource-Constrained Project Scheduling Problem (RCPSP)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="PluginForRavenCode.html">Plugin for the RAVEN Code</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">SSC Cashflow and NPV Models</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#planned-replacement-at-t-0">Planned Replacement at <span class="math">T_0</span></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#planned-replacement-at-t-0">Planned Replacement at <span class="math notranslate nohighlight">\(T_0\)</span></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#example-raven-input-xml">Example RAVEN Input XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#external-model-parameters">External Model Parameters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#example-incremental-npv-output-csv">Example Incremental NPV Output CSV</a></li>
@@ -104,58 +106,58 @@ are of significant importance and, if not replaced in due course, would impose a
 unacceptable risk to either safety or production.</p>
 <p>Notation:</p>
 <ul class="simple">
-<li><p><span class="math">p</span>: probability of item failure for one year</p></li>
-<li><p><span class="math">C_P</span>: cost of planned replacement</p></li>
-<li><p><span class="math">C_U</span>: cost of unplanned replacement</p></li>
-<li><p><span class="math">C_D</span>: cost of shutdown per day</p></li>
-<li><p><span class="math">D</span>: number of days plant is off-line, if a shutdown occurs</p></li>
-<li><p><span class="math">N</span>: number of years</p></li>
-<li><p><span class="math">R</span>: discount rate</p></li>
+<li><p><span class="math notranslate nohighlight">\(p\)</span>: probability of item failure for one year</p></li>
+<li><p><span class="math notranslate nohighlight">\(C_P\)</span>: cost of planned replacement</p></li>
+<li><p><span class="math notranslate nohighlight">\(C_U\)</span>: cost of unplanned replacement</p></li>
+<li><p><span class="math notranslate nohighlight">\(C_D\)</span>: cost of shutdown per day</p></li>
+<li><p><span class="math notranslate nohighlight">\(D\)</span>: number of days plant is off-line, if a shutdown occurs</p></li>
+<li><p><span class="math notranslate nohighlight">\(N\)</span>: number of years</p></li>
+<li><p><span class="math notranslate nohighlight">\(R\)</span>: discount rate</p></li>
 </ul>
 <p>We could incorporate additional parameters, such as weekly or monthly inspection costs,
 fixed costs of shutdown in addition to the daily costs specified above, etc. The setting
 we describe allows us to illustrate key ideas in the cashflow calculations for computing NPV.</p>
 <p>We further assume that, if we do not replace the item, its failure time is a random
 variable following a geometric distribution where the probability of failure in
-one year is <span class="math">p</span> (i.e., probability of survival over one year is <span class="math">1-p</span>).
+one year is <span class="math notranslate nohighlight">\(p\)</span> (i.e., probability of survival over one year is <span class="math notranslate nohighlight">\(1-p\)</span>).
 Thus, if the plant faces a 20-year decision period, the probability of survival to year
-<span class="math">t</span> is <span class="math">(1-p)^t</span>, and the probability of failing in year <span class="math">t</span> is
-<span class="math">p(1-p)^{t-1}</span>.</p>
+<span class="math notranslate nohighlight">\(t\)</span> is <span class="math notranslate nohighlight">\((1-p)^t\)</span>, and the probability of failing in year <span class="math notranslate nohighlight">\(t\)</span> is
+<span class="math notranslate nohighlight">\(p(1-p)^{t-1}\)</span>.</p>
 <p>A useful construct for the calculations is to visualize a <em>coin flip</em> for each year,
 yielding a <em>fail</em> or <em>no fail</em> event, and immediately after the flip appropriate
 costs are incurred.</p>
-<p>If the item is not replaced today (<span class="math">t=1</span>), the expected replacement cost in any
-year <span class="math">t = 1,2,\ldots,N-1</span> is:</p>
-<div class="math" id="equation-npv-1">
-<p><span class="eqno">(49)<a class="headerlink" href="#equation-npv-1" title="Link to this equation"></a></span><span class="math">\text{Expected Replacement Cost in Year } t =
-C_U \, p (1-p)^{t-1}</span></p>
-</div><p>Here, we incur this cost only if the item survived years <span class="math">1</span> to <span class="math">t-1</span>
-and failed in year <span class="math">t</span>.</p>
-<p>Since we assume the item must be replaced in year <span class="math">N</span> if it has not already
-failed, the expected replacement cost in year <span class="math">N</span> is:</p>
-<div class="math" id="equation-npv-2">
-<p><span class="eqno">(50)<a class="headerlink" href="#equation-npv-2" title="Link to this equation"></a></span><span class="math">\text{Expected Replacement Cost in Year } N =
-C_P (1-p)^{N-1}</span></p>
-</div><p>To illustrate downtime, assume shutdown costs of <span class="math">C_D</span> per day. The expected
-downtime cost in year <span class="math">t=1,\ldots,N-1</span> is:</p>
-<div class="math" id="equation-npv-3">
-<p><span class="eqno">(51)<a class="headerlink" href="#equation-npv-3" title="Link to this equation"></a></span><span class="math">\text{Expected Downtime Cost in Year } t =
-D\,C_D \, p (1-p)^{t-1}</span></p>
-</div><p>More generally, we can express reliability-related costs with:</p>
-<div class="math" id="equation-include-cashflowandnpvmodels-0">
-<p><span class="eqno">(52)<a class="headerlink" href="#equation-include-cashflowandnpvmodels-0" title="Link to this equation"></a></span><span class="math">Re\_Cost(p, t, C_1, C_2, \ldots, C_M)</span></p>
-</div><p>There are two relevant time-series of cash flows: replacing now and replacing later.</p>
-<p>If replaced today (time <span class="math">t=1</span>), we incur the planned replacement cost
-<span class="math">C_P</span>.</p>
-<p>For replacing later, for <span class="math">t = 1,\ldots,N-1</span>, the expected cash flows are:</p>
-<div class="math" id="equation-npv-4">
-<p><span class="eqno">(53)<a class="headerlink" href="#equation-npv-4" title="Link to this equation"></a></span><span class="math">\text{Cash Flow Replaced in Year } t =
--\left[(C_U + D C_D) \, p \, (1-p)^{t-1} \right]</span></p>
-</div><p>And for the final year:</p>
-<div class="math" id="equation-npv-5">
-<p><span class="eqno">(54)<a class="headerlink" href="#equation-npv-5" title="Link to this equation"></a></span><span class="math">\text{Cash Flow Replaced in Year } N =
--\left[ C_P (1-p)^{N-1} \right]</span></p>
-</div><p>All cash flows are costs and therefore negative.</p>
+<p>If the item is not replaced today (<span class="math notranslate nohighlight">\(t=1\)</span>), the expected replacement cost in any
+year <span class="math notranslate nohighlight">\(t = 1,2,\ldots,N-1\)</span> is:</p>
+<div class="math notranslate nohighlight" id="equation-npv-1">
+<span class="eqno">(49)<a class="headerlink" href="#equation-npv-1" title="Link to this equation"></a></span>\[\text{Expected Replacement Cost in Year } t =
+C_U \, p (1-p)^{t-1}\]</div>
+<p>Here, we incur this cost only if the item survived years <span class="math notranslate nohighlight">\(1\)</span> to <span class="math notranslate nohighlight">\(t-1\)</span>
+and failed in year <span class="math notranslate nohighlight">\(t\)</span>.</p>
+<p>Since we assume the item must be replaced in year <span class="math notranslate nohighlight">\(N\)</span> if it has not already
+failed, the expected replacement cost in year <span class="math notranslate nohighlight">\(N\)</span> is:</p>
+<div class="math notranslate nohighlight" id="equation-npv-2">
+<span class="eqno">(50)<a class="headerlink" href="#equation-npv-2" title="Link to this equation"></a></span>\[\text{Expected Replacement Cost in Year } N =
+C_P (1-p)^{N-1}\]</div>
+<p>To illustrate downtime, assume shutdown costs of <span class="math notranslate nohighlight">\(C_D\)</span> per day. The expected
+downtime cost in year <span class="math notranslate nohighlight">\(t=1,\ldots,N-1\)</span> is:</p>
+<div class="math notranslate nohighlight" id="equation-npv-3">
+<span class="eqno">(51)<a class="headerlink" href="#equation-npv-3" title="Link to this equation"></a></span>\[\text{Expected Downtime Cost in Year } t =
+D\,C_D \, p (1-p)^{t-1}\]</div>
+<p>More generally, we can express reliability-related costs with:</p>
+<div class="math notranslate nohighlight" id="equation-include-cashflowandnpvmodels-0">
+<span class="eqno">(52)<a class="headerlink" href="#equation-include-cashflowandnpvmodels-0" title="Link to this equation"></a></span>\[Re\_Cost(p, t, C_1, C_2, \ldots, C_M)\]</div>
+<p>There are two relevant time-series of cash flows: replacing now and replacing later.</p>
+<p>If replaced today (time <span class="math notranslate nohighlight">\(t=1\)</span>), we incur the planned replacement cost
+<span class="math notranslate nohighlight">\(C_P\)</span>.</p>
+<p>For replacing later, for <span class="math notranslate nohighlight">\(t = 1,\ldots,N-1\)</span>, the expected cash flows are:</p>
+<div class="math notranslate nohighlight" id="equation-npv-4">
+<span class="eqno">(53)<a class="headerlink" href="#equation-npv-4" title="Link to this equation"></a></span>\[\text{Cash Flow Replaced in Year } t =
+-\left[(C_U + D C_D) \, p \, (1-p)^{t-1} \right]\]</div>
+<p>And for the final year:</p>
+<div class="math notranslate nohighlight" id="equation-npv-5">
+<span class="eqno">(54)<a class="headerlink" href="#equation-npv-5" title="Link to this equation"></a></span>\[\text{Cash Flow Replaced in Year } N =
+-\left[ C_P (1-p)^{N-1} \right]\]</div>
+<p>All cash flows are costs and therefore negative.</p>
 <figure class="align-default" id="id1">
 <a class="reference internal image-reference" href="../_images/image1.png"><img alt="Replace now timeline" src="../_images/image1.png" style="width: 3224.0px; height: 474.0px;" />
 </a>
@@ -171,76 +173,76 @@ D\,C_D \, p (1-p)^{t-1}</span></p>
 </figcaption>
 </figure>
 <p>The NPV of option 1 is:</p>
-<div class="math" id="equation-npv-6">
-<p><span class="eqno">(55)<a class="headerlink" href="#equation-npv-6" title="Link to this equation"></a></span><span class="math">\text{NPV option 1} = -C_P</span></p>
-</div><p>The NPV of option 2 is:</p>
-<div class="math" id="equation-npv-7">
-<p><span class="eqno">(56)<a class="headerlink" href="#equation-npv-7" title="Link to this equation"></a></span><span class="math">\text{NPV option 2} =
+<div class="math notranslate nohighlight" id="equation-npv-6">
+<span class="eqno">(55)<a class="headerlink" href="#equation-npv-6" title="Link to this equation"></a></span>\[\text{NPV option 1} = -C_P\]</div>
+<p>The NPV of option 2 is:</p>
+<div class="math notranslate nohighlight" id="equation-npv-7">
+<span class="eqno">(56)<a class="headerlink" href="#equation-npv-7" title="Link to this equation"></a></span>\[\text{NPV option 2} =
 -\left[
   \sum_{t=1}^{N-1}
     \frac{(C_U + D C_D) p (1-p)^{t-1}}{(1+R)^{t-1}}
   +
   \frac{C_P (1-p)^{N-1}}{(1+R)^{N-1}}
-\right]</span></p>
-</div><p>The difference between the two NPVs is:</p>
-<div class="math" id="equation-npv-7-b">
-<p><span class="eqno">(57)<a class="headerlink" href="#equation-npv-7-b" title="Link to this equation"></a></span><span class="math">\text{NPV} =
+\right]\]</div>
+<p>The difference between the two NPVs is:</p>
+<div class="math notranslate nohighlight" id="equation-npv-7-b">
+<span class="eqno">(57)<a class="headerlink" href="#equation-npv-7-b" title="Link to this equation"></a></span>\[\text{NPV} =
 -C_P +
 \left[
   \sum_{t=1}^{N-1}
     \frac{(C_U + D C_D) p (1-p)^{t-1}}{(1+R)^{t-1}}
   +
   \frac{C_P (1-p)^{N-1}}{(1+R)^{N-1}}
-\right]</span></p>
-</div><p>If <span class="math">\text{NPV} &gt; 0</span>, the decision is to replace today.</p>
+\right]\]</div>
+<p>If <span class="math notranslate nohighlight">\(\text{NPV} &gt; 0\)</span>, the decision is to replace today.</p>
 <section id="planned-replacement-at-t-0">
-<h2>Planned Replacement at <span class="math">T_0</span><a class="headerlink" href="#planned-replacement-at-t-0" title="Link to this heading"></a></h2>
-<p>Now we allow delaying planned replacement to year <span class="math">T_0</span>, at the risk of
+<h2>Planned Replacement at <span class="math notranslate nohighlight">\(T_0\)</span><a class="headerlink" href="#planned-replacement-at-t-0" title="Link to this heading"></a></h2>
+<p>Now we allow delaying planned replacement to year <span class="math notranslate nohighlight">\(T_0\)</span>, at the risk of
 possible failure before then.</p>
-<p>For <span class="math">t = 1,\ldots,T_0 - 1</span>, the cash flow is:</p>
-<div class="math" id="equation-npv-8">
-<p><span class="eqno">(58)<a class="headerlink" href="#equation-npv-8" title="Link to this equation"></a></span><span class="math">\text{Cash Flow Replaced in Year } t =
--\left[(C_U + D C_D) p (1-p)^{t-1}\right]</span></p>
-</div><p>For <span class="math">t = T_0</span>, the expected planned replacement cash flow is:</p>
-<div class="math" id="equation-npv-9">
-<p><span class="eqno">(59)<a class="headerlink" href="#equation-npv-9" title="Link to this equation"></a></span><span class="math">\text{Cash Flow Replaced in Year } T_0 =
--\left[ C_P (1-p)^{T_0 - 1} \right]</span></p>
-</div><figure class="align-default" id="id3">
+<p>For <span class="math notranslate nohighlight">\(t = 1,\ldots,T_0 - 1\)</span>, the cash flow is:</p>
+<div class="math notranslate nohighlight" id="equation-npv-8">
+<span class="eqno">(58)<a class="headerlink" href="#equation-npv-8" title="Link to this equation"></a></span>\[\text{Cash Flow Replaced in Year } t =
+-\left[(C_U + D C_D) p (1-p)^{t-1}\right]\]</div>
+<p>For <span class="math notranslate nohighlight">\(t = T_0\)</span>, the expected planned replacement cash flow is:</p>
+<div class="math notranslate nohighlight" id="equation-npv-9">
+<span class="eqno">(59)<a class="headerlink" href="#equation-npv-9" title="Link to this equation"></a></span>\[\text{Cash Flow Replaced in Year } T_0 =
+-\left[ C_P (1-p)^{T_0 - 1} \right]\]</div>
+<figure class="align-default" id="id3">
 <a class="reference internal image-reference" href="../_images/image3.png"><img alt="Planned replacement at T0" src="../_images/image3.png" style="width: 3212.0px; height: 544.0px;" />
 </a>
 <figcaption>
-<p><span class="caption-number">Figure 4 </span><span class="caption-text">Graphical representation of option 1: planned replacement at <span class="math">T_0</span>.</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+<p><span class="caption-number">Figure 4 </span><span class="caption-text">Graphical representation of option 1: planned replacement at <span class="math notranslate nohighlight">\(T_0\)</span>.</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
 </figcaption>
 </figure>
-<p>The NPV for planned replacement at <span class="math">T_0</span> is:</p>
-<div class="math" id="equation-npv-10">
-<p><span class="eqno">(60)<a class="headerlink" href="#equation-npv-10" title="Link to this equation"></a></span><span class="math">\text{NPV option 1} =
+<p>The NPV for planned replacement at <span class="math notranslate nohighlight">\(T_0\)</span> is:</p>
+<div class="math notranslate nohighlight" id="equation-npv-10">
+<span class="eqno">(60)<a class="headerlink" href="#equation-npv-10" title="Link to this equation"></a></span>\[\text{NPV option 1} =
 -\left[
    \sum_{t=1}^{T_0-1}
      \frac{(C_U + D C_D) p (1-p)^{t-1}}{(1+R)^{t-1}}
    +
    \frac{C_P (1-p)^{T_0-1}}{(1+R)^{T_0-1}}
-\right]</span></p>
-</div><p>If <span class="math">T_0 = 1</span>, this reduces to <span class="math">-C_P</span>.</p>
-<p>Option 2 (delay to <span class="math">N</span>) has NPV:</p>
-<div class="math" id="equation-npv-11">
-<p><span class="eqno">(61)<a class="headerlink" href="#equation-npv-11" title="Link to this equation"></a></span><span class="math">\text{NPV option 2} =
+\right]\]</div>
+<p>If <span class="math notranslate nohighlight">\(T_0 = 1\)</span>, this reduces to <span class="math notranslate nohighlight">\(-C_P\)</span>.</p>
+<p>Option 2 (delay to <span class="math notranslate nohighlight">\(N\)</span>) has NPV:</p>
+<div class="math notranslate nohighlight" id="equation-npv-11">
+<span class="eqno">(61)<a class="headerlink" href="#equation-npv-11" title="Link to this equation"></a></span>\[\text{NPV option 2} =
 -\left[
    \sum_{t=1}^{N-1}
      \frac{(C_U + D C_D) p (1-p)^{t-1}}{(1+R)^{t-1}}
    +
    \frac{C_P (1-p)^{N-1}}{(1+R)^{N-1}}
-\right]</span></p>
-</div><p>Thus, the incremental NPV is:</p>
-<div class="math" id="equation-npv-12">
-<p><span class="eqno">(62)<a class="headerlink" href="#equation-npv-12" title="Link to this equation"></a></span><span class="math">\text{NPV} =
+\right]\]</div>
+<p>Thus, the incremental NPV is:</p>
+<div class="math notranslate nohighlight" id="equation-npv-12">
+<span class="eqno">(62)<a class="headerlink" href="#equation-npv-12" title="Link to this equation"></a></span>\[\text{NPV} =
 \sum_{t=T_0}^{N-1}
   \frac{(C_U + D C_D) p (1-p)^{t-1}}{(1+R)^{t-1}}
 +
   \frac{C_P (1-p)^{N-1}}{(1+R)^{N-1}}
 -
-  \frac{C_P (1-p)^{T_0-1}}{(1+R)^{T_0-1}}</span></p>
-</div><p>A new RAVEN <strong>External Model</strong> with <code class="docutils literal notranslate"><span class="pre">subType=&quot;LOGOS.IncrementalNPV&quot;</span></code> is used to
+  \frac{C_P (1-p)^{T_0-1}}{(1+R)^{T_0-1}}\]</div>
+<p>A new RAVEN <strong>External Model</strong> with <code class="docutils literal notranslate"><span class="pre">subType=&quot;LOGOS.IncrementalNPV&quot;</span></code> is used to
 compute the NPVs described above.</p>
 </section>
 <section id="example-raven-input-xml">

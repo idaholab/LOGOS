@@ -20,6 +20,8 @@
       <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "tags": "ams", "tagSide": "right", "tagIndent": "0.8em"}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -114,7 +116,7 @@ chosen elements.</p></li>
 </ul>
 <p>When calculating the objective variable, if the constraint is not
 satisfied, then the variable is penalized by multiplying the project
-value by <span class="math">-1</span>.</p>
+value by <span class="math notranslate nohighlight">\(-1\)</span>.</p>
 <p>Example LOGOS input XML for <code class="docutils literal notranslate"><span class="pre">SimpleKnapsackModel</span></code>:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">"knapsack"</span><span class="w"> </span><span class="na">subType=</span><span class="s">"LOGOS.SimpleKnapsackModel"</span><span class="nt">&gt;</span>
 <span class="w">  </span><span class="nt">&lt;variables&gt;</span>element1Status,element2Status,element3Status,
@@ -154,7 +156,7 @@ chosen elements.</p></li>
 </ul>
 <p>When calculating the objective variable, if any capacity constraint is
 not satisfied, then the variable is penalized by multiplying the project
-value by <span class="math">-1</span>.</p>
+value by <span class="math notranslate nohighlight">\(-1\)</span>.</p>
 <p>Example LOGOS input XML for <code class="docutils literal notranslate"><span class="pre">MultipleKnapsackModel</span></code>:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Models&gt;</span>
 <span class="w">  </span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">"knapsack"</span><span class="w"> </span><span class="na">subType=</span><span class="s">"LOGOS.MultipleKnapsackModel"</span><span class="nt">&gt;</span>

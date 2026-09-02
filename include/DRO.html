@@ -20,6 +20,8 @@
       <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "tags": "ams", "tagSide": "right", "tagIndent": "0.8em"}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -99,74 +101,74 @@
 <p>We consider another risk-averse decision making approach using
 distributionally robust optimization (DRO). To this end, we begin with a
 nominal stochastic optimization problem:</p>
-<div class="math" id="equation-include-dro-0">
-<p><span class="eqno">(24)<a class="headerlink" href="#equation-include-dro-0" title="Link to this equation"></a></span><span class="math">\max_{s \in S} \sum_{\sigma \in \Sigma} q^\sigma f(s,\xi^\sigma).</span></p>
-</div><p>In our context, the nominal model is a stochastic capital budgeting problem in
+<div class="math notranslate nohighlight" id="equation-include-dro-0">
+<span class="eqno">(24)<a class="headerlink" href="#equation-include-dro-0" title="Link to this equation"></a></span>\[\max_{s \in S} \sum_{\sigma \in \Sigma} q^\sigma f(s,\xi^\sigma).\]</div>
+<p>In our context, the nominal model is a stochastic capital budgeting problem in
 which we maximize expected NPV, so we may take
-<span class="math">f(s,\xi^\sigma) = NPV(s,\xi^\sigma)</span>. Here, <span class="math">s \in S</span> indicates
+<span class="math notranslate nohighlight">\(f(s,\xi^\sigma) = NPV(s,\xi^\sigma)\)</span>. Here, <span class="math notranslate nohighlight">\(s \in S\)</span> indicates
 the constraints that a prioritized solution must satisfy when we prioritize
 project selection subject to uncertainty in costs and NPV for each project, as
 well as uncertainty in resource availability. The goal is to prioritize in
 order to maximize expected NPV under the nominal distribution specified by the
-probability mass function <span class="math">q^\sigma</span>, <span class="math">\sigma \in \Sigma</span>.</p>
-<p>We suppose that <span class="math">\xi</span> is a discrete random vector with finite sample
-space <span class="math">\Omega</span>, so that <span class="math">\xi^\omega</span>, <span class="math">\omega \in \Omega</span>,
+probability mass function <span class="math notranslate nohighlight">\(q^\sigma\)</span>, <span class="math notranslate nohighlight">\(\sigma \in \Sigma\)</span>.</p>
+<p>We suppose that <span class="math notranslate nohighlight">\(\xi\)</span> is a discrete random vector with finite sample
+space <span class="math notranslate nohighlight">\(\Omega\)</span>, so that <span class="math notranslate nohighlight">\(\xi^\omega\)</span>, <span class="math notranslate nohighlight">\(\omega \in \Omega\)</span>,
 enumerates all possible realizations. We further suppose that we only have
-observations <span class="math">\xi^\sigma</span>, <span class="math">\sigma \in \Sigma \subset \Omega</span>,
+observations <span class="math notranslate nohighlight">\(\xi^\sigma\)</span>, <span class="math notranslate nohighlight">\(\sigma \in \Sigma \subset \Omega\)</span>,
 possibly a strict subset, arising in a data-driven setting. In such a
 data-driven setting we might have, for example,
-<span class="math">q^\sigma = 1 / |\Sigma|</span> for all <span class="math">\sigma \in \Sigma</span>.</p>
+<span class="math notranslate nohighlight">\(q^\sigma = 1 / |\Sigma|\)</span> for all <span class="math notranslate nohighlight">\(\sigma \in \Sigma\)</span>.</p>
 <p>A DRO variant of this nominal stochastic optimization model is:</p>
-<div class="math" id="equation-include-dro-1">
-<p><span class="eqno">(25)<a class="headerlink" href="#equation-include-dro-1" title="Link to this equation"></a></span><span class="math">\max_{s \in S} \min_{p \in P}
-\sum_{\omega \in \Omega} p^\omega f(s,\xi^\omega).</span></p>
-</div><p>Here, we may view this DRO model as playing a “game” against nature. First we
-select <span class="math">s \in S</span>, and then, knowing <span class="math">s</span>, nature selects a
-worst-case probability distribution <span class="math">p \in P</span> to minimize the expected
-NPV, which we seek to maximize. The set <span class="math">P</span> is the <em>distributional
+<div class="math notranslate nohighlight" id="equation-include-dro-1">
+<span class="eqno">(25)<a class="headerlink" href="#equation-include-dro-1" title="Link to this equation"></a></span>\[\max_{s \in S} \min_{p \in P}
+\sum_{\omega \in \Omega} p^\omega f(s,\xi^\omega).\]</div>
+<p>Here, we may view this DRO model as playing a “game” against nature. First we
+select <span class="math notranslate nohighlight">\(s \in S\)</span>, and then, knowing <span class="math notranslate nohighlight">\(s\)</span>, nature selects a
+worst-case probability distribution <span class="math notranslate nohighlight">\(p \in P\)</span> to minimize the expected
+NPV, which we seek to maximize. The set <span class="math notranslate nohighlight">\(P\)</span> is the <em>distributional
 uncertainty set</em> (DUS), which we will define more precisely below. For now, it
-is enough to think of <span class="math">P</span> as a neighborhood of probability distributions
-centered on the given probability mass function <span class="math">q</span>, with the radius of
-the neighborhood specified by a parameter <span class="math">\varepsilon</span>.</p>
+is enough to think of <span class="math notranslate nohighlight">\(P\)</span> as a neighborhood of probability distributions
+centered on the given probability mass function <span class="math notranslate nohighlight">\(q\)</span>, with the radius of
+the neighborhood specified by a parameter <span class="math notranslate nohighlight">\(\varepsilon\)</span>.</p>
 <ul class="simple">
-<li><p>If <span class="math">\varepsilon = 0</span>, the DRO model reduces to the nominal model.</p></li>
-<li><p>If <span class="math">\varepsilon</span> is very large, nature will select the single
+<li><p>If <span class="math notranslate nohighlight">\(\varepsilon = 0\)</span>, the DRO model reduces to the nominal model.</p></li>
+<li><p>If <span class="math notranslate nohighlight">\(\varepsilon\)</span> is very large, nature will select the single
 worst-case scenario (e.g., lowest budgets, highest costs, lowest NPVs).
 This is typically too conservative to be useful.</p></li>
 </ul>
-<p>With moderate values of <span class="math">\varepsilon</span>, we obtain solutions that hedge
-against deviations from <span class="math">q</span> without being excessively conservative.</p>
+<p>With moderate values of <span class="math notranslate nohighlight">\(\varepsilon\)</span>, we obtain solutions that hedge
+against deviations from <span class="math notranslate nohighlight">\(q\)</span> without being excessively conservative.</p>
 <p>We do <em>not</em> interpret nature as malevolent. Rather, the inner minimization
-<span class="math">\min_{p\in P}</span> acts as a regularizer to avoid over-fitting our solution
+<span class="math notranslate nohighlight">\(\min_{p\in P}\)</span> acts as a regularizer to avoid over-fitting our solution
 to one specific estimated distribution, in much the same way that regularizers
 are used in high-dimensional statistics and machine learning.</p>
 <section id="defining-a-distributional-uncertainty-set-via-the-wasserstein-distance">
 <span id="subsec-wassersteindistance"></span><h2>Defining a Distributional Uncertainty Set via the Wasserstein Distance<a class="headerlink" href="#defining-a-distributional-uncertainty-set-via-the-wasserstein-distance" title="Link to this heading"></a></h2>
-<p>We constrain nature to choose a probability mass function <span class="math">p</span> that is
-“close” to the nominal (or empirical) distribution <span class="math">q</span>. We define the
+<p>We constrain nature to choose a probability mass function <span class="math notranslate nohighlight">\(p\)</span> that is
+“close” to the nominal (or empirical) distribution <span class="math notranslate nohighlight">\(q\)</span>. We define the
 DUS as:</p>
-<div class="math" id="equation-include-dro-2">
-<p><span class="eqno">(26)<a class="headerlink" href="#equation-include-dro-2" title="Link to this equation"></a></span><span class="math">P = \Bigl\{
+<div class="math notranslate nohighlight" id="equation-include-dro-2">
+<span class="eqno">(26)<a class="headerlink" href="#equation-include-dro-2" title="Link to this equation"></a></span>\[P = \Bigl\{
       p :
       D(p,q) \le \varepsilon,\;
       \sum_{\omega \in \Omega} p^\omega = 1,\;
       p^\omega \ge 0,\; \omega \in \Omega
-    \Bigr\},</span></p>
-</div><p>where <span class="math">D(p,q)</span> is a distance between nature’s choice <span class="math">p</span> and the
-nominal distribution <span class="math">q</span>. The radius <span class="math">\varepsilon</span> governs how
-much we allow <span class="math">p</span> to deviate from <span class="math">q</span>, and thus the degree of
+    \Bigr\},\]</div>
+<p>where <span class="math notranslate nohighlight">\(D(p,q)\)</span> is a distance between nature’s choice <span class="math notranslate nohighlight">\(p\)</span> and the
+nominal distribution <span class="math notranslate nohighlight">\(q\)</span>. The radius <span class="math notranslate nohighlight">\(\varepsilon\)</span> governs how
+much we allow <span class="math notranslate nohighlight">\(p\)</span> to deviate from <span class="math notranslate nohighlight">\(q\)</span>, and thus the degree of
 conservatism.</p>
-<p>There are many ways to measure <span class="math">D(p,q)</span>, including the
+<p>There are many ways to measure <span class="math notranslate nohighlight">\(D(p,q)\)</span>, including the
 Kolmogorov–Smirnov distance, Kullback–Leibler divergence, chi-squared
-distances, total variation, and more general <span class="math">\psi</span>-divergences. The
+distances, total variation, and more general <span class="math notranslate nohighlight">\(\psi\)</span>-divergences. The
 Wasserstein distance, based on optimal transport, is particularly useful in
 DRO. For a distribution with known finite support, the Wasserstein distance
-<span class="math">D(p,q)</span> between a nominal distribution <span class="math">q^\sigma</span>,
-<span class="math">\sigma \in \Sigma</span>, and a candidate robust distribution <span class="math">p^\omega</span>,
-<span class="math">\omega \in \Omega</span>, is given by the optimal value of the following
+<span class="math notranslate nohighlight">\(D(p,q)\)</span> between a nominal distribution <span class="math notranslate nohighlight">\(q^\sigma\)</span>,
+<span class="math notranslate nohighlight">\(\sigma \in \Sigma\)</span>, and a candidate robust distribution <span class="math notranslate nohighlight">\(p^\omega\)</span>,
+<span class="math notranslate nohighlight">\(\omega \in \Omega\)</span>, is given by the optimal value of the following
 transportation problem:</p>
-<div class="math" id="equation-wassersteineq">
-<p><span class="eqno">(27)<a class="headerlink" href="#equation-wassersteineq" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-wassersteineq">
+<span class="eqno">(27)<a class="headerlink" href="#equation-wassersteineq" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 D(q,p) = \min_z \quad
 &amp; \sum_{\sigma \in \Sigma} \sum_{\omega \in \Omega}
     d_{\sigma,\omega} z_{\sigma,\omega} \\
@@ -177,39 +179,39 @@ D(q,p) = \min_z \quad
   &amp;&amp; \omega \in \Omega, \\
 &amp; z_{\sigma,\omega} \ge 0,
   &amp;&amp; \sigma \in \Sigma,\; \omega \in \Omega.
-\end{aligned}</span></p>
-</div><p>Intuitively, <span class="math">z_{\sigma,\omega}</span> denotes how much probability mass
-<span class="math">q^\sigma</span> must be transported a distance <span class="math">d_{\sigma,\omega}</span> from
-<span class="math">\xi^\sigma</span> to <span class="math">\xi^\omega</span>. If <span class="math">\Omega = \Sigma</span>,
-<span class="math">p^\omega = q^\omega</span> for all <span class="math">\omega</span>, and
-<span class="math">d_{\omega,\omega} = 0</span>, then <span class="math">D(p,q) = 0</span>.</p>
-<p>To fully specify <span class="math">D(p,q)</span>, we must define
-<span class="math">d_{\sigma,\omega} = \text{dist}(\xi^\sigma,\xi^\omega)</span>. We may choose
-<span class="math">\text{dist}(\cdot,\cdot)</span> to be, for example, an <span class="math">\ell_\eta</span>-norm:</p>
-<div class="math" id="equation-include-dro-3">
-<p><span class="eqno">(28)<a class="headerlink" href="#equation-include-dro-3" title="Link to this equation"></a></span><span class="math">d_{\sigma,\omega}
-= \|\xi^\sigma - \xi^\omega\|_\eta.</span></p>
-</div><p>With the Wasserstein distance, and a given distribution <span class="math">q</span>, we define:</p>
-<div class="math" id="equation-include-dro-4">
-<p><span class="eqno">(29)<a class="headerlink" href="#equation-include-dro-4" title="Link to this equation"></a></span><span class="math">P = \Bigl\{
+\end{aligned}\end{split}\]</div>
+<p>Intuitively, <span class="math notranslate nohighlight">\(z_{\sigma,\omega}\)</span> denotes how much probability mass
+<span class="math notranslate nohighlight">\(q^\sigma\)</span> must be transported a distance <span class="math notranslate nohighlight">\(d_{\sigma,\omega}\)</span> from
+<span class="math notranslate nohighlight">\(\xi^\sigma\)</span> to <span class="math notranslate nohighlight">\(\xi^\omega\)</span>. If <span class="math notranslate nohighlight">\(\Omega = \Sigma\)</span>,
+<span class="math notranslate nohighlight">\(p^\omega = q^\omega\)</span> for all <span class="math notranslate nohighlight">\(\omega\)</span>, and
+<span class="math notranslate nohighlight">\(d_{\omega,\omega} = 0\)</span>, then <span class="math notranslate nohighlight">\(D(p,q) = 0\)</span>.</p>
+<p>To fully specify <span class="math notranslate nohighlight">\(D(p,q)\)</span>, we must define
+<span class="math notranslate nohighlight">\(d_{\sigma,\omega} = \text{dist}(\xi^\sigma,\xi^\omega)\)</span>. We may choose
+<span class="math notranslate nohighlight">\(\text{dist}(\cdot,\cdot)\)</span> to be, for example, an <span class="math notranslate nohighlight">\(\ell_\eta\)</span>-norm:</p>
+<div class="math notranslate nohighlight" id="equation-include-dro-3">
+<span class="eqno">(28)<a class="headerlink" href="#equation-include-dro-3" title="Link to this equation"></a></span>\[d_{\sigma,\omega}
+= \|\xi^\sigma - \xi^\omega\|_\eta.\]</div>
+<p>With the Wasserstein distance, and a given distribution <span class="math notranslate nohighlight">\(q\)</span>, we define:</p>
+<div class="math notranslate nohighlight" id="equation-include-dro-4">
+<span class="eqno">(29)<a class="headerlink" href="#equation-include-dro-4" title="Link to this equation"></a></span>\[P = \Bigl\{
       p :
       D(p,q) \le \varepsilon,\;
       \sum_{\omega \in \Omega} p^\omega = 1,\;
       p^\omega \ge 0,\; \omega \in \Omega
-    \Bigr\}</span></p>
-</div><p>for a chosen radius <span class="math">\varepsilon</span>. We think of <span class="math">P</span> as a ball (or
-neighborhood) of probability distributions centered at <span class="math">q</span>. With
-<span class="math">\Sigma \subset \Omega</span>:</p>
+    \Bigr\}\]</div>
+<p>for a chosen radius <span class="math notranslate nohighlight">\(\varepsilon\)</span>. We think of <span class="math notranslate nohighlight">\(P\)</span> as a ball (or
+neighborhood) of probability distributions centered at <span class="math notranslate nohighlight">\(q\)</span>. With
+<span class="math notranslate nohighlight">\(\Sigma \subset \Omega\)</span>:</p>
 <ul class="simple">
-<li><p>If <span class="math">\varepsilon = 0</span>, then <span class="math">P</span> collapses to the singleton
-<span class="math">\{q\}</span>.</p></li>
-<li><p>Larger <span class="math">\varepsilon</span> creates larger neighborhoods and more
+<li><p>If <span class="math notranslate nohighlight">\(\varepsilon = 0\)</span>, then <span class="math notranslate nohighlight">\(P\)</span> collapses to the singleton
+<span class="math notranslate nohighlight">\(\{q\}\)</span>.</p></li>
+<li><p>Larger <span class="math notranslate nohighlight">\(\varepsilon\)</span> creates larger neighborhoods and more
 conservative robust models.</p></li>
 </ul>
-<p>We can represent <span class="math">P</span> using the following <em>extended-variable</em>
+<p>We can represent <span class="math notranslate nohighlight">\(P\)</span> using the following <em>extended-variable</em>
 constraints:</p>
-<div class="math" id="equation-wassersteinconstraints">
-<p><span class="eqno">(30)<a class="headerlink" href="#equation-wassersteinconstraints" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-wassersteinconstraints">
+<span class="eqno">(30)<a class="headerlink" href="#equation-wassersteinconstraints" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 &amp; \sum_{\sigma \in \Sigma} \sum_{\omega \in \Omega}
     d_{\sigma,\omega} z_{\sigma,\omega} \le \varepsilon, \\
 &amp; \sum_{\omega \in \Omega} z_{\sigma,\omega} = q^\sigma,
@@ -218,17 +220,17 @@ constraints:</p>
   &amp;&amp; \omega \in \Omega, \\
 &amp; z_{\sigma,\omega} \ge 0,
   &amp;&amp; \sigma \in \Sigma,\; \omega \in \Omega.
-\end{aligned}</span></p>
-</div></section>
+\end{aligned}\end{split}\]</div>
+</section>
 <section id="towards-a-computationally-tractable-reformulation">
 <span id="subsec-tractablereformulation"></span><h2>Towards a Computationally Tractable Reformulation<a class="headerlink" href="#towards-a-computationally-tractable-reformulation" title="Link to this heading"></a></h2>
-<p>Due to the nested <span class="math">\max \min</span> in the DRO model, it is not directly
+<p>Due to the nested <span class="math notranslate nohighlight">\(\max \min\)</span> in the DRO model, it is not directly
 amenable to off-the-shelf solvers. We therefore reformulate it.</p>
-<p>For the moment, fix <span class="math">s \in S</span>, so that <span class="math">f(s,\xi^\omega)</span> is a
-known numerical value for each <span class="math">\omega \in \Omega</span>. Nature’s problem can
+<p>For the moment, fix <span class="math notranslate nohighlight">\(s \in S\)</span>, so that <span class="math notranslate nohighlight">\(f(s,\xi^\omega)\)</span> is a
+known numerical value for each <span class="math notranslate nohighlight">\(\omega \in \Omega\)</span>. Nature’s problem can
 then be written as:</p>
-<div class="math" id="equation-include-dro-5">
-<p><span class="eqno">(31)<a class="headerlink" href="#equation-include-dro-5" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-include-dro-5">
+<span class="eqno">(31)<a class="headerlink" href="#equation-include-dro-5" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \min_{p,z} \quad
 &amp; \sum_{\omega \in \Omega} p^\omega f(s,\xi^\omega) \\
 \text{s.t.} \quad
@@ -244,14 +246,14 @@ then be written as:</p>
     &amp;&amp; \omega \in \Omega : [\beta^\omega], \\
 &amp; z_{\sigma,\omega} \ge 0,
     &amp;&amp; \sigma \in \Sigma,\; \omega \in \Omega.
-\end{aligned}</span></p>
-</div><p>Here <span class="math">\gamma</span>, <span class="math">\nu^\sigma</span>, and <span class="math">\beta^\omega</span> are dual
-variables. Nature optimizes over <span class="math">z</span> and <span class="math">p</span> to select a worst-case
-distribution within radius <span class="math">\varepsilon</span> of <span class="math">q</span>.</p>
+\end{aligned}\end{split}\]</div>
+<p>Here <span class="math notranslate nohighlight">\(\gamma\)</span>, <span class="math notranslate nohighlight">\(\nu^\sigma\)</span>, and <span class="math notranslate nohighlight">\(\beta^\omega\)</span> are dual
+variables. Nature optimizes over <span class="math notranslate nohighlight">\(z\)</span> and <span class="math notranslate nohighlight">\(p\)</span> to select a worst-case
+distribution within radius <span class="math notranslate nohighlight">\(\varepsilon\)</span> of <span class="math notranslate nohighlight">\(q\)</span>.</p>
 <p>Taking the dual of this linear DRO program, and substituting
-<span class="math">\beta^\omega = -f(s,\xi^\omega)</span>, we obtain:</p>
-<div class="math" id="equation-dualprolem">
-<p><span class="eqno">(32)<a class="headerlink" href="#equation-dualprolem" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<span class="math notranslate nohighlight">\(\beta^\omega = -f(s,\xi^\omega)\)</span>, we obtain:</p>
+<div class="math notranslate nohighlight" id="equation-dualprolem">
+<span class="eqno">(32)<a class="headerlink" href="#equation-dualprolem" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{\gamma,\nu} \quad
 &amp; -\gamma \varepsilon + \sum_{\sigma \in \Sigma} \nu^\sigma q^\sigma \\
 \text{s.t.} \quad
@@ -259,32 +261,32 @@ distribution within radius <span class="math">\varepsilon</span> of <span class=
     \le f(s,\xi^\omega),
     &amp;&amp; \sigma \in \Sigma,\; \omega \in \Omega, \\
 &amp; \gamma \ge 0.
-\end{aligned}</span></p>
-</div><p>To build intuition, consider two extremes:</p>
+\end{aligned}\end{split}\]</div>
+<p>To build intuition, consider two extremes:</p>
 <ul>
-<li><p>Case <span class="math">\varepsilon = 0</span>. There is no penalty for large
-<span class="math">\gamma</span> in the objective. As <span class="math">\gamma</span> grows large, the
-constraints for <span class="math">\sigma \ne \omega</span> become vacuous. For
-<span class="math">\sigma = \omega</span>, <span class="math">d_{\sigma,\sigma} = 0</span>, so the constraint
-becomes <span class="math">\nu^\sigma \le f(s,\xi^\sigma)</span>. Optimizing yields
-<span class="math">\sum_\sigma q^\sigma f(s,\xi^\sigma)</span>, which is exactly the nominal
+<li><p>Case <span class="math notranslate nohighlight">\(\varepsilon = 0\)</span>. There is no penalty for large
+<span class="math notranslate nohighlight">\(\gamma\)</span> in the objective. As <span class="math notranslate nohighlight">\(\gamma\)</span> grows large, the
+constraints for <span class="math notranslate nohighlight">\(\sigma \ne \omega\)</span> become vacuous. For
+<span class="math notranslate nohighlight">\(\sigma = \omega\)</span>, <span class="math notranslate nohighlight">\(d_{\sigma,\sigma} = 0\)</span>, so the constraint
+becomes <span class="math notranslate nohighlight">\(\nu^\sigma \le f(s,\xi^\sigma)\)</span>. Optimizing yields
+<span class="math notranslate nohighlight">\(\sum_\sigma q^\sigma f(s,\xi^\sigma)\)</span>, which is exactly the nominal
 expected value.</p></li>
-<li><p>Case <span class="math">\varepsilon \to \infty</span>. To avoid a large penalty
-<span class="math">-\gamma \varepsilon</span> in the objective, we must have <span class="math">\gamma = 0</span>.
-The constraint reduces to <span class="math">\nu^\sigma \le f(s,\xi^\omega)</span> for all
-<span class="math">\omega</span>, so <span class="math">\nu^\sigma = \min_\omega f(s,\xi^\omega)</span>. The
+<li><p>Case <span class="math notranslate nohighlight">\(\varepsilon \to \infty\)</span>. To avoid a large penalty
+<span class="math notranslate nohighlight">\(-\gamma \varepsilon\)</span> in the objective, we must have <span class="math notranslate nohighlight">\(\gamma = 0\)</span>.
+The constraint reduces to <span class="math notranslate nohighlight">\(\nu^\sigma \le f(s,\xi^\omega)\)</span> for all
+<span class="math notranslate nohighlight">\(\omega\)</span>, so <span class="math notranslate nohighlight">\(\nu^\sigma = \min_\omega f(s,\xi^\omega)\)</span>. The
 objective becomes:</p>
-<div class="math" id="equation-include-dro-6">
-<p><span class="eqno">(33)<a class="headerlink" href="#equation-include-dro-6" title="Link to this equation"></a></span><span class="math">\sum_\sigma q^\sigma \min_\omega f(s,\xi^\omega)
-= \min_\omega f(s,\xi^\omega),</span></p>
-</div><p>which corresponds to nature placing probability 1 on the worst-case scenario.</p>
+<div class="math notranslate nohighlight" id="equation-include-dro-6">
+<span class="eqno">(33)<a class="headerlink" href="#equation-include-dro-6" title="Link to this equation"></a></span>\[\sum_\sigma q^\sigma \min_\omega f(s,\xi^\omega)
+= \min_\omega f(s,\xi^\omega),\]</div>
+<p>which corresponds to nature placing probability 1 on the worst-case scenario.</p>
 </li>
 </ul>
-<p>Specializing <span class="math">s \in S</span> to the capital budgeting prioritization decisions,
-and <span class="math">f(s,\xi^\omega)</span> to the NPV under scenario <span class="math">\omega</span>, the DRO
+<p>Specializing <span class="math notranslate nohighlight">\(s \in S\)</span> to the capital budgeting prioritization decisions,
+and <span class="math notranslate nohighlight">\(f(s,\xi^\omega)\)</span> to the NPV under scenario <span class="math notranslate nohighlight">\(\omega\)</span>, the DRO
 variant of the stochastic capital budgeting problem is:</p>
-<div class="math" id="equation-fulldro">
-<p><span class="eqno">(34)<a class="headerlink" href="#equation-fulldro" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-fulldro">
+<span class="eqno">(34)<a class="headerlink" href="#equation-fulldro" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{x,y,\gamma,\nu} \quad
 &amp; -\gamma \varepsilon + \sum_{\sigma \in \Sigma} \nu^\sigma q^\sigma \\
 \text{s.t.} \quad
@@ -303,8 +305,8 @@ variant of the stochastic capital budgeting problem is:</p>
 &amp; \sum_{j \in J_i} x_{ij}^\omega \le 1,
     &amp;&amp; i \in I,\; \omega \in \Omega, \\
 &amp; \gamma \ge 0.
-\end{aligned}</span></p>
-</div></section>
+\end{aligned}\end{split}\]</div>
+</section>
 <section id="logos-settings-for-dro-problems">
 <span id="subsec-drosettings"></span><h2>LOGOS Settings for DRO Problems<a class="headerlink" href="#logos-settings-for-dro-problems" title="Link to this heading"></a></h2>
 <p>The DRO approach extends the stochastic optimization approach discussed in
@@ -320,7 +322,7 @@ problem types are:</p>
 <li><p><code class="xml-string docutils literal notranslate"><span class="pre">'dromckp'</span></code></p></li>
 </ul>
 <p>The user can use <code class="xml-node docutils literal notranslate"><span class="pre">&lt;radius_ambiguity&gt;</span></code> to control the Wasserstein radius
-<span class="math">\varepsilon</span> for DRO problems.</p>
+<span class="math notranslate nohighlight">\(\varepsilon\)</span> for DRO problems.</p>
 <p>Example LOGOS input XML for DRO:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Settings&gt;</span>
 <span class="nt">&lt;Logos&gt;</span>
@@ -340,8 +342,8 @@ problem types are:</p>
 <section id="dro-for-single-knapsack-problem">
 <span id="subsec-dro-skp"></span><h2>DRO for Single Knapsack Problem<a class="headerlink" href="#dro-for-single-knapsack-problem" title="Link to this heading"></a></h2>
 <p><em>Model formulation.</em></p>
-<div class="math" id="equation-drosimplekp">
-<p><span class="eqno">(35)<a class="headerlink" href="#equation-drosimplekp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-drosimplekp">
+<span class="eqno">(35)<a class="headerlink" href="#equation-drosimplekp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{x,y} \max_{\gamma,\nu} \quad
 &amp; -\gamma \varepsilon + \sum_{\sigma \in \Sigma} \nu^\sigma q^\sigma \\
 \text{s.t.} \quad
@@ -357,8 +359,8 @@ problem types are:</p>
     &amp;&amp; i \ne i', \\
 &amp; x_i^\omega, y_{ii'}^\omega \in \{0,1\}, \\
 &amp; \gamma \ge 0.
-\end{aligned}</span></p>
-</div><p>See Section <a class="reference internal" href="#subsec-dro-dkp"><span class="std std-ref">DRO for Multi-Dimensional Knapsack Problem</span></a> for an example LOGOS input file. The
+\end{aligned}\end{split}\]</div>
+<p>See Section <a class="reference internal" href="#subsec-dro-dkp"><span class="std std-ref">DRO for Multi-Dimensional Knapsack Problem</span></a> for an example LOGOS input file. The
 multi-dimensional knapsack problem is a straightforward extension of the
 single-dimensional case, and both share <code class="xml-node docutils literal notranslate"><span class="pre">&lt;problem_type&gt;</span></code>
 <code class="xml-string docutils literal notranslate"><span class="pre">'droskp'</span></code>.</p>
@@ -366,8 +368,8 @@ single-dimensional case, and both share <code class="xml-node docutils literal n
 <section id="dro-for-multi-dimensional-knapsack-problem">
 <span id="subsec-dro-dkp"></span><h2>DRO for Multi-Dimensional Knapsack Problem<a class="headerlink" href="#dro-for-multi-dimensional-knapsack-problem" title="Link to this heading"></a></h2>
 <p><em>Model formulation.</em></p>
-<div class="math" id="equation-dromultidkp">
-<p><span class="eqno">(36)<a class="headerlink" href="#equation-dromultidkp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-dromultidkp">
+<span class="eqno">(36)<a class="headerlink" href="#equation-dromultidkp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{x,y} \max_{\gamma,\nu} \quad
 &amp; -\gamma \varepsilon + \sum_{\sigma \in \Sigma} \nu^\sigma q^\sigma \\
 \text{s.t.} \quad
@@ -383,8 +385,8 @@ single-dimensional case, and both share <code class="xml-node docutils literal n
     &amp;&amp; i \ne i', \\
 &amp; x_i^\omega, y_{ii'}^\omega \in \{0,1\}, \\
 &amp; \gamma \ge 0.
-\end{aligned}</span></p>
-</div><p>Example LOGOS input XML:</p>
+\end{aligned}\end{split}\]</div>
+<p>Example LOGOS input XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
 <span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
 <span class="w">    </span><span class="nt">&lt;investments&gt;</span>
@@ -468,8 +470,8 @@ single-dimensional case, and both share <code class="xml-node docutils literal n
 <section id="dro-for-multiple-knapsack-problem">
 <span id="subsec-dro-mkp"></span><h2>DRO for Multiple Knapsack Problem<a class="headerlink" href="#dro-for-multiple-knapsack-problem" title="Link to this heading"></a></h2>
 <p><em>Model formulation.</em></p>
-<div class="math" id="equation-dromkp">
-<p><span class="eqno">(37)<a class="headerlink" href="#equation-dromkp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-dromkp">
+<span class="eqno">(37)<a class="headerlink" href="#equation-dromkp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{x,y} \max_{\gamma,\nu} \quad
 &amp; -\gamma \varepsilon + \sum_{\sigma \in \Sigma} \nu^\sigma q^\sigma \\
 \text{s.t.} \quad
@@ -486,8 +488,8 @@ single-dimensional case, and both share <code class="xml-node docutils literal n
     &amp;&amp; i \ne i',\; i,i' \in I,\; \omega \in \Omega, \\
 &amp; x_{im}^\omega, y_{ii'}^\omega \in \{0,1\}, \\
 &amp; \gamma \ge 0.
-\end{aligned}</span></p>
-</div><p>Example LOGOS input XML:</p>
+\end{aligned}\end{split}\]</div>
+<p>Example LOGOS input XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
 <span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
 <span class="w">    </span><span class="nt">&lt;investments&gt;</span>
@@ -548,8 +550,8 @@ single-dimensional case, and both share <code class="xml-node docutils literal n
 <section id="dro-for-multiple-choice-knapsack-problem">
 <span id="subsec-dro-mckp"></span><h2>DRO for Multiple-Choice Knapsack Problem<a class="headerlink" href="#dro-for-multiple-choice-knapsack-problem" title="Link to this heading"></a></h2>
 <p><em>Model formulation.</em></p>
-<div class="math" id="equation-dromckp">
-<p><span class="eqno">(38)<a class="headerlink" href="#equation-dromckp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-dromckp">
+<span class="eqno">(38)<a class="headerlink" href="#equation-dromckp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{x,y} \max_{\gamma,\nu} \quad
 &amp; -\gamma \varepsilon + \sum_{\sigma \in \Sigma} \nu^\sigma q^\sigma \\
 \text{s.t.} \quad
@@ -567,8 +569,8 @@ single-dimensional case, and both share <code class="xml-node docutils literal n
     &amp;&amp; i \ne i',\; i,i' \in I,\; \omega \in \Omega, \\
 &amp; x_{ij}^\omega, y_{ii'}^\omega \in \{0,1\}, \\
 &amp; \gamma \ge 0.
-\end{aligned}</span></p>
-</div><p>Example LOGOS input XML:</p>
+\end{aligned}\end{split}\]</div>
+<p>Example LOGOS input XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
 <span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
 <span class="w">    </span><span class="nt">&lt;investments&gt;</span>

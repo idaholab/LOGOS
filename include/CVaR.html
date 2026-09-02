@@ -20,6 +20,8 @@
       <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "tags": "ams", "tagSide": "right", "tagIndent": "0.8em"}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -109,18 +111,18 @@ the losses exceeding VaR. In this section, we focus on using CVaR for the capita
 budgeting problem.</p>
 <section id="definitions-of-var-and-cvar">
 <span id="definitioncvar"></span><h2>Definitions of VaR and CVaR<a class="headerlink" href="#definitions-of-var-and-cvar" title="Link to this heading"></a></h2>
-<p>Let <span class="math">X</span> be a random variable with cumulative distribution function
-<span class="math">F(z) = P\{X \le z\}</span>. It can be useful to think of <span class="math">X</span> as a <em>loss</em>
+<p>Let <span class="math notranslate nohighlight">\(X\)</span> be a random variable with cumulative distribution function
+<span class="math notranslate nohighlight">\(F(z) = P\{X \le z\}\)</span>. It can be useful to think of <span class="math notranslate nohighlight">\(X\)</span> as a <em>loss</em>
 (or more generally, a variable for which large values are undesirable). The VaR
-of <span class="math">X</span> with confidence level <span class="math">\alpha</span> (e.g., <span class="math">\alpha = 0.9</span>) is:</p>
-<div class="math" id="equation-include-cvar-0">
-<p><span class="eqno">(39)<a class="headerlink" href="#equation-include-cvar-0" title="Link to this equation"></a></span><span class="math">VaR_\alpha(X) = \min \{ z \mid F_X(z) \ge \alpha \}</span></p>
-</div><p>If <span class="math">X</span> is continuous, this is equivalent to
-<span class="math">VaR_\alpha(X) = F_X^{-1}(\alpha)</span>. By this definition,
-<span class="math">VaR_\alpha(X)</span> is the (lower) <span class="math">\alpha</span>-percentile of the random
-variable <span class="math">X</span>.</p>
-<p>An alternative risk measure is CVaR, where <span class="math">CVaR_\alpha(X)</span> is the
-conditional expectation of <span class="math">X</span> given that <span class="math">X \ge VaR_\alpha(X)</span>.
+of <span class="math notranslate nohighlight">\(X\)</span> with confidence level <span class="math notranslate nohighlight">\(\alpha\)</span> (e.g., <span class="math notranslate nohighlight">\(\alpha = 0.9\)</span>) is:</p>
+<div class="math notranslate nohighlight" id="equation-include-cvar-0">
+<span class="eqno">(39)<a class="headerlink" href="#equation-include-cvar-0" title="Link to this equation"></a></span>\[VaR_\alpha(X) = \min \{ z \mid F_X(z) \ge \alpha \}\]</div>
+<p>If <span class="math notranslate nohighlight">\(X\)</span> is continuous, this is equivalent to
+<span class="math notranslate nohighlight">\(VaR_\alpha(X) = F_X^{-1}(\alpha)\)</span>. By this definition,
+<span class="math notranslate nohighlight">\(VaR_\alpha(X)\)</span> is the (lower) <span class="math notranslate nohighlight">\(\alpha\)</span>-percentile of the random
+variable <span class="math notranslate nohighlight">\(X\)</span>.</p>
+<p>An alternative risk measure is CVaR, where <span class="math notranslate nohighlight">\(CVaR_\alpha(X)\)</span> is the
+conditional expectation of <span class="math notranslate nohighlight">\(X\)</span> given that <span class="math notranslate nohighlight">\(X \ge VaR_\alpha(X)\)</span>.
 Figure <a class="reference internal" href="#fig-cvar"><span class="std std-numref">Figure 1</span></a> shows the relationship between these two measures of risk.</p>
 <figure class="align-default" id="fig-cvar">
 <a class="reference internal image-reference" href="../_images/CVaR.jpg"><img alt="Relationship between value-at-risk and conditional value-at-risk." src="../_images/CVaR.jpg" style="width: 234.0px; height: 156.0px;" />
@@ -129,16 +131,16 @@ Figure <a class="reference internal" href="#fig-cvar"><span class="std std-numre
 <p><span class="caption-number">Figure 1 </span><span class="caption-text">Relationship between value-at-risk and conditional value-at-risk.</span><a class="headerlink" href="#fig-cvar" title="Link to this image"></a></p>
 </figcaption>
 </figure>
-<p>A typical definition of <span class="math">CVaR_\alpha(X)</span> is:</p>
-<div class="math" id="equation-include-cvar-1">
-<p><span class="eqno">(40)<a class="headerlink" href="#equation-include-cvar-1" title="Link to this equation"></a></span><span class="math">CVaR_\alpha(X) = E\{ X \mid X &gt; VaR_\alpha(X) \}.</span></p>
-</div><p>There are alternative, mathematically equivalent ways to define this measure.
+<p>A typical definition of <span class="math notranslate nohighlight">\(CVaR_\alpha(X)\)</span> is:</p>
+<div class="math notranslate nohighlight" id="equation-include-cvar-1">
+<span class="eqno">(40)<a class="headerlink" href="#equation-include-cvar-1" title="Link to this equation"></a></span>\[CVaR_\alpha(X) = E\{ X \mid X &gt; VaR_\alpha(X) \}.\]</div>
+<p>There are alternative, mathematically equivalent ways to define this measure.
 Rockafellar and Uryasev <span class="bibtex-citation" id="id2">[<a class="reference internal" href="../index.html#id7" title="R. T. Rockafellar and S. P. Uryasev. Optimization of conditional value at risk. Journal of Risk, 2:21–42, 2000.">6</a>, <a class="reference internal" href="../index.html#id8" title="G. C. Pflug. Some remarks on the value at risk and the conditional value at risk. In Probabilistic Constrained Optimization: Methodology and Applications, pages 278–287. 2000.">7</a>]</span> define CVaR as:</p>
-<div class="math" id="equation-include-cvar-2">
-<p><span class="eqno">(41)<a class="headerlink" href="#equation-include-cvar-2" title="Link to this equation"></a></span><span class="math">CVaR_\alpha(X) = \min_u \Bigl\{ u + \frac{1}{1-\alpha}
-E\bigl[(X-u)^+\bigr] \Bigr\},</span></p>
-</div><p>where <span class="math">(X-u)^+ = \max(X-u, 0)</span>. Here, <span class="math">u</span> is an auxiliary decision
-variable whose optimal value turns out to be <span class="math">VaR_\alpha(X)</span>. This
+<div class="math notranslate nohighlight" id="equation-include-cvar-2">
+<span class="eqno">(41)<a class="headerlink" href="#equation-include-cvar-2" title="Link to this equation"></a></span>\[CVaR_\alpha(X) = \min_u \Bigl\{ u + \frac{1}{1-\alpha}
+E\bigl[(X-u)^+\bigr] \Bigr\},\]</div>
+<p>where <span class="math notranslate nohighlight">\((X-u)^+ = \max(X-u, 0)\)</span>. Here, <span class="math notranslate nohighlight">\(u\)</span> is an auxiliary decision
+variable whose optimal value turns out to be <span class="math notranslate nohighlight">\(VaR_\alpha(X)\)</span>. This
 definition is particularly useful for computation in optimization models.</p>
 <p>Researchers have argued for using CVaR over VaR as a measure of risk. Theoretically,
 CVaR satisfies the assumptions of a coherent risk measure, whereas VaR does not.
@@ -151,37 +153,37 @@ CVaR incorporates those tail magnitudes.</p>
 <p>In this section, an explicit risk measure is constructed using a weighted
 combination of expectation and CVaR. This approach allows us to parametrically
 vary the weight on maximizing expected NPV versus penalizing solutions that yield
-low-NPV scenarios. We denote the weight by <span class="math">\lambda</span>, with
-<span class="math">0 \le \lambda \le 1</span>.</p>
-<p>Let <span class="math">NPV(s,\xi)</span> denote the net present value under a prioritization decision
-<span class="math">s</span>, and under a realization <span class="math">\xi</span> of the budget and profit for each
+low-NPV scenarios. We denote the weight by <span class="math notranslate nohighlight">\(\lambda\)</span>, with
+<span class="math notranslate nohighlight">\(0 \le \lambda \le 1\)</span>.</p>
+<p>Let <span class="math notranslate nohighlight">\(NPV(s,\xi)\)</span> denote the net present value under a prioritization decision
+<span class="math notranslate nohighlight">\(s\)</span>, and under a realization <span class="math notranslate nohighlight">\(\xi\)</span> of the budget and profit for each
 project. We seek to solve:</p>
-<div class="math" id="equation-include-cvar-3">
-<p><span class="eqno">(42)<a class="headerlink" href="#equation-include-cvar-3" title="Link to this equation"></a></span><span class="math">\max_{s \in S} \;
+<div class="math notranslate nohighlight" id="equation-include-cvar-3">
+<span class="eqno">(42)<a class="headerlink" href="#equation-include-cvar-3" title="Link to this equation"></a></span>\[\max_{s \in S} \;
 (1-\lambda) E[NPV(s,\xi)]
-- \lambda \, CVaR_\alpha[-NPV(s,\xi)].</span></p>
-</div><p>When <span class="math">\lambda = 0</span>, the model reduces to the stochastic optimization model
+- \lambda \, CVaR_\alpha[-NPV(s,\xi)].\]</div>
+<p>When <span class="math notranslate nohighlight">\(\lambda = 0\)</span>, the model reduces to the stochastic optimization model
 discussed in Section <a class="reference internal" href="StochasticCapitalBudgeting.html#sec-stochasticcapitalbudgeting"><span class="std std-ref">Prioritizing Project Selection to Hedge Against Uncertainty</span></a>; that is, we seek a
-prioritization <span class="math">s</span> to maximize expected NPV, with <span class="math">s \in S</span>
+prioritization <span class="math notranslate nohighlight">\(s\)</span> to maximize expected NPV, with <span class="math notranslate nohighlight">\(s \in S\)</span>
 representing feasibility constraints.</p>
-<p>The functional <span class="math">CVaR_\alpha[X]</span> is typically applied to a random variable
-<span class="math">X</span> representing a <em>loss</em>; i.e., we seek to avoid large values of <span class="math">X</span>.
-Let <span class="math">VaR_\alpha[X]</span> denote the <span class="math">\alpha</span>-quantile of <span class="math">X</span>. For
-example, if <span class="math">\alpha = 0.75</span>, <span class="math">VaR_{0.75}[X]</span> is the value such that
-75% of realizations of <span class="math">X</span> have lower losses. Suppose for simplicity that
-<span class="math">NPV(s,\xi)</span> is positive. Large <span class="math">NPV(s,\xi)</span> is desirable, so large
-values of <span class="math">-NPV(s,\xi)</span> (i.e., values closer to zero) correspond to worse
+<p>The functional <span class="math notranslate nohighlight">\(CVaR_\alpha[X]\)</span> is typically applied to a random variable
+<span class="math notranslate nohighlight">\(X\)</span> representing a <em>loss</em>; i.e., we seek to avoid large values of <span class="math notranslate nohighlight">\(X\)</span>.
+Let <span class="math notranslate nohighlight">\(VaR_\alpha[X]\)</span> denote the <span class="math notranslate nohighlight">\(\alpha\)</span>-quantile of <span class="math notranslate nohighlight">\(X\)</span>. For
+example, if <span class="math notranslate nohighlight">\(\alpha = 0.75\)</span>, <span class="math notranslate nohighlight">\(VaR_{0.75}[X]\)</span> is the value such that
+75% of realizations of <span class="math notranslate nohighlight">\(X\)</span> have lower losses. Suppose for simplicity that
+<span class="math notranslate nohighlight">\(NPV(s,\xi)\)</span> is positive. Large <span class="math notranslate nohighlight">\(NPV(s,\xi)\)</span> is desirable, so large
+values of <span class="math notranslate nohighlight">\(-NPV(s,\xi)\)</span> (i.e., values closer to zero) correspond to worse
 outcomes.</p>
-<p>Using <span class="math">CVaR_\alpha[X] = E[X \mid X &gt; VaR_\alpha[X]]</span>, the conditional
+<p>Using <span class="math notranslate nohighlight">\(CVaR_\alpha[X] = E[X \mid X &gt; VaR_\alpha[X]]\)</span>, the conditional
 value-at-risk is the expected loss given that the loss exceeds a specified
-percentile. Thus, when <span class="math">\lambda = 1</span>, the objective focuses on minimizing
+percentile. Thus, when <span class="math notranslate nohighlight">\(\lambda = 1\)</span>, the objective focuses on minimizing
 the expected NPV conditional on being in the low tail (i.e., “bad outcomes”).
-For <span class="math">0 &lt; \lambda &lt; 1</span>, we trade off expected reward and risk, captured by
+For <span class="math notranslate nohighlight">\(0 &lt; \lambda &lt; 1\)</span>, we trade off expected reward and risk, captured by
 expected NPV and CVaR, respectively.</p>
 <p>The full mathematical optimization model of CVaR for the capital budgeting problem
 is:</p>
-<div class="math" id="equation-fullcvar">
-<p><span class="eqno">(43)<a class="headerlink" href="#equation-fullcvar" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-fullcvar">
+<span class="eqno">(43)<a class="headerlink" href="#equation-fullcvar" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{x, y, \nu, u} \quad
 &amp; (1-\lambda) \sum_{\omega \in \Omega} q^\omega
   \sum_{i \in I} \sum_{j \in J_i} a_{ij}^\omega x_{ij}^\omega
@@ -204,8 +206,8 @@ is:</p>
 &amp; y_{ii'},\, x_{ij}^\omega \in \{0,1\}, \\
 &amp; \nu^\omega \ge 0,
   &amp;&amp; \omega \in \Omega.
-\end{aligned}</span></p>
-</div></section>
+\end{aligned}\end{split}\]</div>
+</section>
 <section id="logos-settings-for-cvar-problems">
 <span id="subsec-cvarsettings"></span><h2>LOGOS Settings for CVaR Problems<a class="headerlink" href="#logos-settings-for-cvar-problems" title="Link to this heading"></a></h2>
 <p>The CVaR approach extends the stochastic optimization approach discussed in
@@ -220,8 +222,8 @@ available CVaR problem types are:</p>
 <li><p><code class="xml-string docutils literal notranslate"><span class="pre">'cvarmkp'</span></code></p></li>
 <li><p><code class="xml-string docutils literal notranslate"><span class="pre">'cvarmckp'</span></code></p></li>
 </ul>
-<p>The user can use <code class="xml-node docutils literal notranslate"><span class="pre">&lt;risk_aversion&gt;</span></code> (i.e., <span class="math">\lambda</span>) and
-<code class="xml-node docutils literal notranslate"><span class="pre">&lt;confidence_level&gt;</span></code> (i.e., <span class="math">\alpha</span>) to control the CVaR problem.</p>
+<p>The user can use <code class="xml-node docutils literal notranslate"><span class="pre">&lt;risk_aversion&gt;</span></code> (i.e., <span class="math notranslate nohighlight">\(\lambda\)</span>) and
+<code class="xml-node docutils literal notranslate"><span class="pre">&lt;confidence_level&gt;</span></code> (i.e., <span class="math notranslate nohighlight">\(\alpha\)</span>) to control the CVaR problem.</p>
 <p>Example LOGOS input XML for CVaR:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Settings&gt;</span>
 <span class="nt">&lt;Logos&gt;</span>
@@ -241,8 +243,8 @@ available CVaR problem types are:</p>
 <section id="cvar-for-single-knapsack-problem">
 <span id="subsec-cvar-skp"></span><h2>CVaR for Single Knapsack Problem<a class="headerlink" href="#cvar-for-single-knapsack-problem" title="Link to this heading"></a></h2>
 <p><em>Model formulation.</em></p>
-<div class="math" id="equation-cvarsimplekp">
-<p><span class="eqno">(44)<a class="headerlink" href="#equation-cvarsimplekp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-cvarsimplekp">
+<span class="eqno">(44)<a class="headerlink" href="#equation-cvarsimplekp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{x, y, \nu, u} \quad
 &amp; (1-\lambda) \sum_{\omega \in \Omega} q^\omega
   \sum_{i \in I} a_i^\omega x_i^\omega
@@ -262,8 +264,8 @@ available CVaR problem types are:</p>
 &amp; x_i^\omega, y_{ii'}^\omega \in \{0,1\}, \\
 &amp; \nu^\omega \ge 0,\; \omega \in \Omega,\;
   \lambda \in [0,1].
-\end{aligned}</span></p>
-</div><p>See Section <a class="reference internal" href="#subsec-cvar-dkp"><span class="std std-ref">CVaR for Multi-Dimensional Knapsack Problem</span></a> for an example LOGOS input file. The
+\end{aligned}\end{split}\]</div>
+<p>See Section <a class="reference internal" href="#subsec-cvar-dkp"><span class="std std-ref">CVaR for Multi-Dimensional Knapsack Problem</span></a> for an example LOGOS input file. The
 multi-dimensional Knapsack problem is a straightforward extension of the
 single-dimensional case, and both belong to <code class="xml-node docutils literal notranslate"><span class="pre">&lt;problem_type&gt;</span></code>
 <code class="xml-string docutils literal notranslate"><span class="pre">'cvarskp'</span></code>.</p>
@@ -271,8 +273,8 @@ single-dimensional case, and both belong to <code class="xml-node docutils liter
 <section id="cvar-for-multi-dimensional-knapsack-problem">
 <span id="subsec-cvar-dkp"></span><h2>CVaR for Multi-Dimensional Knapsack Problem<a class="headerlink" href="#cvar-for-multi-dimensional-knapsack-problem" title="Link to this heading"></a></h2>
 <p><em>Model formulation.</em></p>
-<div class="math" id="equation-cvarmultidkp">
-<p><span class="eqno">(45)<a class="headerlink" href="#equation-cvarmultidkp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-cvarmultidkp">
+<span class="eqno">(45)<a class="headerlink" href="#equation-cvarmultidkp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{x, y, \nu, u} \quad
 &amp; (1-\lambda) \sum_{\omega \in \Omega} q^\omega
   \sum_{i \in I} a_i^\omega x_i^\omega
@@ -292,8 +294,8 @@ single-dimensional case, and both belong to <code class="xml-node docutils liter
 &amp; x_i^\omega, y_{ii'}^\omega \in \{0,1\}, \\
 &amp; \nu^\omega \ge 0,\; \omega \in \Omega,\;
   \lambda \in [0,1].
-\end{aligned}</span></p>
-</div><p>Example LOGOS input XML:</p>
+\end{aligned}\end{split}\]</div>
+<p>Example LOGOS input XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
 <span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
 <span class="w">    </span><span class="nt">&lt;investments&gt;</span>
@@ -374,8 +376,8 @@ single-dimensional case, and both belong to <code class="xml-node docutils liter
 <section id="cvar-for-multiple-knapsack-problem">
 <span id="subsec-cvar-mkp"></span><h2>CVaR for Multiple Knapsack Problem<a class="headerlink" href="#cvar-for-multiple-knapsack-problem" title="Link to this heading"></a></h2>
 <p><em>Model formulation.</em></p>
-<div class="math" id="equation-cvarmkp">
-<p><span class="eqno">(46)<a class="headerlink" href="#equation-cvarmkp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-cvarmkp">
+<span class="eqno">(46)<a class="headerlink" href="#equation-cvarmkp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{x, y, \nu, u} \quad
 &amp; (1-\lambda) \sum_{\omega \in \Omega} q^\omega
   \sum_{m \in M} \sum_{i \in I} a_i^\omega x_{i,m}^\omega
@@ -397,8 +399,8 @@ single-dimensional case, and both belong to <code class="xml-node docutils liter
 &amp; x_{i,m}^\omega, y_{ii'}^\omega \in \{0,1\}, \\
 &amp; \nu^\omega \ge 0,\; \omega \in \Omega,\;
   \lambda \in [0,1].
-\end{aligned}</span></p>
-</div><p>Example LOGOS input XML:</p>
+\end{aligned}\end{split}\]</div>
+<p>Example LOGOS input XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
 <span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
 <span class="w">    </span><span class="nt">&lt;investments&gt;</span>
@@ -459,8 +461,8 @@ single-dimensional case, and both belong to <code class="xml-node docutils liter
 <section id="cvar-for-multiple-choice-knapsack-problem">
 <span id="subsec-cvar-mckp"></span><h2>CVaR for Multiple-Choice Knapsack Problem<a class="headerlink" href="#cvar-for-multiple-choice-knapsack-problem" title="Link to this heading"></a></h2>
 <p><em>Model formulation.</em></p>
-<div class="math" id="equation-cvarmckp">
-<p><span class="eqno">(47)<a class="headerlink" href="#equation-cvarmckp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-cvarmckp">
+<span class="eqno">(47)<a class="headerlink" href="#equation-cvarmckp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{x, y, \nu, u} \quad
 &amp; (1-\lambda) \sum_{\omega \in \Omega} q^\omega
   \sum_{i \in I} \sum_{j \in J_i} a_{ij}^\omega x_{ij}^\omega
@@ -483,8 +485,8 @@ single-dimensional case, and both belong to <code class="xml-node docutils liter
 &amp; x_{ij}^\omega, y_{ii'}^\omega \in \{0,1\}, \\
 &amp; \nu^\omega \ge 0,\; \omega \in \Omega,\;
   \lambda \in [0,1].
-\end{aligned}</span></p>
-</div><p>Example LOGOS input XML:</p>
+\end{aligned}\end{split}\]</div>
+<p>Example LOGOS input XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
 <span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
 <span class="w">    </span><span class="nt">&lt;investments&gt;</span>

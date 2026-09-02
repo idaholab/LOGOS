@@ -20,6 +20,8 @@
       <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "tags": "ams", "tagSide": "right", "tagIndent": "0.8em"}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -113,31 +115,31 @@ replacing a set of feed-water heaters.</p>
 <p>We use the following notation.</p>
 <p><strong>Indexes and sets</strong></p>
 <ul class="simple">
-<li><p><span class="math">t \in T</span>: time periods (years)</p></li>
-<li><p><span class="math">i \in I</span>: investment candidate projects</p></li>
-<li><p><span class="math">j \in J_i</span>: options for selecting project <span class="math">i</span></p></li>
-<li><p><span class="math">k \in K</span>: types of resources</p></li>
+<li><p><span class="math notranslate nohighlight">\(t \in T\)</span>: time periods (years)</p></li>
+<li><p><span class="math notranslate nohighlight">\(i \in I\)</span>: investment candidate projects</p></li>
+<li><p><span class="math notranslate nohighlight">\(j \in J_i\)</span>: options for selecting project <span class="math notranslate nohighlight">\(i\)</span></p></li>
+<li><p><span class="math notranslate nohighlight">\(k \in K\)</span>: types of resources</p></li>
 </ul>
 <p><strong>Data</strong></p>
 <ul class="simple">
-<li><p><span class="math">a_{ij}</span>: reward (revenue minus financial cost) of selecting project
-<span class="math">i</span> via option <span class="math">j</span></p></li>
-<li><p><span class="math">b_{kt}</span>: available budget for resource type <span class="math">k</span> in year
-<span class="math">t</span></p></li>
-<li><p><span class="math">c_{ijkt}</span>: consumption of resource of type <span class="math">k</span> in year
-<span class="math">t</span> if project <span class="math">i</span> is performed via option <span class="math">j</span></p></li>
+<li><p><span class="math notranslate nohighlight">\(a_{ij}\)</span>: reward (revenue minus financial cost) of selecting project
+<span class="math notranslate nohighlight">\(i\)</span> via option <span class="math notranslate nohighlight">\(j\)</span></p></li>
+<li><p><span class="math notranslate nohighlight">\(b_{kt}\)</span>: available budget for resource type <span class="math notranslate nohighlight">\(k\)</span> in year
+<span class="math notranslate nohighlight">\(t\)</span></p></li>
+<li><p><span class="math notranslate nohighlight">\(c_{ijkt}\)</span>: consumption of resource of type <span class="math notranslate nohighlight">\(k\)</span> in year
+<span class="math notranslate nohighlight">\(t\)</span> if project <span class="math notranslate nohighlight">\(i\)</span> is performed via option <span class="math notranslate nohighlight">\(j\)</span></p></li>
 </ul>
 <p><strong>Decision variables</strong></p>
 <ul class="simple">
-<li><p><span class="math">x_{ij}</span>: equals 1 if project <span class="math">i</span> is selected via option
-<span class="math">j</span>, and 0 otherwise.</p></li>
+<li><p><span class="math notranslate nohighlight">\(x_{ij}\)</span>: equals 1 if project <span class="math notranslate nohighlight">\(i\)</span> is selected via option
+<span class="math notranslate nohighlight">\(j\)</span>, and 0 otherwise.</p></li>
 </ul>
 </section>
 <section id="model-formulation">
 <h2>Model Formulation<a class="headerlink" href="#model-formulation" title="Link to this heading"></a></h2>
 <p><em>Formulation.</em></p>
-<div class="math" id="equation-model-deter">
-<p><span class="eqno">(1)<a class="headerlink" href="#equation-model-deter" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-model-deter">
+<span class="eqno">(1)<a class="headerlink" href="#equation-model-deter" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_x \quad
 &amp; \sum_{i \in I} \sum_{j \in J_i} a_{ij} x_{ij} \\
 \text{s.t.} \quad
@@ -147,26 +149,26 @@ replacing a set of feed-water heaters.</p>
   &amp;&amp; k \in K,\; t \in T, \\
 &amp; x_{ij} \in \{0,1\},
   &amp;&amp; j \in J_i,\; i \in I.
-\end{aligned}</span></p>
-</div><p>The decision variables <span class="math">x_{ij}</span> indicate whether we choose to do project
-<span class="math">i</span> by means <span class="math">j</span>. Restated, if <span class="math">x_{ij} = 1</span>, then we recommend
-doing project <span class="math">i</span> via option <span class="math">j</span>; taken together, these decision
+\end{aligned}\end{split}\]</div>
+<p>The decision variables <span class="math notranslate nohighlight">\(x_{ij}\)</span> indicate whether we choose to do project
+<span class="math notranslate nohighlight">\(i\)</span> by means <span class="math notranslate nohighlight">\(j\)</span>. Restated, if <span class="math notranslate nohighlight">\(x_{ij} = 1\)</span>, then we recommend
+doing project <span class="math notranslate nohighlight">\(i\)</span> via option <span class="math notranslate nohighlight">\(j\)</span>; taken together, these decision
 variables produce both a portfolio of selected projects and a schedule for
 performing those projects over time.</p>
-<p>The set of available options <span class="math">j \in J_i</span> can explicitly include the
+<p>The set of available options <span class="math notranslate nohighlight">\(j \in J_i\)</span> can explicitly include the
 “do-nothing” option. The first constraint ensures that we choose exactly one
 option from the available set for each project, including the possibility of
 selecting the do-nothing option. Even if we select the do-nothing option for a
-project, it induces an NPV <span class="math">a_{ij}</span>, which may be negative, representing
+project, it induces an NPV <span class="math notranslate nohighlight">\(a_{ij}\)</span>, which may be negative, representing
 growing O&amp;M costs, losses in plant efficiency, etc. The second structural
-constraint ensures that the budget of each resource <span class="math">k</span> is respected in
-each year <span class="math">t</span>. The objective function includes the NPV for each
-project–option pair, <span class="math">a_{ij}</span>, and the corresponding NPV is selected by
-the binary decision variable <span class="math">x_{ij}</span>.</p>
+constraint ensures that the budget of each resource <span class="math notranslate nohighlight">\(k\)</span> is respected in
+each year <span class="math notranslate nohighlight">\(t\)</span>. The objective function includes the NPV for each
+project–option pair, <span class="math notranslate nohighlight">\(a_{ij}\)</span>, and the corresponding NPV is selected by
+the binary decision variable <span class="math notranslate nohighlight">\(x_{ij}\)</span>.</p>
 <p>Projects that must be done (e.g., for safety or regulatory reasons) can be
-handled within the same mathematical formulation. The set <span class="math">J_i</span>
+handled within the same mathematical formulation. The set <span class="math notranslate nohighlight">\(J_i\)</span>
 typically includes a do-nothing option for each project, but when project
-<span class="math">i</span> must be done, we simply omit the do-nothing option from <span class="math">J_i</span>.
+<span class="math notranslate nohighlight">\(i\)</span> must be done, we simply omit the do-nothing option from <span class="math notranslate nohighlight">\(J_i\)</span>.
 Alternatively, one can remove the explicit do-nothing option, replace the first
 structural constraint with an inequality, and add an additional set of must-do
 projects with equality constraints. Both approaches are mathematically
@@ -196,21 +198,21 @@ subsections, we present several variants of the above capital budgeting problem.
 <section id="simple-knapsack-problem">
 <h3>Simple Knapsack Problem<a class="headerlink" href="#simple-knapsack-problem" title="Link to this heading"></a></h3>
 <p>The simple knapsack problem (KP) for capital budgeting is defined as follows:
-we are given an investment set <span class="math">I</span>, consisting of investments
-<span class="math">i \in I</span> with profit <span class="math">a_i</span> (e.g., NPV), cost <span class="math">c_i</span>, and
-available budget <span class="math">b</span>. The objective is to select a subset of <span class="math">I</span>
+we are given an investment set <span class="math notranslate nohighlight">\(I\)</span>, consisting of investments
+<span class="math notranslate nohighlight">\(i \in I\)</span> with profit <span class="math notranslate nohighlight">\(a_i\)</span> (e.g., NPV), cost <span class="math notranslate nohighlight">\(c_i\)</span>, and
+available budget <span class="math notranslate nohighlight">\(b\)</span>. The objective is to select a subset of <span class="math notranslate nohighlight">\(I\)</span>
 such that the total profit is maximized and the total cost does not exceed
-<span class="math">b</span>.</p>
+<span class="math notranslate nohighlight">\(b\)</span>.</p>
 <p>The integer programming formulation is:</p>
-<div class="math" id="equation-simplekp">
-<p><span class="eqno">(2)<a class="headerlink" href="#equation-simplekp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-simplekp">
+<span class="eqno">(2)<a class="headerlink" href="#equation-simplekp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_x \quad
 &amp; \sum_{i \in I} a_i x_i \\
 \text{s.t.} \quad
 &amp; \sum_{i \in I} c_i x_i \le b, \\
 &amp; x_i \in \{0,1\}, \quad i \in I.
-\end{aligned}</span></p>
-</div><p>Example LOGOS input XML:</p>
+\end{aligned}\end{split}\]</div>
+<p>Example LOGOS input XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
 <span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
 <span class="w">    </span><span class="nt">&lt;investments&gt;</span>
@@ -248,21 +250,21 @@ profit of 106.0.</p>
 <section id="bounded-knapsack-problem">
 <h3>Bounded Knapsack Problem<a class="headerlink" href="#bounded-knapsack-problem" title="Link to this heading"></a></h3>
 <p>In some cases, not all investments are distinct. For example, there may be
-<span class="math">n_i</span> identical pumps or valves to be replaced. Then the number of
+<span class="math notranslate nohighlight">\(n_i\)</span> identical pumps or valves to be replaced. Then the number of
 decision variables equals the number of distinct investments, rather than the
 total number of items. The constraint for decision variables becomes:</p>
-<div class="math" id="equation-include-deterministiccapitalbudgeting-0">
-<p><span class="eqno">(3)<a class="headerlink" href="#equation-include-deterministiccapitalbudgeting-0" title="Link to this equation"></a></span><span class="math">0 \le x_i \le n_i, \quad i \in I.</span></p>
-</div><p>The resulting bounded knapsack problem (BKP) is:</p>
-<div class="math" id="equation-boundedkp">
-<p><span class="eqno">(4)<a class="headerlink" href="#equation-boundedkp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-include-deterministiccapitalbudgeting-0">
+<span class="eqno">(3)<a class="headerlink" href="#equation-include-deterministiccapitalbudgeting-0" title="Link to this equation"></a></span>\[0 \le x_i \le n_i, \quad i \in I.\]</div>
+<p>The resulting bounded knapsack problem (BKP) is:</p>
+<div class="math notranslate nohighlight" id="equation-boundedkp">
+<span class="eqno">(4)<a class="headerlink" href="#equation-boundedkp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_x \quad
 &amp; \sum_{i \in I} a_i x_i \\
 \text{s.t.} \quad
 &amp; \sum_{i \in I} c_i x_i \le b, \\
 &amp; x_i \in \{0, \dots, n_i\}, \quad i \in I.
-\end{aligned}</span></p>
-</div><p>Example LOGOS input XML:</p>
+\end{aligned}\end{split}\]</div>
+<p>Example LOGOS input XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
 <span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
 <span class="w">    </span><span class="nt">&lt;investments&gt;</span>
@@ -315,29 +317,29 @@ total number of items. The constraint for decision variables becomes:</p>
 <li><p>time and labor-hours during outages,</p></li>
 <li><p>personnel, equipment, and workspace.</p></li>
 </ul>
-<p>Let <span class="math">c_{ik}</span> denote the cost of investment <span class="math">i</span> in resource
-dimension <span class="math">k</span> and <span class="math">b_k</span> the available amount of resource <span class="math">k</span>.
+<p>Let <span class="math notranslate nohighlight">\(c_{ik}\)</span> denote the cost of investment <span class="math notranslate nohighlight">\(i\)</span> in resource
+dimension <span class="math notranslate nohighlight">\(k\)</span> and <span class="math notranslate nohighlight">\(b_k\)</span> the available amount of resource <span class="math notranslate nohighlight">\(k\)</span>.
 The multi-dimensional knapsack problem is:</p>
-<div class="math" id="equation-dkp-static">
-<p><span class="eqno">(5)<a class="headerlink" href="#equation-dkp-static" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-dkp-static">
+<span class="eqno">(5)<a class="headerlink" href="#equation-dkp-static" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_x \quad
 &amp; \sum_{i \in I} a_i x_i \\
 \text{s.t.} \quad
 &amp; \sum_{i \in I} c_{ik} x_i \le b_k, &amp;&amp; k \in K, \\
 &amp; x_i \in \{0,1\}, &amp;&amp; i \in I.
-\end{aligned}</span></p>
-</div><p>If costs and available capital vary over time, we obtain a time-indexed DKP.
-Let <span class="math">c_{it}</span> be the cost of investment <span class="math">i</span> at time <span class="math">t</span> and
-<span class="math">b_t</span> the available capital at time <span class="math">t</span>. Then:</p>
-<div class="math" id="equation-dkp">
-<p><span class="eqno">(6)<a class="headerlink" href="#equation-dkp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\end{aligned}\end{split}\]</div>
+<p>If costs and available capital vary over time, we obtain a time-indexed DKP.
+Let <span class="math notranslate nohighlight">\(c_{it}\)</span> be the cost of investment <span class="math notranslate nohighlight">\(i\)</span> at time <span class="math notranslate nohighlight">\(t\)</span> and
+<span class="math notranslate nohighlight">\(b_t\)</span> the available capital at time <span class="math notranslate nohighlight">\(t\)</span>. Then:</p>
+<div class="math notranslate nohighlight" id="equation-dkp">
+<span class="eqno">(6)<a class="headerlink" href="#equation-dkp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_x \quad
 &amp; \sum_{i \in I} a_i x_i \\
 \text{s.t.} \quad
 &amp; \sum_{i \in I} c_{it} x_i \le b_t, &amp;&amp; t \in T, \\
 &amp; x_i \in \{0,1\}, &amp;&amp; i \in I.
-\end{aligned}</span></p>
-</div><p>Example LOGOS input XML:</p>
+\end{aligned}\end{split}\]</div>
+<p>Example LOGOS input XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
 <span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
 <span class="w">    </span><span class="nt">&lt;investments&gt;</span>
@@ -388,11 +390,11 @@ Let <span class="math">c_{it}</span> be the cost of investment <span class="math
 NPP in parallel; we must decide whether to accept a replacement and, if so, in
 which unit to conduct it. We introduce binary decision variables for each
 investment–unit pair:</p>
-<div class="math" id="equation-include-deterministiccapitalbudgeting-1">
-<p><span class="eqno">(7)<a class="headerlink" href="#equation-include-deterministiccapitalbudgeting-1" title="Link to this equation"></a></span><span class="math">x_{im} \in \{0,1\}, \quad i \in I,\; m \in M.</span></p>
-</div><p>The resulting multiple knapsack problem (MKP) is:</p>
-<div class="math" id="equation-mkp">
-<p><span class="eqno">(8)<a class="headerlink" href="#equation-mkp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-include-deterministiccapitalbudgeting-1">
+<span class="eqno">(7)<a class="headerlink" href="#equation-include-deterministiccapitalbudgeting-1" title="Link to this equation"></a></span>\[x_{im} \in \{0,1\}, \quad i \in I,\; m \in M.\]</div>
+<p>The resulting multiple knapsack problem (MKP) is:</p>
+<div class="math notranslate nohighlight" id="equation-mkp">
+<span class="eqno">(8)<a class="headerlink" href="#equation-mkp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_x \quad
 &amp; \sum_{m \in M} \sum_{i \in I} a_i x_{im} \\
 \text{s.t.} \quad
@@ -402,8 +404,8 @@ investment–unit pair:</p>
   &amp;&amp; i \in I, \\
 &amp; x_{im} \in \{0,1\},
   &amp;&amp; i \in I,\; m \in M.
-\end{aligned}</span></p>
-</div><p>Example LOGOS input XML:</p>
+\end{aligned}\end{split}\]</div>
+<p>Example LOGOS input XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
 <span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
 <span class="w">    </span><span class="nt">&lt;investments&gt;</span>
@@ -444,12 +446,12 @@ investment–unit pair:</p>
 <section id="multiple-choice-multi-dimensional-knapsack-problem-optimization">
 <h2>Multiple-Choice Multi-Dimensional Knapsack Problem Optimization<a class="headerlink" href="#multiple-choice-multi-dimensional-knapsack-problem-optimization" title="Link to this heading"></a></h2>
 <p id="subsec-mckp">In some cases there may be multiple ways to carry out each project. For
-investment <span class="math">i</span>, option <span class="math">j</span> has cost <span class="math">c_{ij}</span> and profit
-<span class="math">a_{ij}</span>. Let <span class="math">J_i</span> be the set of options for investment <span class="math">i</span>.
-Using decision variables <span class="math">x_{ij}</span> (1 if option <span class="math">j</span> is chosen for
-investment <span class="math">i</span>), the multiple-choice knapsack problem (MCKP) is:</p>
-<div class="math" id="equation-mckp-basic">
-<p><span class="eqno">(9)<a class="headerlink" href="#equation-mckp-basic" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+investment <span class="math notranslate nohighlight">\(i\)</span>, option <span class="math notranslate nohighlight">\(j\)</span> has cost <span class="math notranslate nohighlight">\(c_{ij}\)</span> and profit
+<span class="math notranslate nohighlight">\(a_{ij}\)</span>. Let <span class="math notranslate nohighlight">\(J_i\)</span> be the set of options for investment <span class="math notranslate nohighlight">\(i\)</span>.
+Using decision variables <span class="math notranslate nohighlight">\(x_{ij}\)</span> (1 if option <span class="math notranslate nohighlight">\(j\)</span> is chosen for
+investment <span class="math notranslate nohighlight">\(i\)</span>), the multiple-choice knapsack problem (MCKP) is:</p>
+<div class="math notranslate nohighlight" id="equation-mckp-basic">
+<span class="eqno">(9)<a class="headerlink" href="#equation-mckp-basic" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_x \quad
 &amp; \sum_{i \in I} \sum_{j \in J_i} a_{ij} x_{ij} \\
 \text{s.t.} \quad
@@ -458,14 +460,14 @@ investment <span class="math">i</span>), the multiple-choice knapsack problem (M
 &amp; \sum_{i \in I} \sum_{j \in J_i} c_{ij} x_{ij} \le b, \\
 &amp; x_{ij} \in \{0,1\},
   &amp;&amp; j \in J_i,\; i \in I.
-\end{aligned}</span></p>
-</div><p>Considering limited resources and multi-year investments, the MCKP can be
+\end{aligned}\end{split}\]</div>
+<p>Considering limited resources and multi-year investments, the MCKP can be
 extended to a D-dimensional MCKP (D-MCKP). Projects may span multiple years
-(e.g., <span class="math">t, t+1, t+2</span> or shifted windows), or have different sizes and
+(e.g., <span class="math notranslate nohighlight">\(t, t+1, t+2\)</span> or shifted windows), or have different sizes and
 benefits (e.g., 3% vs. 6% capacity uprates).</p>
 <p>A D-MCKP formulation is:</p>
-<div class="math" id="equation-dmckp-time">
-<p><span class="eqno">(10)<a class="headerlink" href="#equation-dmckp-time" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-dmckp-time">
+<span class="eqno">(10)<a class="headerlink" href="#equation-dmckp-time" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_x \quad
 &amp; \sum_{i \in I} \sum_{j \in J_i} a_{ij} x_{ij} \\
 \text{s.t.} \quad
@@ -475,10 +477,10 @@ benefits (e.g., 3% vs. 6% capacity uprates).</p>
   &amp;&amp; t \in T, \\
 &amp; x_{ij} \in \{0,1\},
   &amp;&amp; j \in J_i,\; i \in I.
-\end{aligned}</span></p>
-</div><p>More generally, with multiple resource dimensions:</p>
-<div class="math" id="equation-dmckp-general">
-<p><span class="eqno">(11)<a class="headerlink" href="#equation-dmckp-general" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+\end{aligned}\end{split}\]</div>
+<p>More generally, with multiple resource dimensions:</p>
+<div class="math notranslate nohighlight" id="equation-dmckp-general">
+<span class="eqno">(11)<a class="headerlink" href="#equation-dmckp-general" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_x \quad
 &amp; \sum_{i \in I} \sum_{j \in J_i} a_{ij} x_{ij} \\
 \text{s.t.} \quad
@@ -488,8 +490,8 @@ benefits (e.g., 3% vs. 6% capacity uprates).</p>
   &amp;&amp; k \in K,\; t \in T, \\
 &amp; x_{ij} \in \{0,1\},
   &amp;&amp; j \in J_i,\; i \in I.
-\end{aligned}</span></p>
-</div><p>Example LOGOS input XML:</p>
+\end{aligned}\end{split}\]</div>
+<p>Example LOGOS input XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
 <span class="w">  </span><span class="nt">&lt;Sets&gt;</span>
 <span class="w">    </span><span class="nt">&lt;investments&gt;</span>

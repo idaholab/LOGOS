@@ -20,6 +20,8 @@
       <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "tags": "ams", "tagSide": "right", "tagIndent": "0.8em"}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -96,14 +98,14 @@
 <span id="sec-ravenplugin"></span><h1>Plugin for the RAVEN Code<a class="headerlink" href="#plugin-for-the-raven-code" title="Link to this heading"></a></h1>
 <p>The deterministic model can be repeatedly solved by changing the input
 values (i.e., <code class="xml-node docutils literal notranslate"><span class="pre">&lt;available_capitals&gt;</span></code> (corresponding to
-<span class="math">b_{kt}</span>) and <code class="xml-node docutils literal notranslate"><span class="pre">&lt;net_present_values&gt;</span></code> (corresponding to
-<span class="math">a_{ij}</span>)). This allows for what-if sensitivity analysis to
+<span class="math notranslate nohighlight">\(b_{kt}\)</span>) and <code class="xml-node docutils literal notranslate"><span class="pre">&lt;net_present_values&gt;</span></code> (corresponding to
+<span class="math notranslate nohighlight">\(a_{ij}\)</span>)). This allows for what-if sensitivity analysis to
 identify the crucial drivers behind the optimal project selection
 decision. Monte Carlo simulation permits a powerful variant of this
-approach in which we model <span class="math">a_{ij}</span> and <span class="math">b_{kt}</span> as random
+approach in which we model <span class="math notranslate nohighlight">\(a_{ij}\)</span> and <span class="math notranslate nohighlight">\(b_{kt}\)</span> as random
 variables, sample from their distributions, and perform a form of
 uncertainty quantification in terms of the resulting distributions
-governing the binary decisions <span class="math">x_{ij}</span> and the overall NPV of
+governing the binary decisions <span class="math notranslate nohighlight">\(x_{ij}\)</span> and the overall NPV of
 the selected portfolio.</p>
 <p>Example RAVEN input <code class="xml-node docutils literal notranslate"><span class="pre">&lt;ExternalModel&gt;</span></code> XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Models&gt;</span>

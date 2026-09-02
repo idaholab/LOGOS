@@ -20,6 +20,8 @@
       <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "tags": "ams", "tagSide": "right", "tagIndent": "0.8em"}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -169,71 +171,71 @@ projects corresponding to different scenarios are nested.</p>
 <section id="indices-and-sets">
 <h3>Indices and sets<a class="headerlink" href="#indices-and-sets" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p><span class="math">t \in T</span>:
+<li><p><span class="math notranslate nohighlight">\(t \in T\)</span>:
 time periods (years).</p></li>
-<li><p><span class="math">i, i' \in I</span>:
+<li><p><span class="math notranslate nohighlight">\(i, i' \in I\)</span>:
 candidate projects.</p></li>
-<li><p><span class="math">j \in J_i</span>:
-options for selecting project <span class="math">i</span>.</p></li>
-<li><p><span class="math">k \in K</span>:
+<li><p><span class="math notranslate nohighlight">\(j \in J_i\)</span>:
+options for selecting project <span class="math notranslate nohighlight">\(i\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(k \in K\)</span>:
 types of resources.</p></li>
-<li><p><span class="math">m \in M</span>:
+<li><p><span class="math notranslate nohighlight">\(m \in M\)</span>:
 units of the nuclear power plant (NPP).</p></li>
-<li><p><span class="math">\omega \in \Omega</span>:
+<li><p><span class="math notranslate nohighlight">\(\omega \in \Omega\)</span>:
 scenarios.</p></li>
 </ul>
 </section>
 <section id="data">
 <h3>Data<a class="headerlink" href="#data" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p><span class="math">a_i^\omega</span>:
-reward for selecting project <span class="math">i</span> under scenario <span class="math">\omega</span>.</p></li>
-<li><p><span class="math">a_{ij}^\omega</span>:
-reward for selecting project <span class="math">i</span> via option <span class="math">j</span>
-under scenario <span class="math">\omega</span>.</p></li>
-<li><p><span class="math">b^\omega</span>:
-available budget under scenario <span class="math">\omega</span>.</p></li>
-<li><p><span class="math">b_k^\omega</span>:
-available budget for a resource of type <span class="math">k</span> under scenario
-<span class="math">\omega</span>.</p></li>
-<li><p><span class="math">b_t^\omega</span>:
-available budget in year <span class="math">t</span> under scenario <span class="math">\omega</span>.</p></li>
-<li><p><span class="math">b_m^\omega</span>:
-available budget for unit <span class="math">m</span> under scenario <span class="math">\omega</span>.</p></li>
-<li><p><span class="math">b_{kt}^\omega</span>:
-available budget for a resource of type <span class="math">k</span> in year <span class="math">t</span>
-under scenario <span class="math">\omega</span>.</p></li>
-<li><p><span class="math">c_i^\omega</span>:
-cost of investment <span class="math">i</span> under scenario <span class="math">\omega</span>.</p></li>
-<li><p><span class="math">c_{ik}^\omega</span>:
-consumption of resource of type <span class="math">k</span> if project <span class="math">i</span> is
-selected under scenario <span class="math">\omega</span>.</p></li>
-<li><p><span class="math">c_{ijt}^\omega</span>:
-consumption of resources in year <span class="math">t</span> if project <span class="math">i</span> is
-performed via option <span class="math">j</span> under scenario <span class="math">\omega</span>.</p></li>
-<li><p><span class="math">c_{ijkt}^\omega</span>:
-consumption of resource of type <span class="math">k</span> in year <span class="math">t</span> if
-project <span class="math">i</span> is performed via option <span class="math">j</span> under scenario
-<span class="math">\omega</span>.</p></li>
-<li><p><span class="math">q^\omega</span>:
-probability of scenario <span class="math">\omega</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(a_i^\omega\)</span>:
+reward for selecting project <span class="math notranslate nohighlight">\(i\)</span> under scenario <span class="math notranslate nohighlight">\(\omega\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(a_{ij}^\omega\)</span>:
+reward for selecting project <span class="math notranslate nohighlight">\(i\)</span> via option <span class="math notranslate nohighlight">\(j\)</span>
+under scenario <span class="math notranslate nohighlight">\(\omega\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(b^\omega\)</span>:
+available budget under scenario <span class="math notranslate nohighlight">\(\omega\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(b_k^\omega\)</span>:
+available budget for a resource of type <span class="math notranslate nohighlight">\(k\)</span> under scenario
+<span class="math notranslate nohighlight">\(\omega\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(b_t^\omega\)</span>:
+available budget in year <span class="math notranslate nohighlight">\(t\)</span> under scenario <span class="math notranslate nohighlight">\(\omega\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(b_m^\omega\)</span>:
+available budget for unit <span class="math notranslate nohighlight">\(m\)</span> under scenario <span class="math notranslate nohighlight">\(\omega\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(b_{kt}^\omega\)</span>:
+available budget for a resource of type <span class="math notranslate nohighlight">\(k\)</span> in year <span class="math notranslate nohighlight">\(t\)</span>
+under scenario <span class="math notranslate nohighlight">\(\omega\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(c_i^\omega\)</span>:
+cost of investment <span class="math notranslate nohighlight">\(i\)</span> under scenario <span class="math notranslate nohighlight">\(\omega\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(c_{ik}^\omega\)</span>:
+consumption of resource of type <span class="math notranslate nohighlight">\(k\)</span> if project <span class="math notranslate nohighlight">\(i\)</span> is
+selected under scenario <span class="math notranslate nohighlight">\(\omega\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(c_{ijt}^\omega\)</span>:
+consumption of resources in year <span class="math notranslate nohighlight">\(t\)</span> if project <span class="math notranslate nohighlight">\(i\)</span> is
+performed via option <span class="math notranslate nohighlight">\(j\)</span> under scenario <span class="math notranslate nohighlight">\(\omega\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(c_{ijkt}^\omega\)</span>:
+consumption of resource of type <span class="math notranslate nohighlight">\(k\)</span> in year <span class="math notranslate nohighlight">\(t\)</span> if
+project <span class="math notranslate nohighlight">\(i\)</span> is performed via option <span class="math notranslate nohighlight">\(j\)</span> under scenario
+<span class="math notranslate nohighlight">\(\omega\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(q^\omega\)</span>:
+probability of scenario <span class="math notranslate nohighlight">\(\omega\)</span>.</p></li>
 </ul>
 </section>
 <section id="decision-variables">
 <h3>Decision variables<a class="headerlink" href="#decision-variables" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p><span class="math">x_i^\omega</span>:
-equals 1 if project <span class="math">i</span> is selected under scenario <span class="math">\omega</span>;
+<li><p><span class="math notranslate nohighlight">\(x_i^\omega\)</span>:
+equals 1 if project <span class="math notranslate nohighlight">\(i\)</span> is selected under scenario <span class="math notranslate nohighlight">\(\omega\)</span>;
 0 otherwise.</p></li>
-<li><p><span class="math">x_{im}^\omega</span>:
-equals 1 if project <span class="math">i</span> is selected for unit <span class="math">m</span> under
-scenario <span class="math">\omega</span>; 0 otherwise.</p></li>
-<li><p><span class="math">x_{ij}^\omega</span>:
-equals 1 if project <span class="math">i</span> is selected via option <span class="math">j</span> under
-scenario <span class="math">\omega</span>; 0 otherwise.</p></li>
-<li><p><span class="math">y_{ii'}</span>:
-equals 1 if project <span class="math">i</span> has no lower priority than project
-<span class="math">i'</span>; 0 otherwise.</p></li>
+<li><p><span class="math notranslate nohighlight">\(x_{im}^\omega\)</span>:
+equals 1 if project <span class="math notranslate nohighlight">\(i\)</span> is selected for unit <span class="math notranslate nohighlight">\(m\)</span> under
+scenario <span class="math notranslate nohighlight">\(\omega\)</span>; 0 otherwise.</p></li>
+<li><p><span class="math notranslate nohighlight">\(x_{ij}^\omega\)</span>:
+equals 1 if project <span class="math notranslate nohighlight">\(i\)</span> is selected via option <span class="math notranslate nohighlight">\(j\)</span> under
+scenario <span class="math notranslate nohighlight">\(\omega\)</span>; 0 otherwise.</p></li>
+<li><p><span class="math notranslate nohighlight">\(y_{ii'}\)</span>:
+equals 1 if project <span class="math notranslate nohighlight">\(i\)</span> has no lower priority than project
+<span class="math notranslate nohighlight">\(i'\)</span>; 0 otherwise.</p></li>
 </ul>
 </section>
 </section>
@@ -243,8 +245,8 @@ equals 1 if project <span class="math">i</span> has no lower priority than proje
 <h3>Risk-Informed Simple Knapsack Problem<a class="headerlink" href="#risk-informed-simple-knapsack-problem" title="Link to this heading"></a></h3>
 <section id="formulation">
 <h4>Formulation<a class="headerlink" href="#formulation" title="Link to this heading"></a></h4>
-<div class="math" id="equation-risimplekp">
-<p><span class="eqno">(12)<a class="headerlink" href="#equation-risimplekp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-risimplekp">
+<span class="eqno">(12)<a class="headerlink" href="#equation-risimplekp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{x} \quad
 &amp; \sum_{\omega \in \Omega} q^\omega \sum_{i \in I} a_i^\omega x_i^\omega \\
 \text{s.t.} \quad
@@ -254,22 +256,22 @@ equals 1 if project <span class="math">i</span> has no lower priority than proje
   &amp;&amp; i &lt; i', \\
 &amp; x_i^\omega \ge x_{i'}^\omega + y_{ii'} - 1,
   &amp;&amp; i \ne i',\ \forall \omega \in \Omega.
-\end{aligned}</span></p>
-</div><p>For simplicity in what follows, the variable <span class="math">y_{ii'} = 1</span> means
-that project <span class="math">i</span> is of higher priority than <span class="math">i'</span>, even
+\end{aligned}\end{split}\]</div>
+<p>For simplicity in what follows, the variable <span class="math notranslate nohighlight">\(y_{ii'} = 1\)</span> means
+that project <span class="math notranslate nohighlight">\(i\)</span> is of higher priority than <span class="math notranslate nohighlight">\(i'\)</span>, even
 though the variable definition allows for ties (i.e., projects of the
 same priority).</p>
 <ul class="simple">
 <li><p>Constraint <a class="reference internal" href="#equation-risimplekp">Eq. 12</a> (budget constraint) requires the solution
 to be within budget under each scenario.</p></li>
-<li><p>Constraint <span class="math">y_{ii'} + y_{i'i} \ge 1</span> indicates that either
-project <span class="math">i</span> is of higher priority than project <span class="math">i'</span>, or
+<li><p>Constraint <span class="math notranslate nohighlight">\(y_{ii'} + y_{i'i} \ge 1\)</span> indicates that either
+project <span class="math notranslate nohighlight">\(i\)</span> is of higher priority than project <span class="math notranslate nohighlight">\(i'\)</span>, or
 vice versa, or that both are of equal priority (i.e., a tie).</p></li>
-<li><p>Constraint <span class="math">x_i^\omega \ge x_{i'}^\omega + y_{ii'} - 1</span>
-indicates that if project <span class="math">i</span> is of higher priority than project
-<span class="math">i'</span> (<span class="math">y_{ii'} = 1</span>) and we select the lower priority
+<li><p>Constraint <span class="math notranslate nohighlight">\(x_i^\omega \ge x_{i'}^\omega + y_{ii'} - 1\)</span>
+indicates that if project <span class="math notranslate nohighlight">\(i\)</span> is of higher priority than project
+<span class="math notranslate nohighlight">\(i'\)</span> (<span class="math notranslate nohighlight">\(y_{ii'} = 1\)</span>) and we select the lower priority
 project, then we must also select the higher priority project. If
-<span class="math">y_{ii'} = 0</span>, or if <span class="math">x_{i'}^\omega = 0</span>, then the
+<span class="math notranslate nohighlight">\(y_{ii'} = 0\)</span>, or if <span class="math notranslate nohighlight">\(x_{i'}^\omega = 0\)</span>, then the
 constraint is vacuous.</p></li>
 </ul>
 <p>In order to handle risk in the capital budgeting problems, the entity
@@ -352,8 +354,8 @@ values for both decision variables and the objective variable.</p>
 <h3>Risk-Informed Multi-Dimensional Knapsack Problem<a class="headerlink" href="#risk-informed-multi-dimensional-knapsack-problem" title="Link to this heading"></a></h3>
 <section id="id2">
 <h4>Formulation<a class="headerlink" href="#id2" title="Link to this heading"></a></h4>
-<div class="math" id="equation-rimultidkp">
-<p><span class="eqno">(13)<a class="headerlink" href="#equation-rimultidkp" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-rimultidkp">
+<span class="eqno">(13)<a class="headerlink" href="#equation-rimultidkp" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \max_{x} \quad
 &amp; \sum_{\omega \in \Omega} q^\omega \sum_{i \in I} a_i^\omega x_i^\omega \\
 \text{s.t.} \quad
@@ -363,8 +365,8 @@ values for both decision variables and the objective variable.</p>
   &amp;&amp; i &lt; i', \\
 &amp; x_i^\omega \ge x_{i'}^\omega + y_{ii'} - 1,
   &amp;&amp; i \ne i',\ \forall \omega \in \Omega.
-\end{aligned}</span></p>
-</div></section>
+\end{aligned}\end{split}\]</div>
+</section>
 <section id="id3">
 <h4>Example LOGOS input XML<a class="headerlink" href="#id3" title="Link to this heading"></a></h4>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Logos&gt;</span>
@@ -460,40 +462,40 @@ values for both decision variables and the objective variable.</p>
 <span id="subsec-rimkp"></span><h3>Model formulation<a class="headerlink" href="#model-formulation" title="Link to this heading"></a></h3>
 <section id="objective-and-priority-consistency">
 <h4>Objective and priority consistency<a class="headerlink" href="#objective-and-priority-consistency" title="Link to this heading"></a></h4>
-<div class="math" id="equation-rimkp-obj">
-<p><span class="eqno">(14)<a class="headerlink" href="#equation-rimkp-obj" title="Link to this equation"></a></span><span class="math">\mathop{\max}_{x,y} \;
+<div class="math notranslate nohighlight" id="equation-rimkp-obj">
+<span class="eqno">(14)<a class="headerlink" href="#equation-rimkp-obj" title="Link to this equation"></a></span>\[\mathop{\max}_{x,y} \;
 \sum_{\omega \in \Omega} q^\omega
-\sum_{i \in I} \sum_{m \in M} a_i^\omega x_{im}^\omega</span></p>
-</div><p>subject to</p>
-<div class="math" id="equation-rimkp-conb">
-<p><span class="eqno">(15)<a class="headerlink" href="#equation-rimkp-conb" title="Link to this equation"></a></span><span class="math">y_{ii'} + y_{i'i} \ge 1,
-\qquad i &lt; i',\ i,i' \in I,</span></p>
-</div><div class="math" id="equation-rimkp-conc">
-<p><span class="eqno">(16)<a class="headerlink" href="#equation-rimkp-conc" title="Link to this equation"></a></span><span class="math">\sum_{m=1}^M x_{im}^\omega
+\sum_{i \in I} \sum_{m \in M} a_i^\omega x_{im}^\omega\]</div>
+<p>subject to</p>
+<div class="math notranslate nohighlight" id="equation-rimkp-conb">
+<span class="eqno">(15)<a class="headerlink" href="#equation-rimkp-conb" title="Link to this equation"></a></span>\[y_{ii'} + y_{i'i} \ge 1,
+\qquad i &lt; i',\ i,i' \in I,\]</div>
+<div class="math notranslate nohighlight" id="equation-rimkp-conc">
+<span class="eqno">(16)<a class="headerlink" href="#equation-rimkp-conc" title="Link to this equation"></a></span>\[\sum_{m=1}^M x_{im}^\omega
 \ge \sum_{m=1}^M x_{i'm}^\omega + y_{ii'} - 1,
-\qquad i \ne i',\ i,i' \in I,\ \omega \in \Omega.</span></p>
-</div><p>Constraint <a class="reference internal" href="#equation-rimkp-conb">Eq. 15</a> indicates that either project <span class="math">i</span>
-is of higher priority than project <span class="math">i'</span>, or vice versa, or that
+\qquad i \ne i',\ i,i' \in I,\ \omega \in \Omega.\]</div>
+<p>Constraint <a class="reference internal" href="#equation-rimkp-conb">Eq. 15</a> indicates that either project <span class="math notranslate nohighlight">\(i\)</span>
+is of higher priority than project <span class="math notranslate nohighlight">\(i'\)</span>, or vice versa, or that
 both are of equal priority (i.e., a tie).</p>
-<p>Constraint <a class="reference internal" href="#equation-rimkp-conc">Eq. 16</a> indicates that if project <span class="math">i</span>
-is higher priority than project <span class="math">i'</span>
-(<span class="math">y_{ii'} = 1</span>), and we select the lower priority project
+<p>Constraint <a class="reference internal" href="#equation-rimkp-conc">Eq. 16</a> indicates that if project <span class="math notranslate nohighlight">\(i\)</span>
+is higher priority than project <span class="math notranslate nohighlight">\(i'\)</span>
+(<span class="math notranslate nohighlight">\(y_{ii'} = 1\)</span>), and we select the lower priority project
 <em>for some unit</em>, then we must also select the higher priority project.
-If <span class="math">y_{ii'} = 0</span>, or if
-<span class="math">\sum_{m=1}^{M} x_{i'm}^\omega = 0</span>, then the constraint is
+If <span class="math notranslate nohighlight">\(y_{ii'} = 0\)</span>, or if
+<span class="math notranslate nohighlight">\(\sum_{m=1}^{M} x_{i'm}^\omega = 0\)</span>, then the constraint is
 vacuous.</p>
 </section>
 <section id="budget-and-unit-selection-constraints">
 <h4>Budget and unit selection constraints<a class="headerlink" href="#budget-and-unit-selection-constraints" title="Link to this heading"></a></h4>
-<div class="math" id="equation-rimkp-budget">
-<p><span class="eqno">(17)<a class="headerlink" href="#equation-rimkp-budget" title="Link to this equation"></a></span><span class="math">\sum_{i \in I} c_i^\omega x_{im}^\omega \le b_m^\omega,
-\qquad m \in M,\ \omega \in \Omega,</span></p>
-</div><p>Constraint <a class="reference internal" href="#equation-rimkp-budget">Eq. 17</a> requires that we be within budget for
+<div class="math notranslate nohighlight" id="equation-rimkp-budget">
+<span class="eqno">(17)<a class="headerlink" href="#equation-rimkp-budget" title="Link to this equation"></a></span>\[\sum_{i \in I} c_i^\omega x_{im}^\omega \le b_m^\omega,
+\qquad m \in M,\ \omega \in \Omega,\]</div>
+<p>Constraint <a class="reference internal" href="#equation-rimkp-budget">Eq. 17</a> requires that we be within budget for
 each unit under each scenario.</p>
-<div class="math" id="equation-rimkp-oneunit">
-<p><span class="eqno">(18)<a class="headerlink" href="#equation-rimkp-oneunit" title="Link to this equation"></a></span><span class="math">\sum_{m \in M} x_{im}^\omega \le 1,
-\qquad i \in I,\ \omega \in \Omega,</span></p>
-</div><p>Constraint <a class="reference internal" href="#equation-rimkp-oneunit">Eq. 18</a> ensures that each project <span class="math">i</span> is
+<div class="math notranslate nohighlight" id="equation-rimkp-oneunit">
+<span class="eqno">(18)<a class="headerlink" href="#equation-rimkp-oneunit" title="Link to this equation"></a></span>\[\sum_{m \in M} x_{im}^\omega \le 1,
+\qquad i \in I,\ \omega \in \Omega,\]</div>
+<p>Constraint <a class="reference internal" href="#equation-rimkp-oneunit">Eq. 18</a> ensures that each project <span class="math notranslate nohighlight">\(i\)</span> is
 selected for at most one unit.</p>
 </section>
 <section id="id5">
@@ -575,41 +577,41 @@ selected for at most one unit.</p>
 <h3>Model formulation<a class="headerlink" href="#id7" title="Link to this heading"></a></h3>
 <section id="id8">
 <h4>Objective and priority consistency<a class="headerlink" href="#id8" title="Link to this heading"></a></h4>
-<div class="math" id="equation-rimckp-obj">
-<p><span class="eqno">(19)<a class="headerlink" href="#equation-rimckp-obj" title="Link to this equation"></a></span><span class="math">\mathop{\max}_{x,y} \;
+<div class="math notranslate nohighlight" id="equation-rimckp-obj">
+<span class="eqno">(19)<a class="headerlink" href="#equation-rimckp-obj" title="Link to this equation"></a></span>\[\mathop{\max}_{x,y} \;
 \sum_{\omega \in \Omega} q^\omega
-\sum_{i \in I} \sum_{j \in J_i} a_{ij}^\omega x_{ij}^\omega</span></p>
-</div><p>subject to</p>
-<div class="math" id="equation-rimckp-conb">
-<p><span class="eqno">(20)<a class="headerlink" href="#equation-rimckp-conb" title="Link to this equation"></a></span><span class="math">y_{ii'} + y_{i'i} \ge 1,
-\qquad i &lt; i',\ i,i' \in I,</span></p>
-</div><div class="math" id="equation-rimckp-conc">
-<p><span class="eqno">(21)<a class="headerlink" href="#equation-rimckp-conc" title="Link to this equation"></a></span><span class="math">\sum_{j=1}^{J_i} x_{ij}^\omega
+\sum_{i \in I} \sum_{j \in J_i} a_{ij}^\omega x_{ij}^\omega\]</div>
+<p>subject to</p>
+<div class="math notranslate nohighlight" id="equation-rimckp-conb">
+<span class="eqno">(20)<a class="headerlink" href="#equation-rimckp-conb" title="Link to this equation"></a></span>\[y_{ii'} + y_{i'i} \ge 1,
+\qquad i &lt; i',\ i,i' \in I,\]</div>
+<div class="math notranslate nohighlight" id="equation-rimckp-conc">
+<span class="eqno">(21)<a class="headerlink" href="#equation-rimckp-conc" title="Link to this equation"></a></span>\[\sum_{j=1}^{J_i} x_{ij}^\omega
 \ge \sum_{j=1}^{J_i} x_{i'j}^\omega + y_{ii'} - 1,
-\qquad i \ne i',\ i,i' \in I,\ \omega \in \Omega.</span></p>
-</div><p>Constraint <a class="reference internal" href="#equation-rimckp-conb">Eq. 20</a> indicates that either project <span class="math">i</span> is
-of higher priority than project <span class="math">i'</span>, or vice versa, or that both
+\qquad i \ne i',\ i,i' \in I,\ \omega \in \Omega.\]</div>
+<p>Constraint <a class="reference internal" href="#equation-rimckp-conb">Eq. 20</a> indicates that either project <span class="math notranslate nohighlight">\(i\)</span> is
+of higher priority than project <span class="math notranslate nohighlight">\(i'\)</span>, or vice versa, or that both
 are of equal priority (i.e., a tie).</p>
-<p>Constraint <a class="reference internal" href="#equation-rimckp-conc">Eq. 21</a> indicates that if project <span class="math">i</span> is
-higher priority than project <span class="math">i'</span>
-(<span class="math">y_{ii'} = 1</span>), and we select the lower priority project <em>under
+<p>Constraint <a class="reference internal" href="#equation-rimckp-conc">Eq. 21</a> indicates that if project <span class="math notranslate nohighlight">\(i\)</span> is
+higher priority than project <span class="math notranslate nohighlight">\(i'\)</span>
+(<span class="math notranslate nohighlight">\(y_{ii'} = 1\)</span>), and we select the lower priority project <em>under
 some option</em>, then we must also select the higher priority project. If
-<span class="math">y_{ii'} = 0</span>, or if
-<span class="math">\sum_{j=1}^{J_i} x_{i'j}^\omega = 0</span>, then the constraint is
+<span class="math notranslate nohighlight">\(y_{ii'} = 0\)</span>, or if
+<span class="math notranslate nohighlight">\(\sum_{j=1}^{J_i} x_{i'j}^\omega = 0\)</span>, then the constraint is
 vacuous.</p>
 </section>
 <section id="budget-and-option-constraints">
 <h4>Budget and option constraints<a class="headerlink" href="#budget-and-option-constraints" title="Link to this heading"></a></h4>
-<div class="math" id="equation-rimckp-budget">
-<p><span class="eqno">(22)<a class="headerlink" href="#equation-rimckp-budget" title="Link to this equation"></a></span><span class="math">\sum_{i \in I} \sum_{j \in J_i} c_{ijkt}^\omega x_{ij}^\omega
+<div class="math notranslate nohighlight" id="equation-rimckp-budget">
+<span class="eqno">(22)<a class="headerlink" href="#equation-rimckp-budget" title="Link to this equation"></a></span>\[\sum_{i \in I} \sum_{j \in J_i} c_{ijkt}^\omega x_{ij}^\omega
 \le b_{kt}^\omega,
-\qquad k \in K,\ t \in T,\ \omega \in \Omega,</span></p>
-</div><p>Constraint <a class="reference internal" href="#equation-rimckp-budget">Eq. 22</a> requires that we be within budget in each
+\qquad k \in K,\ t \in T,\ \omega \in \Omega,\]</div>
+<p>Constraint <a class="reference internal" href="#equation-rimckp-budget">Eq. 22</a> requires that we be within budget in each
 time period, for each resource type, and under each scenario.</p>
-<div class="math" id="equation-rimckp-oneopt">
-<p><span class="eqno">(23)<a class="headerlink" href="#equation-rimckp-oneopt" title="Link to this equation"></a></span><span class="math">\sum_{j \in J_i} x_{ij}^\omega \le 1,
-\qquad i \in I,\ \omega \in \Omega.</span></p>
-</div><p>Constraint <a class="reference internal" href="#equation-rimckp-oneopt">Eq. 23</a> ensures that we select project <span class="math">i</span>
+<div class="math notranslate nohighlight" id="equation-rimckp-oneopt">
+<span class="eqno">(23)<a class="headerlink" href="#equation-rimckp-oneopt" title="Link to this equation"></a></span>\[\sum_{j \in J_i} x_{ij}^\omega \le 1,
+\qquad i \in I,\ \omega \in \Omega.\]</div>
+<p>Constraint <a class="reference internal" href="#equation-rimckp-oneopt">Eq. 23</a> ensures that we select project <span class="math notranslate nohighlight">\(i\)</span>
 via at most one option. This illustrates a situation in which we must
 include the <code class="code docutils literal notranslate"><span class="pre">DoNothing</span></code> option among the alternatives to optional
 projects.</p>

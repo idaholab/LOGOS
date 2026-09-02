@@ -20,6 +20,8 @@
       <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "tags": "ams", "tagSide": "right", "tagIndent": "0.8em"}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -103,22 +105,22 @@ limited capacities of the renewable resources that are required to
 accomplish the activities. The RCPSP for the scheduling of maintenance
 and surveillance activities of a nuclear power plant can be summarized
 as follows.</p>
-<p>We consider a project that consists of a set of <span class="math">J</span> jobs
+<p>We consider a project that consists of a set of <span class="math notranslate nohighlight">\(J\)</span> jobs
 (or tasks). Due to technological requirements, precedence relations
-among some of the jobs enforce that job <span class="math">j = 2,3,\dots,J</span> may not
-be started before all its predecessors, denoted by <span class="math">P_j</span>, are
-finished. Here, <span class="math">j = 1</span> indexes an artificial job with zero
+among some of the jobs enforce that job <span class="math notranslate nohighlight">\(j = 2,3,\dots,J\)</span> may not
+be started before all its predecessors, denoted by <span class="math notranslate nohighlight">\(P_j\)</span>, are
+finished. Here, <span class="math notranslate nohighlight">\(j = 1\)</span> indexes an artificial job with zero
 duration, which precedes all jobs that can start at time zero, and
-<span class="math">j = J</span> indexes an artificial final job, again with zero
+<span class="math notranslate nohighlight">\(j = J\)</span> indexes an artificial final job, again with zero
 duration, which represents the end of the project. Executing job
-<span class="math">j</span> takes <span class="math">d_j</span> time periods and is supported by a set,
-<span class="math">R</span>, of renewable resources.</p>
-<p>Consider a horizon with an upper bound <span class="math">T</span> on the project’s
+<span class="math notranslate nohighlight">\(j\)</span> takes <span class="math notranslate nohighlight">\(d_j\)</span> time periods and is supported by a set,
+<span class="math notranslate nohighlight">\(R\)</span>, of renewable resources.</p>
+<p>Consider a horizon with an upper bound <span class="math notranslate nohighlight">\(T\)</span> on the project’s
 makespan, i.e., the time at which the final job is completed.
-We assume <span class="math">K_r^p</span> units of renewable resource <span class="math">r \in R</span>
-are available in each time period <span class="math">t = 1, 2, \dots, T</span>. Job
-<span class="math">j</span> requires <span class="math">k_{jr}^p</span> units of the renewable resource
-<span class="math">r \in R</span> for each period of the job’s duration, i.e., for time
+We assume <span class="math notranslate nohighlight">\(K_r^p\)</span> units of renewable resource <span class="math notranslate nohighlight">\(r \in R\)</span>
+are available in each time period <span class="math notranslate nohighlight">\(t = 1, 2, \dots, T\)</span>. Job
+<span class="math notranslate nohighlight">\(j\)</span> requires <span class="math notranslate nohighlight">\(k_{jr}^p\)</span> units of the renewable resource
+<span class="math notranslate nohighlight">\(r \in R\)</span> for each period of the job’s duration, i.e., for time
 periods when the job is in process.</p>
 <p>The objective is to find a schedule that minimizes the project’s
 makespan while respecting the constraints imposed by the precedence
@@ -126,36 +128,36 @@ relations and the limited resource availability.</p>
 <section id="indexes-and-parameters">
 <h2>Indexes and parameters<a class="headerlink" href="#indexes-and-parameters" title="Link to this heading"></a></h2>
 <ul class="simple">
-<li><p><span class="math">t = 1, 2, \dots, T</span>:
-time periods, where <span class="math">T</span> is an upper bound on the project’s
+<li><p><span class="math notranslate nohighlight">\(t = 1, 2, \dots, T\)</span>:
+time periods, where <span class="math notranslate nohighlight">\(T\)</span> is an upper bound on the project’s
 makespan.</p></li>
-<li><p><span class="math">j = 1, 2, \dots, J</span>:
-jobs, with <span class="math">j = 1</span> and <span class="math">j = J</span> denoting artificial jobs.</p></li>
-<li><p><span class="math">r \in R</span>:
+<li><p><span class="math notranslate nohighlight">\(j = 1, 2, \dots, J\)</span>:
+jobs, with <span class="math notranslate nohighlight">\(j = 1\)</span> and <span class="math notranslate nohighlight">\(j = J\)</span> denoting artificial jobs.</p></li>
+<li><p><span class="math notranslate nohighlight">\(r \in R\)</span>:
 set of renewable resources.</p></li>
-<li><p><span class="math">d_j</span>:
-duration of job <span class="math">j</span>.</p></li>
-<li><p><span class="math">K_r^p</span>:
-number of units of renewable resource <span class="math">r</span> available in period
-<span class="math">t</span>.</p></li>
-<li><p><span class="math">k_{jr}^p</span>:
-number of units of renewable resource <span class="math">r</span> consumed by job
-<span class="math">j</span> while in process.</p></li>
-<li><p><span class="math">P_j</span>:
-set of immediate predecessors of job <span class="math">j</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(d_j\)</span>:
+duration of job <span class="math notranslate nohighlight">\(j\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(K_r^p\)</span>:
+number of units of renewable resource <span class="math notranslate nohighlight">\(r\)</span> available in period
+<span class="math notranslate nohighlight">\(t\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(k_{jr}^p\)</span>:
+number of units of renewable resource <span class="math notranslate nohighlight">\(r\)</span> consumed by job
+<span class="math notranslate nohighlight">\(j\)</span> while in process.</p></li>
+<li><p><span class="math notranslate nohighlight">\(P_j\)</span>:
+set of immediate predecessors of job <span class="math notranslate nohighlight">\(j\)</span>.</p></li>
 </ul>
 </section>
 <section id="decision-variables">
 <h2>Decision variables<a class="headerlink" href="#decision-variables" title="Link to this heading"></a></h2>
 <ul class="simple">
-<li><p><span class="math">x_{jt}</span>:
-equals 1 if job <span class="math">j</span> completes in period <span class="math">t</span>; 0 otherwise.</p></li>
+<li><p><span class="math notranslate nohighlight">\(x_{jt}\)</span>:
+equals 1 if job <span class="math notranslate nohighlight">\(j\)</span> completes in period <span class="math notranslate nohighlight">\(t\)</span>; 0 otherwise.</p></li>
 </ul>
 </section>
 <section id="mathematical-formulation">
 <h2>Mathematical formulation<a class="headerlink" href="#mathematical-formulation" title="Link to this heading"></a></h2>
-<div class="math" id="equation-include-rcpsp-0">
-<p><span class="eqno">(48)<a class="headerlink" href="#equation-include-rcpsp-0" title="Link to this equation"></a></span><span class="math">\begin{aligned}
+<div class="math notranslate nohighlight" id="equation-include-rcpsp-0">
+<span class="eqno">(48)<a class="headerlink" href="#equation-include-rcpsp-0" title="Link to this equation"></a></span>\[\begin{split}\begin{aligned}
 \min \quad &amp; \sum_{t=1}^{T} (t-1)\,x_{Jt} \\
 \text{s.t.} \quad
 &amp; \sum_{t=1}^{T} x_{jt} = 1,
@@ -168,8 +170,8 @@ equals 1 if job <span class="math">j</span> completes in period <span class="mat
   &amp;&amp; r \in R;\; t = 1,\dots,T, \\
 &amp; x_{jt} \in \{0,1\},
   &amp;&amp; j = 1,\dots,J;\; t = 1,\dots,T.
-\end{aligned}</span></p>
-</div><p>The RCPSP model in LOGOS consists of the following modeling components:
+\end{aligned}\end{split}\]</div>
+<p>The RCPSP model in LOGOS consists of the following modeling components:
 <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Sets&gt;</span></code>, <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Parameters&gt;</span></code>, and <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Settings&gt;</span></code>. Each of
 these components is illustrated in the following sections.</p>
 </section>
