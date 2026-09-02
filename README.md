@@ -1,6 +1,6 @@
-![LOGOS Logo](./doc/logos/LOGOS.png)
+# Logos: Operation Optimization Toolkit 
 
-# Logos: Operation Optimization Toolkit
+<img src="./doc/logos/LOGOS.png" align="right" style="margin-left: 20px; margin-bottom: 10px; width: 213px; height: 200px;"/>
 
 LOGOS is a software package which contains a set of discrete optimization models
 that can be employed for capital budgeting optimization problems. More specifically,
@@ -43,7 +43,17 @@ path/to/LOGOS/build.sh --install
 python run_tests.py
 
 ## Docs
-path/to/LOGOS/doc
+Check [LOGOS Manual](https://idaholab.github.io/LOGOS/)
+
+### Licensing
+-----
+This software is licensed under the terms you may find in the file named "LICENSE" in this directory.
+
+### Developers
+-----
+By contributing to this software project, you are agreeing to the following terms and conditions for your contributions:
+
+You agree your contributions are submitted under the Apache license. You represent you are authorized to make the contributions and grant the license. If your employer has rights to intellectual property that includes your contributions, you represent that you have received permission to make contributions and grant the required license on behalf of that employer.
 
 ### Other Software
 Idaho National Laboratory is a cutting edge research facility which is a constantly producing high quality research and software. Feel free to take a look at our other software and scientific offerings at:
@@ -55,14 +65,3 @@ Idaho National Laboratory is a cutting edge research facility which is a constan
 [Raw Experiment Open Source Software](https://github.com/IdahoLabResearch)
 
 [Unsupported Open Source Software](https://github.com/IdahoLabCuttingBoard)
-
-
-### Licensing
------
-This software is licensed under the terms you may find in the file named "LICENSE" in this directory.
-
-### Developers
------
-By contributing to this software project, you are agreeing to the following terms and conditions for your contributions:
-
-You agree your contributions are submitted under the Apache license. You represent you are authorized to make the contributions and grant the license. If your employer has rights to intellectual property that includes your contributions, you represent that you have received permission to make contributions and grant the required license on behalf of that employer.
