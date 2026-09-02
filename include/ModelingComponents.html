@@ -8,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Overview of Capital Budgeting Modeling Components &mdash; LOGOS 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
 
   
@@ -240,7 +240,7 @@ Specifies the index dependence. The valid index is
 <span class="w">  </span><span class="nt">&lt;/investments&gt;</span>
 <span class="w">  </span><span class="nt">&lt;time_periods&gt;</span>year1<span class="w"> </span>year2<span class="w"> </span>year3<span class="w"> </span>year4<span class="w"> </span>year5<span class="nt">&lt;/time_periods&gt;</span>
 <span class="w">  </span><span class="nt">&lt;resources&gt;</span>CapitalFunds<span class="w"> </span>OandMFunds<span class="nt">&lt;/resources&gt;</span>
-<span class="w">  </span><span class="nt">&lt;options</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;options</span><span class="w"> </span><span class="na">index=</span><span class="s">"investments"</span><span class="nt">&gt;</span>
 <span class="w">    </span>PlanA<span class="w"> </span>PlanB<span class="w"> </span>DoNothing;
 <span class="w">    </span>PlanA<span class="w"> </span>PlanB<span class="w"> </span>PlanC;
 <span class="w">    </span>...
@@ -308,18 +308,18 @@ in <code class="xml-node docutils literal notranslate"><span class="pre">&lt;Set
 </ul>
 <p>Example XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Parameters&gt;</span>
-<span class="w">  </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;options&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">"options"</span><span class="nt">&gt;</span>
 <span class="w">    </span>27.98<span class="w"> </span>27.17<span class="w"> </span>0.
 <span class="w">    </span>-10.07<span class="w"> </span>-9.78<span class="w"> </span>-9.22
 <span class="w">    </span>...
 <span class="w">    </span>8.26<span class="w"> </span>7.56<span class="w"> </span>7.34<span class="w"> </span>0.
 <span class="w">  </span><span class="nt">&lt;/net_present_values&gt;</span>
-<span class="w">  </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;options,resources,time_periods&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">"options,resources,time_periods"</span><span class="nt">&gt;</span>
 <span class="w">    </span>12.99<span class="w"> </span>1.3<span class="w"> </span>0<span class="w"> </span>0<span class="w"> </span>0
 <span class="w">    </span>...
 <span class="w">    </span>0.01<span class="w"> </span>0<span class="w"> </span>0<span class="w"> </span>0<span class="w"> </span>0
 <span class="w">  </span><span class="nt">&lt;/costs&gt;</span>
-<span class="w">  </span><span class="nt">&lt;available_capitals</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;resources,time_periods&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;available_capitals</span><span class="w"> </span><span class="na">index=</span><span class="s">"resources,time_periods"</span><span class="nt">&gt;</span>
 <span class="w">    </span>22.6<span class="w"> </span>36.7<span class="w"> </span>20.6<span class="w"> </span>23.6<span class="w"> </span>22.7
 <span class="w">    </span>0.08<span class="w"> </span>0.17<span class="w"> </span>0.05<span class="w"> </span>0.15<span class="w"> </span>0.14
 <span class="w">  </span><span class="nt">&lt;/available_capitals&gt;</span>
@@ -367,7 +367,7 @@ consistent with <code class="xml-node docutils literal notranslate"><span class=
 for <code class="xml-node docutils literal notranslate"><span class="pre">&lt;net_present_values&gt;</span></code>.</p>
 <p>Example XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Uncertainties&gt;</span>
-<span class="w">  </span><span class="nt">&lt;available_capitals</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;resources,time_periods&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;available_capitals</span><span class="w"> </span><span class="na">index=</span><span class="s">"resources,time_periods"</span><span class="nt">&gt;</span>
 <span class="w">    </span><span class="nt">&lt;totalScenarios&gt;</span>10<span class="nt">&lt;/totalScenarios&gt;</span>
 <span class="w">    </span><span class="nt">&lt;probabilities&gt;</span>
 <span class="w">      </span>0.5,<span class="w"> </span>0.5
@@ -377,7 +377,7 @@ for <code class="xml-node docutils literal notranslate"><span class="pre">&lt;ne
 <span class="w">      </span>23.0<span class="w"> </span>38.0<span class="w"> </span>22.0<span class="w"> </span>25.0<span class="w"> </span>24.0<span class="w"> </span>0.08<span class="w"> </span>0.17<span class="w"> </span>0.05<span class="w"> </span>0.15<span class="w"> </span>0.14
 <span class="w">    </span><span class="nt">&lt;/scenarios&gt;</span>
 <span class="w">  </span><span class="nt">&lt;/available_capitals&gt;</span>
-<span class="w">  </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;options&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">"options"</span><span class="nt">&gt;</span>
 <span class="w">    </span><span class="nt">&lt;totalScenarios&gt;</span>9<span class="nt">&lt;/totalScenarios&gt;</span>
 <span class="w">    </span><span class="nt">&lt;probabilities&gt;</span>
 <span class="w">      </span>0.3<span class="w"> </span>0.8
@@ -419,8 +419,8 @@ optimization problem.</p></li>
 </ul>
 <p>Example XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;ExternalConstraints&gt;</span>
-<span class="w">  </span><span class="nt">&lt;constraint</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;con_I&quot;</span><span class="nt">&gt;</span>externalConst<span class="nt">&lt;/constraint&gt;</span>
-<span class="w">  </span><span class="nt">&lt;constraint</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;con_II&quot;</span><span class="nt">&gt;</span>externalConstII.py<span class="nt">&lt;/constraint&gt;</span>
+<span class="w">  </span><span class="nt">&lt;constraint</span><span class="w"> </span><span class="na">name=</span><span class="s">"con_I"</span><span class="nt">&gt;</span>externalConst<span class="nt">&lt;/constraint&gt;</span>
+<span class="w">  </span><span class="nt">&lt;constraint</span><span class="w"> </span><span class="na">name=</span><span class="s">"con_II"</span><span class="nt">&gt;</span>externalConstII.py<span class="nt">&lt;/constraint&gt;</span>
 <span class="nt">&lt;/ExternalConstraints&gt;</span>
 </pre></div>
 </div>
@@ -434,7 +434,7 @@ the optimization model.</p>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pyomo.environ</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pyomo</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">():</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Optional method.</span>
 
 <span class="sd">    Optimization model parameter values can be updated/modified</span>
@@ -447,20 +447,20 @@ the optimization model.</p>
 <span class="sd">        Dictionary of the form {paramName: paramInfoDict},</span>
 <span class="sd">        where paramInfoDict contains {Indices: Values}.</span>
 <span class="sd">        Indices are parameter indices (either strings or tuples of</span>
-<span class="sd">        strings, depending on the parameter&#39;s dimensionality).</span>
+<span class="sd">        strings, depending on the parameter's dimensionality).</span>
 <span class="sd">        Values are the new values being assigned.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">updateDict</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;available_capitals&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;None&quot;</span><span class="p">:</span> <span class="mi">16</span><span class="p">},</span>
-        <span class="s2">&quot;costs&quot;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s2">&quot;1&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;2&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;3&quot;</span><span class="p">:</span> <span class="mi">7</span><span class="p">,</span> <span class="s2">&quot;4&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;5&quot;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
-            <span class="s2">&quot;6&quot;</span><span class="p">:</span> <span class="mi">9</span><span class="p">,</span> <span class="s2">&quot;7&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">,</span> <span class="s2">&quot;8&quot;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;9&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;10&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+        <span class="s2">"available_capitals"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"None"</span><span class="p">:</span> <span class="mi">16</span><span class="p">},</span>
+        <span class="s2">"costs"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"1"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"2"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"3"</span><span class="p">:</span> <span class="mi">7</span><span class="p">,</span> <span class="s2">"4"</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">"5"</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
+            <span class="s2">"6"</span><span class="p">:</span> <span class="mi">9</span><span class="p">,</span> <span class="s2">"7"</span><span class="p">:</span> <span class="mi">6</span><span class="p">,</span> <span class="s2">"8"</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">"9"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"10"</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
         <span class="p">},</span>
     <span class="p">}</span>
     <span class="k">return</span> <span class="n">updateDict</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">constraint</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">sets</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Required method.</span>
 
 <span class="sd">    External constraint provided by the user that will be added to the</span>
@@ -474,11 +474,11 @@ the optimization model.</p>
 <span class="sd">        ``&lt;problem_type&gt;`` from the LOGOS input file).</span>
 <span class="sd">        Currently supported types:</span>
 
-<span class="sd">        1. &quot;singleknapsack&quot;: var[:] indexed by the elements of</span>
+<span class="sd">        1. "singleknapsack": var[:] indexed by the elements of</span>
 <span class="sd">           the ``investments`` set.</span>
-<span class="sd">        2. &quot;multipleknapsack&quot;: var[:,:] indexed by combinations</span>
+<span class="sd">        2. "multipleknapsack": var[:,:] indexed by combinations</span>
 <span class="sd">           of ``investments`` and ``capitals``.</span>
-<span class="sd">        3. &quot;mckp&quot;: var[:,:] indexed by combinations of</span>
+<span class="sd">        3. "mckp": var[:,:] indexed by combinations of</span>
 <span class="sd">           ``investments`` and ``options``.</span>
 
 <span class="sd">        Note: all index elements are converted to strings.</span>
@@ -498,15 +498,15 @@ the optimization model.</p>
 
 <span class="sd">    Notes</span>
 <span class="sd">    -----</span>
-<span class="sd">    Any modifications to &quot;sets&quot; and &quot;params&quot; in this function have</span>
+<span class="sd">    Any modifications to "sets" and "params" in this function have</span>
 <span class="sd">    impact only locally within this module. Internal constraints and</span>
 <span class="sd">    objectives in LOGOS use the original versions.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
 
-    <span class="n">investments</span> <span class="o">=</span> <span class="n">sets</span><span class="p">[</span><span class="s2">&quot;investments&quot;</span><span class="p">]</span>
+    <span class="n">investments</span> <span class="o">=</span> <span class="n">sets</span><span class="p">[</span><span class="s2">"investments"</span><span class="p">]</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">constraintRule</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""</span>
 <span class="sd">        Expression for the user-provided external constraint.</span>
 
 <span class="sd">        Parameters</span>
@@ -520,7 +520,7 @@ the optimization model.</p>
 <span class="sd">        -------</span>
 <span class="sd">        expression</span>
 <span class="sd">            A Pyomo expression defining the constraint for index i.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+<span class="sd">        """</span>
         <span class="c1"># Example: place an upper bound on the i-th decision variable</span>
         <span class="k">return</span> <span class="n">var</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">1</span>
 

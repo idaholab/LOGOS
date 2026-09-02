@@ -8,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Knapsack Models &mdash; LOGOS 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
 
   
@@ -116,7 +116,7 @@ chosen elements.</p></li>
 satisfied, then the variable is penalized by multiplying the project
 value by <span class="math">-1</span>.</p>
 <p>Example LOGOS input XML for <code class="docutils literal notranslate"><span class="pre">SimpleKnapsackModel</span></code>:</p>
-<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;knapsack&quot;</span><span class="w"> </span><span class="na">subType=</span><span class="s">&quot;LOGOS.SimpleKnapsackModel&quot;</span><span class="nt">&gt;</span>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">"knapsack"</span><span class="w"> </span><span class="na">subType=</span><span class="s">"LOGOS.SimpleKnapsackModel"</span><span class="nt">&gt;</span>
 <span class="w">  </span><span class="nt">&lt;variables&gt;</span>element1Status,element2Status,element3Status,
 <span class="w">             </span>element4Status,element5Status,element1Val,
 <span class="w">             </span>element2Val,element3Val,element4Val,
@@ -127,11 +127,11 @@ value by <span class="math">-1</span>.</p>
 <span class="w">  </span><span class="nt">&lt;penaltyFactor&gt;</span>1.<span class="nt">&lt;/penaltyFactor&gt;</span>
 <span class="w">  </span><span class="nt">&lt;outcome&gt;</span>validity<span class="nt">&lt;/outcome&gt;</span>
 <span class="w">  </span><span class="nt">&lt;choiceValue&gt;</span>totalValue<span class="nt">&lt;/choiceValue&gt;</span>
-<span class="w">  </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">&quot;element1Val&quot;</span><span class="w"> </span><span class="na">cost=</span><span class="s">&quot;element1Cost&quot;</span><span class="nt">&gt;</span>element1Status<span class="nt">&lt;/map&gt;</span>
-<span class="w">  </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">&quot;element2Val&quot;</span><span class="w"> </span><span class="na">cost=</span><span class="s">&quot;element2Cost&quot;</span><span class="nt">&gt;</span>element2Status<span class="nt">&lt;/map&gt;</span>
-<span class="w">  </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">&quot;element3Val&quot;</span><span class="w"> </span><span class="na">cost=</span><span class="s">&quot;element3Cost&quot;</span><span class="nt">&gt;</span>element3Status<span class="nt">&lt;/map&gt;</span>
-<span class="w">  </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">&quot;element4Val&quot;</span><span class="w"> </span><span class="na">cost=</span><span class="s">&quot;element4Cost&quot;</span><span class="nt">&gt;</span>element4Status<span class="nt">&lt;/map&gt;</span>
-<span class="w">  </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">&quot;element5Val&quot;</span><span class="w"> </span><span class="na">cost=</span><span class="s">&quot;element5Cost&quot;</span><span class="nt">&gt;</span>element5Status<span class="nt">&lt;/map&gt;</span>
+<span class="w">  </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">"element1Val"</span><span class="w"> </span><span class="na">cost=</span><span class="s">"element1Cost"</span><span class="nt">&gt;</span>element1Status<span class="nt">&lt;/map&gt;</span>
+<span class="w">  </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">"element2Val"</span><span class="w"> </span><span class="na">cost=</span><span class="s">"element2Cost"</span><span class="nt">&gt;</span>element2Status<span class="nt">&lt;/map&gt;</span>
+<span class="w">  </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">"element3Val"</span><span class="w"> </span><span class="na">cost=</span><span class="s">"element3Cost"</span><span class="nt">&gt;</span>element3Status<span class="nt">&lt;/map&gt;</span>
+<span class="w">  </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">"element4Val"</span><span class="w"> </span><span class="na">cost=</span><span class="s">"element4Cost"</span><span class="nt">&gt;</span>element4Status<span class="nt">&lt;/map&gt;</span>
+<span class="w">  </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">"element5Val"</span><span class="w"> </span><span class="na">cost=</span><span class="s">"element5Cost"</span><span class="nt">&gt;</span>element5Status<span class="nt">&lt;/map&gt;</span>
 <span class="nt">&lt;/ExternalModel&gt;</span>
 </pre></div>
 </div>
@@ -157,23 +157,23 @@ not satisfied, then the variable is penalized by multiplying the project
 value by <span class="math">-1</span>.</p>
 <p>Example LOGOS input XML for <code class="docutils literal notranslate"><span class="pre">MultipleKnapsackModel</span></code>:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Models&gt;</span>
-<span class="w">  </span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;knapsack&quot;</span><span class="w"> </span><span class="na">subType=</span><span class="s">&quot;LOGOS.MultipleKnapsackModel&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">"knapsack"</span><span class="w"> </span><span class="na">subType=</span><span class="s">"LOGOS.MultipleKnapsackModel"</span><span class="nt">&gt;</span>
 <span class="w">    </span><span class="nt">&lt;variables&gt;</span>e1Status,e2Status,e3Status,e4Status,e5Status,
 <span class="w">               </span>e1Val<span class="w">   </span>,e2Val<span class="w">   </span>,e3Val<span class="w">   </span>,e4Val<span class="w">   </span>,e5Val,
 <span class="w">               </span>e1Cost<span class="w">  </span>,e2Cost<span class="w">  </span>,e3Cost<span class="w">  </span>,e4Cost<span class="w">  </span>,e5Cost,
 <span class="w">               </span>validity,totalValue,
 <span class="w">               </span>K1_cap,K2_cap,K3_cap<span class="nt">&lt;/variables&gt;</span>
-<span class="w">    </span><span class="nt">&lt;knapsack</span><span class="w"> </span><span class="na">ID=</span><span class="s">&quot;1&quot;</span><span class="nt">&gt;</span>K1_cap<span class="nt">&lt;/knapsack&gt;</span>
-<span class="w">    </span><span class="nt">&lt;knapsack</span><span class="w"> </span><span class="na">ID=</span><span class="s">&quot;2&quot;</span><span class="nt">&gt;</span>K2_cap<span class="nt">&lt;/knapsack&gt;</span>
-<span class="w">    </span><span class="nt">&lt;knapsack</span><span class="w"> </span><span class="na">ID=</span><span class="s">&quot;3&quot;</span><span class="nt">&gt;</span>K3_cap<span class="nt">&lt;/knapsack&gt;</span>
+<span class="w">    </span><span class="nt">&lt;knapsack</span><span class="w"> </span><span class="na">ID=</span><span class="s">"1"</span><span class="nt">&gt;</span>K1_cap<span class="nt">&lt;/knapsack&gt;</span>
+<span class="w">    </span><span class="nt">&lt;knapsack</span><span class="w"> </span><span class="na">ID=</span><span class="s">"2"</span><span class="nt">&gt;</span>K2_cap<span class="nt">&lt;/knapsack&gt;</span>
+<span class="w">    </span><span class="nt">&lt;knapsack</span><span class="w"> </span><span class="na">ID=</span><span class="s">"3"</span><span class="nt">&gt;</span>K3_cap<span class="nt">&lt;/knapsack&gt;</span>
 <span class="w">    </span><span class="nt">&lt;penaltyFactor&gt;</span>1.<span class="nt">&lt;/penaltyFactor&gt;</span>
 <span class="w">    </span><span class="nt">&lt;outcome&gt;</span>validity<span class="nt">&lt;/outcome&gt;</span>
 <span class="w">    </span><span class="nt">&lt;choiceValue&gt;</span>totalValue<span class="nt">&lt;/choiceValue&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">&quot;e1Val&quot;</span><span class="w"> </span><span class="na">cost=</span><span class="s">&quot;e1Cost&quot;</span><span class="nt">&gt;</span>e1Status<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">&quot;e2Val&quot;</span><span class="w"> </span><span class="na">cost=</span><span class="s">&quot;e2Cost&quot;</span><span class="nt">&gt;</span>e2Status<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">&quot;e3Val&quot;</span><span class="w"> </span><span class="na">cost=</span><span class="s">&quot;e3Cost&quot;</span><span class="nt">&gt;</span>e3Status<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">&quot;e4Val&quot;</span><span class="w"> </span><span class="na">cost=</span><span class="s">&quot;e4Cost&quot;</span><span class="nt">&gt;</span>e4Status<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">&quot;e5Val&quot;</span><span class="w"> </span><span class="na">cost=</span><span class="s">&quot;e5Cost&quot;</span><span class="nt">&gt;</span>e5Status<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">"e1Val"</span><span class="w"> </span><span class="na">cost=</span><span class="s">"e1Cost"</span><span class="nt">&gt;</span>e1Status<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">"e2Val"</span><span class="w"> </span><span class="na">cost=</span><span class="s">"e2Cost"</span><span class="nt">&gt;</span>e2Status<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">"e3Val"</span><span class="w"> </span><span class="na">cost=</span><span class="s">"e3Cost"</span><span class="nt">&gt;</span>e3Status<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">"e4Val"</span><span class="w"> </span><span class="na">cost=</span><span class="s">"e4Cost"</span><span class="nt">&gt;</span>e4Status<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">value=</span><span class="s">"e5Val"</span><span class="w"> </span><span class="na">cost=</span><span class="s">"e5Cost"</span><span class="nt">&gt;</span>e5Status<span class="nt">&lt;/map&gt;</span>
 <span class="w">  </span><span class="nt">&lt;/ExternalModel&gt;</span>
 <span class="nt">&lt;/Models&gt;</span>
 </pre></div>

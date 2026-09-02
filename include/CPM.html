@@ -8,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Critical Path Model (CPM) &mdash; LOGOS 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
 
   
@@ -121,18 +121,18 @@ required:</p>
 </ul>
 <p>Example of CPM input XML in a RAVEN input file:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Models&gt;</span>
-<span class="w">  </span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;CPMmodel&quot;</span><span class="w"> </span><span class="na">subType=</span><span class="s">&quot;LOGOS.BaseCPMmodel&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">"CPMmodel"</span><span class="w"> </span><span class="na">subType=</span><span class="s">"LOGOS.BaseCPMmodel"</span><span class="nt">&gt;</span>
 <span class="w">    </span><span class="nt">&lt;variables&gt;</span>start,b,c,d,end,f,g,h,end_time,CP<span class="nt">&lt;/variables&gt;</span>
 <span class="w">    </span><span class="nt">&lt;CPtime&gt;</span>end_time<span class="nt">&lt;/CPtime&gt;</span>
 <span class="w">    </span><span class="nt">&lt;CPid&gt;</span>CP<span class="nt">&lt;/CPid&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;start&#39;</span><span class="w"> </span><span class="na">dur=</span><span class="s">&#39;10&#39;</span><span class="nt">&gt;</span>f,b,h<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;b&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;20&#39;</span><span class="nt">&gt;</span>c<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;c&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;5&#39;</span><span class="w"> </span><span class="nt">&gt;</span>g,d<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;d&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;10&#39;</span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;f&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;15&#39;</span><span class="nt">&gt;</span>g<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;g&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;5&#39;</span><span class="w"> </span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;h&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;15&#39;</span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;end&#39;</span><span class="w">   </span><span class="na">dur=</span><span class="s">&#39;20&#39;</span><span class="nt">&gt;&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'start'</span><span class="w"> </span><span class="na">dur=</span><span class="s">'10'</span><span class="nt">&gt;</span>f,b,h<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'b'</span><span class="w">     </span><span class="na">dur=</span><span class="s">'20'</span><span class="nt">&gt;</span>c<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'c'</span><span class="w">     </span><span class="na">dur=</span><span class="s">'5'</span><span class="w"> </span><span class="nt">&gt;</span>g,d<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'d'</span><span class="w">     </span><span class="na">dur=</span><span class="s">'10'</span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'f'</span><span class="w">     </span><span class="na">dur=</span><span class="s">'15'</span><span class="nt">&gt;</span>g<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'g'</span><span class="w">     </span><span class="na">dur=</span><span class="s">'5'</span><span class="w"> </span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'h'</span><span class="w">     </span><span class="na">dur=</span><span class="s">'15'</span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'end'</span><span class="w">   </span><span class="na">dur=</span><span class="s">'20'</span><span class="nt">&gt;&lt;/map&gt;</span>
 <span class="w">  </span><span class="nt">&lt;/ExternalModel&gt;</span>
 <span class="nt">&lt;/Models&gt;</span>
 </pre></div>
@@ -151,14 +151,14 @@ activities <code class="docutils literal notranslate"><span class="pre">g</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">LOGOS.src.CPM.PertMain2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Activity</span>
 
 <span class="k">class</span><span class="w"> </span><span class="nc">project</span><span class="p">():</span>
-  <span class="n">start</span> <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;start&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
-  <span class="n">b</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;b&quot;</span><span class="p">,</span>     <span class="mi">20</span><span class="p">)</span>
-  <span class="n">c</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;c&quot;</span><span class="p">,</span>      <span class="mi">5</span><span class="p">)</span>
-  <span class="n">d</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;d&quot;</span><span class="p">,</span>     <span class="mi">10</span><span class="p">)</span>
-  <span class="n">f</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;f&quot;</span><span class="p">,</span>     <span class="mi">15</span><span class="p">)</span>
-  <span class="n">g</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;g&quot;</span><span class="p">,</span>      <span class="mi">5</span><span class="p">)</span>
-  <span class="n">h</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;h&quot;</span><span class="p">,</span>     <span class="mi">15</span><span class="p">)</span>
-  <span class="n">end</span>   <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;end&quot;</span><span class="p">,</span>   <span class="mi">20</span><span class="p">)</span>
+  <span class="n">start</span> <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"start"</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+  <span class="n">b</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span>     <span class="mi">20</span><span class="p">)</span>
+  <span class="n">c</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span>      <span class="mi">5</span><span class="p">)</span>
+  <span class="n">d</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"d"</span><span class="p">,</span>     <span class="mi">10</span><span class="p">)</span>
+  <span class="n">f</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"f"</span><span class="p">,</span>     <span class="mi">15</span><span class="p">)</span>
+  <span class="n">g</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"g"</span><span class="p">,</span>      <span class="mi">5</span><span class="p">)</span>
+  <span class="n">h</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"h"</span><span class="p">,</span>     <span class="mi">15</span><span class="p">)</span>
+  <span class="n">end</span>   <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"end"</span><span class="p">,</span>   <span class="mi">20</span><span class="p">)</span>
 
   <span class="n">graph</span> <span class="o">=</span> <span class="p">{</span><span class="n">start</span><span class="p">:</span> <span class="p">[</span><span class="n">f</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">h</span><span class="p">],</span>
            <span class="n">b</span>    <span class="p">:</span> <span class="p">[</span><span class="n">c</span><span class="p">],</span>
@@ -316,19 +316,19 @@ The RAVEN ID for the critical path is specified in the xmlNode{CPid}.</p>
 <p>In RAVEN, the graph can be imported in two ways:</p>
 <p><strong>1. XML definition using xmlNode{map} nodes:</strong></p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Models&gt;</span>
-<span class="w">  </span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;CPMmodel&quot;</span><span class="w"> </span><span class="na">subType=</span><span class="s">&quot;LOGOS.BaseCPMmodel&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">"CPMmodel"</span><span class="w"> </span><span class="na">subType=</span><span class="s">"LOGOS.BaseCPMmodel"</span><span class="nt">&gt;</span>
 <span class="w">    </span><span class="nt">&lt;variables&gt;</span>start,b,c,d,end,f,g,h,end_time,CP<span class="nt">&lt;/variables&gt;</span>
 <span class="w">    </span><span class="nt">&lt;analysis&gt;</span>activity_duration<span class="nt">&lt;/analysis&gt;</span>
 <span class="w">    </span><span class="nt">&lt;CPtime&gt;</span>end_time<span class="nt">&lt;/CPtime&gt;</span>
 <span class="w">    </span><span class="nt">&lt;CPid&gt;</span>CP<span class="nt">&lt;/CPid&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;start&#39;</span><span class="w"> </span><span class="na">dur=</span><span class="s">&#39;10&#39;</span><span class="nt">&gt;</span>f,b,h<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;b&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;20&#39;</span><span class="nt">&gt;</span>c<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;c&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;5&#39;</span><span class="w"> </span><span class="nt">&gt;</span>g,d<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;d&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;10&#39;</span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;f&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;15&#39;</span><span class="nt">&gt;</span>g<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;g&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;5&#39;</span><span class="w"> </span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;h&#39;</span><span class="w">     </span><span class="na">dur=</span><span class="s">&#39;15&#39;</span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
-<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">&#39;end&#39;</span><span class="w">   </span><span class="na">dur=</span><span class="s">&#39;20&#39;</span><span class="nt">&gt;&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'start'</span><span class="w"> </span><span class="na">dur=</span><span class="s">'10'</span><span class="nt">&gt;</span>f,b,h<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'b'</span><span class="w">     </span><span class="na">dur=</span><span class="s">'20'</span><span class="nt">&gt;</span>c<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'c'</span><span class="w">     </span><span class="na">dur=</span><span class="s">'5'</span><span class="w"> </span><span class="nt">&gt;</span>g,d<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'d'</span><span class="w">     </span><span class="na">dur=</span><span class="s">'10'</span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'f'</span><span class="w">     </span><span class="na">dur=</span><span class="s">'15'</span><span class="nt">&gt;</span>g<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'g'</span><span class="w">     </span><span class="na">dur=</span><span class="s">'5'</span><span class="w"> </span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'h'</span><span class="w">     </span><span class="na">dur=</span><span class="s">'15'</span><span class="nt">&gt;</span>end<span class="nt">&lt;/map&gt;</span>
+<span class="w">    </span><span class="nt">&lt;map</span><span class="w"> </span><span class="na">act=</span><span class="s">'end'</span><span class="w">   </span><span class="na">dur=</span><span class="s">'20'</span><span class="nt">&gt;&lt;/map&gt;</span>
 <span class="w">  </span><span class="nt">&lt;/ExternalModel&gt;</span>
 <span class="nt">&lt;/Models&gt;</span>
 </pre></div>
@@ -338,14 +338,14 @@ The RAVEN ID for the critical path is specified in the xmlNode{CPid}.</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">LOGOS.src.CPM.PertMain2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Activity</span>
 
 <span class="k">class</span><span class="w"> </span><span class="nc">project</span><span class="p">():</span>
-  <span class="n">start</span> <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;start&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
-  <span class="n">b</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;b&quot;</span><span class="p">,</span>     <span class="mi">20</span><span class="p">)</span>
-  <span class="n">c</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;c&quot;</span><span class="p">,</span>      <span class="mi">5</span><span class="p">)</span>
-  <span class="n">d</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;d&quot;</span><span class="p">,</span>     <span class="mi">10</span><span class="p">)</span>
-  <span class="n">f</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;f&quot;</span><span class="p">,</span>     <span class="mi">15</span><span class="p">)</span>
-  <span class="n">g</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;g&quot;</span><span class="p">,</span>      <span class="mi">5</span><span class="p">)</span>
-  <span class="n">h</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;h&quot;</span><span class="p">,</span>     <span class="mi">15</span><span class="p">)</span>
-  <span class="n">end</span>   <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">&quot;end&quot;</span><span class="p">,</span>   <span class="mi">20</span><span class="p">)</span>
+  <span class="n">start</span> <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"start"</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+  <span class="n">b</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span>     <span class="mi">20</span><span class="p">)</span>
+  <span class="n">c</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span>      <span class="mi">5</span><span class="p">)</span>
+  <span class="n">d</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"d"</span><span class="p">,</span>     <span class="mi">10</span><span class="p">)</span>
+  <span class="n">f</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"f"</span><span class="p">,</span>     <span class="mi">15</span><span class="p">)</span>
+  <span class="n">g</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"g"</span><span class="p">,</span>      <span class="mi">5</span><span class="p">)</span>
+  <span class="n">h</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"h"</span><span class="p">,</span>     <span class="mi">15</span><span class="p">)</span>
+  <span class="n">end</span>   <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"end"</span><span class="p">,</span>   <span class="mi">20</span><span class="p">)</span>
 
   <span class="n">graph</span> <span class="o">=</span> <span class="p">{</span><span class="n">start</span><span class="p">:</span> <span class="p">[</span><span class="n">f</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">h</span><span class="p">],</span>
            <span class="n">b</span>    <span class="p">:</span> <span class="p">[</span><span class="n">c</span><span class="p">],</span>
@@ -363,7 +363,7 @@ The RAVEN ID for the critical path is specified in the xmlNode{CPid}.</p>
 <li><p><strong>activity_priority</strong>: RAVEN samples activity priorities</p></li>
 </ul>
 <p>If <code class="docutils literal notranslate"><span class="pre">activity_priority</span></code> is chosen, the schedule generation scheme must be specified:</p>
-<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;CPMmodel&quot;</span><span class="w"> </span><span class="na">subType=</span><span class="s">&quot;LOGOS.BaseCPMmodel&quot;</span><span class="nt">&gt;</span>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">"CPMmodel"</span><span class="w"> </span><span class="na">subType=</span><span class="s">"LOGOS.BaseCPMmodel"</span><span class="nt">&gt;</span>
 <span class="w">  </span><span class="nt">&lt;variables&gt;</span>start,b,c,d,end,f,g,h,end_time,CP<span class="nt">&lt;/variables&gt;</span>
 <span class="w">  </span><span class="nt">&lt;analysis&gt;</span>activity_duration<span class="nt">&lt;/analysis&gt;</span>
 <span class="w">  </span><span class="nt">&lt;sgs&gt;</span>max_use_res_ranked<span class="nt">&lt;/sgs&gt;</span>

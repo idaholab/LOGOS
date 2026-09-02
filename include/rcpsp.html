@@ -8,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Resource-Constrained Project Scheduling Problem (RCPSP) &mdash; LOGOS 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
 
   
@@ -217,7 +217,7 @@ Specifies the index dependence. The valid index is
 <span class="w">    </span>1,<span class="w"> </span>2,<span class="w"> </span>3,<span class="w"> </span>4,<span class="w"> </span>5,<span class="w"> </span>6,<span class="w"> </span>7,<span class="w"> </span>8,<span class="w"> </span>9,<span class="w"> </span>10,<span class="w"> </span>11
 <span class="w">  </span><span class="nt">&lt;/predecessors&gt;</span>
 
-<span class="w">  </span><span class="nt">&lt;successors</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;predecessors&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;successors</span><span class="w"> </span><span class="na">index=</span><span class="s">"predecessors"</span><span class="nt">&gt;</span>
 <span class="w">    </span>s1<span class="w"> </span>s2<span class="w"> </span>s3<span class="w"> </span>s4;
 <span class="w">    </span>s1;
 <span class="w">    </span>s1;
@@ -288,11 +288,11 @@ or <code class="xml-string docutils literal notranslate"><span class="pre">'str'
 </ul>
 <p>Example XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Parameters&gt;</span>
-<span class="w">  </span><span class="nt">&lt;available_resources</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;resources&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;available_resources</span><span class="w"> </span><span class="na">index=</span><span class="s">"resources"</span><span class="nt">&gt;</span>
 <span class="w">    </span>13<span class="w"> </span>13<span class="w"> </span>13<span class="w"> </span>12
 <span class="w">  </span><span class="nt">&lt;/available_resources&gt;</span>
 
-<span class="w">  </span><span class="nt">&lt;task_resource_consumption</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;tasks, resources&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;task_resource_consumption</span><span class="w"> </span><span class="na">index=</span><span class="s">"tasks, resources"</span><span class="nt">&gt;</span>
 <span class="w">    </span>0<span class="w">  </span>0<span class="w">  </span>0<span class="w">  </span>0
 <span class="w">    </span>10<span class="w"> </span>0<span class="w">  </span>0<span class="w">  </span>0
 <span class="w">    </span>0<span class="w">  </span>7<span class="w">  </span>0<span class="w">  </span>0
@@ -307,7 +307,7 @@ or <code class="xml-string docutils literal notranslate"><span class="pre">'str'
 <span class="w">    </span>0<span class="w">  </span>0<span class="w">  </span>0<span class="w">  </span>0
 <span class="w">  </span><span class="nt">&lt;/task_resource_consumption&gt;</span>
 
-<span class="w">  </span><span class="nt">&lt;task_duration</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;tasks&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;task_duration</span><span class="w"> </span><span class="na">index=</span><span class="s">"tasks"</span><span class="nt">&gt;</span>
 <span class="w">    </span>0
 <span class="w">    </span>8
 <span class="w">    </span>1
@@ -322,7 +322,7 @@ or <code class="xml-string docutils literal notranslate"><span class="pre">'str'
 <span class="w">    </span>0
 <span class="w">  </span><span class="nt">&lt;/task_duration&gt;</span>
 
-<span class="w">  </span><span class="nt">&lt;task_successors</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;successors&quot;</span><span class="w"> </span><span class="na">type=</span><span class="s">&quot;str&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;task_successors</span><span class="w"> </span><span class="na">index=</span><span class="s">"successors"</span><span class="w"> </span><span class="na">type=</span><span class="s">"str"</span><span class="nt">&gt;</span>
 <span class="w">    </span>2<span class="w"> </span>3<span class="w"> </span>4<span class="w"> </span>9
 <span class="w">    </span>5
 <span class="w">    </span>7
@@ -363,7 +363,7 @@ minimization or maximization, respectively.
 Specifies an upper bound on the makespan.</p></li>
 </ul>
 <p>Example LOGOS input XML for RCPSP model:</p>
-<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="cp">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;</span>
+<div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="cp">&lt;?xml version="1.0" encoding="UTF-8"?&gt;</span>
 <span class="nt">&lt;Logos&gt;</span>
 <span class="w">  </span>...
 <span class="w">  </span><span class="nt">&lt;Settings&gt;</span>

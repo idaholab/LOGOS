@@ -8,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Plugin for the RAVEN Code &mdash; LOGOS 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
 
   
@@ -107,7 +107,7 @@ governing the binary decisions <span class="math">x_{ij}</span> and the overall 
 the selected portfolio.</p>
 <p>Example RAVEN input <code class="xml-node docutils literal notranslate"><span class="pre">&lt;ExternalModel&gt;</span></code> XML:</p>
 <div class="highlight-xml notranslate"><div class="highlight"><pre><span></span><span class="nt">&lt;Models&gt;</span>
-<span class="w">  </span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">&quot;singleKnapsack&quot;</span><span class="w"> </span><span class="na">subType=</span><span class="s">&quot;LOGOS.CapitalInvestmentModel&quot;</span><span class="nt">&gt;</span>
+<span class="w">  </span><span class="nt">&lt;ExternalModel</span><span class="w"> </span><span class="na">name=</span><span class="s">"singleKnapsack"</span><span class="w"> </span><span class="na">subType=</span><span class="s">"LOGOS.CapitalInvestmentModel"</span><span class="nt">&gt;</span>
 <span class="w">    </span><span class="nt">&lt;variables&gt;</span>available_capitals,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,
 <span class="w">      </span>MaxNPV<span class="nt">&lt;/variables&gt;</span>
 <span class="w">    </span><span class="nt">&lt;ModelData&gt;</span>
@@ -117,10 +117,10 @@ the selected portfolio.</p>
 <span class="w">        </span><span class="nt">&lt;/investments&gt;</span>
 <span class="w">      </span><span class="nt">&lt;/Sets&gt;</span>
 <span class="w">      </span><span class="nt">&lt;Parameters&gt;</span>
-<span class="w">        </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">        </span><span class="nt">&lt;net_present_values</span><span class="w"> </span><span class="na">index=</span><span class="s">"investments"</span><span class="nt">&gt;</span>
 <span class="w">          </span>18,20,17,19,25,21,27,23,25,24
 <span class="w">        </span><span class="nt">&lt;/net_present_values&gt;</span>
-<span class="w">        </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">&quot;investments&quot;</span><span class="nt">&gt;</span>
+<span class="w">        </span><span class="nt">&lt;costs</span><span class="w"> </span><span class="na">index=</span><span class="s">"investments"</span><span class="nt">&gt;</span>
 <span class="w">          </span>1,3,7,4,8,9,6,10,2,5
 <span class="w">        </span><span class="nt">&lt;/costs&gt;</span>
 <span class="w">        </span><span class="nt">&lt;available_capitals&gt;</span>
@@ -223,9 +223,9 @@ test is run and sets the criteria used to determine whether it passed or
 not. An example of a test specification file is:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">Tests</span><span class="p">]</span>
   <span class="p">[</span><span class="o">./</span><span class="n">skp_optimization</span><span class="p">]</span>
-    <span class="nb">type</span> <span class="o">=</span> <span class="s1">&#39;RavenFramework&#39;</span>
-    <span class="nb">input</span> <span class="o">=</span> <span class="s1">&#39;test_skp.xml&#39;</span>
-    <span class="n">UnorderedCsv</span> <span class="o">=</span> <span class="s1">&#39;skp/test_skp.csv&#39;</span>
+    <span class="nb">type</span> <span class="o">=</span> <span class="s1">'RavenFramework'</span>
+    <span class="nb">input</span> <span class="o">=</span> <span class="s1">'test_skp.xml'</span>
+    <span class="n">UnorderedCsv</span> <span class="o">=</span> <span class="s1">'skp/test_skp.csv'</span>
   <span class="p">[</span><span class="o">../</span><span class="p">]</span>
 <span class="p">[]</span>
 </pre></div>
