@@ -19,9 +19,8 @@ from CPM.pert import Pert
 from CPM.outage_data import load_outage_data
 
 
-DATA_DIR = Path(__file__).parent.parent
-SCHEMA_PATH = str(DATA_DIR / "outage_schema.json")
-EXAMPLE_10 = str(DATA_DIR / "example_10.json")
+from conftest import SCHEMA_PATH, EXAMPLES_DIR  # canonical locations (see H2)
+EXAMPLE_10 = str(EXAMPLES_DIR / "example_10.json")
 
 
 # ---------------------------------------------------------------------------

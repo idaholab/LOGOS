@@ -19,7 +19,7 @@ import json
 import pytest
 from datetime import datetime, timedelta
 
-from conftest import assert_valid_schedule
+from conftest import assert_valid_schedule, SCHEMA_PATH
 from CPM.outage_data import (
     EquipmentAvailability, EquipmentPool, LocationPool,
     ResourcePool, OutageData
@@ -355,9 +355,7 @@ class TestSchemaEquipmentZone:
 
     def _load_schema(self):
         import os
-        schema_path = os.path.join(
-            os.path.dirname(__file__), '..', 'outage_schema.json'
-        )
+        schema_path = SCHEMA_PATH
         with open(schema_path) as f:
             return json.load(f)
 

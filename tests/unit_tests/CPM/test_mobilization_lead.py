@@ -28,7 +28,7 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from conftest import assert_valid_schedule
+from conftest import assert_valid_schedule, SCHEMA_PATH
 from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import ResourcePool, EquipmentPool, LocationPool
@@ -394,14 +394,14 @@ class TestGenerateInfoFromWithLead:
 class TestSchema:
 
     def test_schema_contains_mobilization_field(self):
-        schema_path = Path(__file__).parent.parent / 'outage_schema.json'
+        schema_path = SCHEMA_PATH
         with open(schema_path) as f:
             schema = json.load(f)
         task_props = schema['properties']['tasks']['items']['properties']
         assert 'mobilization_lead_hours' in task_props
 
     def test_schema_field_is_nonnegative_number(self):
-        schema_path = Path(__file__).parent.parent / 'outage_schema.json'
+        schema_path = SCHEMA_PATH
         with open(schema_path) as f:
             schema = json.load(f)
         field = schema['properties']['tasks']['items']['properties']['mobilization_lead_hours']

@@ -15,7 +15,7 @@ import pytest
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from conftest import assert_valid_schedule
+from conftest import assert_valid_schedule, SCHEMA_PATH as _CONF_SCHEMA
 from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import (
@@ -28,7 +28,7 @@ from CPM.outage_data import (
 # ---------------------------------------------------------------------------
 
 START_DT = datetime(2026, 1, 1)
-SCHEMA_PATH = Path(__file__).parent.parent / "outage_schema.json"
+SCHEMA_PATH = Path(_CONF_SCHEMA)
 
 
 def _make_rp(*skill_counts):

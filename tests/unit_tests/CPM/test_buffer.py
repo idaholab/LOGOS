@@ -273,21 +273,30 @@ class TestInsertProjectBuffer:
         assert pb in p.forwardDict
 
     def test_pb_predecessor_is_chain_terminal(self):
-        """PB's predecessor should be the last activity in the constrained chain."""
+        """PB's predecessor is the last *real* work activity in the constrained
+        chain.  constrained_chain_list is a full START->...->END longest path, so
+        its final element is the zero-duration END sentinel; the terminal work
+        activity is the element just before it.  insert_project_buffer splices the
+        buffer as ``terminal -> PB -> END`` (see pert.py rationale)."""
         p, _ = _schedule_linear_chain(4.0, 6.0)
-        terminal = p.constrained_chain_list[-1]
+        terminal = p.constrained_chain_list[-2]  # [-1] is the END sentinel
         pb = p.insert_project_buffer()
         assert pb in p.backwardDict
         assert terminal in p.backwardDict[pb]
 
-    def test_pb_is_new_terminal(self):
-        """After insertion, PB is the last activity in the graph (terminal has no
-        successors; the original chain terminal now points to PB)."""
+    def test_pb_feeds_end_milestone(self):
+        """Per the module contract ``terminal -> PB -> successors``, the buffer is
+        spliced between the last real chain activity and the END milestone: the
+        terminal now points to PB, and PB points to END.  (PB is deliberately not
+        placed after END, which would create a dangling sink and corrupt slack.)"""
         p, _ = _schedule_linear_chain(4.0, 6.0)
-        terminal = p.constrained_chain_list[-1]
+        terminal = p.constrained_chain_list[-2]  # [-1] is the END sentinel
+        end = p.endActivity
         pb = p.insert_project_buffer()
-        # The original terminal must now point to PB
+        # terminal -> PB
         assert pb in p.forwardDict.get(terminal, [])
+        # PB -> END
+        assert end in p.forwardDict.get(pb, [])
 
     def test_idempotent(self):
         """Calling insert_project_buffer twice returns the same Activity object."""

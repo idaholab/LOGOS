@@ -26,8 +26,9 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.CPM.pert import Pert  # noqa: E402
 
 # JSON input and schema paths (PSPLIB j30 instance 1)
-CPM_DIR = REPO_ROOT / 'tests' / 'unit_tests'/ 'CPM'
-JSON_PATH   = str(CPM_DIR / 'j301_1.json')
+# PSPLIB benchmark instances (relocated to the demo examples folder; see H2).
+PSPLIB_DIR = REPO_ROOT / 'doc' / 'demos' / 'rcpsp' / 'examples'
+JSON_PATH   = str(PSPLIB_DIR / 'j301_1.json')
 SCHEMA_PATH = str(REPO_ROOT / 'src' / 'CPM' / 'outage_schema.json')
 
 results = {"pass": 0, "fail": 0}
@@ -363,7 +364,7 @@ for (sgs, rule), expected_duration in PARALLEL_PR_GOLDEN.items():
 # PSPLIB j60 instance 1  (62 activities, CPM = 79 h)
 # ===========================================================================
 
-JSON_PATH_J60 = str(CPM_DIR / 'j601_1.json')
+JSON_PATH_J60 = str(PSPLIB_DIR / 'j601_1.json')
 
 def load_pert_j60():
     return Pert.from_json_file(JSON_PATH_J60, schema_path=SCHEMA_PATH)
@@ -467,7 +468,7 @@ checkAnswer("j60 DataFrame: start_time < end_time",
 # PSPLIB j90 instance 1  (92 activities, CPM = 69 h)
 # ===========================================================================
 
-JSON_PATH_J90 = str(CPM_DIR / 'j901_1.json')
+JSON_PATH_J90 = str(PSPLIB_DIR / 'j901_1.json')
 
 def load_pert_j90():
     return Pert.from_json_file(JSON_PATH_J90, schema_path=SCHEMA_PATH)
@@ -571,7 +572,7 @@ checkAnswer("j90 DataFrame: start_time < end_time",
 # PSPLIB j120 instance 1  (122 activities, CPM = 101 h)
 # ===========================================================================
 
-JSON_PATH_J120 = str(CPM_DIR / 'j1201_1.json')
+JSON_PATH_J120 = str(PSPLIB_DIR / 'j1201_1.json')
 
 def load_pert_j120():
     return Pert.from_json_file(JSON_PATH_J120, schema_path=SCHEMA_PATH)

@@ -16,6 +16,7 @@ import json
 import pytest
 from datetime import datetime, timedelta
 
+from conftest import SCHEMA_PATH
 from CPM.outage_data import SystemStatePool, ResourcePool, EquipmentPool, LocationPool
 from CPM.activity import Activity
 from CPM.pert import Pert
@@ -591,9 +592,7 @@ class TestSchemaSystemState:
 
     def _load_schema(self):
         import os
-        schema_path = os.path.join(
-            os.path.dirname(__file__), '..', 'outage_schema.json'
-        )
+        schema_path = SCHEMA_PATH
         with open(schema_path) as f:
             return json.load(f)
 

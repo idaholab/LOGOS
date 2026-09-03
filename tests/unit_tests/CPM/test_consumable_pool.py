@@ -14,7 +14,7 @@ import json
 import pytest
 from datetime import datetime
 
-from conftest import assert_valid_schedule
+from conftest import assert_valid_schedule, SCHEMA_PATH
 from CPM.outage_data import ConsumablePool
 from CPM.activity import Activity
 from CPM.pert import Pert
@@ -495,9 +495,7 @@ class TestSchemaConsumables:
 
     def _schema(self):
         import os
-        schema_path = os.path.join(
-            os.path.dirname(__file__), '..', 'outage_schema.json'
-        )
+        schema_path = SCHEMA_PATH
         with open(schema_path) as f:
             return json.load(f)
 

@@ -19,6 +19,8 @@ import os
 import pytest
 from datetime import datetime
 
+from conftest import SCHEMA_PATH
+
 from CPM.outage_data import (
     OutageData,
     ResourcePool, ResourceAvailability,
@@ -285,9 +287,7 @@ class TestSafetyFunctionsSchema:
 
     @pytest.fixture(scope='class')
     def schema(self):
-        schema_path = os.path.join(
-            os.path.dirname(__file__), '..', 'outage_schema.json'
-        )
+        schema_path = SCHEMA_PATH
         with open(schema_path) as f:
             return json.load(f)
 

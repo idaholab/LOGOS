@@ -25,7 +25,7 @@ import pytest
 import math
 from datetime import datetime, timedelta
 
-from conftest import assert_valid_schedule
+from conftest import assert_valid_schedule, SCHEMA_PATH
 from CPM.activity import Activity
 from CPM.pert import Pert
 
@@ -770,7 +770,7 @@ class TestMultipleWindows:
 
     def test_schema_has_time_windows_field(self):
         import json, os
-        schema_path = os.path.join(os.path.dirname(__file__), '..', 'outage_schema.json')
+        schema_path = SCHEMA_PATH
         with open(schema_path) as f:
             schema = json.load(f)
         task_props = schema['properties']['tasks']['items']['properties']

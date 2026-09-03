@@ -20,8 +20,7 @@ from conftest import assert_valid_schedule
 from CPM.pert import Pert
 
 
-DATA_DIR = Path(__file__).parent.parent
-SCHEMA = str(DATA_DIR / "outage_schema.json")
+from conftest import SCHEMA_PATH as SCHEMA, EXAMPLES_DIR as DATA_DIR  # canonical locations (see H2)
 
 
 # ---------------------------------------------------------------------------

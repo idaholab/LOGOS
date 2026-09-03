@@ -5,6 +5,21 @@ analysis situations, not just that it runs without crashing.  This document
 records the strategy, tracks progress, and serves as a living checklist to
 refine as new edge cases are discovered.
 
+> **Update (2026-09-03).** The "747 tests pass" figures below are the
+> **2026-04-16 snapshot**, preserved as historical record. The suite later
+> *regressed* when file-reorganization commits moved test data out from under
+> the tests (relocated `example_*.json` / PSPLIB instances and
+> `outage_schema.json`) and a legacy runner shadowed the `CPM` package. That
+> breakage has since been recovered — see `BRANCH_ASSESSMENT_2026-09-03.md` for
+> the full diagnosis and fixes.
+>
+> **Current status:** plain `python -m pytest` reports **839 passed, 5 skipped,
+> 0 failed, 0 errors** — and `assert_valid_schedule` still reports **0 validator
+> violations** across the suite. Two items remain for a reviewer's judgment (see
+> the assessment doc, H3 & M6): the `psplib_regression.py` golden-value drifts
+> (176 pass / 30 fail on `scheduled_duration`, feasibility intact) and the two
+> standalone regression scripts kept out of CI pending repair.
+
 ---
 
 ## Pass 1 — Broad coverage, low effort

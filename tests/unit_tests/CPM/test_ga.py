@@ -27,17 +27,18 @@ from unittest.mock import patch
 
 import pytest
 
-# ── path setup ────────────────────────────────────────────────────────────────
-REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT))
+# ── optional dependency guard ─────────────────────────────────────────────────
+# ga.py requires the optional 'deap' package; skip the whole module if absent.
+pytest.importorskip("deap", reason="ga.py requires the optional 'deap' package")
 
-from src.CPM.pert import Pert  # noqa: E402
-from src.CPM.ga import RCPSPGeneticAlgorithm, PRIORITY_RULES  # noqa: E402
+from CPM.pert import Pert  # noqa: E402
+from CPM.ga import RCPSPGeneticAlgorithm, PRIORITY_RULES  # noqa: E402
 
 # ── shared fixtures ───────────────────────────────────────────────────────────
-CPM_DIR   = REPO_ROOT / 'src' / 'CPM'
-JSON_PATH = str(CPM_DIR / 'example_10.json')
-SCHEMA    = str(CPM_DIR / 'outage_schema.json')
+# Data paths are centralized in conftest.py (see BRANCH_ASSESSMENT / H2).
+from conftest import SCHEMA_PATH, EXAMPLES_DIR  # noqa: E402
+JSON_PATH = str(EXAMPLES_DIR / 'example_10.json')
+SCHEMA    = SCHEMA_PATH
 
 
 @pytest.fixture(scope='module')
@@ -72,7 +73,7 @@ class TestCrossoverOnePoint:
         """Reproduce Hartmann (1998) paper example with q=3."""
         mother = [1, 3, 2, 5, 4, 6]
         father = [2, 4, 6, 1, 3, 5]
-        with patch('src.CPM.ga.random.randint', return_value=3):
+        with patch('CPM.ga.random.randint', return_value=3):
             c1, c2 = RCPSPGeneticAlgorithm._crossover_one_point(
                 list(mother), list(father)
             )
@@ -86,7 +87,7 @@ class TestCrossoverOnePoint:
         ind2 = list(range(n - 1, -1, -1))
         for q in range(1, n):
             a, b = list(ind1), list(ind2)
-            with patch('src.CPM.ga.random.randint', return_value=q):
+            with patch('CPM.ga.random.randint', return_value=q):
                 RCPSPGeneticAlgorithm._crossover_one_point(a, b)
             assert set(a) == parent_set, f"Child1 not a permutation at q={q}: {a}"
             assert set(b) == parent_set, f"Child2 not a permutation at q={q}: {b}"
@@ -97,7 +98,7 @@ class TestCrossoverOnePoint:
         """Neither child should contain duplicate genes."""
         ind1 = [0, 2, 4, 6, 1, 3, 5, 7]
         ind2 = [7, 5, 3, 1, 6, 4, 2, 0]
-        with patch('src.CPM.ga.random.randint', return_value=4):
+        with patch('CPM.ga.random.randint', return_value=4):
             c1, c2 = RCPSPGeneticAlgorithm._crossover_one_point(
                 list(ind1), list(ind2)
             )
@@ -109,7 +110,7 @@ class TestCrossoverOnePoint:
         ind1 = [3, 1, 4, 0, 5, 7, 2, 6]
         ind2 = [6, 2, 7, 5, 0, 4, 1, 3]
         q = 3
-        with patch('src.CPM.ga.random.randint', return_value=q):
+        with patch('CPM.ga.random.randint', return_value=q):
             c1, _ = RCPSPGeneticAlgorithm._crossover_one_point(
                 list(ind1), list(ind2)
             )
@@ -126,7 +127,7 @@ class TestCrossoverOnePoint:
         ind1 = [0, 1, 2, 3]
         ind2 = [3, 2, 1, 0]
         id1, id2 = id(ind1), id(ind2)
-        with patch('src.CPM.ga.random.randint', return_value=2):
+        with patch('CPM.ga.random.randint', return_value=2):
             r1, r2 = RCPSPGeneticAlgorithm._crossover_one_point(ind1, ind2)
         assert id(r1) == id1
         assert id(r2) == id2
@@ -157,7 +158,7 @@ class TestCrossoverTwoPoint:
         """Neither child should contain duplicate genes."""
         ind1 = [0, 2, 4, 6, 1, 3, 5, 7]
         ind2 = [7, 5, 3, 1, 6, 4, 2, 0]
-        with patch('src.CPM.ga.random.sample', return_value=[2, 5]):
+        with patch('CPM.ga.random.sample', return_value=[2, 5]):
             c1, c2 = RCPSPGeneticAlgorithm._crossover_two_point(
                 list(ind1), list(ind2)
             )
@@ -169,7 +170,7 @@ class TestCrossoverTwoPoint:
         ind1 = [0, 1, 2, 3, 4, 5, 6, 7]
         ind2 = [7, 6, 5, 4, 3, 2, 1, 0]
         q1, q2 = 2, 5
-        with patch('src.CPM.ga.random.sample', return_value=[q1, q2]):
+        with patch('CPM.ga.random.sample', return_value=[q1, q2]):
             c1, _ = RCPSPGeneticAlgorithm._crossover_two_point(
                 list(ind1), list(ind2)
             )
@@ -189,7 +190,7 @@ class TestCrossoverTwoPoint:
         ind1 = [0, 1, 2, 3, 4]
         ind2 = [4, 3, 2, 1, 0]
         id1, id2 = id(ind1), id(ind2)
-        with patch('src.CPM.ga.random.sample', return_value=[1, 3]):
+        with patch('CPM.ga.random.sample', return_value=[1, 3]):
             r1, r2 = RCPSPGeneticAlgorithm._crossover_two_point(ind1, ind2)
         assert id(r1) == id1
         assert id(r2) == id2
@@ -233,7 +234,7 @@ class TestCrossoverUniformOrder:
         ind1 = [0, 1, 2, 3, 4, 5]
         ind2 = [5, 4, 3, 2, 1, 0]
         mask = [1, 0, 1, 0, 1, 0]
-        with patch('src.CPM.ga.random.randint', side_effect=mask):
+        with patch('CPM.ga.random.randint', side_effect=mask):
             c1, _ = RCPSPGeneticAlgorithm._crossover_uniform_order(
                 list(ind1), list(ind2)
             )
@@ -254,7 +255,7 @@ class TestCrossoverUniformOrder:
         ind1 = [0, 1, 2, 3]
         ind2 = [3, 2, 1, 0]
         id1, id2 = id(ind1), id(ind2)
-        with patch('src.CPM.ga.random.randint', side_effect=[1, 0, 0, 1]):
+        with patch('CPM.ga.random.randint', side_effect=[1, 0, 0, 1]):
             r1, r2 = RCPSPGeneticAlgorithm._crossover_uniform_order(ind1, ind2)
         assert id(r1) == id1
         assert id(r2) == id2

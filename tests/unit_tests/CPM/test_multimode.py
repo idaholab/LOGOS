@@ -39,7 +39,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from conftest import assert_valid_schedule
+from conftest import assert_valid_schedule, SCHEMA_PATH
 from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import ResourcePool, ResourceAvailability, EquipmentPool, LocationPool
@@ -497,7 +497,7 @@ class TestSchema:
 
     @pytest.fixture(scope='class')
     def schema(self):
-        schema_path = Path(__file__).parent.parent / 'outage_schema.json'
+        schema_path = SCHEMA_PATH
         with open(schema_path) as f:
             return json.load(f)
 

@@ -31,19 +31,20 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-# ── path setup ────────────────────────────────────────────────────────────────
-REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT))
+# ── optional dependency guard ─────────────────────────────────────────────────
+# rcpsp_alns.py requires the optional 'alns' package; skip the module if absent.
+pytest.importorskip("alns", reason="rcpsp_alns.py requires the optional 'alns' package")
 
-from src.CPM.pert import Pert                                      # noqa: E402
-from src.CPM.rcpsp_alns import (                                   # noqa: E402
+from CPM.pert import Pert                                          # noqa: E402
+from CPM.rcpsp_alns import (                                       # noqa: E402
     RCPSPAdaptiveLNS, RCPSPState, SEED_PRIORITY_RULES,
 )
 
 # ── shared fixtures ───────────────────────────────────────────────────────────
-CPM_DIR   = REPO_ROOT / 'src' / 'CPM'
-JSON_PATH = str(CPM_DIR / 'example_10.json')
-SCHEMA    = str(CPM_DIR / 'outage_schema.json')
+# Data paths are centralized in conftest.py (see BRANCH_ASSESSMENT / H2).
+from conftest import SCHEMA_PATH, EXAMPLES_DIR  # noqa: E402
+JSON_PATH = str(EXAMPLES_DIR / 'example_10.json')
+SCHEMA    = SCHEMA_PATH
 
 
 @pytest.fixture(scope='module')
@@ -182,7 +183,7 @@ class TestConstructor:
 
     def test_seed_priority_rules_match_ga(self):
         """SEED_PRIORITY_RULES must cover the full set from ga.py."""
-        from src.CPM.ga import PRIORITY_RULES as GA_RULES
+        from CPM.ga import PRIORITY_RULES as GA_RULES
         assert set(SEED_PRIORITY_RULES) == set(GA_RULES)
 
     def test_slack_loaded_from_infodict(self, pert, alns):

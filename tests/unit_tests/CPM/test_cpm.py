@@ -200,11 +200,10 @@ class TestResetConsistency:
         assert abs(p.getProjectDuration() - dur_before) < TOL
 
     def test_set_durations_updates_project_duration(self):
-        from pathlib import Path
-        data_dir = Path(__file__).parent.parent
+        from conftest import SCHEMA_PATH, EXAMPLES_DIR
         p = Pert.from_json_file(
-            str(data_dir / "test_case_1.json"),
-            str(data_dir / "outage_schema.json"),
+            str(EXAMPLES_DIR / "test_case_1.json"),
+            SCHEMA_PATH,
         )
         orig_dur = p.getProjectDuration()
         # Find the first real task (not START/END) and double its duration

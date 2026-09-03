@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+### Test-harness recovery (2026-09-03)
+
+Recovered the unit-test suite, which had regressed after file-reorganization
+commits moved test data and a legacy runner shadowed the `CPM` package. Full
+diagnosis in `devLogs/BRANCH_ASSESSMENT_2026-09-03.md`.
+
+- **Collection unblocked** — renamed the legacy pre-pytest runner
+  `tests/unit_tests/CPM/CPM.py` → `legacy_cpm_regression.py` (it shadowed
+  `src/CPM`), and fixed `pytest.ini` `pythonpath` (`../..` → `../../../src`).
+- **Data paths recentralized** — `conftest.py` now exposes `SCHEMA_PATH`
+  (`src/CPM/outage_schema.json`) and `EXAMPLES_DIR` (`doc/demos/rcpsp/examples/`);
+  all affected test files point at them.
+- **Import root standardized** — a single `from CPM.x` root across all collected
+  tests; `conftest.py` de-stubbed (removed the `sys.modules` fabrication that
+  was masking real `ImportError`s).
+- **Optional deps guarded** — `test_ga.py` (`deap`) and `test_rcpsp_alns.py`
+  (`alns`) self-skip via `pytest.importorskip` instead of erroring collection.
+- **PSPLIB regression** — `test_psplib.py` (a standalone script, not pytest)
+  renamed → `psplib_regression.py`, data path fixed. ⚠️ Now runnable, it shows
+  176 pass / 30 fail on `scheduled_duration` vs. recorded golden values
+  (feasibility intact); re-baseline-vs-investigate is an open reviewer item.
+- **RAVEN wiring** — replaced the malformed `tests` registration with a single
+  entry → `run_cpm_pytests.py` shim, exercising the full pytest suite in CI.
+- **Two buffer tests fixed** — stale expectations read the `END` sentinel
+  (`constrained_chain_list[-1]`) instead of the terminal work activity (`[-2]`).
+
+Result: plain `python -m pytest` → **839 passed, 5 skipped, 0 failed, 0 errors**.
+
 ### Challenge 15 — Multi-Mode RCPSP (MMRCPSP)
 
 Each activity can now carry an optional list of named execution modes. A mode

@@ -23,8 +23,7 @@ from CPM.outage_data import (
     ResourceAvailability,
 )
 
-DATA_DIR = Path(__file__).parent.parent
-SCHEMA   = str(DATA_DIR / "outage_schema.json")
+from conftest import SCHEMA_PATH as SCHEMA, EXAMPLES_DIR as DATA_DIR  # canonical locations (see H2)
 
 TOL          = 1e-6   # hours — absolute tolerance for float comparisons
 TOL_SECONDS  = 2      # seconds — tolerance for datetime comparisons

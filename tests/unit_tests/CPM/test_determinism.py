@@ -33,8 +33,7 @@ from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import ResourcePool, EquipmentPool, LocationPool, ConsumablePool
 
-DATA_DIR = Path(__file__).parent.parent
-SCHEMA   = str(DATA_DIR / "outage_schema.json")
+from conftest import SCHEMA_PATH as SCHEMA  # canonical shipping schema (see H2)
 
 TOL_SECONDS = 1  # allow up to 1-second floating-point rounding between runs
 
