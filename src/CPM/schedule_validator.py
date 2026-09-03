@@ -313,22 +313,31 @@ def _check_crew_feasibility(pert: 'Pert',
         current_demand = 0
         reported_times: set = set()
 
-        for t, sign, workers, name in events:
+        for idx, (t, sign, workers, name) in enumerate(events):
             current_demand += sign * workers
-            if sign == +1:   # check after a start event
-                avail = pert.crew_pool.get_availability(skill, t)
-                if avail > 0 and current_demand > avail:
-                    if t not in reported_times:
-                        reported_times.add(t)
-                        excess = current_demand - avail
-                        violations.append(Violation(
-                            type='crew',
-                            activity=skill,
-                            detail=(f'demand={current_demand} exceeds '
-                                    f'availability={avail} at {t}'),
-                            severity='error',
-                            excess=float(excess),
-                        ))
+            # `current_demand` holds over [t, next_event_time).  Check the
+            # MINIMUM availability across that whole interval — not just the
+            # point value at t — so an availability drop that lands mid-interval
+            # with no demand event at that instant is still caught (finding
+            # C2b).  Every interval is checked (not only start events) because a
+            # drop can bind on an interval that opens at an *end* event while
+            # other activities keep demand high.
+            nxt = events[idx + 1][0] if idx + 1 < len(events) else t
+            if nxt <= t or current_demand <= 0:
+                continue
+            avail = pert.crew_pool.get_availability_in_range(skill, t, nxt)
+            if avail > 0 and current_demand > avail:
+                if t not in reported_times:
+                    reported_times.add(t)
+                    excess = current_demand - avail
+                    violations.append(Violation(
+                        type='crew',
+                        activity=skill,
+                        detail=(f'demand={current_demand} exceeds '
+                                f'availability={avail} at {t}'),
+                        severity='error',
+                        excess=float(excess),
+                    ))
 
 
 def _check_equipment_feasibility(pert: 'Pert',
@@ -354,22 +363,26 @@ def _check_equipment_feasibility(pert: 'Pert',
         current_demand = 0
         reported_times: set = set()
 
-        for t, sign, qty, name in events:
+        for idx, (t, sign, qty, name) in enumerate(events):
             current_demand += sign * qty
-            if sign == +1:
-                avail = pert.equipment_pool.get_availability(eq_id, t)
-                if avail > 0 and current_demand > avail:
-                    if t not in reported_times:
-                        reported_times.add(t)
-                        excess = current_demand - avail
-                        violations.append(Violation(
-                            type='equipment',
-                            activity=eq_id,
-                            detail=(f'demand={current_demand} exceeds '
-                                    f'availability={avail} at {t}'),
-                            severity='error',
-                            excess=float(excess),
-                        ))
+            # Minimum availability over [t, next_event_time) — see the crew
+            # check above for the rationale (finding C2b).
+            nxt = events[idx + 1][0] if idx + 1 < len(events) else t
+            if nxt <= t or current_demand <= 0:
+                continue
+            avail = pert.equipment_pool.get_availability_in_range(eq_id, t, nxt)
+            if avail > 0 and current_demand > avail:
+                if t not in reported_times:
+                    reported_times.add(t)
+                    excess = current_demand - avail
+                    violations.append(Violation(
+                        type='equipment',
+                        activity=eq_id,
+                        detail=(f'demand={current_demand} exceeds '
+                                f'availability={avail} at {t}'),
+                        severity='error',
+                        excess=float(excess),
+                    ))
 
 
 def _check_location_feasibility(pert: 'Pert',
@@ -400,37 +413,43 @@ def _check_location_feasibility(pert: 'Pert',
         current_workers = 0
         reported_times: set = set()
 
-        for t, delta_tasks, delta_workers, name in events:
+        for idx, (t, delta_tasks, delta_workers, name) in enumerate(events):
             current_tasks += delta_tasks
             current_workers += delta_workers
-            if delta_tasks == +1:   # check on each start event
-                cap = pert.location_pool.get_capacity(loc_id, t)
-                max_tasks   = cap.get('max_tasks', cap.get('max_concurrent_tasks', 9999))
-                max_workers = cap.get('max_workers')
+            # Capacity constraints hold over [t, next_event_time); check the
+            # MINIMUM capacity across that interval so a mid-interval capacity
+            # drop is not missed (finding C2b).  Both dimensions are checked on
+            # every interval rather than only on start events.
+            nxt = events[idx + 1][0] if idx + 1 < len(events) else t
+            if nxt <= t:
+                continue
+            cap = pert.location_pool.get_capacity_in_range(loc_id, t, nxt)
+            max_tasks   = cap.get('max_tasks', cap.get('max_concurrent_tasks', 9999))
+            max_workers = cap.get('max_workers')
 
-                if max_tasks and current_tasks > max_tasks:
-                    if (t, 'tasks') not in reported_times:
-                        reported_times.add((t, 'tasks'))
-                        violations.append(Violation(
-                            type='location',
-                            activity=loc_id,
-                            detail=(f'concurrent tasks={current_tasks} exceeds '
-                                    f'max_concurrent_tasks={max_tasks} at {t}'),
-                            severity='error',
-                            excess=float(current_tasks - max_tasks),
-                        ))
+            if max_tasks and current_tasks > max_tasks:
+                if (t, 'tasks') not in reported_times:
+                    reported_times.add((t, 'tasks'))
+                    violations.append(Violation(
+                        type='location',
+                        activity=loc_id,
+                        detail=(f'concurrent tasks={current_tasks} exceeds '
+                                f'max_concurrent_tasks={max_tasks} at {t}'),
+                        severity='error',
+                        excess=float(current_tasks - max_tasks),
+                    ))
 
-                if max_workers is not None and current_workers > max_workers:
-                    if (t, 'workers') not in reported_times:
-                        reported_times.add((t, 'workers'))
-                        violations.append(Violation(
-                            type='location',
-                            activity=loc_id,
-                            detail=(f'concurrent workers={current_workers} exceeds '
-                                    f'max_concurrent_workers={max_workers} at {t}'),
-                            severity='error',
-                            excess=float(current_workers - max_workers),
-                        ))
+            if max_workers is not None and current_workers > max_workers:
+                if (t, 'workers') not in reported_times:
+                    reported_times.add((t, 'workers'))
+                    violations.append(Violation(
+                        type='location',
+                        activity=loc_id,
+                        detail=(f'concurrent workers={current_workers} exceeds '
+                                f'max_concurrent_workers={max_workers} at {t}'),
+                        severity='error',
+                        excess=float(current_workers - max_workers),
+                    ))
 
 
 def _check_consumables(pert: 'Pert',

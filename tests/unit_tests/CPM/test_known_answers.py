@@ -118,16 +118,24 @@ class TestLagWindowCPM:
         """
         window_earliest = 8 > lag-driven ES = 6.
 
-        The window constraint dominates; ES tightened to 8.
-        Expected: ES_B = 8, EF_B = 11, slack = 6 − 8 = −2, window_infeasible = True.
-        (LS_B = 6 from unconstrained backward pass; window pushes project late.)
+        The window is a pure release date (no deadline), so it dominates ES and
+        simply pushes the whole project later — it is NOT infeasible.  After the
+        C1 fix, ``_apply_time_windows`` re-runs a forward relaxation (raising
+        B's ES to 8, EF to 11, and propagating to END) and a backward pass
+        re-anchored to the window-extended project end (11), so LS_B follows ES_B
+        and slack_B is 0, not spuriously negative.
+
+        Expected: ES_B = 8, EF_B = 11, LS_B = 8, slack = 0, window_infeasible = False.
+        (Before C1, LS_B stayed at 6 from the un-extended backward pass, giving a
+        bogus slack = 6 − 8 = −2 and a false infeasibility flag on a release date.)
         """
         p, a, b = self._chain(b_west=8.0)
         ib = p.infoDict[b]
         assert abs(ib['es'] - 8.0)  < TOL, f"ES_B expected 8.0, got {ib['es']}"
         assert abs(ib['ef'] - 11.0) < TOL, f"EF_B expected 11.0, got {ib['ef']}"
-        assert abs(ib['slack'] - (-2.0)) < TOL, f"slack_B expected -2.0, got {ib['slack']}"
-        assert ib['window_infeasible'] is True
+        assert abs(ib['ls'] - 8.0)  < TOL, f"LS_B expected 8.0, got {ib['ls']}"
+        assert abs(ib['slack'] - 0.0) < TOL, f"slack_B expected 0.0, got {ib['slack']}"
+        assert ib['window_infeasible'] is False
 
     def test_window_lf_propagates_backward_through_lag(self):
         """

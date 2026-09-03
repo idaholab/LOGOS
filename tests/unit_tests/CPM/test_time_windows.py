@@ -220,10 +220,16 @@ class TestApplyTimeWindows:
         assert abs(p.infoDict[b]['lf'] - 6.0) < TOL   # tightened
 
     def test_only_earliest_start_set(self):
-        # west=8, wlf=None → ES tightened, LF unchanged
+        # west=8, wlf=None → release date with no deadline.
+        # ES tightened to 8, EF to 12; the project end extends to 12 and the
+        # C1-fixed backward pass re-anchors B's LF to it (LF=12), so the release
+        # date is feasible with slack 0 — NOT the old LF=8 (< EF=12, impossible).
         p, _, _, b, _ = _chain_pert_with_window(west=8.0)
-        assert abs(p.infoDict[b]['es'] - 8.0) < TOL   # tightened
-        assert abs(p.infoDict[b]['lf'] - 8.0) < TOL   # unchanged (CPM LF)
+        assert abs(p.infoDict[b]['es'] - 8.0)  < TOL   # tightened
+        assert abs(p.infoDict[b]['ef'] - 12.0) < TOL   # ES + duration
+        assert abs(p.infoDict[b]['lf'] - 12.0) < TOL   # re-anchored to project end
+        assert abs(p.infoDict[b]['slack'] - 0.0) < TOL
+        assert p.infoDict[b]['window_infeasible'] is False
 
 
 # ---------------------------------------------------------------------------

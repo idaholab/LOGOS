@@ -524,11 +524,19 @@ class TestReplanCombined:
         c = Activity('C', 3.0)
         c.required_resources = []
 
+        # NB: the MECH reduction takes effect from h=4, i.e. *after* the frozen
+        # in-progress activities A and B (each 2 MECH, running [0,4)) complete.
+        # Reducing MECH to 2 from h=2 would strand those 4 committed workers
+        # against 2 available on [2,4) — a real over-commit the validator now
+        # correctly rejects (finding C2b); that is a genuine infeasibility, not
+        # something this "combined changes still schedule" test should assert as
+        # valid.  from_hour=4 exercises the combined-update machinery without
+        # creating a physically impossible schedule.
         result = p.replan(
             current_time_hours=2.0,
             new_activities=[c],
             resource_updates=[{
-                'skill_type': 'MECH', 'from_hour': 2, 'new_count': 2
+                'skill_type': 'MECH', 'from_hour': 4, 'new_count': 2
             }],
             equipment_updates=[{
                 'equipment_id': 'CRANE', 'from_hour': 2,
