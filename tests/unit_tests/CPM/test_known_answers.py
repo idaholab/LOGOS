@@ -7,12 +7,12 @@ computed analytically and asserted precisely (not just "it scheduled").
 Items covered (in priority order):
   1. Lag + time-window interaction          — TestLagWindowCPM, TestLagWindowScheduler
   2. Replan correctness                     — TestReplanCorrectness
-  3. Critical chain after mode switch       — pytest.skip (needs _effective_duration audit)
+  3. Critical chain after mode switch       — TestCriticalChainAfterModeSwitch
   4. Consumable restock cursor              — TestConsumableRestockCursor
   5. Multi-mode CPM                         — TestMultiModeCPM
   6. Shift calendar + lag                   — TestShiftCalendarLag
-  7. System state + equipment zone          — pytest.skip
-  8. Hold-point sequencing                  — pytest.skip
+  7. System state + equipment zone          — TestSystemStateEquipmentZone
+  8. Hold-point sequencing                  — TestHoldPointSequencing
 """
 
 import pytest
@@ -21,7 +21,10 @@ from datetime import datetime, timedelta
 from conftest import assert_valid_schedule
 from CPM.activity import Activity
 from CPM.pert import Pert
-from CPM.outage_data import ResourcePool, EquipmentPool, LocationPool, ConsumablePool
+from CPM.outage_data import (
+    ResourcePool, ResourceAvailability, EquipmentPool, EquipmentAvailability,
+    LocationPool, ConsumablePool, SystemStatePool, OutageData,
+)
 
 TOL = 1e-9   # absolute tolerance for float comparisons
 
@@ -321,14 +324,89 @@ class TestReplanCorrectness:
 # ===========================================================================
 
 class TestCriticalChainAfterModeSwitch:
+    """
+    Audit verdict (Pass 2 Item 3): CORRECT — a mode switch propagates the new
+    duration through generateInfo() (CPM), the scheduler (_effective_duration
+    returns act.duration for pending activities), and
+    _compute_resource_constrained_chain().  The skip-reason's "stale act.duration"
+    worry applies only to in-progress replan, not a pre-schedule mode switch
+    (all activities are pending, so _remaining_duration is unused).
 
-    @pytest.mark.skip(reason=(
-        "Pass 2 Item 3: _effective_duration audit pending. "
-        "Need to verify getProjectDuration() uses _effective_duration "
-        "for in-progress activities, not stale act.duration."
-    ))
-    def test_critical_chain_duration_after_mode_switch(self):
-        pass
+    A binding single-unit resource forces A and B to serialize, so the
+    resource-constrained critical chain is driven by the *longer* of the two —
+    a case distinct from the CPM-only coverage in TestMultiModeCPM.
+
+        Network:  START(0) → {A, B} → END(0)
+                  A and B each need 1 unit of R; the pool holds exactly 1, so
+                  they cannot overlap.  A has modes slow(6)/fast(2); B is 3h.
+
+    Slow (A=6):  A dominates → constrained chain = START→A→END (6h);
+                 serialization makespan = 6+3 = 9h.
+    Fast (A=2):  B now dominates → constrained chain flips to START→B→END (3h);
+                 makespan = 2+3 = 5h.
+
+    The chain *identity flips* A→B and the makespan drops 9h→5h only if the
+    switch reaches every layer.  A stale act.duration would leave A dominant
+    and the makespan at 9h.
+    """
+
+    _T0 = datetime(2026, 1, 1)
+
+    def _build_serialized(self):
+        rp = ResourcePool()
+        rp.resources['R'] = ResourceAvailability(
+            'R', [{'start_date': self._T0, 'end_date': datetime(2026, 2, 1),
+                   'available_count': 1}])
+        start = Activity("START", 0.0)
+        a = Activity("A", 6.0,
+                     required_resources=[{'skill_type': 'R', 'crew_count': 1}])
+        a.modes = [
+            {'mode_id': 'slow', 'duration': 6.0,
+             'required_resources': [{'skill_type': 'R', 'crew_count': 1}],
+             'required_equipment': []},
+            {'mode_id': 'fast', 'duration': 2.0,
+             'required_resources': [{'skill_type': 'R', 'crew_count': 1}],
+             'required_equipment': []},
+        ]
+        b = Activity("B", 3.0,
+                     required_resources=[{'skill_type': 'R', 'crew_count': 1}])
+        end = Activity("END", 0.0)
+        fwd = {start: [a, b], a: [end], b: [end], end: []}
+        p = _build(fwd, start_time=self._T0,
+                   pools=(rp, EquipmentPool(), LocationPool()))
+        return p, a, b
+
+    def _chain_names(self, p):
+        return [x.returnName() for x in p.constrained_chain_list]
+
+    def _chain_duration(self, p):
+        return sum(p._effective_duration(x) for x in p.constrained_chain_list)
+
+    def test_slow_mode_constrained_chain_driven_by_A(self):
+        """Baseline slow mode: chain is START→A→END (6h), makespan 9h."""
+        p, a, b = self._build_serialized()
+        r = p.calculateScheduleWithResources()
+        assert abs(r['scheduled_duration'] - 9.0) < TOL, \
+            f"slow makespan expected 9.0h, got {r['scheduled_duration']}"
+        names = self._chain_names(p)
+        assert 'A' in names and 'B' not in names, \
+            f"slow constrained chain expected to include A (6h) not B (3h); got {names}"
+        assert abs(self._chain_duration(p) - 6.0) < TOL, \
+            f"slow constrained-chain duration expected 6.0h, got {self._chain_duration(p)}"
+
+    def test_fast_mode_flips_chain_to_B_and_shortens_makespan(self):
+        """After set_modes({'A':'fast'}) the chain flips to B (3h) and makespan → 5h."""
+        p, a, b = self._build_serialized()
+        p.calculateScheduleWithResources()          # baseline (slow)
+        p.set_modes({'A': 'fast'})                   # <-- the mode switch
+        r = p.calculateScheduleWithResources()
+        assert abs(r['scheduled_duration'] - 5.0) < TOL, \
+            f"fast makespan expected 5.0h, got {r['scheduled_duration']}"
+        names = self._chain_names(p)
+        assert 'B' in names and 'A' not in names, \
+            f"after A→fast the constrained chain must flip to B (3h > A 2h); got {names}"
+        assert abs(self._chain_duration(p) - 3.0) < TOL, \
+            f"fast constrained-chain duration expected 3.0h, got {self._chain_duration(p)}"
 
 
 # ===========================================================================
@@ -582,13 +660,58 @@ class TestShiftCalendarLag:
 # ===========================================================================
 
 class TestSystemStateEquipmentZone:
+    """
+    Audit verdict (Pass 2 Item 7): CORRECT — the system-state and equipment-zone
+    checks are independent (both parallel _fits_with_tentative and serial
+    _serial_check_feasibility gate on each), so neither masks the other.
 
-    @pytest.mark.skip(reason=(
-        "Pass 2 Item 7: known-answer test for system-state + zone-affinity "
-        "interaction not yet written — requires a multi-zone fixture."
-    ))
+    Known answer: A needs S1='ISOLATED' AND zone-locked E1 (ZONE_A, qty 1);
+    B needs S1='ENERGIZED' AND the same E1.  Both constraints independently
+    force serialization → B starts exactly when A releases both at t=4h.
+
+    The broader interplay (concurrency under compatible states, single-activity
+    satisfaction, independent enforcement) is covered in
+    tests/unit_tests/CPM/test_interactions.py::TestSystemStateEquipmentZone.
+    """
+
+    _T0 = datetime(2026, 1, 1)
+    _PERIOD = [{'start_date': _T0, 'end_date': datetime(2026, 12, 31),
+                'quantity_available': 1}]
+
     def test_activity_holding_state_and_zone_locked_equipment(self):
-        pass
+        ep = EquipmentPool()
+        ep.equipment['E1'] = EquipmentAvailability('E1', 'E1', self._PERIOD,
+                                                    zone_id='ZONE_A')
+        ssp = SystemStatePool.from_json([{
+            'system_id': 'S1', 'description': 'S1',
+            'valid_states': ['ISOLATED', 'ENERGIZED']}])
+
+        start = Activity("START", 0.0)
+        a = _act("A", 4.0,
+                 required_equipment=[{'equipment_id': 'E1', 'quantity_needed': 1}],
+                 required_system_states=[{'system_id': 'S1', 'required_state': 'ISOLATED'}],
+                 zone_ids=['ZONE_A'])
+        b = _act("B", 3.0,
+                 required_equipment=[{'equipment_id': 'E1', 'quantity_needed': 1}],
+                 required_system_states=[{'system_id': 'S1', 'required_state': 'ENERGIZED'}],
+                 zone_ids=['ZONE_A'])
+        end = Activity("END", 0.0)
+        fwd = {start: [a, b], a: [end], b: [end], end: []}
+        p = _build(fwd, start_time=self._T0,
+                   pools=(ResourcePool(), ep, LocationPool()))
+        p.system_state_pool = ssp
+
+        p.calculateScheduleWithResources()
+        assert_valid_schedule(p, "state+zone serialization")
+        assert len(p.completed) == len(p.infoDict), "both A and B must complete"
+
+        _, a_et = a.returnAbsTimes()
+        b_st, _ = b.returnAbsTimes()
+        assert b_st >= a_et - timedelta(seconds=1e-6), \
+            f"B must wait for A to release both E1 and S1; B.start={b_st} A.end={a_et}"
+        h = (b_st - self._T0).total_seconds() / 3600.0
+        assert abs(h - 4.0) < 1e-6, \
+            f"B expected to start at t=4h (A's duration); got {h}h"
 
 
 # ===========================================================================
@@ -596,9 +719,63 @@ class TestSystemStateEquipmentZone:
 # ===========================================================================
 
 class TestHoldPointSequencing:
+    """
+    Audit verdict (Pass 2 Item 8): CORRECT (implemented) — hold points are
+    enforced by a build-time precedence-edge injection in
+    _build_graph_from_outage_data: for each hold point, a hold → blocked edge
+    is added for every entry in blocks_tasks (cycle-guarded).  This makes the
+    blocked task a graph successor of the hold point, so CPM and the scheduler
+    naturally prevent it from starting early.  Post-schedule, the validator's
+    _check_hold_points independently flags any violation.
 
-    @pytest.mark.skip(reason=(
-        "Pass 2 Item 8: hold-point sequencing known-answer test not yet written."
-    ))
+    The injection only fires on the outage_data build path, so this test
+    constructs the Pert from task dicts (not a raw graph).
+
+        START(0) → {HP, B} → END(0)
+        HP is a 2h hold point that blocks B (3h) via blocks_tasks=['B'].
+
+    Known answer: the HP→B edge exists and B.start == HP.end == t=2h.
+    """
+
+    def _build_holdpoint_pert(self):
+        tasks = [
+            {'task_id': 'START', 'description': 's', 'duration': 0.0,
+             'successors': ['HP', 'B'], 'required_resources': [], 'required_equipment': []},
+            {'task_id': 'HP', 'description': 'hold', 'duration': 2.0,
+             'successors': ['END'], 'required_resources': [], 'required_equipment': [],
+             'is_hold_point': True, 'hold_point_type': 'NRC', 'blocks_tasks': ['B']},
+            {'task_id': 'B', 'description': 'blocked', 'duration': 3.0,
+             'successors': ['END'], 'required_resources': [], 'required_equipment': []},
+            {'task_id': 'END', 'description': 'e', 'duration': 0.0,
+             'successors': [], 'required_resources': [], 'required_equipment': []},
+        ]
+        od = OutageData(
+            outage_config={'outage_id': 'T', 'start_date': '2026-01-01',
+                           'working_hours_per_day': 24},
+            tasks=tasks, crew_pool=ResourcePool(), equipment_pool=EquipmentPool(),
+            location_pool=LocationPool(), consumable_pool=ConsumablePool(),
+            system_state_pool=SystemStatePool())
+        return Pert(outage_data=od)
+
+    def test_hold_point_edge_injected(self):
+        """The build-time injection wires HP→B from blocks_tasks."""
+        p = self._build_holdpoint_pert()
+        hp = p.task_to_activity['HP']
+        b = p.task_to_activity['B']
+        assert b in p.forwardDict[hp], \
+            "hold-point injection must add the HP→B precedence edge from blocks_tasks"
+
     def test_blocked_tasks_wait_for_hold_point(self):
-        pass
+        """A real schedule places B no earlier than HP completes (t=2h)."""
+        p = self._build_holdpoint_pert()
+        p.calculateScheduleWithResources()
+        assert_valid_schedule(p, "hold-point sequencing")
+        hp = p.task_to_activity['HP']
+        b = p.task_to_activity['B']
+        _, hp_et = hp.returnAbsTimes()
+        b_st, _ = b.returnAbsTimes()
+        assert b_st >= hp_et - timedelta(seconds=1e-6), \
+            f"blocked task B must not start before hold point HP releases; " \
+            f"B.start={b_st} HP.end={hp_et}"
+        h = (b_st - p.startTime).total_seconds() / 3600.0
+        assert abs(h - 2.0) < 1e-6, f"B expected to start at t=2h (after HP); got {h}h"

@@ -5,36 +5,49 @@ from datetime import timedelta
 
 class Activity:
     """
-    Base class for a single activity in nuclear outage planning.
-    Represents a task with resources, equipment, location, and dependency information.
-    Extended from the original development of Nofar Alfasi
-    Source https://github.com/nofaralfasi/PERT-CPM-graph
+    A single activity (task) in a nuclear-outage schedule.
+
+    Represents one unit of work together with its resource, equipment,
+    location, dependency, timing-window, multi-mode and hold-point data.
+    Extended from the original PERT/CPM graph implementation by Nofar Alfasi
+    (https://github.com/nofaralfasi/PERT-CPM-graph).
+
+    Parameters
+    ----------
+    name : str
+        Unique identifier for the task (kept as ``name`` for backward
+        compatibility with ``task_id``).
+    duration : float
+        Planned activity duration, in hours.
+    res : list, optional
+        DEPRECATED — use ``required_resources`` instead.  Legacy flat resource
+        list kept for backward compatibility.
+    childs : list, optional
+        DEPRECATED — use the JSON ``successors`` field instead.  List of
+        successor task names/IDs.
+    location_id : str, optional
+        Physical location (zone) where the task occurs.
+    required_resources : list, optional
+        Structured crew requirements, one dict per skill, e.g.
+        ``[{'skill_type': 'MECHANIC', 'crew_count': 4}, ...]``.
+    required_equipment : list, optional
+        Equipment requirements, one dict per item, e.g.
+        ``[{'equipment_id': 'EQ_CRANE', 'quantity_needed': 1}, ...]``.
+    is_hold_point : bool, optional
+        ``True`` if the task is a regulatory/QA hold point.
+    hold_point_type : str, optional
+        Hold-point category (``'NRC'``, ``'QA'``, ``'Engineering'``,
+        ``'Operations'``).
+    blocks_tasks : list, optional
+        Task IDs that cannot start until this hold point completes.
+    description : str, optional
+        Human-readable task description (defaults to ``name`` when omitted).
     """
 
     def __init__(self, name, duration, res=None, childs=None,
                  location_id=None, required_resources=None, required_equipment=None,
                  is_hold_point=False, hold_point_type=None, blocks_tasks=None,
                  description=None):
-        """
-        Constructor for Activity.
-
-        Args:
-            name (str): Unique identifier for the task (backward compatible with task_id)
-            duration (float): Planned activity duration in hours
-            res (list, optional): DEPRECATED - Use required_resources instead.
-                                  Legacy resource list for backward compatibility
-            childs (list, optional): DEPRECATED - Use successors parameter.
-                                     List of successor task names/IDs
-            location_id (str, optional): Physical location where task occurs
-            required_resources (list, optional): List of dicts with 'skill_type' and 'crew_count'
-                                                 Format: [{'skill_type': 'MECHANIC', 'crew_count': 4}, ...]
-            required_equipment (list, optional): List of dicts with 'equipment_id' and 'quantity_needed'
-                                                 Format: [{'equipment_id': 'EQ_CRANE', 'quantity_needed': 1}, ...]
-            is_hold_point (bool, optional): True if task is a regulatory/QA hold point
-            hold_point_type (str, optional): Type of hold point ('NRC', 'QA', 'Engineering', 'Operations')
-            blocks_tasks (list, optional): List of task IDs blocked by this hold point
-            description (str, optional): Human-readable task description (defaults to name if not provided)
-        """
         # Core identification
         self.name = str(name)  # Keep 'name' for backward compatibility
         self.description = description if description is not None else str(name)
@@ -186,33 +199,46 @@ class Activity:
     @classmethod
     def from_json(cls, task_dict):
         """
-        Factory method to create Activity from JSON task dictionary.
+        Build an :class:`Activity` from a JSON task dictionary.
 
-        Args:
-            task_dict (dict): Dictionary containing task data from JSON format
-                Expected keys: task_id, description, duration, successors, location_id,
-                               required_resources, required_equipment, is_hold_point,
-                               hold_point_type, blocks_tasks
+        Successor entries may be plain task-ID strings or
+        ``{'task_id': ..., 'lag_hours': ...}`` dicts; both are normalised so
+        that ``self.childs`` holds plain IDs while lag information lives in
+        ``self.successor_lags``.  Optional fields (modes, time windows, dose
+        rate, mobilization lead, consumables, system states, zone IDs, WBS
+        group) are parsed when present.
 
-        Returns:
-            Activity: New Activity instance populated from JSON data
+        Parameters
+        ----------
+        task_dict : dict
+            Task data in the standard JSON format.  Expected keys: ``task_id``,
+            ``description``, ``duration``, ``successors``, ``location_id``,
+            ``required_resources``, ``required_equipment``, ``is_hold_point``,
+            ``hold_point_type``, ``blocks_tasks`` (plus the optional fields
+            listed above).
 
-        Example:
-            >>> task_data = {
-            ...     "task_id": "T001",
-            ...     "description": "Remove reactor vessel head",
-            ...     "duration": 12.0,
-            ...     "successors": ["T002"],
-            ...     "location_id": "LOC_REACTOR_CAVITY",
-            ...     "required_resources": [
-            ...         {"skill_type": "MECHANIC", "crew_count": 6}
-            ...     ],
-            ...     "required_equipment": [
-            ...         {"equipment_id": "EQ_POLAR_CRANE", "quantity_needed": 1}
-            ...     ],
-            ...     "is_hold_point": False
-            ... }
-            >>> activity = Activity.from_json(task_data)
+        Returns
+        -------
+        Activity
+            New instance populated from ``task_dict``.
+
+        Examples
+        --------
+        >>> task_data = {
+        ...     "task_id": "T001",
+        ...     "description": "Remove reactor vessel head",
+        ...     "duration": 12.0,
+        ...     "successors": ["T002"],
+        ...     "location_id": "LOC_REACTOR_CAVITY",
+        ...     "required_resources": [
+        ...         {"skill_type": "MECHANIC", "crew_count": 6}
+        ...     ],
+        ...     "required_equipment": [
+        ...         {"equipment_id": "EQ_POLAR_CRANE", "quantity_needed": 1}
+        ...     ],
+        ...     "is_hold_point": False
+        ... }
+        >>> activity = Activity.from_json(task_data)
         """
         # Parse successors: each entry is either a plain task-ID string or a dict
         # {"task_id": "T3", "lag_hours": 2.0}.  Both forms are normalised here so
@@ -281,10 +307,18 @@ class Activity:
 
     def to_json_dict(self):
         """
-        Convert Activity to JSON-compatible dictionary format.
+        Serialise the activity to a JSON-compatible dictionary.
 
-        Returns:
-            dict: Dictionary in the standard JSON format for tasks
+        Successors are emitted as plain strings when their lag is zero and as
+        ``{'task_id': ..., 'lag_hours': ...}`` dicts otherwise.  Optional fields
+        (mobilization lead, dose rate, time windows, modes, WBS group,
+        consumables, system states, zone IDs) are included only when they carry
+        a non-default value.
+
+        Returns
+        -------
+        dict
+            Task data in the standard JSON format.
         """
         # Serialise successors: use plain strings when lag is 0, dicts otherwise.
         lags = getattr(self, 'successor_lags', {})
@@ -342,19 +376,24 @@ class Activity:
 
     def printToJson(self):
         """
-        Method designed to print activity in JSON format.
+        Serialise the activity's ``__dict__`` to a JSON string.
 
-        Returns:
-            str: JSON string representation of the activity
+        Returns
+        -------
+        str
+            JSON representation of the activity.
         """
         return json.dumps(self.__dict__, sort_keys=True, default=str)
 
     def updateChilds(self, childs):
         """
-        Method designed to assign the successors (children) of an activity.
+        Replace the activity's successors.
 
-        Args:
-            childs (list): List of Activity objects or list of strings (task names)
+        Parameters
+        ----------
+        childs : list
+            Successor task-ID strings or :class:`Activity` objects; Activity
+            objects are stored by their name.
         """
         self.childs = []
         for child in childs:
@@ -366,10 +405,12 @@ class Activity:
 
     def addSuccessor(self, successor):
         """
-        Add a single successor to this activity.
+        Add a single successor, ignoring duplicates.
 
-        Args:
-            successor (str or Activity): Successor task ID or Activity object
+        Parameters
+        ----------
+        successor : str or Activity
+            Successor task ID or :class:`Activity` object.
         """
         if isinstance(successor, str):
             if successor not in self.childs:
@@ -382,91 +423,86 @@ class Activity:
 
     def getSuccessors(self):
         """
-        Get list of successor task IDs.
+        Return the list of successor task IDs.
 
-        Returns:
-            list: List of successor task IDs
+        Returns
+        -------
+        list of str
         """
         return self.childs
 
     def returnName(self):
-        """
-        Returns the name (ID) of the activity.
-
-        Returns:
-            str: Name/ID of the activity
-        """
+        """Return the activity's name (ID)."""
         return self.name
 
     def returnDescription(self):
-        """
-        Returns the description of the activity.
-
-        Returns:
-            str: Human-readable description of the activity
-        """
+        """Return the activity's human-readable description."""
         return self.description
 
     def returnDuration(self):
-        """
-        Returns the duration of the activity.
-
-        Returns:
-            float: Duration of the activity in hours
-        """
+        """Return the planned duration, in hours."""
         return self.duration
 
     def returnResources(self):
-        """
-        Returns the legacy resources of the activity.
-
-        Returns:
-            list: Legacy resource list (for backward compatibility)
-        """
+        """Return the legacy (flat) resource list, kept for backward compatibility."""
         return self.resources
 
     def getRequiredResources(self):
         """
-        Returns the structured resource requirements.
+        Return the structured crew requirements.
 
-        Returns:
-            list: List of dicts with 'skill_type' and 'crew_count'
+        Returns
+        -------
+        list of dict
+            One dict per skill, e.g.
+            ``{'skill_type': 'MECHANIC', 'crew_count': 4}``.
         """
         return self.required_resources
 
     def getRequiredEquipment(self):
         """
-        Returns the equipment requirements.
+        Return the equipment requirements.
 
-        Returns:
-            list: List of dicts with 'equipment_id' and 'quantity_needed'
+        Returns
+        -------
+        list of dict
+            One dict per item, e.g.
+            ``{'equipment_id': 'EQ_CRANE', 'quantity_needed': 1}``.
         """
         return self.required_equipment
 
     def getRequiredConsumables(self):
         """
-        Returns the consumable requirements.
+        Return the consumable requirements.
 
-        Returns:
-            list: List of dicts with 'item_id' and 'quantity_needed'
+        Returns
+        -------
+        list of dict
+            One dict per item, e.g.
+            ``{'item_id': 'AC_SUIT', 'quantity_needed': 4}``.
         """
         return getattr(self, 'required_consumables', [])
 
     def getRequiredSystemStates(self):
         """
-        Returns the plant-system isolation state requirements.
+        Return the plant-system isolation-state requirements.
 
-        Returns:
-            list: List of dicts with 'system_id' and 'required_state'
+        Returns
+        -------
+        list of dict
+            One dict per system, e.g.
+            ``{'system_id': 'VALVE_V1', 'required_state': 'CLOSED'}``.
         """
         return getattr(self, 'required_system_states', [])
 
     def getLocation(self):
         """
-        Returns the location ID where this activity occurs.
+        Return the primary location (zone) ID.
 
-        Returns:
-            str or None: Location ID or None if no specific location
+        Returns
+        -------
+        str or None
+            Location ID, or ``None`` when the activity has no specific location.
         """
         return self.location_id
 
@@ -474,13 +510,14 @@ class Activity:
         """
         Return all zone IDs this activity must occupy simultaneously.
 
-        When ``zone_ids`` is explicitly set (Option C multi-zone), that list is
-        returned as-is.  Otherwise falls back to ``[location_id]`` for full
+        When ``zone_ids`` is explicitly set (multi-zone / Option C) it is
+        returned as-is; otherwise falls back to ``[location_id]`` for full
         backward compatibility with single-location activities.
 
-        Returns:
-            list: Ordered list of zone ID strings, or ``[]`` if the activity
-                  has no zone constraints at all.
+        Returns
+        -------
+        list of str
+            Zone IDs, or ``[]`` when the activity has no zone constraints.
         """
         if self.zone_ids:
             return list(self.zone_ids)
@@ -489,58 +526,66 @@ class Activity:
         return []
 
     def isHoldPoint(self):
-        """
-        Check if this activity is a hold point.
-
-        Returns:
-            bool: True if this is a hold point, False otherwise
-        """
+        """Return ``True`` if this activity is a hold point."""
         return self.is_hold_point
 
     def getHoldPointType(self):
         """
-        Get the type of hold point.
+        Return the hold-point category.
 
-        Returns:
-            str or None: Hold point type ('NRC', 'QA', 'Engineering', 'Operations') or None
+        Returns
+        -------
+        str or None
+            One of ``'NRC'``, ``'QA'``, ``'Engineering'``, ``'Operations'``, or
+            ``None`` when this activity is not a hold point.
         """
         return self.hold_point_type
 
     def getBlockedTasks(self):
         """
-        Get list of tasks blocked by this hold point.
+        Return the task IDs blocked by this hold point.
 
-        Returns:
-            list: List of task IDs blocked by this hold point
+        Returns
+        -------
+        list of str
         """
         return self.blocks_tasks
 
     def updateDuration(self, newDuration):
         """
-        Changes the duration of the activity.
+        Change the activity's duration.
 
-        Args:
-            newDuration (float): Updated duration of the activity
+        Parameters
+        ----------
+        newDuration : float
+            New duration, in hours (deep-copied into ``self.duration``).
         """
         self.duration = copy.deepcopy(newDuration)
 
 
     def set_mode(self, mode_id: str) -> None:
-        """Apply one of the activity's pre-defined execution modes.
+        """
+        Apply one of the activity's pre-defined execution modes.
 
-        Writes the named mode's ``duration``, ``required_resources``,
-        ``required_equipment``, and (if present) ``dose_rate_mrem_per_hour``
-        and ``mobilization_lead_hours`` into the activity's live fields.
-        The caller is responsible for calling ``Pert.generateInfo()`` (or
+        Writes the named mode's ``duration``, ``required_resources`` and
+        ``required_equipment`` — and, when present, ``dose_rate_mrem_per_hour``,
+        ``mobilization_lead_hours``, ``required_consumables`` and
+        ``required_system_states`` — into the activity's live fields.  The
+        caller is responsible for calling ``Pert.generateInfo()`` (or
         ``Pert.set_modes()``, which does it automatically) so that CPM values
         reflect the new duration.
 
-        Args:
-            mode_id: Identifier of the mode to activate.
+        Parameters
+        ----------
+        mode_id : str
+            Identifier of the mode to activate.
 
-        Raises:
-            ValueError: If the activity has no modes defined or if mode_id is
-                        not found among the defined modes.
+        Raises
+        ------
+        ValueError
+            If the activity has no modes defined, if ``mode_id`` is not found
+            among the defined modes, or if the selected mode is missing its
+            required ``duration`` key.
         """
         if not self.modes:
             raise ValueError(
@@ -575,9 +620,13 @@ class Activity:
         self.selected_mode_id = mode_id
 
     def get_available_modes(self) -> list:
-        """Return the list of mode IDs defined for this activity.
+        """
+        Return the mode IDs defined for this activity.
 
-        Returns an empty list for single-mode (legacy) activities.
+        Returns
+        -------
+        list of str
+            Empty for single-mode (legacy) activities.
         """
         return [m.get('mode_id') for m in self.modes if m.get('mode_id') is not None]
 
@@ -588,32 +637,38 @@ class Activity:
         In the event-driven scheduler the time between consecutive events is
         variable, so the caller passes the actual elapsed hours rather than a
         fixed 1-hour increment.  The default of 1.0 preserves backward
-        compatibility with any code that still calls addDelay() without arguments.
+        compatibility with callers that invoke ``addDelay()`` without arguments.
 
-        Args:
-            hours (float): Elapsed hours to add to the delay accumulator.
-                        Must be >= 0.
+        Parameters
+        ----------
+        hours : float, optional
+            Elapsed hours to add to the delay accumulator; must be ``>= 0``
+            (default 1.0).
+
+        Raises
+        ------
+        ValueError
+            If ``hours`` is negative.
         """
         if hours < 0:
             raise ValueError(f"addDelay: hours must be >= 0, got {hours}")
         self.delay += hours
 
     def returnSubActivities(self):
-        """
-        Returns the list of sub-activities.
-
-        Returns:
-            list: List of Activity objects that are sub-activities
-        """
+        """Return the list of sub-activities."""
         return self.subActivities
 
     def addSubActivities(self, subActivities):
         """
-        Associates a list of sub-activities to this activity.
-        Recalculates total duration based on sub-activities.
+        Attach sub-activities and recompute this activity's duration.
 
-        Args:
-            subActivities (list): List of Activity objects
+        Uses serial composition: the duration becomes the sum of the
+        sub-activities' (non-negative) planned durations.
+
+        Parameters
+        ----------
+        subActivities : list of Activity
+            The sub-activities to attach.
         """
 
         self.subActivities = subActivities
@@ -622,36 +677,34 @@ class Activity:
 
 
     def setOnCP(self):
-        """
-        Marks this activity as being part of the critical path.
-        """
+        """Mark this activity as being on the critical path."""
         self.belongsToCP = True
 
     def returnCPstatus(self):
-        """
-        Returns whether this activity is part of the critical path.
-
-        Returns:
-            bool: True if activity is on critical path, False otherwise
-        """
+        """Return ``True`` if the activity is on the critical path."""
         return self.belongsToCP
 
     def setActualStartTime(self, Tin):
         """
-        Set the actual start time of the activity based on scheduling calculations.
+        Set the actual start time and derive the end time from the duration.
 
-        Args:
-            Tin (datetime): Start time of the activity
+        Parameters
+        ----------
+        Tin : datetime
+            Absolute start time of the activity; ``endTime`` is set to
+            ``Tin + duration``.
         """
         self.startTime = Tin
         self.endTime = Tin + timedelta(hours=self.duration)
 
     def returnAbsTimes(self):
         """
-        Returns the start and end times of the activity.
+        Return the activity's absolute ``(startTime, endTime)``.
 
-        Returns:
-            tuple: (start_time, end_time) as datetime objects
+        Returns
+        -------
+        tuple of (datetime or None, datetime or None)
+            Both are ``None`` before the activity is scheduled.
         """
         return (self.startTime, self.endTime)
 
@@ -675,17 +728,15 @@ class Activity:
 
     def reset(self):
         """
-        Reset all scheduling state so the activity is ready for a new scheduling run.
-        Must be called between successive RAVEN/RCPSP iterations to avoid stale state.
+        Reset all scheduling state so the activity is ready for a new run.
 
-        Resets:
-            - startTime / endTime: set during setActualStartTime()
-            - delay: accumulated by addDelay() each time a candidate is postponed
-            - belongsToCP: marked during critical path analysis
-
-        Does NOT reset:
-            - duration: may have been updated by set_durations() for this run
-            - required_resources / required_equipment / childs: structural data
+        Must be called between successive RAVEN/RCPSP iterations to avoid stale
+        state.  Clears ``startTime``/``endTime``, the ``delay`` accumulator,
+        ``belongsToCP``, ``status`` (back to ``'pending'``) and the internal
+        ``_actual_resources`` / ``_remaining_duration`` / ``_candidate_since``
+        fields.  Structural data — ``duration`` (which may have been updated by
+        ``set_durations()`` for this run), ``required_resources``,
+        ``required_equipment`` and ``childs`` — is deliberately left untouched.
         """
         self.startTime = None
         self.endTime = None

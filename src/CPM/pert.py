@@ -1027,82 +1027,149 @@ class Pert:
         * 'window_infeasible' key is set True when slack < 0 (window narrower
           than activity duration) and a WARNING is logged.
 
-        Window-propagating backward sweep
-        ----------------------------------
-        When ``topo`` (topological order) is supplied and at least one window
-        tightened an LF value, a second backward sweep is performed in reverse
-        topological order.  This propagates the tightened LF upstream so that
-        every predecessor's LF — and therefore slack — reflects the window
-        constraint, not just the unconstrained CPM value.
+        Forward + backward re-relaxation (C1 fix)
+        -----------------------------------------
+        When ``topo`` (topological order) is supplied, windows are folded into a
+        full CPM re-relaxation rather than tightened only locally:
 
-        Formula (identical to the standard backward pass):
-            LF(u) = min(LF(u), LS(v) − lag(u,v) − v.mobilization_lead_hours)
-                  for each successor v
+        1. **Forward pass with ES floors.** In topo order, ``ES = max(ES, west)``
+           and the raised ``EF`` is propagated to successors
+           (``ES(v) = max(ES(v), EF(u) + lag + lead)``).  This fixes the defect
+           where a window-raised EF never reached successors, leaving them with
+           an ES computed from the predecessor's *pre-window* finish (too early),
+           and understating the reported project duration.
+        2. **Backward pass re-anchored to the new project end.** The project end
+           extends to cover any window-delayed activity; every ``LF`` is
+           re-initialised to ``min(project_end, wlf)`` and tightened upstream in
+           reverse topo order.  Without re-anchoring, a plain release date
+           (window ``[west, ∞]``, no deadline) produced ``slack = LS − ES`` with
+           a stale, un-extended ``LS`` → spurious negative slack and a false
+           ``window_infeasible`` warning on the release-dated activity itself.
+        3. **Slack + ``window_infeasible``.** ``slack = LS − ES``; a windowed
+           activity is flagged infeasible only when ``slack < 0`` after the
+           re-anchored passes — i.e. a genuine deadline (or downstream deadline
+           on its path) cannot be met.  A release-date-only window can never be
+           infeasible.
 
-        Cost: O(V + E) — one additional linear pass.
+        Cost: O(V + E) — one extra forward and one extra backward pass.
 
-        Activities without window fields (both None) are untouched.
+        Activities without window fields (both None) are untouched.  When
+        ``topo`` is absent (never from the CPM driver) a legacy local-only
+        tightening is used instead — see ``_apply_time_windows_local``.
         """
-        any_lf_tightened = False
-
+        # --- Resolve each activity's window envelope --------------------------
+        west: dict = {}                 # earliest-start floor  (0.0 if no window)
+        wlf: dict = {}                  # latest-finish ceiling (inf if no window)
+        windowed: list = []             # activities that actually carry a window
+        windows_of: dict = {}           # windows kept for the infeasibility log
         for act in self.forwardDict:
             windows = self._resolve_windows(act)
-
+            self.infoDict[act]['window_infeasible'] = False
             if not windows:
-                self.infoDict[act]['window_infeasible'] = False
+                west[act] = 0.0
+                wlf[act] = float('inf')
                 continue
-
-            info = self.infoDict[act]
-            dur  = info['duration']
-
-            # For CPM: use the broadest envelope across all windows.
-            # ES is bounded by the earliest window's open time.
-            # LF is bounded by the latest window's hard deadline.
-            eff_west = min(w[0] for w in windows)
+            windowed.append(act)
+            windows_of[act] = windows
+            # Broadest envelope across all windows: earliest open, latest deadline.
+            west[act] = min(w[0] for w in windows)
             finite_latests = [w[1] for w in windows if w[1] != float('inf')]
-            eff_wlf = max(finite_latests) if finite_latests else None
+            wlf[act] = max(finite_latests) if finite_latests else float('inf')
 
-            if eff_west > 0.0:
-                new_es = max(info['es'], eff_west)
-                info['es'] = new_es
-                info['ef'] = new_es + dur
+        # No windows anywhere → the CPM values are already correct; do nothing.
+        if not windowed:
+            return
 
-            if eff_wlf is not None:
-                new_lf = min(info['lf'], eff_wlf)
-                if new_lf < info['lf']:
-                    any_lf_tightened = True
-                info['lf'] = new_lf
-                info['ls'] = new_lf - dur
+        # Called without a topological order (never by the CPM driver) → legacy
+        # local-only tightening, which cannot propagate a raised ES forward.
+        if topo is None:
+            self._apply_time_windows_local(west, wlf, windowed, windows_of)
+            return
 
-            info['slack'] = info['ls'] - info['es']
+        # --- 1) Forward relaxation with window ES floors ----------------------
+        for u in topo:
+            info_u = self.infoDict[u]
+            floor = west.get(u, 0.0)
+            if floor > info_u['es']:
+                info_u['es'] = floor
+                info_u['ef'] = floor + info_u['duration']
+            u_ef = info_u['ef']
+            for v in self.forwardDict.get(u, []):
+                lag  = self.lag_dict.get((u, v), 0.0)
+                lead = getattr(v, 'mobilization_lead_hours', 0.0)
+                earliest = u_ef + lag + lead
+                info_v = self.infoDict[v]
+                if earliest > info_v['es']:
+                    info_v['es'] = earliest
+                    info_v['ef'] = earliest + info_v['duration']
 
-            infeasible = info['slack'] < 0.0
-            info['window_infeasible'] = infeasible
-            if infeasible:
+        # --- 2) Backward relaxation, re-anchored to the new project end -------
+        project_end = max(self.infoDict[a]['ef'] for a in self.forwardDict)
+        for a in self.forwardDict:
+            info_a = self.infoDict[a]
+            lf = min(project_end, wlf.get(a, float('inf')))
+            info_a['lf'] = lf
+            info_a['ls'] = lf - info_a['duration']
+        for u in reversed(topo):
+            info_u = self.infoDict[u]
+            for v in self.forwardDict.get(u, []):
+                lag  = self.lag_dict.get((u, v), 0.0)
+                lead = getattr(v, 'mobilization_lead_hours', 0.0)
+                constrained_lf = self.infoDict[v]['ls'] - lag - lead
+                if info_u['lf'] > constrained_lf:
+                    info_u['lf'] = constrained_lf
+                    info_u['ls'] = constrained_lf - info_u['duration']
+
+        # --- 3) Slack + window-infeasibility flag -----------------------------
+        for a in self.forwardDict:
+            info_a = self.infoDict[a]
+            info_a['slack'] = info_a['ls'] - info_a['es']
+        for act in windowed:
+            info = self.infoDict[act]
+            if info['slack'] < 0.0:
+                info['window_infeasible'] = True
                 win_str = ', '.join(
                     f'[{w[0]:.1f}, {"∞" if w[1]==float("inf") else f"{w[1]:.1f}"}]'
-                    for w in windows
+                    for w in windows_of[act]
+                )
+                logger.warning(
+                    "Time-window infeasibility on '%s': window(s) %s cannot be "
+                    "met (slack=%.2f h, duration=%.1f h).",
+                    act.name, win_str, info['slack'], info['duration'],
+                )
+
+    def _apply_time_windows_local(self, west, wlf, windowed, windows_of) -> None:
+        """Legacy local-only window tightening (no forward/backward re-relaxation).
+
+        Reached only when :meth:`_apply_time_windows` is called without a
+        topological order — which the CPM driver never does.  It tightens
+        ES/EF/LF/LS/slack per activity but cannot propagate a raised ES to
+        successors, so it reproduces the pre-C1 behaviour.  Kept so a direct,
+        topo-less call neither crashes nor silently changes historical output.
+        """
+        for act in windowed:
+            info = self.infoDict[act]
+            dur  = info['duration']
+            if west[act] > 0.0:
+                new_es = max(info['es'], west[act])
+                info['es'] = new_es
+                info['ef'] = new_es + dur
+            if wlf[act] != float('inf'):
+                new_lf = min(info['lf'], wlf[act])
+                info['lf'] = new_lf
+                info['ls'] = new_lf - dur
+            info['slack'] = info['ls'] - info['es']
+            if info['slack'] < 0.0:
+                info['window_infeasible'] = True
+                win_str = ', '.join(
+                    f'[{w[0]:.1f}, {"∞" if w[1]==float("inf") else f"{w[1]:.1f}"}]'
+                    for w in windows_of[act]
                 )
                 logger.warning(
                     "Time-window infeasibility on '%s': window(s) %s "
                     "cannot accommodate duration %.1f h (slack=%.2f h).",
                     act.name, win_str, dur, info['slack'],
                 )
-
-        # Backward sweep: propagate tightened LF values to all predecessors.
-        # Only runs when a window actually reduced an LF and topo is available.
-        # Uses the same formula as the standard CPM backward pass.
-        if topo is not None and any_lf_tightened:
-            for u in reversed(topo):
-                info_u = self.infoDict[u]
-                for v in self.forwardDict.get(u, []):
-                    lag  = self.lag_dict.get((u, v), 0.0)
-                    lead = getattr(v, 'mobilization_lead_hours', 0.0)
-                    constrained_lf = self.infoDict[v]['ls'] - lag - lead
-                    if info_u['lf'] > constrained_lf:
-                        info_u['lf'] = constrained_lf
-                        info_u['ls'] = constrained_lf - info_u['duration']
-                        info_u['slack'] = info_u['ls'] - info_u['es']
 
     def _compute_wbs_slack(self) -> None:
         """Compute WBS-level aggregate float and write it into ``infoDict``.
@@ -1811,6 +1878,18 @@ class Pert:
                         if st is not None else 0.0
                     )
                     remaining = max(0.0, new_total - elapsed)
+                    # RP1: refresh the frozen endTime to match the overridden
+                    # duration.  It was set to start + OLD duration during the
+                    # baseline run, and every consumer of actual completion /
+                    # resource release reads endTime (_update_ongoing_list, the
+                    # in-progress completion seed in _build_event_queue_from, the
+                    # lag-event push).  Leaving it stale frees this activity's
+                    # resources at the old end time → double-booking with any
+                    # successor rescheduled into the gap.  Clamp to current_abs
+                    # so a shrink below elapsed does not place endTime in the
+                    # past (≡ current_abs + remaining).
+                    act.endTime = max(current_abs,
+                                      st + timedelta(hours=new_total))
                 else:
                     remaining = (
                         (et - current_abs).total_seconds() / 3600.0
@@ -2096,7 +2175,24 @@ class Pert:
         # Pass topo so tightened LF values propagate back to predecessors.
         self._apply_time_windows(topo=topo)
 
-        # ── 8) WBS aggregate float roll-up ───────────────────────────────
+        # ── 8) Priority metrics ───────────────────────────────────────────
+        # resetInitialGraph()/resetInfo() (run when replan injects activities)
+        # zeroes the structural metrics and does NOT create the custom-heuristic
+        # keys (mehh_*/gphh_b) at all.  Recompute them here, exactly as
+        # generateInfo() does, so a subsequent rule-based schedule (any of the
+        # named priority rules) sorts on live values instead of reading stale
+        # zeros — or, for the 13 rules whose tie-breaker reads 'mehh_8000_b',
+        # raising KeyError on the missing key (RP-l).  These metrics are
+        # timing-independent (topology/durations/resources), so recomputing them
+        # over the full post-injection graph is correct in the replan context.
+        self.calculate_total_successors(topo=topo)
+        self.calculate_total_predecessors(topo=topo)
+        self.calculate_greatest_rank_position_weight(topo=topo)
+        self.calculate_greatest_resource_demand()
+        self.calculate_resource_requirement()
+        self.calculate_gp_rules()
+
+        # ── 9) WBS aggregate float roll-up ───────────────────────────────
         self._compute_wbs_slack()
 
     def _build_event_queue_from(self, current_time_hours: float) -> list:
@@ -2617,8 +2713,13 @@ class Pert:
         clone.constrained_chain_list = []
         clone.constrained_chain_set  = set()
 
-        # Availability events will be recomputed on demand if scheduling runs
-        clone._availability_events = frozenset()
+        # RP2: recompute availability-boundary events from the deep-copied
+        # pools.  _precompute_availability_events runs only from __init__ (which
+        # the clone bypasses via object.__new__) and from replan() when pools
+        # change; nothing else repopulates the set.  Leaving it empty would
+        # strip every capacity-change wake-up, dead-locking a clone whose pools
+        # are time-varying.  The method reads only the three pools, all set above.
+        clone._precompute_availability_events()
 
         # Window violations and last schedule result start fresh in the clone
         # (they are historical records of the baseline run, not structural data)
@@ -3458,8 +3559,12 @@ class Pert:
         * Any additional boundaries supplied by the caller (e.g. the end times
           of all candidate activities for this scheduling step)
 
-        Between consecutive grid points capacity is constant, so checking or
-        decrementing at each grid point correctly represents the whole interval.
+        Consumption is constant between consecutive grid points (it changes only
+        at the grid points above).  Base availability may still step at the
+        pool's own breakpoints between grid points, so each grid cell is seeded
+        with the *minimum* availability across ``[h, next_grid_point)`` (see the
+        seeding block below) — checking or decrementing at each grid point then
+        correctly and conservatively represents the whole interval.
         Complexity: O((K + extra) × (S + E + L)) instead of
         O(D × K × (S + E + L)).
 
@@ -3496,18 +3601,41 @@ class Pert:
         loc_tasks_rem   = defaultdict(dict)
         loc_workers_rem = defaultdict(dict)
 
-        # ── 2. Seed base pool availability at every grid point ────────────────
-        for skill in self.crew_pool.get_all_skills():
-            for h in grid:
-                res_rem[skill][h] = self.crew_pool.get_availability(skill, h)
+        # ── 2. Seed base pool availability across each grid CELL ──────────────
+        # Each grid point ``h`` represents the half-open interval
+        # ``[h, next_grid_point)`` over which *consumption* is constant
+        # (consumption changes only at grid points, all of which are recorded
+        # above).  Base availability, however, can step at the pool's own
+        # breakpoints *between* grid points, and those breakpoints are
+        # deliberately not in the grid.  Seeding each cell with the MINIMUM
+        # availability across ``[h, next)`` — via the ``*_in_range`` primitives —
+        # rather than the point value at ``h`` makes the point-checks in
+        # :meth:`_fits_with_tentative` / :meth:`_apply_tentative` correctly
+        # represent the whole cell, so an availability drop that lands inside an
+        # already-running activity can no longer be admitted (finding C2).  For
+        # time-invariant pools the min over the cell equals the point value, so
+        # this is a no-op on the common path.
+        for i, h in enumerate(grid):
+            nxt = grid[i + 1] if i + 1 < len(grid) else h
+            has_cell = nxt > h
 
-        for eq_id in self.equipment_pool.get_all_equipment_ids():
-            for h in grid:
-                eq_rem[eq_id][h] = self.equipment_pool.get_availability(eq_id, h)
+            for skill in self.crew_pool.get_all_skills():
+                res_rem[skill][h] = (
+                    self.crew_pool.get_availability_in_range(skill, h, nxt)
+                    if has_cell else self.crew_pool.get_availability(skill, h)
+                )
 
-        for loc_id in self.location_pool.get_all_location_ids():
-            for h in grid:
-                cap = self.location_pool.get_capacity(loc_id, h)
+            for eq_id in self.equipment_pool.get_all_equipment_ids():
+                eq_rem[eq_id][h] = (
+                    self.equipment_pool.get_availability_in_range(eq_id, h, nxt)
+                    if has_cell else self.equipment_pool.get_availability(eq_id, h)
+                )
+
+            for loc_id in self.location_pool.get_all_location_ids():
+                cap = (
+                    self.location_pool.get_capacity_in_range(loc_id, h, nxt)
+                    if has_cell else self.location_pool.get_capacity(loc_id, h)
+                )
                 loc_tasks_rem[loc_id][h]   = cap['max_tasks']
                 loc_workers_rem[loc_id][h] = cap.get('max_workers')  # None = unlimited
 
@@ -3563,6 +3691,110 @@ class Pert:
 
         return res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
 
+    # -------------------------------------------------------------------------
+    # Shared feasibility primitives (used by BOTH the parallel path
+    # `_fits_with_tentative` and the serial path `_serial_check_feasibility`)
+    # so the two schedulers enforce an identical constraint set.  Before these
+    # existed the serial path silently dropped equipment zone-affinity (SC2)
+    # and radiation-dose budgets (SC1) — see devLogs/PERT_MANUAL_REVIEW.
+    # -------------------------------------------------------------------------
+
+    def _equipment_zone_conflict(self, activity) -> bool:
+        """True if any equipment this activity requires is locked to a zone the
+        activity does not occupy (finding SC2).
+
+        Zone affinity is static (time-independent): a piece of equipment
+        assigned to a specific zone may be used only by activities that declare
+        that zone.  Backward-compat guards: unconstrained equipment
+        (``zone_id`` is None) and zone-less activities (no declared zones)
+        never conflict.
+        """
+        act_zones = set(activity.getZoneIds())
+        if not act_zones:
+            return False
+        for eq in activity.getRequiredEquipment():
+            eq_zone = self.equipment_pool.get_zone_id(eq['equipment_id'])
+            if eq_zone is not None and eq_zone not in act_zones:
+                return True
+        return False
+
+    def _serial_dose_worker_map(self, activity) -> dict:
+        """``{skill: worker_count}`` charged for dose on the serial path.
+
+        Every worker is drawn from the requirement's declared primary skill.
+
+        .. deprecated:: SC3
+            Superseded on the live serial path by
+            :meth:`_resolve_serial_consumption`, which resolves skill
+            substitution so dose lands on the skills that actually perform the
+            work.  Retained for reference (it equals the resolved breakdown when
+            no substitution occurs); no longer called by the scheduler.
+        """
+        wm: dict = {}
+        for req in activity.getRequiredResources():
+            skill, need = req['skill_type'], req['crew_count']
+            if need > 0:
+                wm[skill] = wm.get(skill, 0) + need
+        return wm
+
+    def _dose_fits(self, activity, worker_map, extra_consumed=None) -> bool:
+        """True if charging this activity's dose for ``worker_map``
+        (skill→workers) keeps every skill within its remaining budget
+        (finding SC1).  A no-op (returns True) when dose tracking is disabled
+        or the activity has no dose rate.
+
+        Args:
+            extra_consumed: Optional {skill: mRem} overlay of dose already
+                committed *tentatively* earlier in the current time-step but not
+                yet charged to the tracker (finding PD1).  When supplied, the
+                budget check accounts for it so that a second candidate selected
+                in the same parallel step cannot re-spend budget the first one
+                already tentatively drew.  When ``None`` the check uses the
+                tracker's committed state only (serial path / isolated checks).
+        """
+        if not self.dose_trackers:
+            return True
+        dose_rate = getattr(activity, 'dose_rate_mrem_per_hour', 0.0)
+        if dose_rate <= 0.0:
+            return True
+        eff = self._effective_duration(activity)
+        for skill, workers in worker_map.items():
+            if workers > 0:
+                tracker = self.dose_trackers.get(skill)
+                if not tracker:
+                    continue
+                if extra_consumed is None:
+                    if not tracker.fits(dose_rate, workers, eff):
+                        return False
+                else:
+                    # Tentative-aware budget check: committed + tentative + this.
+                    required = dose_rate * workers * eff
+                    already = extra_consumed.get(skill, 0.0)
+                    if tracker.consumed_mrem + already + required > tracker.total_budget_mrem:
+                        return False
+        return True
+
+    def _dose_consume(self, activity, worker_map) -> None:
+        """Charge this activity's dose for ``worker_map`` against the trackers.
+
+        Dose is irrevocable: a worker who has entered the radiation field
+        cannot be returned to the budget.  Mirrors the parallel commit path so
+        ``validate_schedule`` (which reads tracker state) can see serial dose
+        usage (finding SC1 — otherwise a dose-blown serial schedule reports
+        feasible).
+        """
+        if not self.dose_trackers:
+            return
+        dose_rate = getattr(activity, 'dose_rate_mrem_per_hour', 0.0)
+        if dose_rate <= 0.0:
+            return
+        eff = self._effective_duration(activity)
+        for skill, workers in worker_map.items():
+            if workers > 0:
+                tracker = self.dose_trackers.get(skill)
+                if tracker:
+                    tracker.consume(dose_rate, workers, eff)
+
     def _fits_with_tentative(
         self,
         activity,
@@ -3572,6 +3804,7 @@ class Pert:
         loc_tasks_rem,
         loc_workers_rem,
         grid=None,
+        dose_rem=None,
     ) -> bool:
         """Check feasibility against remaining capacity snapshots.
 
@@ -3581,6 +3814,12 @@ class Pert:
                   the boundary points within ``[start_time, end_time)`` are
                   checked — O(K) instead of O(D).  When ``None``, falls back
                   to the original hour-by-hour iteration (backward compatible).
+            dose_rem: Optional {skill: mRem} overlay tracking dose already
+                  drawn *tentatively* by earlier candidates selected in this
+                  same time-step (finding PD1).  Mirrors ``res_rem`` for the
+                  cumulative dose budget: without it, every candidate's dose
+                  check reads the untouched tracker and same-step multi-select
+                  over-commits the budget.  ``None`` for isolated/serial checks.
         """
         eff = self._effective_duration(activity)
         end_time = start_time + timedelta(hours=eff)
@@ -3616,14 +3855,9 @@ class Pert:
         # Equipment — zone-affinity check (static, time-independent).
         # If a piece of equipment is assigned to a specific zone (zone_id is set),
         # only activities that declare that zone in their zone list may use it.
-        # Two backward-compat guards:
-        #   - eq_zone is None  → equipment is unconstrained, skip
-        #   - act_zones empty  → activity has no zone declaration, skip
-        act_zones = set(activity.getZoneIds())
-        for eq in activity.getRequiredEquipment():
-            eq_zone = self.equipment_pool.get_zone_id(eq['equipment_id'])
-            if eq_zone is not None and act_zones and eq_zone not in act_zones:
-                return False
+        # Shared with the serial path via _equipment_zone_conflict (SC2).
+        if self._equipment_zone_conflict(activity):
+            return False
 
         # Location / zone constraints.
         # All zones must have a free task slot (and worker slot if bounded).
@@ -3640,33 +3874,29 @@ class Pert:
                 if lw is not None and lw < workers_needed:
                     return False
 
-        # Consumable dose budget check.
+        # Radiation-dose budget check.
         # For each resource requirement, resolve the actual skill breakdown
         # (accounting for substitution) so dose is checked against the skills
-        # that will *actually* perform the work.
-        if self.dose_trackers:
-            dose_rate = getattr(activity, 'dose_rate_mrem_per_hour', 0.0)
-            if dose_rate > 0.0:
-                eff = self._effective_duration(activity)
-                # Compute resolved worker counts (same logic as _apply_tentative)
-                dose_check_workers: dict = {}  # {skill: workers}
-                for req in activity.getRequiredResources():
-                    skill, need = req['skill_type'], req['crew_count']
-                    primary_use = min(res_rem[skill].get(start_time, 0), need)
-                    dose_check_workers[skill] = dose_check_workers.get(skill, 0) + primary_use
-                    still_needed = need - primary_use
-                    for alt_skill in req.get('alternative_skill_types', []):
-                        if still_needed <= 0:
-                            break
-                        alt_use = min(res_rem[alt_skill].get(start_time, 0), still_needed)
-                        if alt_use > 0:
-                            dose_check_workers[alt_skill] = dose_check_workers.get(alt_skill, 0) + alt_use
-                            still_needed -= alt_use
-                for skill, workers in dose_check_workers.items():
-                    if workers > 0:
-                        tracker = self.dose_trackers.get(skill)
-                        if tracker and not tracker.fits(dose_rate, workers, eff):
-                            return False
+        # that will *actually* perform the work; the tracker check itself is
+        # shared with the serial path via _dose_fits (SC1).
+        if self.dose_trackers and getattr(activity, 'dose_rate_mrem_per_hour', 0.0) > 0.0:
+            # Compute resolved worker counts (same logic as _apply_tentative)
+            dose_check_workers: dict = {}  # {skill: workers}
+            for req in activity.getRequiredResources():
+                skill, need = req['skill_type'], req['crew_count']
+                primary_use = min(res_rem[skill].get(start_time, 0), need)
+                dose_check_workers[skill] = dose_check_workers.get(skill, 0) + primary_use
+                still_needed = need - primary_use
+                for alt_skill in req.get('alternative_skill_types', []):
+                    if still_needed <= 0:
+                        break
+                    alt_use = min(res_rem[alt_skill].get(start_time, 0), still_needed)
+                    if alt_use > 0:
+                        dose_check_workers[alt_skill] = dose_check_workers.get(alt_skill, 0) + alt_use
+                        still_needed -= alt_use
+            if not self._dose_fits(activity, dose_check_workers,
+                                   extra_consumed=dose_rem):
+                return False
 
         # Consumable feasibility: check each item has sufficient remaining inventory.
         # Uses a point-in-time check at start_time (deduct-on-start contract).
@@ -3700,6 +3930,7 @@ class Pert:
         loc_tasks_rem,
         loc_workers_rem,
         grid=None,
+        dose_rem=None,
     ):
         """Decrement remaining capacity snapshots by activity's consumption.
 
@@ -3709,6 +3940,15 @@ class Pert:
                   the boundary points within ``[start_time, end_time)`` are
                   decremented — O(K) instead of O(D).  When ``None``, falls
                   back to the original hour-by-hour iteration.
+            dose_rem: Optional {skill: mRem} overlay accumulating dose drawn
+                  tentatively this time-step (finding PD1).  When supplied, this
+                  activity's resolved dose is added so the next candidate's
+                  :meth:`_fits_with_tentative` check sees it.  Unlike consumable
+                  and system-state state (mutated on the persistent pool here),
+                  dose is charged to the tracker only at commit — this overlay
+                  is transient and discarded at the end of the time-step, so
+                  analysis-only callers (e.g. ``_compute_earliest_feasible``)
+                  that pass ``None`` never leak tentative dose into the budget.
 
         Note: When ``grid`` is used the caller must ensure that the activity's
         end time (``start_time + duration``) was included in ``extra_boundaries``
@@ -3751,6 +3991,18 @@ class Pert:
             for skill, workers in actual_consumption.items():
                 if workers > 0:
                     res_rem[skill][h] = max(0, res_rem[skill].get(h, 0) - workers)
+
+        # Dose — tentatively charge the same resolved skill breakdown to the
+        # per-time-step overlay (finding PD1) so subsequent candidates in this
+        # step see the draw.  Uses the identical dose = rate × workers × eff
+        # formula as tracker.consume / _dose_fits; committed to the tracker only
+        # at start (in _update_activity_sets), never here.
+        if dose_rem is not None and self.dose_trackers:
+            dose_rate = getattr(activity, 'dose_rate_mrem_per_hour', 0.0)
+            if dose_rate > 0.0:
+                for skill, workers in actual_consumption.items():
+                    if workers > 0 and skill in self.dose_trackers:
+                        dose_rem[skill] = dose_rem.get(skill, 0.0) + dose_rate * workers * eff
 
         # Equipment
         for h in hours:
@@ -3833,7 +4085,7 @@ class Pert:
             # pools where K << n.  A generous overbook factor (×8) ensures we
             # never miss a valid candidate due to the cap.
             if choice == 'max_use_res_ranked':
-                ordered = self._rank_by_value_top_k(candidates)
+                ordered = self._rank_by_value_top_k(candidates, time_index)
             else:
                 ordered = self._shuffle_candidates(candidates)
 
@@ -3855,27 +4107,46 @@ class Pert:
                 self._build_capacity_snapshots(time_index, max_end, extra_boundaries=cand_ends)
 
             # Use the universal-skill cache precomputed once per scheduling run
-            # (self._univ_skill_min).  When any universal no-alternative skill's
-            # remaining capacity drops below its minimum crew demand, every
-            # remaining candidate will fail the resource check — break early.
-            # O(1) per iteration; O(0) extra precomputation here.
+            # (self._univ_skill_min): the min no-alternative crew demand for each
+            # skill required by *every* skill-requiring activity.  If such a
+            # skill's remaining capacity falls below that minimum, no activity
+            # that requires it can fit — so skip those candidates cheaply,
+            # without a full feasibility scan.  O(1) per iteration.
+            #
+            # Finding C3: this must be a per-candidate skip, NOT a blanket
+            # ``break``.  Candidates that do not require the exhausted skill —
+            # zero-crew milestones/inspections, START/END sinks, activities
+            # needing only other skills — can still legally start now and must
+            # not be abandoned just because a scarce skill was drained by a
+            # higher-ranked activity (otherwise: needless delay, or permanent
+            # starvation if the skill never recovers).
             _univ_min = self._univ_skill_min
 
             selected = []
+            dose_rem: dict = {}   # PD1: tentative dose drawn this time-step
             for act in ordered:
-                # Early-exit: if any universal skill is fully consumed at
-                # time_index, no remaining candidate can start → stop scanning.
-                if _univ_min and any(
-                    res_rem.get(s, {}).get(time_index, 0) < d
-                    for s, d in _univ_min.items()
-                ):
-                    break
+                if _univ_min:
+                    act_univ_skills = {
+                        r['skill_type'] for r in act.getRequiredResources()
+                        if r['crew_count'] > 0
+                        and not r.get('alternative_skill_types')
+                    }
+                    # Skip only if THIS candidate needs a universal skill whose
+                    # remaining capacity has dropped below the minimum any
+                    # such-requiring activity needs — it provably cannot fit.
+                    if any(
+                        res_rem.get(s, {}).get(time_index, 0) < d
+                        for s, d in _univ_min.items() if s in act_univ_skills
+                    ):
+                        continue
                 if self._fits_with_tentative(
-                    act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                    act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid,
+                    dose_rem=dose_rem
                 ):
                     selected.append(act)
                     self._apply_tentative(
-                        act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                        act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid,
+                        dose_rem=dose_rem
                     )
             return selected
 
@@ -3905,13 +4176,16 @@ class Pert:
                 self._build_capacity_snapshots(time_index, max_end, extra_boundaries=cand_ends_knap)
 
             selected = []
+            dose_rem_knap: dict = {}   # PD1: tentative dose drawn this time-step
             for act in tentative:
                 if self._fits_with_tentative(
-                    act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                    act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid,
+                    dose_rem=dose_rem_knap
                 ):
                     selected.append(act)
                     self._apply_tentative(
-                        act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                        act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid,
+                        dose_rem=dose_rem_knap
                     )
             return selected
 
@@ -4189,6 +4463,24 @@ class Pert:
                 if succ not in self.backwardDict:
                     self.backwardDict[succ] = []
                 self.backwardDict[succ].append(buffer_act)
+
+        # B2: preserve finish-to-start lag across the splice.
+        # Each direct pred → succ edge just rerouted may have carried an FS lag
+        # in lag_dict.  Left in place, that entry is orphaned — its edge no
+        # longer exists, so the forward/backward passes (which read lag by the
+        # exact (pred, succ) key) skip it and compute the successor's ES lag
+        # hours too early.  Move each lag onto the matching buffer edge: for a
+        # feeding buffer (many preds → one succ) it belongs on pred → buffer;
+        # for a project buffer (one pred → many succs) on buffer → succ.  Keep
+        # the larger lag on collision (most conservative).
+        fan_in = len(predecessors) >= len(successors)
+        for pred in predecessors:
+            for succ in successors:
+                old_lag = self.lag_dict.pop((pred, succ), None)
+                if not old_lag:
+                    continue
+                key = (pred, buffer_act) if fan_in else (buffer_act, succ)
+                self.lag_dict[key] = max(self.lag_dict.get(key, 0.0), old_lag)
 
         # Register in task lookup
         self.task_to_activity[buffer_act.name] = buffer_act
@@ -4764,7 +5056,8 @@ class Pert:
         )
         return [act for act, info in sorted_items]
 
-    def _rank_by_value_top_k(self, candidates: Dict) -> List:
+    def _rank_by_value_top_k(self, candidates: Dict,
+                             time_index: datetime = None) -> List:
         """
         Rank candidates by priority value, returning at most K × overbook items.
 
@@ -4777,16 +5070,24 @@ class Pert:
         The overbook factor (8×) is intentionally generous so that activities
         that fail the feasibility check (_fits_with_tentative) do not cause the
         SGS to miss valid high-priority alternatives.
+
+        ``max_slots`` is estimated from availability at ``time_index`` (the
+        current scheduling step), NOT ``self.startTime``: with a time-varying
+        pool that grows after startTime, a startTime estimate under-counts the
+        slots available now and truncates placeable candidates, deferring them
+        to a later event and inflating the makespan (M-1).  Callers pass the
+        current step; ``None`` falls back to ``startTime`` for safety.
         """
         _OVERBOOK = 8
         n = len(candidates)
+        _t = time_index if time_index is not None else self.startTime
 
         # Estimate max slots from universal-skill minimum capacity
         max_slots: int = 0
         _univ_min = self._univ_skill_min
         if _univ_min and self.crew_pool:
             max_slots = min(
-                int(self.crew_pool.get_availability(s, self.startTime) // d)
+                int(self.crew_pool.get_availability(s, _t) // d)
                 for s, d in _univ_min.items()
                 if d > 0
             )
@@ -4937,6 +5238,11 @@ class Pert:
                 "calculateSerialScheduleWithResources() first."
             )
 
+        # Share the validator's precedence grace so the two feasibility surfaces
+        # agree: a sub-minute gap from hour→timedelta float arithmetic must not
+        # be reported infeasible here while validate_schedule tolerates it (SC-m1).
+        from .schedule_validator import _PREC_TOL
+
         violations = []
 
         for pred, successors in self.forwardDict.items():
@@ -4951,7 +5257,7 @@ class Pert:
 
                 lag_h = self.lag_dict.get((pred, succ), 0.0)
                 required_start = pred_end + timedelta(hours=lag_h)
-                if succ_start < required_start:
+                if succ_start < required_start - _PREC_TOL:
                     overlap = (required_start - succ_start).total_seconds() / 3600.0
                     violations.append({
                         'predecessor':    pred.returnName(),
@@ -5092,15 +5398,26 @@ class Pert:
         for loc_id in loc_ids:
             acts_loc = [(a, st, et) for (a, st, et) in scheduled if loc_id in a.getZoneIds()]
             acts_loc.sort(key=lambda t: (t[1], t[2]))
-            # Check consecutive overlapping pairs
-            for i in range(len(acts_loc) - 1):
+            # Check ALL overlapping pairs, not only start-adjacent ones: a long
+            # activity can overlap a later task while a short activity between
+            # them (by start time) does not, so a consecutive-only scan would
+            # miss the (long, later) pair and never recover it transitively (B5).
+            for i in range(len(acts_loc)):
                 a1, st1, et1 = acts_loc[i]
-                a2, st2, et2 = acts_loc[i + 1]
-                if overlaps(st1, et1, st2, et2):
+                for j in range(i + 1, len(acts_loc)):
+                    a2, st2, et2 = acts_loc[j]
+                    # acts_loc is start-sorted: once a later task starts at/after
+                    # a1's end, no remaining j can overlap a1 → stop early.
+                    if st2 >= et1:
+                        break
+                    if not overlaps(st1, et1, st2, et2):
+                        continue
                     # Evaluate location capacity around overlap start (representative hour)
                     cap = self.location_pool.get_capacity(loc_id, max(st1, st2))
                     if cap['max_tasks'] == 1:
-                        # Enforced serial order -> arc earlier -> later
+                        # Enforced serial order -> arc earlier -> later.  i<j and
+                        # start-sorted ⇒ st1<=st2, so the arc a1->a2 preserves the
+                        # DAG (never later-start -> earlier-start).
                         earlier, later = (a1, a2) if st1 <= st2 else (a2, a1)
                         if later not in augmented[earlier]:
                             augmented[earlier].append(later)
@@ -5121,13 +5438,23 @@ class Pert:
         all_skills = list(self.crew_pool.get_all_skills()) if self.crew_pool else []
         all_eq_ids = list(self.equipment_pool.get_all_equipment_ids()) if self.equipment_pool else []
 
-        # Representative availability (use startTime; pools are rarely time-varying
-        # in the coarse granularity that matters here).
-        _t0 = self.startTime
+        # Representative availability for the skip gate: the *minimum* over the
+        # horizon actually spanned by the scheduled activities.  The old code
+        # sampled `self.startTime`, but the per-pair binding test below samples
+        # `overlap_start`; a pool that dips lower mid-horizon than at startTime
+        # can make an overlapping pair binding even when the startTime value
+        # would close the gate — so the gate must use the conservative
+        # (minimum) availability, not the startTime value (B4).
+        # `get_*_in_range` returns the per-interval minimum.
+        if scheduled:
+            _h_start = scheduled[0][1]                       # earliest start (sorted)
+            _h_end = max(et for _, _, et in scheduled)
+        else:
+            _h_start = _h_end = self.startTime
 
         can_bind_res = False
         for skill in all_skills:
-            avail = self.crew_pool.get_availability(skill, _t0)
+            avail = self.crew_pool.get_availability_in_range(skill, _h_start, _h_end)
             if avail <= 0:
                 continue
             max_demand = max(
@@ -5140,7 +5467,7 @@ class Pert:
 
         can_bind_eq = False
         for eq_id in all_eq_ids:
-            avail = self.equipment_pool.get_availability(eq_id, _t0)
+            avail = self.equipment_pool.get_availability_in_range(eq_id, _h_start, _h_end)
             if avail <= 0:
                 continue
             max_demand = max(
@@ -5211,6 +5538,9 @@ class Pert:
             for v in succs:
                 indeg[v] += 1
         queue = deque(a for a, d in indeg.items() if d == 0)
+        # Capture the source set (in-degree 0) BEFORE Kahn's loop mutates indeg
+        # down to all-zero — needed to seed the longest-path DP below (B1).
+        sources = {a for a, d in indeg.items() if d == 0}
         topo = []
         while queue:
             u = queue.popleft()
@@ -5238,16 +5568,36 @@ class Pert:
             stuck = set(augmented.keys()) - set(topo)
             topo.extend(stuck)
 
-        # DP longest path
-        dist = {a: 0.0 for a in augmented.keys()}
+        # DP longest path (by cumulative node duration).
+        #
+        # dist[v] = max total duration of any path ENDING at v, inclusive of v's
+        # own duration.  Every SOURCE node (in-degree 0) is seeded with its own
+        # duration; every other node starts at -inf so the first predecessor to
+        # relax it always wins the strict-'>' comparison and sets a parent.
+        # This fixes two defects that both stemmed from the old 0-init + single
+        # `dist[start]` seed:
+        #   B1 — seeding only self.startActivity left every *other* source at 0,
+        #        so a longest path originating at a non-topo[0] source lost that
+        #        source's entire duration (multi-source graph with no unifying
+        #        START sentinel).
+        #   B3 — with a 0-init and strict '>', a relaxation that adds no
+        #        cumulative gain (e.g. a zero-duration START(0) -> M edge where
+        #        dist[M] is already 0) never set parent[M], so leading zero-
+        #        duration nodes were dropped from the reconstructed chain.
+        if not augmented:
+            return []
+        if not sources and topo:
+            # Corrupt/cyclic input (cycle guard fired): no true source exists.
+            # Seed the first topo node so the DP still produces a path.
+            sources = {topo[0]}
+        NEG_INF = float('-inf')
+        dist = {a: (self._effective_duration(a) if a in sources else NEG_INF)
+                for a in augmented.keys()}
         parent = {a: None for a in augmented.keys()}
 
-        start = self.startActivity or (topo[0] if topo else None)
-        if start is None:
-            return []
-
-        dist[start] = self._effective_duration(start)
         for u in topo:
+            if dist[u] == NEG_INF:
+                continue  # unreachable from any source (only under cycle guard)
             for v in augmented[u]:
                 cand = dist[u] + self._effective_duration(v)
                 if cand > dist[v]:
@@ -5644,10 +5994,69 @@ class Pert:
                 candidate = self._find_earliest_feasible_start_serial(
                     act, candidate, schedule_profile
                 )
+                if candidate is None:
+                    continue  # no feasible start within/after this window
             cand_h = (candidate - self.startTime).total_seconds() / 3600.0
             if cand_h + eff <= wlf_h and candidate <= max_time:
                 return candidate
         return None  # no window fits
+
+    def _serial_consumed_at(self, skill: str, h: datetime, profile) -> int:
+        """Workers of ``skill`` in use at hour ``h`` by committed activities in
+        ``profile``.
+
+        Counts each activity from its substitution-resolved breakdown
+        (``_actual_resources_for_start``) when present, else from its declared
+        primary requirements (SC3).  The resolved breakdown reflects the skills
+        that *actually* perform the work, so an activity that borrowed an
+        alternative skill is charged against that alternative — not against its
+        unmet primary — which is what keeps a shared alternative skill from
+        being over-committed by two overlapping activities.
+        """
+        total = 0
+        for (a, s, e) in profile:
+            if not (s <= h < e):
+                continue
+            resolved = getattr(a, '_actual_resources_for_start', None)
+            if resolved:
+                total += resolved.get(skill, 0)
+            else:
+                total += sum(r['crew_count'] for r in a.getRequiredResources()
+                             if r['skill_type'] == skill)
+        return total
+
+    def _resolve_serial_consumption(self, activity, start_time: datetime,
+                                    profile) -> dict:
+        """Substitution-resolved ``{skill: workers}`` for ``activity`` starting
+        at ``start_time`` on the serial path.
+
+        Mirrors :meth:`_apply_tentative`: each requirement draws its primary
+        skill first, then the shortfall from ``alternative_skill_types``, all
+        against *net* availability (pool minus committed-overlapping usage) at
+        the start hour.  ``profile`` must exclude ``activity`` itself.  The
+        result is charged for dose (the skills that actually perform the work)
+        and, stored as ``activity._actual_resources_for_start``, feeds later
+        overlapping-consumption sums (SC3).
+        """
+        consumption: dict = {}
+        for req in activity.getRequiredResources():
+            skill, need = req['skill_type'], req['crew_count']
+            net = (self.crew_pool.get_availability(skill, start_time)
+                   - self._serial_consumed_at(skill, start_time, profile))
+            primary_use = min(max(0, net), need)
+            if primary_use > 0:
+                consumption[skill] = consumption.get(skill, 0) + primary_use
+            still_needed = need - primary_use
+            for alt_skill in req.get('alternative_skill_types', []):
+                if still_needed <= 0:
+                    break
+                alt_net = (self.crew_pool.get_availability(alt_skill, start_time)
+                           - self._serial_consumed_at(alt_skill, start_time, profile))
+                alt_use = min(max(0, alt_net), still_needed)
+                if alt_use > 0:
+                    consumption[alt_skill] = consumption.get(alt_skill, 0) + alt_use
+                    still_needed -= alt_use
+        return consumption
 
     def _serial_check_feasibility(
         self,
@@ -5687,19 +6096,28 @@ class Pert:
 
         for h in self._iter_hours(start_time, end_time):
 
-            # ── Resources ────────────────────────────────────────────────────
+            # ── Resources (with skill-substitution fallback) ─────────────────
+            # Net availability = pool minus overlapping committed usage, counted
+            # from each activity's substitution-resolved breakdown.  When the
+            # primary skill is short, draw the shortfall from the requirement's
+            # alternative_skill_types — mirroring the parallel _fits_with_tentative
+            # so the serial path no longer over-delays a substitution-feasible
+            # activity (SC3).
             for req in activity.getRequiredResources():
                 skill, need = req['skill_type'], req['crew_count']
-                avail = self.crew_pool.get_availability(skill, h)
-                consumed = sum(
-                    r['crew_count']
-                    for (a, s, e) in overlapping
-                    if s <= h < e
-                    for r in a.getRequiredResources()
-                    if r['skill_type'] == skill
-                )
-                if avail - consumed < need:
-                    return False
+                net = (self.crew_pool.get_availability(skill, h)
+                       - self._serial_consumed_at(skill, h, overlapping))
+                if net < need:
+                    still_needed = need - net
+                    for alt_skill in req.get('alternative_skill_types', []):
+                        if still_needed <= 0:
+                            break
+                        alt_net = (self.crew_pool.get_availability(alt_skill, h)
+                                   - self._serial_consumed_at(alt_skill, h, overlapping))
+                        if alt_net > 0:
+                            still_needed -= alt_net
+                    if still_needed > 0:
+                        return False
 
             # ── Equipment ────────────────────────────────────────────────────
             for req in activity.getRequiredEquipment():
@@ -5784,6 +6202,25 @@ class Pert:
                                 and req['required_state'] != cand_states[sys_id]):
                             return False
 
+        # ── Equipment zone affinity ──────────────────────────────────────────
+        # Zone-locked equipment cannot be used from an activity operating in a
+        # different zone.  This is time-invariant (an equipment item's home zone
+        # does not change), so it is checked once rather than per-hour.
+        if self._equipment_zone_conflict(activity):
+            return False
+
+        # ── Cumulative dose budget ───────────────────────────────────────────
+        # Dose accrues against per-skill budgets that are consumed on commit.
+        # Also time-invariant with respect to start_time (the budget already
+        # consumed reflects previously committed activities, not the clock).
+        # Charge against the substitution-resolved breakdown so dose lands on the
+        # skills that actually perform the work (SC3) — an activity that borrows
+        # an alternative skill accrues dose there, not on its unmet primary.
+        if not self._dose_fits(
+                activity,
+                self._resolve_serial_consumption(activity, start_time, schedule_profile)):
+            return False
+
         return True
 
     def _find_earliest_feasible_start_serial(
@@ -5791,7 +6228,7 @@ class Pert:
         activity:          'Activity',
         min_start:         datetime,
         schedule_profile:  List[tuple],
-    ) -> datetime:
+    ) -> Optional[datetime]:
         """
         Event-driven forward scan to find the earliest feasible start time
         for an activity in the Serial SGS, at or after min_start.
@@ -5808,7 +6245,13 @@ class Pert:
         The scan tries each candidate time in ascending order and returns
         the first one that passes _serial_check_feasibility.  Because every
         meaningful capacity-change event is represented in the candidate set,
-        no feasible window can be missed.
+        no feasible window can be missed for time-varying constraints.
+
+        Some constraints are time-invariant (cumulative dose budget, equipment
+        zone affinity): if they fail, no later candidate time can help.  In that
+        case — and for any genuinely infeasible problem — the scan exhausts its
+        candidate set and returns None rather than force-committing an
+        infeasible placement.  Callers must treat None as "cannot schedule".
 
         Args:
             activity:         Activity to schedule.
@@ -5816,7 +6259,8 @@ class Pert:
             schedule_profile: Already-committed (act, start, end) tuples.
 
         Returns:
-            datetime: Earliest feasible absolute start time >= min_start.
+            datetime: Earliest feasible absolute start time >= min_start, or
+            None if no feasible start exists.
         """
         # Build the candidate event set
         candidates: set = {min_start}
@@ -5860,15 +6304,17 @@ class Pert:
             if self._serial_check_feasibility(activity, t, schedule_profile):
                 return t
 
-        # Fallback: should not be reached for a feasible problem, but return
-        # the last candidate to avoid an infinite loop in degenerate cases.
+        # No candidate passed.  This happens for genuinely infeasible activities
+        # (e.g. a dose budget or zone affinity that no later time can satisfy).
+        # Return None so the caller skips the activity rather than committing an
+        # infeasible placement the validator would later reject.
         logger.warning(
             "_find_earliest_feasible_start_serial: no feasible slot found "
-            "for %s from %s — returning last candidate.",
+            "for %s from %s — activity cannot be scheduled.",
             activity.name,
             min_start.strftime('%Y-%m-%d %H:%M')
         )
-        return max(candidates)
+        return None
 
     def calculateSerialScheduleWithResources(
         self,
@@ -5999,6 +6445,17 @@ class Pert:
                 act, min_start, schedule_profile
             )
 
+            # No feasible start exists (e.g. dose budget or equipment zone
+            # affinity that no later time can satisfy) — skip rather than
+            # commit an infeasible placement.
+            if feasible_start is None:
+                logger.warning(
+                    "Serial SGS: activity %s has no feasible start "
+                    "(resource/dose/zone infeasible) — skipped.",
+                    act.name
+                )
+                continue
+
             # ── Step 2b: time-window enforcement ─────────────────────────────
             windows = self._resolve_windows(act)
             if windows:
@@ -6033,6 +6490,13 @@ class Pert:
             abs_end = feasible_start + timedelta(hours=self._effective_duration(act))
             actual_end[act] = abs_end
 
+            # Resolve the substitution-aware skill breakdown against the profile
+            # BEFORE appending self, and store it so subsequent overlapping-usage
+            # sums (and dose) reflect the skills that actually perform the work —
+            # matching the parallel path's _actual_resources_for_start (SC3).
+            act._actual_resources_for_start = self._resolve_serial_consumption(
+                act, feasible_start, schedule_profile)
+
             schedule_profile.append((act, feasible_start, abs_end))
 
             # Deduct consumables at activity start (deduct-on-start contract).
@@ -6041,6 +6505,14 @@ class Pert:
                 self.consumable_pool.apply_restocks_up_to(at_h)
                 for req in act.getRequiredConsumables():
                     self.consumable_pool.consume(req['item_id'], float(req['quantity_needed']))
+
+            # Accrue cumulative dose against per-skill budgets.  The parallel
+            # path consumes dose on commit; the serial path must too, or the
+            # tracker stays at zero and the validator (which reads tracker
+            # state) cannot detect an over-budget placement.  Charge the
+            # substitution-resolved breakdown (SC3) so a borrowed alternative
+            # skill accrues dose against the skill that actually does the work.
+            self._dose_consume(act, act._actual_resources_for_start)
 
             # Delay = gap between precedence-driven min_start and actual start
             wait_hours = (feasible_start - min_start).total_seconds() / 3600.0
@@ -7179,17 +7651,20 @@ class LookAheadScheduler:
 
         # ── Step 3: greedy selection with tentative capacity decrement ───────────
         selected = []
+        dose_rem: dict = {}   # PD1: tentative dose drawn this time-step
         for act, score in scored:
             if self.pert._fits_with_tentative(
                 act, time_point,
-                res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid,
+                dose_rem=dose_rem
             ):
                 selected.append(act)
                 # Decrement shared snapshots so the next candidate in the loop
                 # sees reduced capacity — preventing overbooking.
                 self.pert._apply_tentative(
                     act, time_point,
-                    res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                    res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid,
+                    dose_rem=dose_rem
                 )
 
         return selected

@@ -85,12 +85,35 @@ Priority order — highest risk of silent wrong values first:
 |---|---|---|---|
 | 1 | Lag + time window interaction | Lag pushes successor past latest finish | DONE (2026-04-16) |
 | 2 | Replan correctness | Remaining duration anchoring; window baseline isolation | DONE (2026-04-16) |
-| 3 | Critical chain after mode switch | `_effective_duration` vs full duration | skip — pending audit |
+| 3 | Critical chain after mode switch | `_effective_duration` vs full duration | DONE (2026-09-03) — audited CORRECT; `TestCriticalChainAfterModeSwitch` |
 | 4 | Consumable restock cursor | Deduct-on-start timing with mid-outage restock | DONE (2026-04-16) |
 | 5 | Multi-mode CPM | ES/LF/slack after `set_modes()` | DONE (2026-04-16) |
 | 6 | Shift calendar + lag | Lag end in off-shift; successor waits for next shift open | DONE (2026-04-16) |
-| 7 | System state + equipment zone | Same activity holds state lock + zone-locked equipment | skip — needs multi-zone fixture |
-| 8 | Hold-point sequencing | Blocked tasks cannot start before hold point completes | skip |
+| 7 | System state + equipment zone | Same activity holds state lock + zone-locked equipment | DONE (2026-09-03) — audited CORRECT; `TestSystemStateEquipmentZone` (+ test_interactions) |
+| 8 | Hold-point sequencing | Blocked tasks cannot start before hold point completes | DONE (2026-09-03) — audited CORRECT; `TestHoldPointSequencing` |
+
+**Bullet-3 audit (2026-09-03).** The three deferred items were audited against the
+source and each classified **correct-but-untested** (Items 3, 8) or
+**correct-and-already-covered** (Item 7) — no source defect in any:
+
+- **Item 3** — `set_modes()` → `Activity.set_mode()` (rewrites `act.duration`) →
+  `_sync_infodict_durations()` → `generateInfo()` (CPM) → `_compute_resource_constrained_chain()`
+  (via `_effective_duration`, which returns `act.duration` for pending activities).
+  The skip-reason's stale-`act.duration` worry applies only to in-progress replan, not a
+  pre-schedule mode switch. New KA test forces a resource-serialized network where the
+  constrained chain flips A→B and the makespan drops 9h→5h across the switch;
+  mutation-verified (neutering `set_mode` reddens it).
+- **Item 7** — the state and zone checks are independent gates in both the parallel
+  (`_fits_with_tentative`) and serial (`_serial_check_feasibility`) paths; neither masks
+  the other. The interplay was already covered by
+  `test_interactions.py::TestSystemStateEquipmentZone` (4 tests); the KA placeholder is
+  closed with an exact-serialization known answer (B starts at t=4h).
+- **Item 8** — hold points are enforced by a build-time precedence-edge injection in
+  `_build_graph_from_outage_data` (hold → blocked from `blocks_tasks`, cycle-guarded) plus
+  the post-schedule `_check_hold_points` validator. The injection (the load-bearing
+  hold-point-specific code) was untested end-to-end; new KA test builds from `outage_data`,
+  asserts the HP→B edge exists and B starts at t=2h; mutation-verified (disabling the
+  injection reddens it).
 
 Two correctness bugs found and fixed by Pass 2 tests:
 

@@ -17,7 +17,7 @@ unchanged — no source edits this pass).
 
 ---
 
-## Findings summary (17 fixed · 1 refuted · 1 latent — 8 of the fixed are HIGH)
+## Findings summary (18 fixed · 1 refuted — 8 of the fixed are HIGH)
 
 | ID | Severity | Where | One-liner | Status |
 |---|---|---|---|---|
@@ -38,7 +38,7 @@ unchanged — no source edits this pass).
 | SC3 | low | serial resource check 6004 | serial omits skill substitution → over-delays feasible acts | ✅ FIXED (round 2) — substitution in serial check + commit/consumption, mirrors parallel; no over-commit |
 | SC-m1 | low | `check_dependency_violations` 5232 | no float tolerance vs validator's `_PREC_TOL` | ✅ FIXED (round 2, confirmed) |
 | SC-m2 | low | `priority_calculation` 5777 | `'minrr'` sorted largest-first (possible inverted direction) | ❌ REFUTED (intended — rr-family aggregation) |
-| RP-l | latent | `_generate_info_from` 1973 | rule-based priority metrics not recomputed on replan (not reachable via public `replan()`) | PLAUSIBLE |
+| RP-l | ~~latent~~ **med** | `_generate_info_from` 2052 | replan partial-CPM omits the priority-metric block → after injection structural metrics stale-zero AND heuristic keys (`mehh_*`) absent; public `calculateScheduleWithResources(priority_rule=…)` after `replan()` **raises `KeyError('mehh_8000_b')`** | ✅ FIXED (round 2) — recompute the six metric calls in `_generate_info_from`; reachable-crash, upgraded from latent |
 | M-1 | ~~low~~ **med** | `_rank_by_value_top_k` 4789 | top-k cutoff `max_slots` estimated from `get_availability(s, startTime)`, not current time; with 8× overbook, truncates valid candidates when availability grows (same time-varying-at-startTime family as B4) — **behavioral makespan bug, not cosmetic** | ✅ FIXED (round 2, confirmed) |
 
 Note the recurring **time-varying-availability** root defect: C2, C2b, B4 (and
@@ -629,12 +629,48 @@ what-if replan use case.
 `clone_for_analysis` after pools are deep-copied (or unconditionally in
 `replan()` / `calculateScheduleWithResources`).
 
-### RP-latent — `_generate_info_from` doesn't recompute rule-based priority metrics (PLAUSIBLE, not reachable via public `replan()`)
-pert.py:1973 recomputes ES/EF/LS/LF/slack but not `mts/mtp/grpw/grd/rr/…`,
-which `resetInfo()` (called during `_inject_activities`) zeroes. A replan using
-one of those priority rules would sort candidates on all-zero values. Public
-`replan()` never forwards a `priority_rule` (`value_mode` is always
-`TF_based`/`external`), so latent only.
+### RP-l — `_generate_info_from` doesn't recompute the priority-metric block (✅ FIXED round 2 — reachable crash, upgraded from latent)
+`_generate_info_from` (pert.py:2052, the partial CPM pass replanning runs after
+injecting activities) recomputed ES/EF/LS/LF/slack but **omitted the
+priority-metric block** that `generateInfo` runs (pert.py:726-732:
+`calculate_total_successors/…_predecessors/…_rank_position_weight/
+…_resource_demand/…_resource_requirement/calculate_gp_rules`). The inject path
+runs `_inject_activities → resetInitialGraph() → resetInfo()`, and `resetInfo`
+(pert.py:373-403) zeroes the structural metrics (`mts/mtp/grpw/grd/rr/avgrr/
+maxrr/minrr`) **and never creates the custom-heuristic keys at all** (`mehh_*`,
+`gphh_b` — computed only by `calculate_gp_rules` via `CUSTOM_PRIORITY_FUNCS`).
+So after a replan-injection the infoDict is left with stale-zero structural
+metrics and *missing* heuristic keys.
+
+Originally catalogued as latent ("public `replan()` never forwards a
+`priority_rule`"). **This under-stated it.** The metrics stay corrupted after
+`replan()` returns, and a subsequent *public* rule-based schedule reads them:
+
+```
+p.calculateScheduleWithResources()                    # baseline (TF_based)
+p.replan(1.0, new_activities=[X])                     # inject → resetInfo, partial CPM
+p.calculateScheduleWithResources(priority_rule='grpw')  # ← KeyError('mehh_8000_b')
+```
+
+`priority_calculation` uses `infoDict[x]['mehh_8000_b']` as its tie-breaker for
+**13 of the rules** — the 5 basic `lf/ls/ef/es/duration` (pert.py:5792) and the
+8 structural `mts/mtp/grpw/grd/rr/avgrr/maxrr/minrr` (pert.py:5799) — so the
+sequence **crashes** rather than merely sorting on zeros; it never even reaches
+the degraded sort. (`random/wcs/acs/irsm` use a different tie-break, and the
+default `TF_based`/`external` selection bypasses `priority_calculation`
+entirely, so plain re-scheduling is unaffected.)
+
+**Fix:** `_generate_info_from` now runs the same six metric calls after its CPM
+/ time-window pass, mirroring `generateInfo`. The metrics are timing-independent
+(topology / durations / resources), so recomputing them over the full
+post-injection graph is correct in the replan context. Repro:
+`repros/repro_rpl_replan_metrics.py` (Part A function-level defect; Part B the
+public two-call crash). Regression:
+`test_bugfix_regressions.py::TestReplanRecomputesPriorityMetrics` — two
+detectors mapping to the two halves of the fix, mutation-verified (dropping the
+grpw call reddens the stale-metric twin-comparison test only; dropping
+`calculate_gp_rules` reddens the public-crash test only). Full CPM suite: 898
+passed.
 
 Agent A verified as **correct** (no bug): state leakage across successive
 `replan()` calls, consumable restock idempotency at the replan boundary,

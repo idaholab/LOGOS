@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+### Correctness — replan partial-CPM recomputes priority metrics (RP-l) (2026-09-03, round 2)
+
+Finding RP-l (`devLogs/PERT_MANUAL_REVIEW_2026-09-03.md`). `_generate_info_from`
+— the partial CPM pass replanning runs after injecting activities — recomputed
+ES/EF/LS/LF/slack but **omitted the priority-metric block** that `generateInfo`
+runs (`calculate_total_successors/…_predecessors/…_rank_position_weight/
+…_resource_demand/…_resource_requirement/calculate_gp_rules`). Because the
+inject path also runs `resetInitialGraph() → resetInfo()`, which zeroes the
+structural metrics (mts/mtp/grpw/grd/rr/…) and never creates the custom-heuristic
+keys (`mehh_*`, `gphh_b`) at all, after a replan-injection the infoDict was left
+with stale-zero structural metrics **and missing heuristic keys**. This was
+catalogued as latent, but it is in fact reachable through the public API: the
+sequence `calculateScheduleWithResources()` → `replan(new_activities=[…])` →
+`calculateScheduleWithResources(priority_rule=<rule>)` **raises
+`KeyError('mehh_8000_b')`** for any of the 13 rules whose `priority_calculation`
+tie-breaker reads that key (the 5 basic `lf/ls/ef/es/duration` and the 8
+structural `mts/mtp/grpw/grd/rr/avgrr/maxrr/minrr`); the remaining
+`random/wcs/acs/irsm` and the default `TF_based`/`external` paths are unaffected.
+Fix: `_generate_info_from` now runs the same six metric calls after its CPM /
+time-window pass (metrics are timing-independent, so recomputing them over the
+full post-injection graph is correct in the replan context). Repro:
+`repros/repro_rpl_replan_metrics.py` (function-level defect + public two-call
+crash). Regression: `test_bugfix_regressions.py::TestReplanRecomputesPriorityMetrics`
+— two detectors, mutation-verified (dropping the grpw call reddens the
+stale-metric test only; dropping `calculate_gp_rules` reddens the public-crash
+test only). Full CPM suite: 898 passed.
+
 ### Correctness — augmented-graph location arcs cover all overlapping pairs (B5) (2026-09-03, round 2)
 
 Finding B5 (`devLogs/PERT_MANUAL_REVIEW_2026-09-03.md`). `_build_augmented_graph`

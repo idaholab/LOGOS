@@ -1496,3 +1496,74 @@ class TestAugmentedGraphSerializesAllZonePairs:
         assert b in augmented.get(a, []), "A→B (adjacent overlap) arc lost"
         # No reverse arc: later-start C must not point back to earlier-start A.
         assert a not in augmented.get(c, []), "reverse arc C→A would break the DAG"
+
+
+# ===========================================================================
+# RP-l — _generate_info_from (the partial-CPM step of replan) must recompute
+# the priority metrics, not leave them at the zeros resetInfo() wrote (and the
+# custom-heuristic keys mehh_*/gphh_b entirely absent).  Two consequences of
+# the omission, each mapping to one half of the fix:
+#   Guard 1 (structural-metric calls) — mts/mtp/grpw/grd/rr left stale-zero.
+#   Guard 2 (calculate_gp_rules)       — mehh_*/gphh_b keys never created, so a
+#     later public rule-based schedule raises KeyError('mehh_8000_b') from the
+#     priority_calculation tie-breaker.
+# ===========================================================================
+
+class TestReplanRecomputesPriorityMetrics:
+    """After a replan injection, ``_generate_info_from`` must repopulate the
+    priority metrics that ``resetInfo()`` zeroed/removed (pert.py ~2052), the
+    same way ``generateInfo`` does (pert.py ~726-732)."""
+
+    def _chain(self):
+        # START -> A(4) -> B(3) -> C(2) -> END : distinct, nonzero grpw values.
+        s = Activity("START", 0.0)
+        a, b, c = Activity("A", 4.0), Activity("B", 3.0), Activity("C", 2.0)
+        e = Activity("END", 0.0)
+        return _build({s: [a], a: [b], b: [c], c: [e], e: []})
+
+    def _inject_x(self, p):
+        x = Activity("X", 6.0)
+        x.childs = ["C"]          # X -> C
+        p._inject_activities([x])
+
+    def test_partial_cpm_recomputes_structural_metrics(self):
+        # Guard 1.  grpw is purely structural (topology + durations), so the
+        # partial CPM must produce exactly what the full generateInfo produces
+        # on the *same* injected graph.  Before the fix _generate_info_from
+        # skips the metric block, leaving the resetInfo() zeros → mismatch.
+        p_partial = self._chain()
+        self._inject_x(p_partial)
+        p_partial._generate_info_from(1.0)
+        grpw_partial = {a.returnName(): p_partial.infoDict[a]["grpw"]
+                        for a in p_partial.forwardDict}
+
+        p_full = self._chain()
+        self._inject_x(p_full)
+        p_full.generateInfo()
+        grpw_full = {a.returnName(): p_full.infoDict[a]["grpw"]
+                     for a in p_full.forwardDict}
+
+        assert grpw_partial == grpw_full, (
+            "structural priority metrics stale after _generate_info_from: "
+            f"partial={grpw_partial} vs full={grpw_full} (RP-l)")
+        # Defensive: guard against a degenerate all-zero match on both sides.
+        assert any(v > 0 for v in grpw_partial.values()), (
+            "expected some nonzero grpw after replan — test graph is degenerate")
+
+    def test_rule_based_schedule_after_replan_does_not_crash(self):
+        # Guard 2.  The public two-call sequence: baseline schedule, replan-
+        # inject, then a rule-based schedule.  Before the fix calculate_gp_rules
+        # never ran during replan, so infoDict lacked the 'mehh_8000_b' tie-break
+        # key priority_calculation reads → KeyError for any of the 13 rules that
+        # use it (the 5 basic + 8 structural rules).
+        p = self._chain()
+        p.calculateScheduleWithResources()                 # baseline (TF_based)
+        x = Activity("X", 6.0)
+        x.childs = ["C"]
+        p.replan(1.0, new_activities=[x])                  # injection → resetInfo
+        # Must not raise KeyError('mehh_8000_b'):
+        p.calculateScheduleWithResources(priority_rule="grpw")
+        for act in p.forwardDict:
+            assert "mehh_8000_b" in p.infoDict[act], (
+                f"custom-heuristic key missing for {act.returnName()} after "
+                "replan + rule-based schedule (RP-l)")
