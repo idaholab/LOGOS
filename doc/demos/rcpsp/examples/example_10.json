@@ -1,0 +1,312 @@
+
+{
+  "outage": {
+    "outage_id": "CONTAINMENT_PARALLEL_EXAMPLE",
+    "start_date": "2025-09-01",
+    "target_end_date": "2025-09-10",
+    "working_hours_per_day": 24
+  },
+
+  "tasks": [
+    {
+      "task_id": "START",
+      "description": "Outage start (anchor)",
+      "duration": 1,
+      "successors": ["P001"],
+      "location_id": null,
+      "required_resources": [],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "P001",
+      "description": "Outage mobilization — crew check-in, safety briefings, ALARA training, and radiation work permit preparation",
+      "duration": 4,
+      "successors": ["P002"],
+      "location_id": null,
+      "required_resources": [],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "P002",
+      "description": "Equipment, rigging, and scaffolding material staging — complete tool kit assembly for all containment work packages",
+      "duration": 20,
+      "successors": ["P003"],
+      "location_id": null,
+      "required_resources": [
+        { "skill_type": "MECHANIC", "crew_count": 2 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "P003",
+      "description": "Polar crane pre-operational check (exterior) — wire rope inspection, limit switch test, lubrication, and pre-lift rigging hardware setup",
+      "duration": 7,
+      "successors": ["C101"],
+      "location_id": null,
+      "required_resources": [
+        { "skill_type": "MECHANIC", "crew_count": 2 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "C101",
+      "description": "Containment access prep & initial radiation survey",
+      "duration": 6,
+      "successors": ["C102", "C107"],
+      "location_id": "LOC_CONTAINMENT",
+      "required_resources": [
+        { "skill_type": "HP_TECH", "crew_count": 2 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "C102",
+      "description": "Polar crane pre-use inspection",
+      "duration": 8,
+      "successors": ["C103"],
+      "location_id": "LOC_CONTAINMENT",
+      "required_resources": [
+        { "skill_type": "MECHANIC", "crew_count": 2 }
+      ],
+      "required_equipment": [
+        { "equipment_id": "EQ_POLAR_CRANE", "quantity_needed": 1 }
+      ],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "C103",
+      "description": "Remove equipment hatch shielding (lift)",
+      "duration": 10,
+      "successors": ["C109"],
+      "location_id": "LOC_CONTAINMENT",
+      "required_resources": [
+        { "skill_type": "MECHANIC", "crew_count": 4 }
+      ],
+      "required_equipment": [
+        { "equipment_id": "EQ_POLAR_CRANE", "quantity_needed": 1 }
+      ],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "C107",
+      "description": "Install temporary scaffolding under containment dome",
+      "duration": 10,
+      "successors": ["C104", "C105", "C106"],
+      "location_id": "LOC_CONTAINMENT",
+      "required_resources": [
+        { "skill_type": "MECHANIC", "crew_count": 3 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "C104",
+      "description": "Containment liner visual inspection",
+      "duration": 8,
+      "successors": ["C110"],
+      "location_id": "LOC_CONTAINMENT",
+      "required_resources": [
+        { "skill_type": "HP_TECH", "crew_count": 2 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "C105",
+      "description": "ECCS injection header inspection (inside containment)",
+      "duration": 12,
+      "successors": ["C110"],
+      "location_id": "LOC_CONTAINMENT",
+      "required_resources": [
+        { "skill_type": "MECHANIC", "crew_count": 3 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "C106",
+      "description": "Containment sump strainer inspection",
+      "duration": 10,
+      "successors": ["C110"],
+      "location_id": "LOC_CONTAINMENT",
+      "required_resources": [
+        { "skill_type": "MECHANIC", "crew_count": 2 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "C109",
+      "description": "Restore equipment hatch shielding (lift)",
+      "duration": 10,
+      "successors": ["C111"],
+      "location_id": "LOC_CONTAINMENT",
+      "required_resources": [
+        { "skill_type": "MECHANIC", "crew_count": 4 }
+      ],
+      "required_equipment": [
+        { "equipment_id": "EQ_POLAR_CRANE", "quantity_needed": 1 }
+      ],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "C110",
+      "description": "Final radiological survey & release of containment work area",
+      "duration": 6,
+      "successors": ["C111"],
+      "location_id": "LOC_CONTAINMENT",
+      "required_resources": [
+        { "skill_type": "HP_TECH", "crew_count": 2 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "C111",
+      "description": "Containment close-out verification",
+      "duration": 4,
+      "successors": ["END"],
+      "location_id": "LOC_CONTAINMENT",
+      "required_resources": [
+        { "skill_type": "MECHANIC", "crew_count": 2 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "END",
+      "description": "Outage completion (anchor)",
+      "duration": 1,
+      "successors": [],
+      "location_id": null,
+      "required_resources": [],
+      "required_equipment": [],
+      "is_hold_point": false
+    }
+  ],
+
+  "resources": [
+    {
+      "skill_type": "MECHANIC",
+      "availability_periods": [
+        {
+          "start_date": "2025-09-01T00:00:00",
+          "end_date":   "2025-09-03T23:59:59",
+          "available_count": 6,
+          "reason": "Base crew on site"
+        },
+        {
+          "start_date": "2025-09-04T00:00:00",
+          "end_date":   "2025-09-07T23:59:59",
+          "available_count": 10,
+          "reason": "Contractor mechanics on site (surge)"
+        },
+        {
+          "start_date": "2025-09-08T00:00:00",
+          "end_date":   "2025-09-10T23:59:59",
+          "available_count": 6,
+          "reason": "Contractors departed"
+        }
+      ]
+    },
+    {
+      "skill_type": "HP_TECH",
+      "availability_periods": [
+        {
+          "start_date": "2025-09-01T00:00:00",
+          "end_date":   "2025-09-01T23:59:59",
+          "available_count": 0,
+          "reason": "Access closed; no HP coverage in containment"
+        },
+        {
+          "start_date": "2025-09-02T08:00:00",
+          "end_date":   "2025-09-05T17:00:00",
+          "available_count": 4,
+          "reason": "HP coverage expanded for inspections"
+        },
+        {
+          "start_date": "2025-09-05T17:00:01",
+          "end_date":   "2025-09-06T07:59:59",
+          "available_count": 0,
+          "reason": "Off shift"
+        },
+        {
+          "start_date": "2025-09-06T08:00:00",
+          "end_date":   "2025-09-10T23:59:59",
+          "available_count": 3,
+          "reason": "Routine HP coverage"
+        }
+      ]
+    }
+  ],
+
+  "equipment": [
+    {
+      "equipment_id": "EQ_POLAR_CRANE",
+      "description": "Polar Crane (Containment)",
+      "availability_periods": [
+        {
+          "start_date": "2025-09-02T00:00:00",
+          "end_date":   "2025-09-07T23:59:59",
+          "quantity_available": 1,
+          "reason": "Crane clear for lifts between hatch removal/restoration windows"
+        },
+        {
+          "start_date": "2025-09-08T00:00:00",
+          "end_date":   "2025-09-08T23:59:59",
+          "quantity_available": 0,
+          "reason": "Crane unavailable (maintenance window)"
+        },
+        {
+          "start_date": "2025-09-09T00:00:00",
+          "end_date":   "2025-09-10T23:59:59",
+          "quantity_available": 1,
+          "reason": "Crane returned to service"
+        }
+      ]
+    }
+  ],
+
+  "locations": [
+    {
+      "location_id": "LOC_CONTAINMENT",
+      "description": "Primary Containment",
+      "is_confined_space": true,
+      "availability_periods": [
+        {
+          "start_date": "2025-09-01T00:00:00",
+          "end_date":   "2025-09-01T23:59:59",
+          "max_concurrent_tasks": 0,
+          "max_concurrent_workers": 0,
+          "reason": "Initial cooldown/ventilation; access closed"
+        },
+        {
+          "start_date": "2025-09-02T00:00:00",
+          "end_date":   "2025-09-10T23:59:59",
+          "max_concurrent_tasks": 3,
+          "max_concurrent_workers": 12,
+          "reason": "Normal access after cooldown"
+        }
+      ]
+    }
+  ]
+}

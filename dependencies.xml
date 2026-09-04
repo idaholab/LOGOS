@@ -11,6 +11,10 @@
     <numpy-financial source='pip'/>
     <networkx source='pip'/>
     <plotly source='pip'/>
+    <pandas source='pip'/>
+    <deap source='pip'/>
+    <pytest source="pip"/>
+    <alns source='pip'/>
   </main>
 
   <alternate name="pip">

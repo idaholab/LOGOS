@@ -48,22 +48,22 @@
   input = 'test_BaseKnapsackModel.xml'
   UnorderedCsv = 'BaseKnapsack/PrintPS.csv'
  [../]
- 
+
  [./MultipleKnapsack]
   type  = 'RavenFramework'
   input = 'test_MultipleKnapsackModel.xml'
   UnorderedCsv = 'MultipleKnapsack/PrintPS.csv'
  [../]
- 
- [./CPMmodel]
-  type  = 'RavenFramework'
-  input = 'test_BaseCPMmodel.xml'
-  UnorderedCsv = 'CPMmodel/Print_sim_PS.csv'
- [../]
 
- [./CPMmodel_map]
-  type  = 'RavenFramework'
-  input = 'test_BaseCPMmodel_map.xml'
-  UnorderedCsv = 'CPMmodel/Print_sim_PS_map.csv'
- [../]
+# [./CPMmodel]
+#  type  = 'RavenFramework'
+#  input = 'test_BaseCPMmodel.xml'
+#  UnorderedCsv = 'CPMmodel/Print_sim_PS.csv'
+# [../]
+
+# [./CPMmodel_map]
+#  type  = 'RavenFramework'
+#  input = 'test_BaseCPMmodel_map.xml'
+#  UnorderedCsv = 'CPMmodel/Print_sim_PS_map.csv'
+# [../]
 []

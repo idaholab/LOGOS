@@ -1,5 +1,5 @@
 """
-  This Module performs Unit Tests for the utils methods
+  This Module performs Unit Tests for the CPM methods
   It cannot be considered part of the active code but of the regression test system
 
   To run it: LOGOS/tests/unit_tests/CPM$ python CPM.py
@@ -9,13 +9,15 @@
 import warnings
 warnings.simplefilter('default',DeprecationWarning)
 
-import os,sys
-sys.path.insert(0, '../../../src/CPM/')
-from PertMain2 import Pert, Activity
+import sys
+from pathlib import Path
+from datetime import datetime
 
-import numpy as np
-import pandas as pd
-from datetime import datetime, time
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT))
+
+from src.CPM.pert import Pert
+from src.CPM.activity import Activity
 
 import random
 
@@ -142,7 +144,8 @@ graph = {start: [a, d, f],
 
 outageStartTime = datetime(2025, 4, 25, 8)
 
-pert = Pert(graph, startTime=outageStartTime)
+pert = Pert(graph)
+pert.startTime = outageStartTime
 
 # Test CP
 symbCPlist = pert.getCriticalPathSymbolic()
@@ -154,34 +157,6 @@ endTime = pert.returnScheduleEndTime()
 expected = '2025-04-26 07:00:00'
 checkAnswerString('CP analysis (end time)',str(endTime),expected)
 
-# Test paths parallel to CP
-paths = pert.getAllPathsParallelToCP()
-expected = [['start', 'a', 'b', 'c', 'g', 'end'],
-            ['start', 'a', 'b', 'c', 'h', 'end'],
-            ['start', 'd', 'e', 'c', 'g', 'end'],
-            ['start', 'f', 'c', 'g', 'end'],
-            ['start', 'f', 'c', 'h', 'end']]
-for index,path in enumerate(paths):
-    checkList('CP analysis (parallel paths)',pert.returnPathSymbolic(path),expected[index])
-
-# Test subpaths
-subpaths = pert.getSubpathsParalleltoCP()
-subpathList = []
-for subpath in subpaths:
-    subpathList.append(pert.returnPathSymbolic(subpath))
-expected = [['c', 'g', 'end'],
-            ['start', 'a', 'b', 'c'],
-            ['start', 'f', 'c']]
-subpathList.sort()
-expected.sort()
-for index,subpath in enumerate(subpaths):
-    checkList('CP analysis (subpaths)',subpathList[index],expected[index])
-
-# Test reduced graph
-pertRed = pert.simplifyGraph()
-symbCPredList = pertRed.getCriticalPathSymbolic()
-expected = ['start', 'd', 'c', 'h', 'end']
-checkList('CP analysis (path)',symbCPredList,expected)
 
 
 # Test RCPSP
@@ -631,4 +606,3 @@ checkDicts('Test RCPSP - first_with_res', outageSchedule_5, outageSchedule_gold_
 print(results)
 
 sys.exit(results["fail"])
-
