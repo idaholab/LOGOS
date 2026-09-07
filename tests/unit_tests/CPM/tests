@@ -1,17 +1,181 @@
 [Tests]
+  # CPM pytest suite — registered PER FILE (one RavenPython block per
+  # test_*.py) so a failure localizes to a single file on the CI dashboard.
+  # A single aggregate registration reports only "the CPM suite failed", and on
+  # a *timeout* rook kills pytest before its summary prints, so the aggregate
+  # form cannot even say which file hung.  Each block runs
+  #   python run_cpm_pytests.py <file>
+  # i.e. pytest on that one file (see run_cpm_pytests.py).  test_tests_registration.py
+  # guards that every test_*.py here has a block, so a newly-added file cannot
+  # silently go unrun.  Default max_time (300 s) covers every file; the whole
+  # per-PR set runs cold in well under that.
 
- [./cpm_pytest_suite]
-  # Runs the full CPM pytest suite (~990 tests) via a shim; see
-  # run_cpm_pytests.py.  Optional-dependency tests (deap / alns) self-skip.
-  # max_time raised above the framework default: the suite now includes the
-  # Hypothesis property tests (test_property_based.py), which explore fresh
-  # random examples on every CI run (the .hypothesis example DB is not
-  # committed, so CI always runs "cold").  The "ci" profile is sized to finish
-  # cold in ~15 s locally; max_time = 900 leaves generous margin for slower,
-  # contended CI runners without masking a genuine hang.
-  type     = 'RavenPython'
-  input    = 'run_cpm_pytests.py'
-  max_time = 900
- [../]
+  [./cpm_activity]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_activity.py'
+  [../]
+  [./cpm_boundary]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_boundary.py'
+  [../]
+  [./cpm_buffer]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_buffer.py'
+  [../]
+  [./cpm_bugfix_regressions]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_bugfix_regressions.py'
+  [../]
+  [./cpm_consumable_pool]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_consumable_pool.py'
+  [../]
+  [./cpm_cpm]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_cpm.py'
+  [../]
+  [./cpm_determinism]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_determinism.py'
+  [../]
+  [./cpm_dose_budget]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_dose_budget.py'
+  [../]
+  [./cpm_equipment_zone]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_equipment_zone.py'
+  [../]
+  [./cpm_event_boundary_snapshots]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_event_boundary_snapshots.py'
+  [../]
+  [./cpm_fitness]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_fitness.py'
+  [../]
+  [./cpm_ga]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_ga.py'
+  [../]
+  [./cpm_interactions]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_interactions.py'
+  [../]
+  [./cpm_invariants]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_invariants.py'
+  [../]
+  [./cpm_knapsack]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_knapsack.py'
+  [../]
+  [./cpm_known_answers]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_known_answers.py'
+  [../]
+  [./cpm_mobilization_lead]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_mobilization_lead.py'
+  [../]
+  [./cpm_multimode]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_multimode.py'
+  [../]
+  [./cpm_property_based]
+    # Per-PR property tests: deterministic "ci" Hypothesis profile (fixed,
+    # reproducible example sequence).  Deep randomized exploration lives in the
+    # cpm_property_deep heavy block below, not here — see test_property_based.py.
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_property_based.py'
+  [../]
+  [./cpm_psplib_oracle]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_psplib_oracle.py'
+  [../]
+  [./cpm_raven_interface]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_raven_interface.py'
+  [../]
+  [./cpm_rcpsp_alns]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_rcpsp_alns.py'
+  [../]
+  [./cpm_replan]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_replan.py'
+  [../]
+  [./cpm_replan_resources]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_replan_resources.py'
+  [../]
+  [./cpm_safety_function]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_safety_function.py'
+  [../]
+  [./cpm_scale_performance]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_scale_performance.py'
+  [../]
+  [./cpm_schedule_validator]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_schedule_validator.py'
+  [../]
+  [./cpm_scheduling]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_scheduling.py'
+  [../]
+  [./cpm_shift_calendar]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_shift_calendar.py'
+  [../]
+  [./cpm_substitution]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_substitution.py'
+  [../]
+  [./cpm_system_state_pool]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_system_state_pool.py'
+  [../]
+  [./cpm_tests_registration]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_tests_registration.py'
+  [../]
+  [./cpm_time_windows]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_time_windows.py'
+  [../]
+  [./cpm_topo_dp]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_topo_dp.py'
+  [../]
+  [./cpm_wbs_priority]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_wbs_priority.py'
+  [../]
+  [./cpm_weight_function]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_weight_function.py'
+  [../]
+  [./cpm_zone_ids]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_zone_ids.py'
+  [../]
 
+  # ---------------------------------------------------------------------------
+  # HEAVY / nightly deep property exploration (NOT run per PR).
+  # `heavy = True` gives this block the run type {"heavy"} and drops "normal"
+  # (rook Tester.py:417), so it is skipped on the normal per-PR run and executes
+  # only under `run_tests --heavy` (main.py:472).  `--thorough` selects the
+  # randomized, high-example-count Hypothesis profile (2000 examples, fresh
+  # random seed each run) to hunt for new counterexamples off the PR critical
+  # path.  A new red here freezes into test_bugfix_regressions.py.  Generous
+  # max_time because deep randomized exploration + shrinking can run long.
+  # ---------------------------------------------------------------------------
+  [./cpm_property_deep]
+    type     = 'RavenPython'
+    input    = 'run_cpm_pytests.py --thorough test_property_based.py'
+    heavy    = True
+    max_time = 3600
+  [../]
 []
