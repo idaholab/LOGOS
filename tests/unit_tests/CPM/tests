@@ -82,6 +82,13 @@
     type  = 'RavenPython'
     input = 'run_cpm_pytests.py test_multimode.py'
   [../]
+  [./cpm_oracle_mutation]
+    # Fuzzed oracle-sensitivity tests: build feasible -> mutate -> assert the
+    # matching Violation.type fires, one scenario per hard check.  Deterministic
+    # "ci" Hypothesis profile (see test_oracle_mutation.py).
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_oracle_mutation.py'
+  [../]
   [./cpm_property_based]
     # Per-PR property tests: deterministic "ci" Hypothesis profile (fixed,
     # reproducible example sequence).  Deep randomized exploration lives in the

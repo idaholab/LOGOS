@@ -34,7 +34,7 @@ cleanly in environments without it.  Install with: pip install hypothesis
 """
 import os
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -44,7 +44,10 @@ from hypothesis import given, settings, strategies as st, HealthCheck
 from conftest import assert_valid_schedule, make_crew_pool
 from CPM.activity import Activity
 from CPM.pert import Pert
-from CPM.outage_data import ResourcePool, EquipmentPool, LocationPool
+from CPM.outage_data import (
+    ResourcePool, EquipmentPool, LocationPool,
+    EquipmentAvailability, LocationAvailability,
+)
 
 TOL = 1e-6
 SGS = "max_use_res_ranked"
@@ -308,3 +311,115 @@ def test_resource_capacity_monotonic(sgs, inst):
     assert r_tight["scheduled_duration"] >= r_loose["scheduled_duration"] - TOL, (
         f"[{sgs}] makespan(cap={cap_low})={r_tight['scheduled_duration']:.4f} < "
         f"makespan(cap={cap_high})={r_loose['scheduled_duration']:.4f}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — multi-constraint feasible-side soundness (ORACLE_COMPLETENESS §6.2)
+# ---------------------------------------------------------------------------
+# Phases 1-2 fuzz only precedence, lags, and a single renewable crew skill, so
+# under randomized exploration only ~4 of the oracle's 13 hard checks were ever
+# stressed (ORACLE_COMPLETENESS_2026-09-07.md, Gap 2).  This phase adds the
+# *feasible* side of three more — equipment, location (tasks + workers), and
+# time-windows — over many random DAG shapes, so the oracle is exercised
+# (no-false-positive) on those checks at all.  The *infeasible* (sensitivity)
+# side of every check is test_oracle_mutation.py's job.
+#
+# Feasible by construction: every capacity is set to the exact upper bound on
+# concurrent demand (equipment qty = #activities needing it; location task/worker
+# caps = counts/crew-sums of the activities placed there; crew cap = total crew
+# demand), and every window is wide enough to admit any placement.  So no check
+# can bind regardless of the drawn DAG, and any violation reported here is a real
+# oracle false-positive (or an engine bug) → fuzz-and-freeze.
+
+HORIZON = timedelta(days=365)   # covers any makespan these instances can reach
+WIDE_WINDOW_H = 1.0e6           # window latest-finish far beyond any makespan
+
+
+@st.composite
+def rcpsp_multi_constraint_instance(draw, max_activities=20, max_demand=3):
+    """A DAG plus, per activity, a crew demand and booleans for whether it also
+    needs the shared crane and whether it sits in the shared location."""
+    n, durations, edges, _ = draw(
+        rcpsp_dag(max_activities=max_activities, with_lags=False))
+    demands = draw(st.lists(st.integers(min_value=0, max_value=max_demand),
+                            min_size=n, max_size=n))
+    needs_equip = draw(st.lists(st.booleans(), min_size=n, max_size=n))
+    in_location = draw(st.lists(st.booleans(), min_size=n, max_size=n))
+    return n, durations, edges, demands, needs_equip, in_location
+
+
+def build_multi_constraint_pert(n, durations, edges, demands, needs_equip,
+                                in_location):
+    """Build a Pert exercising crew + equipment + location + time-window checks,
+    feasible by construction (every capacity = the exact concurrent-demand
+    ceiling; every window wide open)."""
+    acts = [Activity(f"A{i}", float(durations[i])) for i in range(n)]
+    for i in range(n):
+        acts[i].required_resources = (
+            [{'skill_type': CREW, 'crew_count': int(demands[i])}]
+            if demands[i] > 0 else [])
+        if needs_equip[i]:
+            acts[i].required_equipment = [
+                {'equipment_id': 'CRANE', 'quantity_needed': 1}]
+        if in_location[i]:
+            acts[i].location_id = 'LOC_1'
+        # A window every placement satisfies, so time_windows runs but never binds.
+        acts[i].window_earliest_start_hours = 0.0
+        acts[i].window_latest_finish_hours  = WIDE_WINDOW_H
+
+    start, end = Activity("START", 0.0), Activity("END", 0.0)
+    succ = {a: [] for a in acts}
+    for i, j in edges:
+        succ[acts[i]].append(acts[j])
+    has_in = {j for _, j in edges}
+    has_out = {i for i, _ in edges}
+    sources = [acts[i] for i in range(n) if i not in has_in]
+    sinks   = [acts[i] for i in range(n) if i not in has_out]
+    fwd = {start: list(sources)}
+    fwd.update(succ)
+    for s in sinks:
+        fwd[s].append(end)
+    fwd[end] = []
+
+    T0 = datetime(2026, 1, 1)
+    # Capacities = exact upper bounds on concurrent demand → never binding.
+    crew_cap    = sum(demands) or 1
+    equip_qty   = sum(1 for x in needs_equip if x) or 1
+    loc_tasks   = sum(1 for x in in_location if x) or 1
+    loc_workers = sum(demands[i] for i in range(n) if in_location[i]) or 1
+
+    p = Pert(graph=fwd)
+    p.crew_pool = make_crew_pool(CREW, int(crew_cap), T0)
+    ep = EquipmentPool()
+    ep.equipment['CRANE'] = EquipmentAvailability(
+        'CRANE', 'polar crane',
+        [{'start_date': T0, 'end_date': T0 + HORIZON,
+          'quantity_available': int(equip_qty)}])
+    p.equipment_pool = ep
+    lp = LocationPool()
+    lp.locations['LOC_1'] = LocationAvailability(
+        'LOC_1', 'shared bay',
+        [{'start_date': T0, 'end_date': T0 + HORIZON,
+          'max_concurrent_tasks': int(loc_tasks),
+          'max_concurrent_workers': int(loc_workers)}])
+    p.location_pool = lp
+    p.consumable_pool   = None
+    p.system_state_pool = None
+    p.startTime = T0
+    p.generateInfo()
+    return p
+
+
+@pytest.mark.parametrize("sgs", ALL_SGS)
+@given(rcpsp_multi_constraint_instance())
+def test_multi_constraint_schedule_is_valid(sgs, inst):
+    """Feasible-by-construction multi-constraint instance: schedule validates,
+    every activity runs, and makespan >= CPM."""
+    p = build_multi_constraint_pert(*inst)
+    r = p.calculateScheduleWithResources(sgs=sgs)
+    assert_valid_schedule(p, f"[{sgs}] multi-constraint")
+    assert r["n_completed"] == r["n_activities"], (
+        f"[{sgs}] only {r['n_completed']}/{r['n_activities']} activities scheduled")
+    assert r["scheduled_duration"] >= r["cpm_duration"] - TOL, (
+        f"[{sgs}] makespan {r['scheduled_duration']:.4f} < "
+        f"CPM {r['cpm_duration']:.4f}")

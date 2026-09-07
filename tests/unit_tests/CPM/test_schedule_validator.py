@@ -647,3 +647,73 @@ class TestShiftCalendar:
         _schedule(p)
         types = [v.type for v in p.validate_schedule().violations]
         assert 'shift_calendar' not in types
+
+
+# ===========================================================================
+# Dose budgets
+# ===========================================================================
+
+class TestDoseBudgets:
+    def _make_pert_with_dose(self, budget_per_worker=500.0, peak=4,
+                             dose_rate=50.0, crew=2) -> Pert:
+        """START → A → B → END where MECH is a *consumable* (dose-tracked) skill.
+
+        Dose trackers must be built explicitly here: like every helper in this
+        file we assign ``crew_pool`` *after* ``Pert(graph=...)``, so
+        ``Pert.__init__`` (which only builds trackers when a crew_pool exists at
+        construction) leaves ``dose_trackers == {}`` — and the validator's
+        ``if not pert.dose_trackers: return`` guard would then make
+        ``_check_dose_budgets`` a silent no-op.  Mirror
+        test_dose_budget._pert_with_pools and populate them before scheduling.
+        """
+        a = Activity('A', 4.0, required_resources=[
+            {'skill_type': 'MECH', 'crew_count': crew, 'alternative_skill_types': []}])
+        a.dose_rate_mrem_per_hour = dose_rate
+        b = Activity('B', 4.0, required_resources=[
+            {'skill_type': 'MECH', 'crew_count': crew, 'alternative_skill_types': []}])
+        b.dose_rate_mrem_per_hour = dose_rate
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a], a: [b], b: [end], end: []}
+        p = Pert(graph=fwd)
+        rp = ResourcePool()
+        rp.resources['MECH'] = ResourceAvailability(
+            'MECH',
+            [{'start_date': START_DT, 'end_date': START_DT + HORIZON,
+              'available_count': peak}],
+            resource_type='consumable',
+            dose_budget_per_worker_mrem=budget_per_worker)
+        p.crew_pool         = rp
+        p.equipment_pool    = EquipmentPool()
+        p.location_pool     = LocationPool()
+        p.consumable_pool   = None
+        p.system_state_pool = None
+        p.startTime = START_DT
+        p.dose_trackers = rp.build_dose_trackers()   # build BEFORE scheduling
+        return p
+
+    def test_over_budget_dose_detected(self):
+        """Schedule within budget, then push consumed above budget → 'dose' fires.
+
+        The scheduler gates every task start on ``DoseBudgetTracker.fits()`` and
+        resets the trackers at the start of each run, so a *naturally*
+        over-budget schedule cannot be produced.  Mirror the consumable/zone
+        tests and mutate the live tracker post-schedule (as
+        test_dose_budget.py:189 does).
+        """
+        p = self._make_pert_with_dose(budget_per_worker=500.0, peak=4)
+        _schedule(p)
+        tracker = p.dose_trackers['MECH']
+        assert tracker.consumed_mrem > 0.0        # scheduling actually consumed dose
+        assert tracker.total_budget_mrem > 0.0    # so the <=0 guard does not skip
+        tracker.consumed_mrem = tracker.total_budget_mrem + 1000.0
+        result = validate_schedule(p)
+        types = [v.type for v in result.violations]
+        assert 'dose' in types
+
+    def test_within_budget_no_violation(self):
+        """Generous budget → the scheduled dose stays within budget, no violation."""
+        p = self._make_pert_with_dose(budget_per_worker=500.0, peak=4)
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'dose' not in types
