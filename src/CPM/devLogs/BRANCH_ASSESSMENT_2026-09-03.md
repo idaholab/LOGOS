@@ -60,18 +60,26 @@ deliberately **left for a human's judgment** (not silently "fixed"):
    since the notebook were intentional) vs. investigate specific rules as
    regressions. Full FAIL list reproducible via `python psplib_regression.py`.
 
-2. **Two standalone regression scripts, intentionally kept out of CI.**
-   Neither is a pytest file; both are homegrown `checkAnswer`-style scripts that
-   `sys.exit()`. `run_cpm_pytests.py` runs *only* the pytest files, so these are
-   not gated:
-   - `legacy_cpm_regression.py` (was `CPM.py`) — **broken as-is** (uses
-     `pd.date_range` / `np.ones` at ~line 165 but never imports pandas/numpy), so
-     it currently provides zero coverage. It is nonetheless the **only** artifact
-     exercising 3 scheduler strategies with no pytest equivalent —
-     `MD-Knapsack`, `max_use_res_act`, `first_with_res`. → *Decision needed:*
-     port these 3 strategies into pytest (fix the imports + validate gold values)
-     vs. retire the file.
-   - `psplib_regression.py` — see item 1; red on the 30 drifts.
+2. **Standalone regression script, intentionally kept out of CI.**
+   `psplib_regression.py` is not a pytest file; it is a homegrown
+   `checkAnswer`-style script that `sys.exit()`s. `run_cpm_pytests.py` runs
+   *only* the pytest files, so it is not gated. See item 1; red on the 30 drifts.
+
+   > **`legacy_cpm_regression.py` — RETIRED (2026-09-07).** Deleted after a
+   > cross-check invalidated the earlier "worth porting" note. The file was
+   > broken as-is (used `pd.date_range` / `np.ones` at ~line 165 but never
+   > imported pandas/numpy), so it crashed before reaching any scheduling call
+   > and provided **zero** coverage. Its "3 unique strategies" were **stale
+   > pre-rewrite names the current engine rejects**: `calculateScheduleWithResources`
+   > dispatches on `choice` raw (no normalization) and recognizes only `first`,
+   > `max_use_res_ranked`, `max_use_res_shuffled`, `md_knapsack`, `look_ahead`
+   > ([pert.py:4421-4560](../pert.py#L4421)). So `'MD-Knapsack'`,
+   > `'max_use_res_act'` and `'first_with_res'` all raise `ValueError` today; the
+   > live equivalents that remain — `md_knapsack` and serial `'first'` — are
+   > already covered (`test_knapsack.py` exercises `MDKnapsackScheduler`;
+   > `test_bugfix_regressions.py` exercises `calculateSerialScheduleWithResources`).
+   > Nothing imported the file. "Porting" it would have duplicated existing
+   > coverage against a dead interface, so it was retired rather than ported.
 
 ### Coverage-guided regression hardening (2026-09-03) — RESOLVED
 
@@ -370,3 +378,76 @@ merge-ready today**, but it is close to recoverable.
 > tested; the suite is green (`903 passed, 3 skipped`). The block below is a
 > ready-to-paste MR description reflecting the branch's current state. The
 > remaining open items are captured under "Reviewer notes / known follow-ups".
+
+~~~markdown
+## Summary
+
+Modernizes the CPM / RCPSP scheduling code and its RAVEN interface, unblocks the
+pytest suite, and brings the RAVEN system tests back in line with the current
+`Pert` engine. The core scheduler and its validation strategy are unchanged in
+intent; this branch is overwhelmingly plumbing, test-harness, and interface
+repair.
+
+## What's included
+
+- **Unblocked pytest collection.** Removed the shadowing legacy runner that was
+  breaking collection for the whole `tests/unit_tests/CPM/` suite, and pinned the
+  suite to its own `tests/unit_tests/CPM/pytest.ini` (repo-root `pyproject.toml`
+  no longer carries orphaned pytest config).
+- **RAVEN `ExternalModel` interface (`src/CPM/BaseCPMmodel.py`) fixed** — see the
+  dedicated section below.
+- **RAVEN system-test decks modernized** to the current interface
+  (`project_file` / `schema` / `<map act=… attr=…>`), replacing the stale
+  `<analysis>` / `<CPid>` / `graphModel.py` format. All repointed at real example
+  JSONs.
+- **`pyproject.toml`** description and `requires-python` corrected.
+- Retired a broken, zero-coverage legacy regression script (see the dev logs for
+  the rationale and the pytest equivalents that already cover the live behavior).
+
+## Testing
+
+- CPM pytest suite: `903 passed, 3 skipped` (the skips are RAVEN-guarded modules
+  that self-skip when `ravenframework` is not importable).
+- The two duration-sampling RAVEN system tests (`test_BaseCPMmodel.xml`,
+  `test_BaseCPMmodel_map.xml`) are registered in `tests/tests`, their input data
+  is staged in the `CPMmodel/` working dir, and both load → validate → schedule →
+  yield a finite makespan through the real `Pert` engine
+  (`test_case_1` → 52 h, `example_10` → 71 h at default durations).
+
+## RAVEN interface fix (`BaseCPMmodel`)
+
+- `run()` no longer crashes on the normal duration-only case (the old
+  `itemgetter(*[])` / `zip` unpacking raised an uncaught `TypeError`). It now
+  loops over the `<map>` table, translates each RAVEN variable to its activity ID
+  via `self.mapping`, coerces realizations to scalar floats, and guards empty
+  duration/priority sets.
+- `initialize()` resolves `project_file` / `schema` against
+  `runInfoDict['WorkingDir']` (RAVEN launches the deck from `tests/`, not from
+  `<WorkingDir>`), matching the `CapitalInvestmentModel` convention.
+- Added `tests/unit_tests/CPM/test_raven_interface.py`, which drives the real
+  `run()` end-to-end (guarded by `pytest.importorskip("ravenframework")`).
+
+## Reviewer notes / known follow-ups
+
+1. **Gold regeneration (needs a RAVEN env).** The committed
+   `tests/gold/CPMmodel/*.csv` are stale (Jul-2024, old `start,b,c,d,…,CP`
+   schema). They must be rebaselined against current output (`R_*` sampled inputs
+   + `end_time`); this can't be done outside RAVEN because the input columns are
+   MonteCarlo-sampled.
+2. **Priority / GA decks stay unregistered.** `test_BaseCPMmodel_res.xml`,
+   `test_BaseCPMmodel_res_11.xml`, and `test_BaseCPMmodel_res_GA.xml` are
+   structurally valid but semantically inert until `run()` returns the
+   resource-constrained `scheduled_duration` instead of the priority-invariant
+   `getProjectDuration()` (see the RAVEN/Pert dev log).
+3. **`run()` → `scheduled_duration`.** The small `run()` output change above is
+   the prerequisite that unblocks the priority/GA decks; deferred to keep this MR
+   scoped to the duration-uncertainty path.
+4. **PSPLIB golden drift** (`psplib_regression.py`) — a separate golden-data
+   review, unrelated to the RAVEN interface.
+
+## Out of scope
+
+RAVEN-driven optimization (using RAVEN's optimizers to optimize activity
+priorities or mode assignments) is intentionally deferred; it's recorded in the
+RAVEN/Pert dev log so the idea isn't lost.
+~~~
