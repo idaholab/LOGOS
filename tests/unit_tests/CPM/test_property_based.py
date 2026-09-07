@@ -53,7 +53,7 @@ ALL_SGS = [
 # ---------------------------------------------------------------------------
 
 @st.composite
-def rcpsp_dag(draw, max_activities=8, max_duration=20.0):
+def rcpsp_dag(draw, max_activities=90, max_duration=20.0):
     """A random acyclic instance: n activities, durations, forward edges.
 
     Acyclic by construction — an edge i->j is only ever proposed for i < j, so
