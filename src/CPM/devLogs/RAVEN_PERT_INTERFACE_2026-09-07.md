@@ -179,6 +179,20 @@ several richer analyses. Ordered easy → more involved:
   (P(activity on the critical path)), not just makespan — high value, low
   effort.
 
+  > **This is more than a nice-to-have for priority/resource analyses — it is a
+  > prerequisite.** `run()` reports `getProjectDuration()`, i.e. the
+  > *unconstrained* CPM length, which is a function of durations and precedence
+  > only and is **invariant to sampled priorities**. Verified on
+  > `example_10.json`: three different priority vectors all give
+  > `getProjectDuration() = 71.0 h`, while the resource-constrained makespan
+  > `calculateScheduleWithResources()['scheduled_duration']` moves (85 / 85 /
+  > 91 h). So any priority-sampling study or GA priority-optimization sees a
+  > **flat objective** as currently wired. Making priority/resource decks
+  > meaningful requires `run()` to output the resource-constrained
+  > `scheduled_duration` (as `CPtime`, or as an additional output). This blocks
+  > the priority decks below (`test_BaseCPMmodel_res.xml`,
+  > `test_BaseCPMmodel_res_GA.xml`); duration decks are unaffected.
+
 - **Sample resource availability, not just durations.** Crew counts, equipment
   readiness, and consumable/restock delivery times are uncertain too. A new
   `attr='resource'`-style map (or a small hook into the resource pools) would
@@ -209,3 +223,44 @@ existing `ga.py` / `rcpsp_alns.py`) to optimize activity priorities or mode
 assignments toward minimum expected makespan or maximum on-time probability —
 was discussed and is **intentionally deferred**. Recorded here only so the idea
 isn't lost.
+
+---
+
+## 4. RAVEN input decks (`tests/test_BaseCPMmodel*.xml`)
+
+The five system-test decks were **modernized** to the current interface
+(`project_file` / `schema` / `<map act=... attr=...>`), replacing the previous
+stale format (`<analysis>`, `<CPid>`, and a `graphModel.py` `<Files>` input that
+no longer exists anywhere in the repo). All are repointed at real example JSONs
+under `doc/demos/rcpsp/examples/`.
+
+| Deck | Role | `project_file` | Maps |
+|---|---|---|---|
+| `test_BaseCPMmodel.xml` | minimal **duration** sampling | `test_case_1.json` | 6 × duration |
+| `test_BaseCPMmodel_map.xml` | realistic **duration** sampling (unchanged) | `example_10.json` | 10 × duration |
+| `test_BaseCPMmodel_res.xml` | **priority** sampling | `example_10.json` | 10 × priority |
+| `test_BaseCPMmodel_res_11.xml` | **mixed** duration + priority | `example_10.json` | 5 + 5 |
+| `test_BaseCPMmodel_res_GA.xml` | **GA priority optimization** | `example_10.json` | 10 × priority |
+
+Also fixed a latent bug in the GA deck: its `<IOStep>` referenced an `optOut`
+Print that was never defined; it now references the defined `Print_sim_PS` and
+`opt_export` OutStreams.
+
+**Verification done here (no RAVEN required):** each deck is well-formed XML;
+every `<ExternalModel>` child node is accepted by the current
+`_readMoreXML` grammar; every mapped `act` ID exists in its `project_file`; and
+each deck's `{act: value}` mapping was driven through the **real** `Pert` engine
+(mirroring the fixed `run()`), all producing a finite `end_time`
+(`.xml`→34 h, the `example_10.json` decks→71 h).
+
+**Not done here (needs the RAVEN env):**
+
+1. Wiring the decks into the RAVEN harness — the two CPM entries in
+   `tests/tests` are commented out, and `_res`/`_res_11`/`_res_GA` are
+   unregistered; there is no `CPMmodel/` working directory, and each deck's
+   `project_file` + `schema` (bare filenames) must be staged into that workdir.
+   Gold CSVs must be generated in a RAVEN-enabled environment.
+2. The **priority/GA decks are structurally valid but semantically inert**
+   until `run()` returns `scheduled_duration` instead of (or in addition to)
+   `getProjectDuration()` — see the blocking note under §3. Their descriptions
+   carry this caveat inline.

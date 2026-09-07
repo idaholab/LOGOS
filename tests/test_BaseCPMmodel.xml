@@ -5,8 +5,11 @@
     <created>2023-04-13</created>
     <classesTested>Models.ExternalModel.LOGOS.BaseCPMmodel</classesTested>
     <description>
-       This test is is designed to check the functionality of the CPM model when
-       project schedule is defined from file
+       This test checks the CPM model when the project schedule is loaded from a
+       JSON file and RAVEN samples the activity durations (uncertainty
+       propagation). The resource-constrained project duration is returned to
+       RAVEN as end_time. This is the minimal duration-sampling deck; see
+       test_BaseCPMmodel_map.xml for a larger, resource-rich example.
     </description>
   </TestInfo>
 
@@ -16,51 +19,26 @@
     <batchSize>1</batchSize>
   </RunInfo>
 
-  <Files>
-    <Input name="test_graph_model" type="graph_model">graphModel.py</Input>
-  </Files>
-
   <Models>
     <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
-      <variables>start,b,c,d,end,f,g,h,end_time,CP</variables>
-      <analysis>activity_duration</analysis>
+      <variables>R_A1,R_A2,R_A3,R_A4,R_A5,R_A6,end_time</variables>
       <CPtime>end_time</CPtime>
-      <CPid>CP</CPid>
+      <schema>outage_schema.json</schema>
+      <sgs>max_use_res_ranked</sgs>
+      <project_file>test_case_1.json</project_file>
+      <map act='A1' attr='duration'>R_A1</map>
+      <map act='A2' attr='duration'>R_A2</map>
+      <map act='A3' attr='duration'>R_A3</map>
+      <map act='A4' attr='duration'>R_A4</map>
+      <map act='A5' attr='duration'>R_A5</map>
+      <map act='A6' attr='duration'>R_A6</map>
     </ExternalModel>
   </Models>
 
   <Distributions>
-    <Uniform name="dist_A">
-      <lowerBound>8</lowerBound>
-      <upperBound>12</upperBound>
-    </Uniform>
-    <Uniform name="dist_B">
-      <lowerBound>15</lowerBound>
-      <upperBound>25</upperBound>
-    </Uniform>
-    <Uniform name="dist_C">
-      <lowerBound>4</lowerBound>
-      <upperBound>8</upperBound>
-    </Uniform>
-    <Uniform name="dist_D">
-      <lowerBound>8</lowerBound>
-      <upperBound>12</upperBound>
-    </Uniform>
-    <Uniform name="dist_E">
-      <lowerBound>19</lowerBound>
-      <upperBound>25</upperBound>
-    </Uniform>
-    <Uniform name="dist_F">
-      <lowerBound>12</lowerBound>
-      <upperBound>20</upperBound>
-    </Uniform>
-    <Uniform name="dist_G">
+    <Uniform name="dist_dur">
       <lowerBound>4</lowerBound>
       <upperBound>12</upperBound>
-    </Uniform>
-    <Uniform name="dist_H">
-      <lowerBound>12</lowerBound>
-      <upperBound>21</upperBound>
     </Uniform>
   </Distributions>
 
@@ -69,36 +47,30 @@
       <samplerInit>
         <limit>10</limit>
       </samplerInit>
-      <variable name="start">
-        <distribution>dist_A</distribution>
+      <variable name="R_A1">
+        <distribution>dist_dur</distribution>
       </variable>
-      <variable name="b">
-        <distribution>dist_B</distribution>
+      <variable name="R_A2">
+        <distribution>dist_dur</distribution>
       </variable>
-      <variable name="c">
-        <distribution>dist_C</distribution>
+      <variable name="R_A3">
+        <distribution>dist_dur</distribution>
       </variable>
-      <variable name="d">
-        <distribution>dist_D</distribution>
+      <variable name="R_A4">
+        <distribution>dist_dur</distribution>
       </variable>
-      <variable name="end">
-        <distribution>dist_E</distribution>
+      <variable name="R_A5">
+        <distribution>dist_dur</distribution>
       </variable>
-      <variable name="f">
-        <distribution>dist_F</distribution>
-      </variable>
-      <variable name="g">
-        <distribution>dist_G</distribution>
-      </variable>
-      <variable name="h">
-        <distribution>dist_H</distribution>
+      <variable name="R_A6">
+        <distribution>dist_dur</distribution>
       </variable>
     </MonteCarlo>
   </Samplers>
 
   <Steps>
     <MultiRun name="simRun">
-      <Input   class="Files"        type="graph_model"     >test_graph_model</Input>
+      <Input   class="DataObjects"  type="PointSet"        >inputPlaceHolder</Input>
       <Model   class="Models"       type="ExternalModel"   >CPMmodel</Model>
       <Sampler class="Samplers"     type="MonteCarlo"      >MC_external</Sampler>
       <Output  class="DataObjects"  type="PointSet"        >sim_PS</Output>
@@ -116,12 +88,12 @@
 
   <DataObjects>
     <PointSet name="inputPlaceHolder">
-      <Input>start,b,c,d,end,f,g,h</Input>
+      <Input>R_A1,R_A2,R_A3,R_A4,R_A5,R_A6</Input>
       <Output>OutputPlaceHolder</Output>
     </PointSet>
     <PointSet name="sim_PS">
-      <Input>start,b,c,d,end,f,g,h</Input>
-      <Output>end_time,CP</Output>
+      <Input>R_A1,R_A2,R_A3,R_A4,R_A5,R_A6</Input>
+      <Output>end_time</Output>
     </PointSet>
   </DataObjects>
 
