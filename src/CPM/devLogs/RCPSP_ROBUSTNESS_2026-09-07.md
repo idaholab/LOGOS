@@ -1045,6 +1045,12 @@ the per-activity crew-demand API.
 > `test_bugfix_regressions.py::TestCrewBoundarySliverNotFlagged`. Monotonicity held
 > once the sliver false-positive was gone (no Graham-anomaly counterexample
 > surfaced within the `ci` profile's search).
+>
+> **Update (see §13).** The `thorough` profile later *did* surface the anticipated
+> anomaly: `test_resource_capacity_monotonic` failed on all five SGS. It was a
+> test-property bug, not an engine bug — monotonicity is unsound for these
+> heuristic schedulers — so the test was downgraded (and renamed
+> `test_resource_capacity_variants_valid`), keeping only the sound invariants.
 
 ### 10.3 Finish the Toolkit-A oracle sweep
 
@@ -1359,3 +1365,85 @@ makespan. §10.5 is the sole exception. Bundling an invasive engine refactor wit
 the additive work would make a regression here indistinguishable from the new
 tests' own noise. It gets its own PR, its own differential gate, and its own
 review.
+
+---
+## 13. Capacity-monotonicity property is unsound for heuristic SGS (2026-09-07) — property downgraded, no engine bug
+
+The nightly `thorough` sweep (`[./cpm_property_deep]`, 2000 examples, fresh seed)
+went **red**: `test_resource_capacity_monotonic` (§10.2) failed on **all five**
+SGS, asserting `makespan(cap_low) >= makespan(cap_high) - TOL` ("more crew never
+lengthens the schedule"). Triaged this session — **it is a test-property bug, not
+an engine bug.** The property was removed; the test was downgraded and renamed.
+
+### 13.1 Two independent root causes
+
+**(a) Monotonicity is mathematically unsound for these schedulers.** All five SGS
+are heuristic greedy list-schedulers, not optimal solvers (`MDKnapsackScheduler`
+self-documents "greedy approximation… for exact solution, would need integer
+programming solver", [pert.py:8113-8114](../pert.py#L8113-L8114)). Capacity feeds
+directly into candidate-set sizing/truncation:
+`max_slots = crew_pool.get_availability(...) // d`, then
+`k_needed = max(1, max_slots) * 8` ([pert.py:3593-3607](../pert.py#L3593-L3607)),
+and `heapq.nlargest(k, ...)` vs the full rank when `k < n`
+([pert.py:5578-5589](../pert.py#L5578-L5589)). More crew ⇒ a *different* candidate
+set is considered at an event ⇒ a different ordering ⇒ a possibly *longer*
+makespan. This is a textbook **Graham anomaly**: deterministic and input-dependent.
+Witnesses from the failing run: `[first] cap=2→2.5 < cap=3→3.0`,
+`[look_ahead] cap=2→6.0 < cap=3→6.5`. The inequality holds only for the *optimal*
+makespan, which none of these strategies computes. (The §10.2 status note already
+anticipated this — "no Graham-anomaly counterexample surfaced within the `ci`
+profile's search"; the deeper `thorough` search found one.)
+
+**(b) `max_use_res_shuffled` is nondeterministic.** `_shuffle_candidates` calls
+`random.shuffle` ([pert.py:5599](../pert.py#L5599)) with **no per-call seed**.
+`Pert.__init__` seeds `random` once to the fixed constant `2506178`
+([pert.py:140](../pert.py#L140)), and `calculateScheduleWithResources` never
+reseeds — so the global RNG stream flows continuously across calls. The test
+constructs `tight` and `loose`, then schedules them back-to-back, so `loose`
+shuffles from wherever `tight` left the RNG. Witness: a shrunk counterexample with
+`cap=1` vs `cap=1` → 2.0 vs 3.0 (identical input, cap delta zero, different
+answer). This is why `shuffled` failures do not reproduce on replay: the RNG
+history (test order, prior draws) differs. The other four strategies are pure
+functions of the input on the default `TF_based` path (verified by a repeated-run
+determinism probe: 8–12 identical runs each), so their failures are genuine
+anomalies, not noise.
+
+### 13.2 The engine is correct
+
+Makespan monotonicity in capacity is simply **not a theorem** for priority-rule
+heuristics; the engine's behavior is expected. So there is nothing to fix in
+`pert.py` and **nothing to freeze in `test_bugfix_regressions.py`** — that step
+freezes shrunk counterexamples after an *engine* fix, and there is none here. The
+"freeze" is the corrected test plus this note.
+
+### 13.3 The fix (test-only, this PR)
+
+`tests/unit_tests/CPM/test_property_based.py`: `test_resource_capacity_monotonic`
+→ **`test_resource_capacity_variants_valid`**. Drops the cross-capacity
+comparison; asserts only the sound invariants — feasible, all activities
+scheduled, `makespan >= cpm - TOL` — at **both** `cap_low` and `cap_high`. The
+docstring records why monotonicity was removed. It still earns its keep: it
+exercises `cap_high`, which `test_resource_makespan_at_least_cpm` (cap_low only)
+does not. The Phase-2 header comment and module docstring were updated to stop
+advertising monotonicity. Green under both `ci` and `thorough`.
+
+The hand-written monotonicity tests in `test_invariants.py`
+(`test_monotonicity`, `test_monotonicity_parametric`, `test_json_fixture_monotonicity`)
+are **left as-is on purpose**: they run fixed, simple instances under the
+deterministic default SGS (`max_use_res_ranked`) where the outcome is known and
+monotonicity genuinely holds (e.g. 1 welder→7 h vs 2 welders→4 h). A fixed-instance
+regression assertion is sound; only the *universal* fuzzed assertion was not.
+
+### 13.4 Latent observations (recorded, not fixed here)
+
+- Tie-break fragility: `md_knapsack` ([pert.py:8137](../pert.py#L8137)) and
+  `look_ahead` ([pert.py:8283](../pert.py#L8283)) sort ties with no name
+  tiebreaker, leaning on incoming candidate insertion order. Deterministic on the
+  `TF_based` path (name-ordered heap), but fragile if a set-ordered candidate dict
+  were ever fed in.
+- The O(n) `_ready` fallback ([pert.py:3774](../pert.py#L3774)) iterates an
+  identity-hashed `Activity` set (address-ordered, varies run-to-run); reached only
+  on dynamic priority-rule modes, not the default path.
+- Optional future engine improvement (**not** in scope): reseed per call, or add a
+  `seed=` argument to `calculateScheduleWithResources`, so `max_use_res_shuffled`
+  is reproducible in isolation rather than dependent on process-wide RNG history.

@@ -11,8 +11,9 @@ Phases (see src/CPM/devLogs/RCPSP_ROBUSTNESS_2026-09-07.md):
   1a. equality    — unlimited resources => makespan == CPM (and schedule feasible),
                     including finish-to-start lags on a random subset of edges
   1b. metamorphic — scaling every duration (and lag) by k scales CPM by k
-  2.  resources   — a renewable crew skill: makespan >= CPM, schedule feasible,
-                    and more capacity never lengthens the schedule (monotonicity)
+  2.  resources   — a renewable crew skill: makespan >= CPM and schedule feasible
+                    at each of two capacities (makespan monotonicity in capacity
+                    is NOT asserted — false for heuristic SGS; see §13 of the log)
 
 Run profiles (10.4):
   The suite registers two Hypothesis profiles and loads one from the
@@ -224,7 +225,10 @@ def test_duration_scaling_scales_cpm(inst, k):
 # guaranteed feasible.  The properties then hold unconditionally:
 #   - resources can only delay:  makespan >= CPM
 #   - the schedule validates and every activity is scheduled
-#   - monotonicity: more crew never lengthens the schedule
+# NOTE: makespan monotonicity in capacity (more crew never lengthens the
+# schedule) is NOT asserted — it is false for these heuristic list-schedulers
+# (Graham anomalies) and for the nondeterministic shuffled SGS; see
+# test_resource_capacity_variants_valid and RCPSP_ROBUSTNESS_2026-09-07.md §13.
 # Lags are omitted here so a failure points unambiguously at the resource logic
 # rather than at lag arithmetic (Phase 1 already covers lags).
 
@@ -299,18 +303,42 @@ def test_resource_makespan_at_least_cpm(sgs, inst):
 
 @pytest.mark.parametrize("sgs", ALL_SGS)
 @given(rcpsp_crew_instance())
-def test_resource_capacity_monotonic(sgs, inst):
-    """More crew never lengthens the schedule: makespan(cap_low) >= makespan(cap_high)."""
+def test_resource_capacity_variants_valid(sgs, inst):
+    """Both capacity variants of the same instance schedule *validly*: feasible,
+    every activity placed, and makespan >= CPM — asserted at cap_low AND cap_high.
+
+    This deliberately does NOT assert makespan monotonicity in capacity
+    (``makespan(cap_low) >= makespan(cap_high)``).  That invariant is *false* for
+    these schedulers and was removed after the nightly ``thorough`` sweep
+    falsified it on all five SGS (see RCPSP_ROBUSTNESS_2026-09-07.md §13):
+
+      * All five SGS are heuristic greedy list-schedulers, not optimal solvers.
+        Capacity feeds candidate-set truncation (``k_needed = max(1, max_slots)*8``
+        at pert.py:3593-3607; ``heapq.nlargest(k, ...)`` at pert.py:5578-5589), so
+        more crew can change the ordering and *lengthen* the makespan — a genuine,
+        deterministic Graham anomaly (witness: ``[first] cap=2->2.5 < cap=3->3.0``).
+        The inequality holds only for the *optimal* makespan, which none compute.
+      * ``max_use_res_shuffled`` is additionally nondeterministic: ``_shuffle_candidates``
+        calls ``random.shuffle`` (pert.py:5599) with no per-call seed, and
+        ``calculateScheduleWithResources`` never reseeds, so back-to-back runs draw
+        from a continuing RNG stream (witness: ``cap=1`` vs ``cap=1`` -> 2.0 vs 3.0,
+        identical input, different answer).
+
+    What remains — feasibility, completeness, and makespan >= CPM at each capacity
+    — is sound and unconditional.  Validating cap_high here also covers a capacity
+    ``test_resource_makespan_at_least_cpm`` (cap_low only) does not.
+    """
     n, durations, edges, demands, cap_low, cap_high = inst
-    tight = build_resource_pert(n, durations, edges, demands, cap_low)
-    loose = build_resource_pert(n, durations, edges, demands, cap_high)
-    r_tight = tight.calculateScheduleWithResources(sgs=sgs)
-    r_loose = loose.calculateScheduleWithResources(sgs=sgs)
-    assert_valid_schedule(tight, f"[{sgs}] tight cap={cap_low}")
-    assert_valid_schedule(loose, f"[{sgs}] loose cap={cap_high}")
-    assert r_tight["scheduled_duration"] >= r_loose["scheduled_duration"] - TOL, (
-        f"[{sgs}] makespan(cap={cap_low})={r_tight['scheduled_duration']:.4f} < "
-        f"makespan(cap={cap_high})={r_loose['scheduled_duration']:.4f}")
+    for cap in (cap_low, cap_high):
+        p = build_resource_pert(n, durations, edges, demands, cap)
+        r = p.calculateScheduleWithResources(sgs=sgs)
+        assert_valid_schedule(p, f"[{sgs}] resource-constrained (cap={cap})")
+        assert r["n_completed"] == r["n_activities"], (
+            f"[{sgs}] cap={cap}: only {r['n_completed']}/{r['n_activities']} "
+            f"activities scheduled")
+        assert r["scheduled_duration"] >= r["cpm_duration"] - TOL, (
+            f"[{sgs}] cap={cap}: makespan {r['scheduled_duration']:.4f} < "
+            f"CPM {r['cpm_duration']:.4f}")
 
 
 # ---------------------------------------------------------------------------
