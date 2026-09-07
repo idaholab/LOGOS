@@ -3226,11 +3226,29 @@ class Pert:
         return heap
 
 
-    # Epsilon for merging near-simultaneous events into one scheduling step.
-    # 1 minute is tight enough to catch genuine coincident events (e.g. two
-    # activities ending at the same time) while ignoring floating-point jitter
-    # in duration arithmetic.
-    _EVENT_EPSILON = timedelta(minutes=1)
+    # Quantization tolerance for the event loop: it both (a) merges
+    # near-simultaneous events into one scheduling step and (b) is the grace on
+    # every comparison between an accumulated actual time (a chain of
+    # microsecond-quantized `timedelta`s) and a CPM-derived float instant (ES
+    # gates ~3619/3751, completion gate ~5583).
+    #
+    # It must be LARGE enough to absorb the float<->timedelta quantization noise
+    # those comparisons carry — a single hours->timedelta conversion rounds to
+    # the nearest microsecond (<=0.5 us), so a depth-D critical chain disagrees
+    # with the once-quantized CPM float by at most ~D * 0.5 us.  1 ms gives a
+    # ~1000x margin over the ~1 us gaps that produced the deadlock / makespan
+    # bugs (RCPSP_ROBUSTNESS_2026-09-07.md §6, §8) and covers chains up to
+    # ~2000 deep.
+    #
+    # It must also be SMALL enough not to swallow a genuine activity or gap: it
+    # is the minimum representable duration granularity.  The previous value,
+    # 1 minute, was ~6 orders of magnitude too large — it absorbed real
+    # sub-minute durations (a 56.25 s activity ran concurrently with its
+    # successor), producing schedules with makespan < CPM under unlimited
+    # resources (a precedence violation the 60 s validator grace also hid).
+    # See RCPSP_ROBUSTNESS_2026-09-07.md §9.  1 ms sits ~5 orders of magnitude
+    # below any physically meaningful outage-activity duration (hours-to-days).
+    _EVENT_EPSILON = timedelta(milliseconds=1)
 
     def calculateScheduleWithResources(self, sgs: str = 'max_use_res_ranked',
                                        max_time_hours: float = None, priority_rule: str = '') -> dict:
@@ -3244,9 +3262,9 @@ class Pert:
           - Availability-period boundaries (pre-computed at construction)
           - Absolute early-start times of waiting activities (seeded at run start)
 
-        Near-simultaneous events within _EVENT_EPSILON (1 minute) are merged
-        into a single scheduling step to avoid redundant iterations caused by
-        floating-point duration arithmetic.
+        Near-simultaneous events within _EVENT_EPSILON (1 ms, the quantization
+        tolerance) are merged into a single scheduling step to avoid redundant
+        iterations caused by floating-point duration arithmetic.
 
         Works in both standalone and RAVEN (BaseCPMmodel) modes.
 
@@ -5567,7 +5585,20 @@ class Pert:
 
         for act in self.ongoing:
             start_time, end_time = act.returnAbsTimes()
-            if time_index >= end_time:
+            # Tolerant completion gate.  `end_time` is an actual finish
+            # accumulated through microsecond-quantized `timedelta`s, while
+            # `time_index` is often a *seeded* CPM-derived instant (e.g. a
+            # successor's absolute ES from _build_event_queue) that can land a
+            # microsecond *before* the real finish.  The event loop's
+            # epsilon-merge (calculateScheduleWithResources ~line 3352) then
+            # discards the true completion event as a near-duplicate of that
+            # seed — so an exact `time_index >= end_time` would strand the
+            # activity ongoing forever (no future event revives it → spurious
+            # deadlock), even under unlimited resources.  Complete within the
+            # loop's own event resolution _EVENT_EPSILON, consistent with the ES
+            # gate and the systemic rule in RCPSP_ROBUSTNESS_2026-09-07.md §6.3.
+            # See test_bugfix_regressions.py::TestCompletionGateQuantization.
+            if time_index >= end_time - self._EVENT_EPSILON:
                 completed_now.append(act)
                 #logger.info(
                 #    f"Completed: {act.name} at {time_index.strftime('%Y-%m-%d %H:%M')} "

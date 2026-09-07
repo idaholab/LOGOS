@@ -54,8 +54,16 @@ from typing import TYPE_CHECKING, List
 if TYPE_CHECKING:
     from .pert import Pert
 
-# Floating-point / scheduling tolerance for time comparisons
-_PREC_TOL   = timedelta(seconds=60)   # 1-minute grace for precedence / window checks
+# Floating-point / scheduling tolerance for time comparisons.
+# _PREC_TOL is the quantization grace on precedence / window / hold-point
+# checks: actual start/end times are accumulated microsecond-quantized
+# `timedelta`s, so a genuinely-satisfied constraint can miss by a few
+# microseconds of float<->timedelta rounding.  It is kept at the SAME scale as
+# the engine's Pert._EVENT_EPSILON (1 ms) so the oracle tolerates only that
+# quantization noise — not a real sub-minute precedence violation.  It was
+# 60 s, which masked exactly such violations: a 56.25 s successor overlap read
+# as feasible (RCPSP_ROBUSTNESS_2026-09-07.md §9).
+_PREC_TOL   = timedelta(milliseconds=1)   # quantization grace; matches Pert._EVENT_EPSILON
 _DUR_TOL    = timedelta(seconds=60)   # 1-minute grace for duration consistency
 
 

@@ -48,6 +48,37 @@ Later additions (found by the property-based harness, test_property_based.py):
     resources (a non-active schedule).  Fixed by filling the timestep: start
     every priority-ordered candidate that fits, committing tentatively after
     each.  See ``devLogs/RCPSP_ROBUSTNESS_2026-09-07.md`` §7.
+
+  completion-gate microsecond quantization (pert.py ~5570)  → TestCompletionGateQuantization
+
+    The sibling of the ES-gate bug, on the *completion* side of the loop.
+    ``_update_ongoing_list`` completed an ongoing activity only on an exact
+    ``time_index >= end_time``, but ``end_time`` is an actual finish accumulated
+    through microsecond-quantized ``timedelta``s while ``time_index`` is often a
+    *seeded* CPM-derived instant (a successor's absolute ES from
+    ``_build_event_queue``) landing a microsecond *before* the true finish.  The
+    loop's epsilon-merge then discards the real completion event as a near-
+    duplicate of that seed, so the exact gate stranded the activity ongoing
+    forever → spurious deadlock under *unlimited* resources.  It is strategy-
+    independent (fires on all five SGS) and needs a zero-duration activity to
+    line the events up to the microsecond.  Fixed by completing within the
+    loop's own ``_EVENT_EPSILON``, mirroring the ES-gate fix.  See
+    ``devLogs/RCPSP_ROBUSTNESS_2026-09-07.md`` §8.
+
+  sub-minute duration collapse (pert.py ~3233, validator ~58)  → TestSubMinuteDurationNotCollapsed
+
+    The mirror image of the two bugs above, and caused by the SAME tolerance.
+    ``_EVENT_EPSILON`` / ``_PREC_TOL`` were ``1 minute`` — reused as the
+    quantization grace for §6/§8 but ~6 orders of magnitude larger than the
+    ~1 us noise they needed to absorb.  Any activity shorter than a minute
+    (``0.015625 h = 56.25 s``) was collapsed onto its successor by the tolerant
+    gates, so the successor started early and the makespan came out *below* the
+    CPM under unlimited resources — a precedence violation the matching 60 s
+    ``_PREC_TOL`` also hid.  Strategy-independent.  Fixed by shrinking both to
+    ``1 ms`` (still ~1000x the quantization noise, far below any real duration).
+    See ``devLogs/RCPSP_ROBUSTNESS_2026-09-07.md`` §9.  (This §9 fix also flips
+    ``TestDependencyCheckPrecTolerance`` from a 30 s-tolerated example to a
+    microsecond one, since 30 s is now a real, flagged violation.)
 """
 
 import logging
@@ -1328,10 +1359,16 @@ class TestTopKUsesCurrentTimeAvailability:
 class TestDependencyCheckPrecTolerance:
     """SC-m1 — `check_dependency_violations` compared `succ_start <
     pred_end + lag` strictly, with no time tolerance, while the authoritative
-    `schedule_validator._check_precedence` allows a 1-minute grace (`_PREC_TOL`).
-    A sub-minute gap from hour→timedelta float arithmetic was therefore reported
-    infeasible by one surface and feasible by the other.  The fix shares
-    `_PREC_TOL` so the two agree."""
+    `schedule_validator._check_precedence` allows a quantization grace
+    (`_PREC_TOL`).  A sub-tolerance gap from hour→timedelta float arithmetic was
+    therefore reported infeasible by one surface and feasible by the other.  The
+    fix shares `_PREC_TOL` so the two agree.
+
+    Note: `_PREC_TOL` was shrunk from 60 s to 1 ms (a true quantization scale)
+    in §9 of the dev log — a 60 s grace masked a real 56.25 s precedence
+    violation.  This test's tolerated-gap example is therefore microsecond-
+    scale (inside the new grace), not the old 30 s; the load-bearing assertion
+    is unchanged — the two surfaces must agree on whatever `_PREC_TOL` is."""
 
     def _placed(self, succ_offset):
         """START(0)→A(4h)→B(3h)→END(0), with B started `succ_offset` before A.end."""
@@ -1349,18 +1386,38 @@ class TestDependencyCheckPrecTolerance:
         p._completed_set = set(p.completed)
         return p
 
-    def test_subminute_gap_tolerated_like_validator(self):
-        # B starts 30s before A finishes — inside the 60s _PREC_TOL grace.
-        from CPM.schedule_validator import _check_precedence
-        p = self._placed(timedelta(seconds=30))
+    def test_subtolerance_gap_tolerated_like_validator(self):
+        # B starts 200 us before A finishes — inside the 1 ms _PREC_TOL grace
+        # (pure float<->timedelta quantization noise, not a real overlap).
+        from CPM.schedule_validator import _check_precedence, _PREC_TOL
+        assert _PREC_TOL < timedelta(seconds=1), (
+            "sanity: _PREC_TOL must be a quantization scale (§9), not a "
+            "sub-minute grace that would mask real precedence violations")
+        p = self._placed(timedelta(microseconds=200))
         _, dep_feasible = p.check_dependency_violations()
         val_viol = []
         _check_precedence(p, val_viol, [])
         val_feasible = len(val_viol) == 0
-        assert val_feasible, "sanity: validator should tolerate a 30s gap"
+        assert val_feasible, "sanity: validator should tolerate a 200us gap"
         assert dep_feasible == val_feasible, (
             "check_dependency_violations disagrees with the validator on a "
-            "sub-minute precedence gap (SC-m1)")
+            "sub-tolerance precedence gap (SC-m1)")
+
+    def test_subminute_but_supratolerance_gap_now_flagged(self):
+        # A 30 s overlap is NO LONGER tolerated: it is a real precedence
+        # violation that the old 60 s grace masked (§9).  Both surfaces must
+        # now flag it, and must still agree with each other.
+        from CPM.schedule_validator import _check_precedence
+        p = self._placed(timedelta(seconds=30))
+        violations, dep_feasible = p.check_dependency_violations()
+        val_viol = []
+        _check_precedence(p, val_viol, [])
+        val_feasible = len(val_viol) == 0
+        assert not val_feasible, (
+            "a 30 s successor overlap must now be flagged — the 60 s grace that "
+            "hid it was the §9 makespan<CPM masking bug")
+        assert dep_feasible == val_feasible, (
+            "the two surfaces must still agree after shrinking _PREC_TOL (SC-m1)")
 
     def test_real_violation_still_flagged(self):
         # B starts 2h early — well beyond any tolerance; must still be flagged.
@@ -1790,3 +1847,195 @@ class TestFirstStrategyMakespan:
         assert abs(r["scheduled_duration"] - 8.0) < 1e-6, (
             f"expected serialized makespan 8.0 (5+3), got "
             f"{r['scheduled_duration']:.6f} — `first` overbooked the crew")
+
+
+# ===========================================================================
+# Completion-gate microsecond quantization — found by test_property_based.py
+# (Hypothesis, parametrized over all 5 SGS; run 2026-09-07 "Second testing
+# outcome" in devLogs/RCPSP_ROBUSTNESS_2026-09-07.md).
+# ===========================================================================
+
+_ALL_SGS = [
+    "first",
+    "max_use_res_ranked",
+    "max_use_res_shuffled",
+    "md_knapsack",
+    "look_ahead",
+]
+
+
+class TestCompletionGateQuantization:
+    """The ongoing-activity *completion* gate must tolerate the sub-microsecond
+    gap between an actual finish (accumulated through microsecond-quantized
+    ``timedelta``s) and a *seeded* CPM-derived event instant.
+
+    Sibling of ``TestESGateQuantization`` on the other side of the loop.  Before
+    the fix, ``_update_ongoing_list`` (pert.py ~5570) completed an activity only
+    on an exact ``time_index >= end_time``.  For the instance below, A3's actual
+    accumulated finish is ``…56.598004`` while the terminal ``END`` activity's
+    absolute CPM early-start — *seeded* into the event queue by
+    ``_build_event_queue`` — is ``…56.598003``, exactly one microsecond earlier.
+    The event loop's epsilon-merge (~line 3352) then swallows A3's true
+    completion event as a near-duplicate of that seed, and the exact gate
+    (``seed_end >= a3_end`` → ``…003 >= …004`` → False) refuses to complete A3.
+    With no future event to revive it the heap empties, stranding the schedule
+    at ``completed 4/6`` (``END`` never released) with a spurious deadlock — under
+    *unlimited* resources, where the schedule must be trivially feasible.
+
+    Unlike the `first`-strategy bug this is **strategy-independent**: the
+    counterexample fails on all five SGS.  The zero-duration leading activities
+    are load-bearing — they make START, A0 and A1 all resolve at the same instant
+    so the surviving chain's finish lands exactly one microsecond off the seeded
+    successor ES.  This is the instance Hypothesis shrank to; it fails pre-fix on
+    every strategy and passes once the completion gate compares within
+    ``_EVENT_EPSILON``.
+    """
+
+    # Frozen counterexample — do NOT round these durations.
+    #   inst = (4, [0.0, 0.0, 1.7447551588106158, 1.504299842107538], [(2, 3)])
+    _DURATIONS = [
+        0.0,                  # A0 — zero-duration source
+        0.0,                  # A1 — zero-duration source
+        1.7447551588106158,   # A2 — feeds A3
+        1.504299842107538,    # A3
+    ]
+    _EDGES = [(2, 3)]
+
+    def _witness_pert(self):
+        acts = [Activity(f"A{i}", d) for i, d in enumerate(self._DURATIONS)]
+        start, end = Activity("START", 0.0), Activity("END", 0.0)
+        succ = {a: [] for a in acts}
+        for i, j in self._EDGES:
+            succ[acts[i]].append(acts[j])
+        has_in = {j for _, j in self._EDGES}
+        has_out = {i for i, _ in self._EDGES}
+        fwd = {start: [acts[i] for i in range(len(acts)) if i not in has_in]}
+        fwd.update(succ)
+        for i in range(len(acts)):
+            if i not in has_out:
+                fwd[acts[i]].append(end)
+        fwd[end] = []
+        return _build(fwd)   # empty pools = unlimited capacity
+
+    @pytest.mark.parametrize("sgs", _ALL_SGS)
+    def test_terminal_activity_not_stranded(self, sgs):
+        p = self._witness_pert()
+        result = p.calculateScheduleWithResources(sgs=sgs)
+
+        n_total = len(p.infoDict)
+        completed_names = {a.returnName() for a in p.completed}
+        assert len(p.completed) == n_total, (
+            f"[{sgs}] scheduler stranded {n_total - len(p.completed)} "
+            f"activit(y|ies) under unlimited resources: waiting="
+            f"{[a.returnName() for a in p.wait]} "
+            "(completion-gate quantization regression, §8)")
+        assert "END" in completed_names, (
+            f"[{sgs}] terminal END activity never completed")
+        # Under unlimited resources the constrained makespan must equal the CPM.
+        assert abs(result["scheduled_duration"] - result["cpm_duration"]) < 1e-6, (
+            f"[{sgs}] makespan {result['scheduled_duration']:.6f} != "
+            f"CPM {result['cpm_duration']:.6f} under unlimited resources")
+
+    @pytest.mark.parametrize("sgs", _ALL_SGS)
+    def test_independent_validator_agrees(self, sgs):
+        p = self._witness_pert()
+        p.calculateScheduleWithResources(sgs=sgs)
+        vr = p.validate_schedule()
+        assert vr.is_feasible, (
+            f"[{sgs}] independent validator flagged the schedule infeasible:\n"
+            + vr.summary())
+
+
+# ===========================================================================
+# Sub-minute duration collapse (makespan < CPM) — found by test_property_based.py
+# (Hypothesis, all 5 SGS; run 2026-09-07 "Third testing outcome").  The mirror
+# image of the two quantization deadlock/inflation bugs above: caused by the
+# SAME tolerance, but oversized.  See devLogs/RCPSP_ROBUSTNESS_2026-09-07.md §9.
+# ===========================================================================
+
+class TestSubMinuteDurationNotCollapsed:
+    """An activity shorter than the loop's quantization tolerance must still
+    push its successor out by its full duration — the makespan can never fall
+    *below* the CPM under unlimited resources.
+
+    Root cause (§9): ``_EVENT_EPSILON`` (and the validator's ``_PREC_TOL``) were
+    ``1 minute`` — reused from the §6/§8 quantization fixes, but ~6 orders of
+    magnitude larger than the ~1 us noise those fixes needed to absorb.  A
+    ``0.015625 h = 56.25 s`` activity is *shorter* than that 60 s grace, so the
+    tolerant ES / completion gates treated it as finished the instant it
+    started: its successor launched concurrently and the makespan came out
+    ``1.0`` vs CPM ``1.015625`` — a precedence violation the matching 60 s
+    ``_PREC_TOL`` also hid (validator reported feasible).  Strategy-independent:
+    all five SGS collapse the same way.
+
+    Fixed by shrinking ``_EVENT_EPSILON`` / ``_PREC_TOL`` to ``1 ms`` — still
+    ~1000x the quantization noise, but ~5 orders of magnitude below any
+    physically meaningful outage-activity duration.  ``0.015625 h`` is the
+    minimal duration Hypothesis shrank to (``1/64 h``); it is load-bearing —
+    rounding it away destroys the sub-tolerance collapse.
+    """
+
+    # Two frozen counterexamples (Hypothesis reported one per reported
+    # strategy, but the defect is strategy-independent — see the sweep in §9).
+    #   first:       inst=(6, [0.0, 0.0, 0.0, 0.0, 0.015625, 1.0], [(4, 5)])
+    #   md_knapsack: inst=(4, [0.015625, 0.0, 0.0, 1.0], [(0, 3)])
+    _CASES = [
+        (6, [0.0, 0.0, 0.0, 0.0, 0.015625, 1.0], [(4, 5)]),
+        (4, [0.015625, 0.0, 0.0, 1.0], [(0, 3)]),
+    ]
+
+    def _build_pert(self, n, durations, edges):
+        acts = [Activity(f"A{i}", float(durations[i])) for i in range(n)]
+        start, end = Activity("START", 0.0), Activity("END", 0.0)
+        succ = {a: [] for a in acts}
+        for i, j in edges:
+            succ[acts[i]].append(acts[j])
+        has_in = {j for _, j in edges}
+        has_out = {i for i, _ in edges}
+        fwd = {start: [acts[i] for i in range(n) if i not in has_in]}
+        fwd.update(succ)
+        for i in range(n):
+            if i not in has_out:
+                fwd[acts[i]].append(end)
+        fwd[end] = []
+        return _build(fwd)   # empty pools = unlimited capacity
+
+    @pytest.mark.parametrize("inst", _CASES,
+                             ids=["first-CX", "knapsack-CX"])
+    @pytest.mark.parametrize("sgs", _ALL_SGS)
+    def test_makespan_not_below_cpm(self, sgs, inst):
+        p = self._build_pert(*inst)
+        r = p.calculateScheduleWithResources(sgs=sgs)
+        ms, cpm = r["scheduled_duration"], r["cpm_duration"]
+        # The hard invariant: makespan >= CPM (you cannot beat the critical path
+        # under unlimited resources).  Pre-fix ms=1.0 < cpm=1.015625 by exactly
+        # the collapsed 56.25 s activity.
+        assert ms >= cpm - 1e-9, (
+            f"[{sgs}] makespan {ms:.6f} < CPM {cpm:.6f} under unlimited "
+            f"resources — a sub-tolerance activity was collapsed onto its "
+            f"successor (precedence violation, §9)")
+        # And, unlimited => equality (not merely >=).
+        assert abs(ms - cpm) < 1e-6, (
+            f"[{sgs}] makespan {ms:.6f} != CPM {cpm:.6f} under unlimited "
+            f"resources (§9)")
+        assert len(p.completed) == len(p.infoDict)
+
+    @pytest.mark.parametrize("inst", _CASES,
+                             ids=["first-CX", "knapsack-CX"])
+    @pytest.mark.parametrize("sgs", _ALL_SGS)
+    def test_short_activity_precedes_its_successor(self, inst, sgs):
+        # Direct precedence check: the short predecessor's physical end must not
+        # be after its successor's start (beyond the quantization tolerance).
+        n, durations, edges = inst
+        p = self._build_pert(*inst)
+        p.calculateScheduleWithResources(sgs=sgs)
+        name_to_act = {a.returnName(): a for a in p.forwardDict}
+        for i, j in edges:
+            pred, succ = name_to_act[f"A{i}"], name_to_act[f"A{j}"]
+            _, pred_end = pred.returnAbsTimes()
+            succ_start, _ = succ.returnAbsTimes()
+            gap = (succ_start - pred_end).total_seconds()
+            assert gap >= -1e-3, (
+                f"[{sgs}] A{j} starts {-gap:.3f}s before A{i} (dur "
+                f"{durations[i]*3600:.2f}s) ends — sub-tolerance predecessor "
+                f"collapsed (§9)")

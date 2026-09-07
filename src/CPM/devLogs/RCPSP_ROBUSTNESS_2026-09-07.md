@@ -549,1022 +549,415 @@ strategy returning provably suboptimal makespans.
 - Full CPM suite: **908 passed, 4 skipped** (no failures; +2 over the 906 after
   the ES-gate freeze).
 
-## Second testing outcome
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=16.7h | strategy=md_knapsack | max_time=167.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=16.7h | actual=16.7h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=16.2h | strategy=md_knapsack | max_time=162.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=16.2h | actual=16.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=16.0h | strategy=md_knapsack | max_time=159.9h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=16.0h | actual=16.0h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=15.9h | strategy=md_knapsack | max_time=158.7h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=15.9h | actual=15.9h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=15.9h | strategy=md_knapsack | max_time=159.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=15.9h | actual=15.9h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=16.0h | strategy=md_knapsack | max_time=159.6h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=16.0h | actual=16.0h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=16.0h | strategy=md_knapsack | max_time=159.8h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=16.0h | actual=16.0h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=16.0h | strategy=md_knapsack | max_time=159.7h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=16.0h | actual=16.0h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=16.0h | strategy=md_knapsack | max_time=159.7h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=16.0h | actual=16.0h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=13.7h | strategy=md_knapsack | max_time=137.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=13.7h | actual=13.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=13.7h | strategy=md_knapsack | max_time=137.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=13.7h | actual=13.7h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=14.9h | strategy=md_knapsack | max_time=148.6h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.9h | actual=14.9h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=15.2h | strategy=md_knapsack | max_time=152.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=15.2h | actual=28.2h | delay=0.0h | completed=6/6 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=3/6 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=4.2h | delay=0.0h | completed=6/6 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.1h | strategy=md_knapsack | max_time=31.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.1h | actual=3.1h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=4.1h | strategy=md_knapsack | max_time=41.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=4.1h | actual=4.1h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.6h | strategy=md_knapsack | max_time=36.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.6h | actual=3.6h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.4h | strategy=md_knapsack | max_time=33.6h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.4h | actual=3.4h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=31.8h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.1h | strategy=md_knapsack | max_time=31.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.1h | actual=3.1h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=4.1h | strategy=md_knapsack | max_time=41.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=4.1h | actual=4.1h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.6h | strategy=md_knapsack | max_time=36.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.6h | actual=3.6h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.4h | strategy=md_knapsack | max_time=33.6h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.4h | actual=3.4h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=31.8h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=4 | CPM=1.1h | strategy=md_knapsack | max_time=11.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.1h | actual=1.1h | delay=0.0h | completed=4/4 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=4 | CPM=0.0h | strategy=md_knapsack | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=4/4 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=1.1h | strategy=md_knapsack | max_time=11.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.1h | actual=1.1h | delay=0.0h | completed=5/5 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=0.0h | strategy=md_knapsack | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=5/5 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=3/5 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.1h | strategy=md_knapsack | max_time=21.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.1h | actual=2.1h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=4/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=2.1h | strategy=md_knapsack | max_time=21.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.1h | actual=2.1h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.1h | strategy=md_knapsack | max_time=21.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.1h | actual=2.1h | delay=0.0h | completed=5/5 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.1h | strategy=md_knapsack | max_time=21.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.1h | actual=2.1h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.1h | strategy=md_knapsack | max_time=21.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.1h | actual=2.1h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=1.1h | strategy=md_knapsack | max_time=11.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.1h | actual=1.1h | delay=0.0h | completed=5/5 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=2.1h | strategy=md_knapsack | max_time=21.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.1h | actual=2.1h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=2.1h | strategy=md_knapsack | max_time=21.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.1h | actual=2.1h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.0h | strategy=md_knapsack | max_time=30.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.0h | actual=3.0h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=5.0h | strategy=md_knapsack | max_time=50.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=5.0h | actual=5.0h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=4.0h | strategy=md_knapsack | max_time=40.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=4.0h | actual=4.0h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.5h | strategy=md_knapsack | max_time=35.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.1h | strategy=md_knapsack | max_time=31.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.1h | actual=3.1h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=31.9h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=1.1h | strategy=md_knapsack | max_time=11.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.1h | actual=1.1h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=3 | CPM=1.1h | strategy=md_knapsack | max_time=11.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.1h | actual=1.1h | delay=0.0h | completed=3/3 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=3 | CPM=1.0h | strategy=md_knapsack | max_time=10.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.0h | actual=1.0h | delay=0.0h | completed=3/3 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=4/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=2.1h | strategy=md_knapsack | max_time=21.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.1h | actual=2.1h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=2.1h | strategy=md_knapsack | max_time=21.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.1h | actual=2.1h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=1.1h | strategy=md_knapsack | max_time=11.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.1h | actual=1.1h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=1.1h | strategy=md_knapsack | max_time=11.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.1h | actual=1.1h | delay=0.0h | completed=5/5 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.0h | strategy=md_knapsack | max_time=20.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.0h | actual=2.0h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=4.0h | strategy=md_knapsack | max_time=40.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=4.0h | actual=4.0h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=3.0h | strategy=md_knapsack | max_time=30.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.0h | actual=3.0h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.5h | strategy=md_knapsack | max_time=25.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.5h | actual=2.5h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.1h | strategy=md_knapsack | max_time=21.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.1h | actual=2.1h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=21.9h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=3.1h | strategy=md_knapsack | max_time=31.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.1h | actual=3.1h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.6h | strategy=md_knapsack | max_time=26.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.6h | actual=2.6h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.4h | strategy=md_knapsack | max_time=23.6h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.4h | actual=2.4h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=21.8h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.1h | strategy=md_knapsack | max_time=21.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.1h | actual=2.1h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=3.1h | strategy=md_knapsack | max_time=31.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.1h | actual=3.1h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.6h | strategy=md_knapsack | max_time=26.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.6h | actual=2.6h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.4h | strategy=md_knapsack | max_time=23.6h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.4h | actual=2.4h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=21.8h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=4 | CPM=1.1h | strategy=md_knapsack | max_time=11.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.1h | actual=1.1h | delay=0.0h | completed=4/4 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=4 | CPM=2.1h | strategy=md_knapsack | max_time=21.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.1h | actual=2.1h | delay=0.0h | completed=4/4 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=4 | CPM=1.1h | strategy=md_knapsack | max_time=11.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.1h | actual=1.1h | delay=0.0h | completed=4/4 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=md_knapsack | max_time=32.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=4.2h | delay=0.0h | completed=6/6 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.2h | strategy=md_knapsack | max_time=22.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.2h | actual=2.2h | delay=0.0h | completed=3/5 | iterations=4
-__________________________________________________________________ test_unconstrained_makespan_equals_cpm[look_ahead] ___________________________________________________________________
-test_property_based.py:131: in test_unconstrained_makespan_equals_cpm
-    @settings(max_examples=200, deadline=None,
-                   ^^^^^^
-test_property_based.py:137: in test_unconstrained_makespan_equals_cpm
-    assert_valid_schedule(p)
-conftest.py:50: in assert_valid_schedule
-    pytest.fail(
-E   Failed: Scheduler output failed validation.
-E   
-E   Schedule Validation Report
-E   ==================================================
-E   Status     : INFEASIBLE
-E   Violations : 1
-E   Warnings   : 0
-E   
-E   --- Violations ---
-E     [ERROR] [completeness ] schedule: 2 of 6 activities not scheduled (first 5: ['A3'])  [excess=2.00]
-E   ==================================================
-E   Failing test case: test_unconstrained_makespan_equals_cpm(
-E       sgs='look_ahead',
-E       inst=(4, [0.0, 0.0, 1.7447551588106158, 1.504299842107538], [(2, 3)]),
-E   )
-E   Explanation:
-E       These lines were always and only run by failing test cases:
-E           /Users/mandd/projects/LOGOS/tests/unit_tests/CPM/../../../src/CPM/pert.py:3341
-E           /Users/mandd/projects/LOGOS/tests/unit_tests/CPM/../../../src/CPM/pert.py:5206
-E           /Users/mandd/projects/LOGOS/tests/unit_tests/CPM/../../../src/CPM/schedule_validator.py:215
-E           /Users/mandd/projects/LOGOS/tests/unit_tests/CPM/../../../src/CPM/schedule_validator.py:301
-E           /Users/mandd/projects/LOGOS/tests/unit_tests/CPM/../../../src/CPM/schedule_validator.py:306
---------------------------------------------------------------------------------- Captured stderr call ----------------------------------------------------------------------------------
-INFO:CPM.pert:Starting event-driven RCPSP | activities=3 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO:CPM.pert:Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=3/3 | iterations=3
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO:CPM.pert:Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=8/8 | iterations=3
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO:CPM.pert:Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO:CPM.pert:Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO:CPM.pert:Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=7
-INFO:CPM.pert:Starting event-driven RCPSP | activities=3 | CPM=16.0h | strategy=look_ahead | max_time=160.0h
-INFO:CPM.pert:Scheduling complete | CPM=16.0h | actual=16.0h | delay=0.0h | completed=3/3 | iterations=3
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO:CPM.pert:Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO:CPM.pert:Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO:CPM.pert:Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO:CPM.pert:Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO:CPM.pert:Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=7
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO:CPM.pert:Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.9h | strategy=look_ahead | max_time=219.0h
-INFO:CPM.pert:Scheduling complete | CPM=21.9h | actual=21.9h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO:CPM.pert:Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO:CPM.pert:Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=13.7h | strategy=look_ahead | max_time=136.6h
-INFO:CPM.pert:Scheduling complete | CPM=13.7h | actual=13.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO:CPM.pert:Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO:CPM.pert:Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=3 | CPM=6.5h | strategy=look_ahead | max_time=65.0h
-INFO:CPM.pert:Scheduling complete | CPM=6.5h | actual=6.5h | delay=0.0h | completed=3/3 | iterations=3
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=6.5h | strategy=look_ahead | max_time=65.0h
-INFO:CPM.pert:Scheduling complete | CPM=6.5h | actual=6.5h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=3 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=3/3 | iterations=3
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=7
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO:CPM.pert:Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=20.5h | strategy=look_ahead | max_time=205.0h
-INFO:CPM.pert:Scheduling complete | CPM=20.5h | actual=20.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.5h | strategy=look_ahead | max_time=215.0h
-INFO:CPM.pert:Scheduling complete | CPM=21.5h | actual=21.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.0h | strategy=look_ahead | max_time=210.0h
-INFO:CPM.pert:Scheduling complete | CPM=21.0h | actual=21.0h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.3h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.3h | actual=21.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.1h | strategy=look_ahead | max_time=211.3h
-INFO:CPM.pert:Scheduling complete | CPM=21.1h | actual=21.1h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=211.9h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.2h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.4h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.3h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.3h | actual=21.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO:CPM.pert:Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.5h
-INFO:CPM.pert:Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=7.5h | strategy=look_ahead | max_time=75.0h
-INFO:CPM.pert:Scheduling complete | CPM=7.5h | actual=7.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.5h | strategy=look_ahead | max_time=85.0h
-INFO:CPM.pert:Scheduling complete | CPM=8.5h | actual=8.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.0h | strategy=look_ahead | max_time=80.0h
-INFO:CPM.pert:Scheduling complete | CPM=8.0h | actual=8.0h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=82.5h
-INFO:CPM.pert:Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.1h | strategy=look_ahead | max_time=81.3h
-INFO:CPM.pert:Scheduling complete | CPM=8.1h | actual=8.1h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=81.9h
-INFO:CPM.pert:Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.2h
-INFO:CPM.pert:Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.4h
-INFO:CPM.pert:Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.5h
-INFO:CPM.pert:Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=82.5h
-INFO:CPM.pert:Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.5h
-INFO:CPM.pert:Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=7.7h | strategy=look_ahead | max_time=77.4h
-INFO:CPM.pert:Scheduling complete | CPM=7.7h | actual=7.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.7h | strategy=look_ahead | max_time=87.4h
-INFO:CPM.pert:Scheduling complete | CPM=8.7h | actual=8.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.4h
-INFO:CPM.pert:Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.5h | strategy=look_ahead | max_time=84.9h
-INFO:CPM.pert:Scheduling complete | CPM=8.5h | actual=8.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.4h | strategy=look_ahead | max_time=83.7h
-INFO:CPM.pert:Scheduling complete | CPM=8.4h | actual=8.4h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=83.1h
-INFO:CPM.pert:Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=82.8h
-INFO:CPM.pert:Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=82.6h
-INFO:CPM.pert:Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=82.5h
-INFO:CPM.pert:Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.5h
-INFO:CPM.pert:Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=82.5h
-INFO:CPM.pert:Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=2.7h | strategy=look_ahead | max_time=27.4h
-INFO:CPM.pert:Scheduling complete | CPM=2.7h | actual=2.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.7h | strategy=look_ahead | max_time=37.4h
-INFO:CPM.pert:Scheduling complete | CPM=3.7h | actual=3.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.4h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.5h | strategy=look_ahead | max_time=34.9h
-INFO:CPM.pert:Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.4h | strategy=look_ahead | max_time=33.7h
-INFO:CPM.pert:Scheduling complete | CPM=3.4h | actual=3.4h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=33.1h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=32.8h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=32.6h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=4 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO:CPM.pert:Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=4/4 | iterations=3
-INFO:CPM.pert:Starting event-driven RCPSP | activities=5 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO:CPM.pert:Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=5/5 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=5 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO:CPM.pert:Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=5/5 | iterations=3
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO:CPM.pert:Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=6/6 | iterations=3
-INFO:CPM.pert:Starting event-driven RCPSP | activities=7 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=7/7 | iterations=6
-INFO:CPM.pert:Starting event-driven RCPSP | activities=7 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO:CPM.pert:Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=7/7 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=7 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=7/7 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=2.5h | strategy=look_ahead | max_time=25.0h
-INFO:CPM.pert:Scheduling complete | CPM=2.5h | actual=2.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.5h | strategy=look_ahead | max_time=35.0h
-INFO:CPM.pert:Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.0h | strategy=look_ahead | max_time=30.0h
-INFO:CPM.pert:Scheduling complete | CPM=3.0h | actual=3.0h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.1h | strategy=look_ahead | max_time=31.3h
-INFO:CPM.pert:Scheduling complete | CPM=3.1h | actual=3.1h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=31.9h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.2h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.4h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=7 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO:CPM.pert:Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=7/7 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=7 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=5/7 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO:CPM.pert:Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=6/6 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=4/6 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=4 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO:CPM.pert:Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=4/4 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=5 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO:CPM.pert:Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=5/5 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=5 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=5/5 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=5 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=5/5 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=2.7h | strategy=look_ahead | max_time=27.4h
-INFO:CPM.pert:Scheduling complete | CPM=2.7h | actual=2.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.7h | strategy=look_ahead | max_time=37.4h
-INFO:CPM.pert:Scheduling complete | CPM=3.7h | actual=3.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.4h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.5h | strategy=look_ahead | max_time=34.9h
-INFO:CPM.pert:Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.4h | strategy=look_ahead | max_time=33.7h
-INFO:CPM.pert:Scheduling complete | CPM=3.4h | actual=3.4h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=33.1h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.8h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.6h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=2.5h | strategy=look_ahead | max_time=25.0h
-INFO:CPM.pert:Scheduling complete | CPM=2.5h | actual=2.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.5h | strategy=look_ahead | max_time=35.0h
-INFO:CPM.pert:Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.0h | strategy=look_ahead | max_time=30.0h
-INFO:CPM.pert:Scheduling complete | CPM=3.0h | actual=3.0h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.1h | strategy=look_ahead | max_time=31.3h
-INFO:CPM.pert:Scheduling complete | CPM=3.1h | actual=3.1h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=31.9h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.2h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.4h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=5 | CPM=2.5h | strategy=look_ahead | max_time=25.0h
-INFO:CPM.pert:Scheduling complete | CPM=2.5h | actual=2.5h | delay=0.0h | completed=5/5 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=5 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO:CPM.pert:Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=5/5 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=5 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO:CPM.pert:Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=5/5 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=6/6 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO:CPM.pert:Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=6/6 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO:CPM.pert:Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=4/6 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=3 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO:CPM.pert:Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=3/3 | iterations=3
-INFO:CPM.pert:Starting event-driven RCPSP | activities=3 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=3/3 | iterations=3
-INFO:CPM.pert:Starting event-driven RCPSP | activities=5 | CPM=2.7h | strategy=look_ahead | max_time=27.4h
-INFO:CPM.pert:Scheduling complete | CPM=2.7h | actual=2.7h | delay=0.0h | completed=5/5 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=5 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=5/5 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=5 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=5/5 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=2.7h | strategy=look_ahead | max_time=27.4h
-INFO:CPM.pert:Scheduling complete | CPM=2.7h | actual=2.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.7h | strategy=look_ahead | max_time=37.4h
-INFO:CPM.pert:Scheduling complete | CPM=3.7h | actual=3.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.4h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.5h | strategy=look_ahead | max_time=34.9h
-INFO:CPM.pert:Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.4h | strategy=look_ahead | max_time=33.7h
-INFO:CPM.pert:Scheduling complete | CPM=3.4h | actual=3.4h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=33.1h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.8h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.6h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=2.5h | strategy=look_ahead | max_time=25.0h
-INFO:CPM.pert:Scheduling complete | CPM=2.5h | actual=2.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.5h | strategy=look_ahead | max_time=35.0h
-INFO:CPM.pert:Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.0h | strategy=look_ahead | max_time=30.0h
-INFO:CPM.pert:Scheduling complete | CPM=3.0h | actual=3.0h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.1h | strategy=look_ahead | max_time=31.3h
-INFO:CPM.pert:Scheduling complete | CPM=3.1h | actual=3.1h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=31.9h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.2h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.4h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=5 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=5/5 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO:CPM.pert:Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=6/6 | iterations=4
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO:CPM.pert:Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO:CPM.pert:Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=4/6 | iterations=4
------------------------------------------------------------------------------------ Captured log call -----------------------------------------------------------------------------------
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=3 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=3/3 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=8/8 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=3 | CPM=16.0h | strategy=look_ahead | max_time=160.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=16.0h | actual=16.0h | delay=0.0h | completed=3/3 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.9h | strategy=look_ahead | max_time=219.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.9h | actual=21.9h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=13.7h | strategy=look_ahead | max_time=136.6h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=13.7h | actual=13.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=28.4h | strategy=look_ahead | max_time=284.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=28.4h | actual=28.4h | delay=0.0h | completed=6/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=3 | CPM=6.5h | strategy=look_ahead | max_time=65.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=6.5h | actual=6.5h | delay=0.0h | completed=3/3 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=6.5h | strategy=look_ahead | max_time=65.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=6.5h | actual=6.5h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=3 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=3/3 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=7
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=14.7h | strategy=look_ahead | max_time=147.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=14.7h | actual=14.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=20.5h | strategy=look_ahead | max_time=205.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=20.5h | actual=20.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.5h | strategy=look_ahead | max_time=215.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.5h | actual=21.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.0h | strategy=look_ahead | max_time=210.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.0h | actual=21.0h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.3h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.3h | actual=21.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.1h | strategy=look_ahead | max_time=211.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.1h | actual=21.1h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=211.9h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.3h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.3h | actual=21.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=21.2h | strategy=look_ahead | max_time=212.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=21.2h | actual=21.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=7.5h | strategy=look_ahead | max_time=75.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=7.5h | actual=7.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.5h | strategy=look_ahead | max_time=85.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.5h | actual=8.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.0h | strategy=look_ahead | max_time=80.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.0h | actual=8.0h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=82.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.1h | strategy=look_ahead | max_time=81.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.1h | actual=8.1h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=81.9h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=82.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=7.7h | strategy=look_ahead | max_time=77.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=7.7h | actual=7.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.7h | strategy=look_ahead | max_time=87.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.7h | actual=8.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.5h | strategy=look_ahead | max_time=84.9h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.5h | actual=8.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.4h | strategy=look_ahead | max_time=83.7h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.4h | actual=8.4h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=83.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=82.8h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=82.6h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=82.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.2h | strategy=look_ahead | max_time=82.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.2h | actual=8.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=8.3h | strategy=look_ahead | max_time=82.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=8.3h | actual=8.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/8 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=2.7h | strategy=look_ahead | max_time=27.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.7h | actual=2.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.7h | strategy=look_ahead | max_time=37.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.7h | actual=3.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.5h | strategy=look_ahead | max_time=34.9h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.4h | strategy=look_ahead | max_time=33.7h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.4h | actual=3.4h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=33.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=32.8h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=32.6h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=4 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=4/4 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=5/5 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=5/5 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=6/6 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=7 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=7/7 | iterations=6
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=7 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=7/7 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=7 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=7/7 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=2.5h | strategy=look_ahead | max_time=25.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.5h | actual=2.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.5h | strategy=look_ahead | max_time=35.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.0h | strategy=look_ahead | max_time=30.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.0h | actual=3.0h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.1h | strategy=look_ahead | max_time=31.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.1h | actual=3.1h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=31.9h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=8/8 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=7 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=7/7 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=7 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=5/7 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=6/6 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=4/6 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=4 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=4/4 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=5/5 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=5/5 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=2.7h | strategy=look_ahead | max_time=27.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.7h | actual=2.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.7h | strategy=look_ahead | max_time=37.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.7h | actual=3.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.5h | strategy=look_ahead | max_time=34.9h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.4h | strategy=look_ahead | max_time=33.7h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.4h | actual=3.4h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=33.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.8h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.6h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=2.5h | strategy=look_ahead | max_time=25.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.5h | actual=2.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.5h | strategy=look_ahead | max_time=35.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.0h | strategy=look_ahead | max_time=30.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.0h | actual=3.0h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.1h | strategy=look_ahead | max_time=31.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.1h | actual=3.1h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=31.9h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.5h | strategy=look_ahead | max_time=25.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.5h | actual=2.5h | delay=0.0h | completed=5/5 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=6/6 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=0.0h | strategy=look_ahead | max_time=0.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=0.0h | actual=0.0h | delay=0.0h | completed=6/6 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=4/6 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=3 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=3/3 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=3 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=3/3 | iterations=3
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=2.7h | strategy=look_ahead | max_time=27.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.7h | actual=2.7h | delay=0.0h | completed=5/5 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=2.7h | strategy=look_ahead | max_time=27.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.7h | actual=2.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.7h | strategy=look_ahead | max_time=37.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.7h | actual=3.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.5h | strategy=look_ahead | max_time=34.9h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.4h | strategy=look_ahead | max_time=33.7h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.4h | actual=3.4h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=33.1h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.8h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.6h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=2.5h | strategy=look_ahead | max_time=25.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=2.5h | actual=2.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.5h | strategy=look_ahead | max_time=35.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.5h | actual=3.5h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.0h | strategy=look_ahead | max_time=30.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.0h | actual=3.0h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.1h | strategy=look_ahead | max_time=31.3h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.1h | actual=3.1h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=31.9h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.2h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.3h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.3h | actual=3.3h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=5 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=5/5 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=1.5h | strategy=look_ahead | max_time=15.0h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.5h | actual=1.5h | delay=0.0h | completed=6/6 | iterations=4
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=1.7h | strategy=look_ahead | max_time=17.4h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.7h | actual=1.7h | delay=0.0h | completed=6/6 | iterations=5
-INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=3.2h | strategy=look_ahead | max_time=32.5h
-INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=3.2h | actual=3.2h | delay=0.0h | completed=4/6 | iterations=4
+## Third testing outcome
 ================================================================================ short test summary info ================================================================================
-FAILED test_property_based.py::test_unconstrained_makespan_equals_cpm[first] - BaseExceptionGroup: Hypothesis found 2 distinct failures. (2 sub-exceptions)
-FAILED test_property_based.py::test_unconstrained_makespan_equals_cpm[max_use_res_ranked] - BaseExceptionGroup: Hypothesis found 2 distinct failures. (2 sub-exceptions)
-FAILED test_property_based.py::test_unconstrained_makespan_equals_cpm[max_use_res_shuffled] - BaseExceptionGroup: Hypothesis found 2 distinct failures. (2 sub-exceptions)
-FAILED test_property_based.py::test_unconstrained_makespan_equals_cpm[md_knapsack] - BaseExceptionGroup: Hypothesis found 2 distinct failures. (2 sub-exceptions)
-FAILED test_property_based.py::test_unconstrained_makespan_equals_cpm[look_ahead] - Failed: Scheduler output failed validation.
-
-Schedule Validation Report
-==================================================
-Status     : INFEASIBLE
-Violations : 1
-Warnings   : 0
-
---- Violations ---
-  [ERROR] [completeness ] schedule: 2 of 6 activities not scheduled (first 5: ['A3'])  [excess=2.00]
-==================================================
+FAILED test_property_based.py::test_unconstrained_makespan_equals_cpm[first] - AssertionError: [first] makespan 1.0000 != CPM 1.0156
+assert 0.015625 < 1e-06
+ +  where 0.015625 = abs((1.0 - 1.015625))
 Failing test case: test_unconstrained_makespan_equals_cpm(
-    sgs='look_ahead',
-    inst=(4, [0.0, 0.0, 1.7447551588106158, 1.504299842107538], [(2, 3)]),
+    sgs='first',
+    inst=(6, [0.0, 0.0, 0.0, 0.0, 0.015625, 1.0], [(4, 5)]),
+)
+FAILED test_property_based.py::test_unconstrained_makespan_equals_cpm[md_knapsack] - AssertionError: [md_knapsack] makespan 1.0000 != CPM 1.0156
+assert 0.015625 < 1e-06
+ +  where 0.015625 = abs((1.0 - 1.015625))
+Failing test case: test_unconstrained_makespan_equals_cpm(
+    sgs='md_knapsack',
+    inst=(4, [0.015625, 0.0, 0.0, 1.0], [(0, 3)]),
 )
 Explanation:
     These lines were always and only run by failing test cases:
-        /Users/mandd/projects/LOGOS/tests/unit_tests/CPM/../../../src/CPM/pert.py:3341
-        /Users/mandd/projects/LOGOS/tests/unit_tests/CPM/../../../src/CPM/pert.py:5206
-        /Users/mandd/projects/LOGOS/tests/unit_tests/CPM/../../../src/CPM/schedule_validator.py:215
-        /Users/mandd/projects/LOGOS/tests/unit_tests/CPM/../../../src/CPM/schedule_validator.py:301
-        /Users/mandd/projects/LOGOS/tests/unit_tests/CPM/../../../src/CPM/schedule_validator.py:306
-============================================================================== 5 failed, 2 passed in 5.75s ==============================================================================
+        /Users/mandd/projects/LOGOS/tests/unit_tests/CPM/test_property_based.py:139
+        /Users/mandd/projects/LOGOS/tests/unit_tests/CPM/test_property_based.py:140
+============================================================================== 2 failed, 5 passed in 1.61s ==============================================================================
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ git status
+On branch mandd/res_opt
+Your branch is ahead of 'origin/mandd/res_opt' by 1 commit.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   ../../../src/CPM/pert.py
+        modified:   test_bugfix_regressions.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        ../../../.claude/
+        ../../../delete_trailing_whitespace.sh
+        ../../../doc/demos/CPM/CPM_testing_from file.ipynb
+        ../../CPMmodel/.ravenStatus
+        ../../CPMmodel/Print_sim_PS.xml
+        ../../CPMmodel/Print_sim_PS_map.xml
+        .coverage
+
+no changes added to commit (use "git add" and/or "git commit -a")
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ 
+(LOGOS_libraries) mandd@INL431037:~/projects/LOGOS/tests/unit_tests/CPM$ python -m pytest test_property_based.py -v
+================================================================================== test session starts ==================================================================================
+platform darwin -- Python 3.14.2, pytest-9.1.1, pluggy-1.6.0 -- /opt/miniconda3/envs/LOGOS_libraries/bin/python
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: /Users/mandd/projects/LOGOS/tests/unit_tests/CPM
+configfile: pytest.ini
+plugins: hypothesis-6.167.1, anyio-4.13.0
+collected 7 items                                                                                                                                                                       
+
+test_property_based.py::test_generator_smoke PASSED                                                                                                                               [ 14%]
+test_property_based.py::test_unconstrained_makespan_equals_cpm[first] FAILED                                                                                                      [ 28%]
+test_property_based.py::test_unconstrained_makespan_equals_cpm[max_use_res_ranked] PASSED                                                                                         [ 42%]
+test_property_based.py::test_unconstrained_makespan_equals_cpm[max_use_res_shuffled] PASSED                                                                                       [ 57%]
+test_property_based.py::test_unconstrained_makespan_equals_cpm[md_knapsack] FAILED                                                                                                [ 71%]
+test_property_based.py::test_unconstrained_makespan_equals_cpm[look_ahead] PASSED                                                                                                 [ 85%]
+test_property_based.py::test_duration_scaling_scales_cpm PASSED                                                                                                                   [100%]
+
+======================================================================================= FAILURES ========================================================================================
+_____________________________________________________________________ test_unconstrained_makespan_equals_cpm[first] _____________________________________________________________________
+test_property_based.py:131: in test_unconstrained_makespan_equals_cpm
+    @settings(max_examples=200, deadline=None,
+                   ^^^^^^
+test_property_based.py:138: in test_unconstrained_makespan_equals_cpm
+    assert abs(r["scheduled_duration"] - r["cpm_duration"]) < TOL, (
+E   AssertionError: [first] makespan 1.0000 != CPM 1.0156
+E   assert 0.015625 < 1e-06
+E    +  where 0.015625 = abs((1.0 - 1.015625))
+E   Failing test case: test_unconstrained_makespan_equals_cpm(
+E       sgs='first',
+E       inst=(6, [0.0, 0.0, 0.0, 0.0, 0.015625, 1.0], [(4, 5)]),
+E   )
+--------------------------------------------------------------------------------- Captured stderr call ----------------------------------------------------------------------------------
+INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=1.0h | strategy=first | max_time=10.2h
+INFO:CPM.pert:Scheduling complete | CPM=1.0h | actual=1.0h | delay=0.0h | completed=8/8 | iterations=4
+INFO:CPM.pert:Starting event-driven RCPSP | activities=8 | CPM=1.0h | strategy=first | max_time=10.2h
+INFO:CPM.pert:Scheduling complete | CPM=1.0h | actual=1.0h | delay=0.0h | completed=8/8 | iterations=4
+----------------------------------------------------------------------------------- Captured log call -----------------------------------------------------------------------------------
+INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=1.0h | strategy=first | max_time=10.2h
+INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.0h | actual=1.0h | delay=0.0h | completed=8/8 | iterations=4
+INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=8 | CPM=1.0h | strategy=first | max_time=10.2h
+INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.0h | actual=1.0h | delay=0.0h | completed=8/8 | iterations=4
+__________________________________________________________________ test_unconstrained_makespan_equals_cpm[md_knapsack] __________________________________________________________________
+test_property_based.py:131: in test_unconstrained_makespan_equals_cpm
+    @settings(max_examples=200, deadline=None,
+                   ^^^^^^
+test_property_based.py:138: in test_unconstrained_makespan_equals_cpm
+    assert abs(r["scheduled_duration"] - r["cpm_duration"]) < TOL, (
+E   AssertionError: [md_knapsack] makespan 1.0000 != CPM 1.0156
+E   assert 0.015625 < 1e-06
+E    +  where 0.015625 = abs((1.0 - 1.015625))
+E   Failing test case: test_unconstrained_makespan_equals_cpm(
+E       sgs='md_knapsack',
+E       inst=(4, [0.015625, 0.0, 0.0, 1.0], [(0, 3)]),
+E   )
+--------------------------------------------------------------------------------- Captured stderr call ----------------------------------------------------------------------------------
+INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=1.0h | strategy=md_knapsack | max_time=10.2h
+INFO:CPM.pert:Scheduling complete | CPM=1.0h | actual=1.0h | delay=0.0h | completed=6/6 | iterations=4
+INFO:CPM.pert:Starting event-driven RCPSP | activities=6 | CPM=1.0h | strategy=md_knapsack | max_time=10.2h
+INFO:CPM.pert:Scheduling complete | CPM=1.0h | actual=1.0h | delay=0.0h | completed=6/6 | iterations=4
+----------------------------------------------------------------------------------- Captured log call -----------------------------------------------------------------------------------
+INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=1.0h | strategy=md_knapsack | max_time=10.2h
+INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.0h | actual=1.0h | delay=0.0h | completed=6/6 | iterations=4
+INFO     CPM.pert:pert.py:3296 Starting event-driven RCPSP | activities=6 | CPM=1.0h | strategy=md_knapsack | max_time=10.2h
+INFO     CPM.pert:pert.py:3463 Scheduling complete | CPM=1.0h | actual=1.0h | delay=0.0h | completed=6/6 | iterations=4
+================================================================================ short test summary info ================================================================================
+FAILED test_property_based.py::test_unconstrained_makespan_equals_cpm[first] - AssertionError: [first] makespan 1.0000 != CPM 1.0156
+assert 0.015625 < 1e-06
+ +  where 0.015625 = abs((1.0 - 1.015625))
+Failing test case: test_unconstrained_makespan_equals_cpm(
+    sgs='first',
+    inst=(6, [0.0, 0.0, 0.0, 0.0, 0.015625, 1.0], [(4, 5)]),
+)
+FAILED test_property_based.py::test_unconstrained_makespan_equals_cpm[md_knapsack] - AssertionError: [md_knapsack] makespan 1.0000 != CPM 1.0156
+assert 0.015625 < 1e-06
+ +  where 0.015625 = abs((1.0 - 1.015625))
+Failing test case: test_unconstrained_makespan_equals_cpm(
+    sgs='md_knapsack',
+    inst=(4, [0.015625, 0.0, 0.0, 1.0], [(0, 3)]),
+)
+============================================================================== 2 failed, 5 passed in 0.95s ==============================================================================
+
+## 8. Completion-gate microsecond quantization — root cause (2026-09-07)
+
+The parametrized property run above (the §7 fix's own dividend — `first` now
+reaches the harness, and the equality property now covers all 5 strategies)
+surfaced a **third** bug. It is not a `first`-only defect: Hypothesis shrank
+**all five** strategies to the *same* minimal counterexample —
+
+```
+inst = (4, [0.0, 0.0, 1.7447551588106158, 1.504299842107538], [(2, 3)])
+```
+
+i.e. four activities `A0(0.0) A1(0.0) A2(1.7448) A3(1.5043)` with the single
+precedence edge `A2 → A3`; wrapped in START/END this is
+`START → {A0, A1, A2}`, `A2 → A3`, `{A0, A1, A3} → END`. Under **unlimited**
+resources it must trivially complete 6/6 — but every strategy halted at
+`completed 4/6` with `END` (and A3) stranded (the `look_ahead` validator report
+above: *"2 of 6 activities not scheduled"*). Strategy-independence was the tell:
+the defect lives in the **event loop**, below the SGS layer the §7 fix touched.
+
+### 8.1 Root cause — the completion-side twin of the ES-gate bug (§6, family #5)
+
+Same microsecond-quantization mechanism as §6.1, on the *other* side of the loop:
+
+- Durations / CPM early-starts are full-precision floats in **hours**; actual
+  start/end are `datetime`s at **microsecond** resolution. Hours→`timedelta`
+  quantizes to µs, and a chain of quantized `timedelta` adds can disagree with a
+  single-quantized CPM float by ~1 µs.
+- `_build_event_queue` (pert.py ~3175) **seeds** the absolute CPM early-start of
+  every waiting activity, `startTime + timedelta(hours=es)`, as an event instant.
+  The terminal `END`'s ES equals A3's early-finish.
+- The main loop's **epsilon-merge** (pert.py ~3352) pops all events within
+  `_EVENT_EPSILON` (1 min) of the current instant and treats them as one.
+- `_update_ongoing_list` (pert.py ~5570) completed an ongoing activity only on an
+  **exact** `time_index >= end_time`.
+
+The collision, measured directly on the counterexample at the deciding iteration:
+
+| quantity | value |
+|---|---|
+| A3 actual accumulated finish (`end_time`) | `…03:14:56.598004` |
+| seeded `END` absolute ES (`time_index`)   | `…03:14:56.598003` |
+| gap | **1.000 µs**, seed *earlier* than finish |
+
+The epsilon-merge folds A3's true completion event into the earlier seeded
+`END`-ES event, so the loop visits the instant **once**, at the seed. The exact
+gate then evaluates `seed(…003) >= a3_end(…004)` → **False**, so A3 is *not*
+completed. Nothing re-pushes the current instant (the loop only ever enqueues
+selected activities' completion times, pert.py ~3408), the heap drains, and A3 —
+and therefore `END` — are stranded forever: a spurious deadlock under unlimited
+resources.
+
+The zero-duration A0/A1 are load-bearing: they collapse START, A0, A1 to one
+instant so the surviving A2→A3 chain's accumulated finish lands exactly one µs
+off the seeded successor ES. This is why the earlier 30 000-trial sweep (§7.5)
+missed it — `random.uniform(0, 20)` structurally never emits `0.0`, so it never
+built the degenerate alignment. The bug needs an exact-zero duration *and*
+full-precision non-zero durations in the same instance.
+
+### 8.2 The fix (applied, this branch)
+
+`_update_ongoing_list`, pert.py ~5583 — make the completion gate tolerant within
+the loop's own declared event resolution, exactly mirroring the ES-gate fix:
+
+```python
+-        if time_index >= end_time:
++        if time_index >= end_time - self._EVENT_EPSILON:
+             completed_now.append(act)
+```
+
+An activity whose true finish is within `_EVENT_EPSILON` of the merged event
+instant is completed now, rather than being stranded by a sub-microsecond
+shortfall. This is consistent with the ES gate (§6.2) and the systemic rule in
+§6.3: *every comparison between an accumulated actual time and a CPM-derived
+float instant must carry the loop's `_EVENT_EPSILON` tolerance.*
+
+**Correctness of the early completion.** The tolerance is 1 min, but it can only
+fire when an event instant has *already been scheduled* within 1 min of the true
+finish — in practice the seeded successor ES or an epsilon-merged neighbour, i.e.
+essentially *at* the finish (µs away). It cannot complete an activity whose finish
+is genuinely in the future with no near event, because no such near `time_index`
+exists to trigger it. The independent validator (which checks precedence with its
+own `_PREC_TOL = 1 min`, and resource feasibility over whole intervals) is the
+backstop: the verification sweep below runs it on every instance and finds zero
+infeasibilities, so the tolerant completion never manufactures a precedence or
+resource violation.
+
+### 8.3 Verification
+
+- **Exact counterexample** `inst=(4, [0.0, 0.0, 1.7447551588106158,
+  1.504299842107538], [(2, 3)])`: pre-fix `completed 4/6` (`END`, A3 stranded) on
+  **all 5** strategies; post-fix `completed 6/6`, `makespan == cpm`, validator
+  feasible on all 5.
+- **Zero-duration sweep** — 20 000 random DAGs (n ≤ 6, durations `0.0` w.p. 0.3
+  else `uniform(0, 20)`, unlimited resources) across all 5 strategies:
+  `incomplete = 0`, `makespan_mismatch = 0`. A **validator-checked** 5 000-instance
+  variant reports `infeasible = 0` — the tolerant gate introduces no precedence /
+  resource violations.
+- **Regression frozen** as `test_bugfix_regressions.py::TestCompletionGate
+  Quantization` (10 tests = 2 methods × 5 strategies): `test_terminal_activity_
+  not_stranded` and `test_independent_validator_agrees`. All 10 **fail pre-fix**
+  (verified by a temporary exact-gate revert) and **pass post-fix**.
+- **Full CPM suite: 918 passed, 4 skipped** (+10 over the 908 after the §7 freeze;
+  no failures, no regressions — the 1-min completion tolerance does not disturb
+  the shift-calendar / time-window / resource-release tests that read `end_time`).
+
+### 8.4 Status of the sibling gates (updated §6.3 ledger)
+
+The µs-quantization family now has **three** confirmed-and-fixed members, all on
+the same `_EVENT_EPSILON` footing:
+
+| gate | location | status |
+|---|---|---|
+| ES gate (heap collect)        | pert.py ~3611 | fixed (§6.2) |
+| ES gate (candidate select)    | pert.py ~3741 | fixed (§6.2) |
+| **completion gate**           | pert.py ~5583 | **fixed (§8.2)** |
+| lag gate (heap collect)       | pert.py ~3625 | same shape, not yet observed to fail — left on the §6.3 footing |
+| lag gate (candidate select)   | pert.py ~3753 | same shape, not yet observed to fail — left on the §6.3 footing |
+
+The two lag gates share the identical exact-comparison shape and would fall to the
+same class of counterexample once a lag-bearing instance is added to the property
+generator (the generator currently emits no lags). Flagged for the next harness
+extension rather than speculatively edited.
+
+## 9. Sub-minute duration collapse — root cause (makespan < CPM) (2026-09-07)
+
+The re-run after the §8 completion-gate fix (raw log, "Third testing outcome"
+above) turned the property green on 3 of 5 strategies but surfaced a **fourth**
+bug on the other two. Hypothesis *reported* it only under `first` and
+`md_knapsack`, but the two shrunk counterexamples —
+
+```
+inst = (6, [0.0, 0.0, 0.0, 0.0, 0.015625, 1.0], [(4, 5)])
+inst = (4, [0.015625, 0.0, 0.0, 1.0],           [(0, 3)])
+```
+
+— reproduce identically on **all five** strategies (verified by direct replay;
+see 9.3). The reporting asymmetry is a Hypothesis scheduling artefact, not a
+strategy dependence: the defect is again in the event loop, below the SGS layer.
+Both witnesses share one feature — an activity of duration **`0.015625 h`
+(= 56.25 s)** feeding a successor. Pre-fix the run reported
+
+```
+makespan 1.0000 != CPM 1.0156    (assert 0.015625 < 1e-06)
+```
+
+i.e. the resource-constrained makespan came out **shorter than the unconstrained
+CPM** — a strict impossibility under unlimited resources, and the mirror image of
+the §6/§7 inflation bugs: here the schedule is too *short*.
+
+### 9.1 Root cause — the tolerance was right in kind but wrong in magnitude
+
+This is not a new mechanism. It is §6/§8's own fix, `_EVENT_EPSILON`, applied at
+the wrong scale. That epsilon does double duty: it merges near-simultaneous events
+*and* it is the grace on the ES gates (§6.2) and the completion gate (§8.2). Its
+value was **`timedelta(minutes=1)`** — chosen only to be "small," never against a
+real duration scale.
+
+56.25 s is **less than** that 1-minute epsilon. So on the deciding iteration the
+short activity's true finish (`start + 56.25 s`) sits *within* `_EVENT_EPSILON` of
+its own start instant: the epsilon-merge folds the finish into the start, and the
+tolerant completion gate (§8.2) reports the activity **already complete** at its
+start. Its successor's ES gate — tolerant by the same epsilon — then releases the
+successor at the *earlier* instant. The 56.25 s activity is effectively collapsed
+to zero length; the successor chain slides forward by 56.25 s, and the makespan
+lands 0.015625 h below CPM.
+
+The independent validator did **not** catch it, because its precedence grace
+`_PREC_TOL` was **`timedelta(seconds=60)`** — also larger than 56.25 s. A 56.25 s
+successor overlap read as feasible. The two surfaces masked the same bug with the
+same oversized constant: the oracle was as blunt as the engine.
+
+Why earlier sweeps missed it: the §7.5 sweep drew durations from
+`uniform(0, 20)`, which structurally never emits a value below a minute *next to*
+an exact-zero neighbour; the §8 zero-duration sweep injected `0.0` but no
+*sub-minute non-zero* durations. The bug needs a duration in the open interval
+`(0, _EVENT_EPSILON)` — exactly the band both prior generators skipped.
+
+The framing that ties §6–§9 together: **`cpm_duration` is computed at full float
+precision, while `scheduled_duration` is walked on an event grid whose cell size
+is `_EVENT_EPSILON`.** The two only agree when the grid cell is a true
+*quantization* scale (µs-class rounding noise) and not a coarse *modelling* scale
+that can swallow a real activity. A 1-minute cell is ~6 orders of magnitude too
+coarse for the second condition.
+
+### 9.2 The fix (applied, this branch)
+
+Shrink the epsilon to an actual quantization tolerance, on **both** surfaces:
+
+```python
+# src/CPM/pert.py ~3251
+-    _EVENT_EPSILON = timedelta(minutes=1)
++    _EVENT_EPSILON = timedelta(milliseconds=1)
+
+# src/CPM/schedule_validator.py ~66
+-_PREC_TOL   = timedelta(seconds=60)
++_PREC_TOL   = timedelta(milliseconds=1)   # quantization grace; matches Pert._EVENT_EPSILON
+```
+
+`_DUR_TOL` (the validator's *duration-consistency* grace, a separate concern) is
+left at 60 s.
+
+**Why 1 ms is the right cell.** The noise it must absorb is chain quantization:
+each hours→`timedelta` conversion rounds to the µs, so an accumulated actual time
+drifts from the single-quantized CPM float by ≈ `D × 0.5 µs` for a chain of depth
+`D`. 1 ms = 1000 µs covers chains ~2000 deep — far beyond any realistic outage
+network — so it never re-opens the §6/§8 deadlocks. It is also ~5 orders of
+magnitude below the shortest plausible outage activity (minutes), so it can never
+again collapse a real duration. 1 ms sits in the wide empty band between "µs
+rounding noise" (what must be tolerated) and "a real activity" (what must not be),
+which is exactly where a quantization tolerance belongs.
+
+The §8.2 correctness argument for the tolerant completion gate holds *more*
+strongly at 1 ms than at 1 min: the gate can still only fire when an event instant
+is already scheduled within the tolerance of the true finish, and now "within the
+tolerance" means within 1 ms, i.e. essentially *at* the finish.
+
+### 9.3 Verification
+
+- **Both frozen counterexamples**, replayed on **all 5** strategies: pre-fix
+  `makespan 1.0000 < CPM 1.015625`; post-fix `makespan == CPM == 1.015625`,
+  `completed 8/8` and `6/6` respectively, validator feasible on all 5.
+- **Validator-checked sweep** — 8 000 instances (1 600 DAGs × 5 strategies, n ≤ 6,
+  durations drawn to mix exact-`0.0`, sub-minute values `{56.25 s, 112.5 s, 28.1 s,
+  30 s}`, and `uniform(0, 20) h`, unlimited resources): `makespan<cpm = 0`,
+  `incomplete = 0`, `infeasible = 0` (the tolerant gates introduce no precedence /
+  resource violation, and the tightened `_PREC_TOL` raises no false positive).
+- **Regression frozen** as `test_bugfix_regressions.py::
+  TestSubMinuteDurationNotCollapsed` — `test_makespan_not_below_cpm` and
+  `test_short_activity_precedes_its_successor`, parametrized 5 strategies × 2
+  witnesses = **20 tests**.
+- **Oracle re-armed.** `TestDependencyCheckPrecTolerance` (SC-m1) updated to the
+  new grace: `test_subtolerance_gap_tolerated_like_validator` (a 200 µs gap is
+  still tolerated on both surfaces) and a new
+  `test_subminute_but_supratolerance_gap_now_flagged` (a 30 s gap — previously
+  swallowed by the 60 s tol — is **now flagged** by both engine and validator, and
+  they agree).
+- **Pre-fix revert** (temporary restore of both 1-min constants): **22 of the 23**
+  `TestSubMinuteDurationNotCollapsed` + SC-m1 tests fail; **post-fix all pass**
+  (the three quantization classes §8/§9/SC-m1 together: **33 passed**).
+- **Full CPM suite: 939 passed, 4 skipped** (+21 over the 918 after the §8 freeze;
+  no regressions — shrinking the epsilon to 1 ms does not disturb any
+  shift-calendar / time-window / resource-release test).
+
+### 9.4 Retroactive note on §6 and §8
+
+§6.2 and §8.2 were written while `_EVENT_EPSILON` was 1 min, and their prose cites
+that value; those gates are **unchanged in placement** but now inherit the 1 ms
+value. Their correctness arguments were never magnitude-dependent (they only
+require the tolerance to exceed µs-class chain noise, which 1 ms does), so both
+remain valid — and, as §9.1 shows, are *only* valid at a quantization scale. The
+§8.4 ledger stands; every gate in it now runs on the 1 ms footing:
+
+| gate | location | epsilon now |
+|---|---|---|
+| ES gate (heap collect)     | pert.py ~3611 | 1 ms |
+| ES gate (candidate select) | pert.py ~3741 | 1 ms |
+| completion gate            | pert.py ~5583 | 1 ms |
+| lag gates                  | pert.py ~3625 / ~3753 | 1 ms (still unexercised; see §8.4) |
+| validator `_PREC_TOL`      | schedule_validator.py ~66 | 1 ms |
+
+**Lesson (feeds Toolkit C).** A tolerance that reconciles two representations of
+the same quantity must be sized to the *representation gap* (here µs rounding), not
+picked as an arbitrary "small" constant. A grace larger than the smallest
+meaningful value it guards will silently erase that value — and if the oracle
+shares the same oversized grace, the erasure is invisible. Size quantization
+tolerances to the quantization, and keep the checker's tolerance no looser than
+the engine's.

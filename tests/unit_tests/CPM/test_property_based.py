@@ -114,7 +114,7 @@ def build_pert(n, durations, edges):
 # Phase 0 — the generator + scheduler don't blow up
 # ---------------------------------------------------------------------------
 
-@settings(max_examples=50, deadline=None,
+@settings(max_examples=500, deadline=None,
           suppress_health_check=[HealthCheck.too_slow])
 @given(rcpsp_dag())
 def test_generator_smoke(inst):
@@ -128,7 +128,7 @@ def test_generator_smoke(inst):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("sgs", ALL_SGS)
-@settings(max_examples=200, deadline=None,
+@settings(max_examples=2000, deadline=None,
           suppress_health_check=[HealthCheck.too_slow])
 @given(rcpsp_dag())
 def test_unconstrained_makespan_equals_cpm(sgs, inst):
@@ -144,7 +144,7 @@ def test_unconstrained_makespan_equals_cpm(sgs, inst):
 # Phase 1b — metamorphic: scaling every duration by k scales CPM by k
 # ---------------------------------------------------------------------------
 
-@settings(max_examples=100, deadline=None,
+@settings(max_examples=1000, deadline=None,
           suppress_health_check=[HealthCheck.too_slow])
 @given(rcpsp_dag(), st.floats(min_value=1.1, max_value=5.0,
                               allow_nan=False, allow_infinity=False))
