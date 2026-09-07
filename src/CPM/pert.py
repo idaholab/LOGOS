@@ -3606,9 +3606,17 @@ class Pert:
                 pushed_back.append(act)
                 continue
 
-            # ES check
+            # ES check — tolerant comparison.  The CPM early-start is a
+            # full-precision float in hours, but `time` is an actual finish
+            # accumulated through microsecond-quantized timedeltas.  An exact `>`
+            # can reject a successor whose predecessors have all *actually*
+            # completed, when CPM-ES rounds a fraction of a microsecond past the
+            # quantized event time — stranding it forever (no future event revives
+            # it → spurious deadlock).  Compare within the loop's own event
+            # resolution _EVENT_EPSILON, which already treats times this close as
+            # simultaneous.  See test_bugfix_regressions.py::TestESGateQuantization.
             abs_es = self.startTime + timedelta(hours=self.infoDict[act]['es'])
-            if abs_es > time:
+            if abs_es > time + self._EVENT_EPSILON:
                 # Not eligible yet — push back for next iteration
                 pushed_back.append(act)
                 continue
@@ -3736,9 +3744,11 @@ class Pert:
             if self._pending_preds.get(act, 0) != 0:
                 continue
 
-            # ES reached?
+            # ES reached? — tolerant comparison (see _collect_candidates_from_heap:
+            # an exact `>` can strand a ready successor on a sub-microsecond CPM-ES
+            # vs quantized actual-time mismatch).  Compare within _EVENT_EPSILON.
             abs_es = self.startTime + timedelta(hours=self.infoDict[act]['es'])
-            if abs_es > time:
+            if abs_es > time + self._EVENT_EPSILON:
                 continue
 
             # Lag enforcement: verify actual predecessor end + lag <= current time.
@@ -4419,29 +4429,57 @@ class Pert:
             If *choice* is not a recognised scheduling strategy.
         """
         if choice == 'first':
-            # Serial SGS: try each candidate in priority order and start the
-            # highest-priority one that is resource-feasible at time_index.
-            # If nothing fits, return [] so the event loop advances to the next
-            # event (activity completion / resource release) and retries.
+            # Serial SGS with in-timestep greedy fill: try each candidate in
+            # strict priority order and start *every* one that is resource-
+            # feasible at time_index, committing tentatively after each so later
+            # candidates see the reduced pool.
+            #
+            # Returning only the single highest-priority activity (the
+            # pre-2026-09-07 behaviour) was a latent bug: the event loop only
+            # ever enqueues *completion* events, never the current instant
+            # (pert.py:3408), so a ready-but-unselected activity could not be
+            # reconsidered until the next completion — stranding off-critical
+            # activities and, under unlimited resources, inflating the makespan
+            # above the CPM length (a non-active schedule).  Filling the timestep
+            # here restores makespan == cpm under unlimited resources while
+            # keeping strict full-order priority + commit-after-each, which is
+            # what still distinguishes `first` from the top-K `max_use_res_ranked`
+            # path.  See test_bugfix_regressions.py::TestFirstStrategyMakespan and
+            # dev-log RCPSP_ROBUSTNESS_2026-09-07.md §7.
             ordered = self._rank_by_value(candidates)
+
+            # One snapshot set across the whole window, split at every
+            # candidate's finish so _apply_tentative charges the right intervals
+            # (mirrors the max_use_res_ranked path).
+            max_end = time_index
+            cand_ends: set = set()
             for act in ordered:
-                eff = self._effective_duration(act)
-                cand_end = time_index + timedelta(hours=eff)
-                res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid = \
-                    self._build_capacity_snapshots(
-                        time_index, cand_end, extra_boundaries={cand_end}
-                    )
+                cand_end = time_index + timedelta(hours=self._effective_duration(act))
+                cand_ends.add(cand_end)
+                if cand_end > max_end:
+                    max_end = cand_end
+
+            res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid = \
+                self._build_capacity_snapshots(
+                    time_index, max_end, extra_boundaries=cand_ends
+                )
+
+            selected = []
+            dose_rem: dict = {}   # PD1: tentative dose drawn this time-step
+            for act in ordered:
                 if self._fits_with_tentative(
-                    act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                    act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid,
+                    dose_rem=dose_rem
                 ):
+                    selected.append(act)
                     # Apply tentative state (consumable deduction, system-state
                     # acquire) so the pool reflects the commitment for subsequent
                     # feasibility checks and validator audits.
                     self._apply_tentative(
-                        act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid
+                        act, time_index, res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid,
+                        dose_rem=dose_rem
                     )
-                    return [act]
-            return []
+            return selected
 
         if choice in ('max_use_res_ranked', 'max_use_res_shuffled'):
             # Order candidates

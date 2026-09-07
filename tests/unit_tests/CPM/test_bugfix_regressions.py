@@ -22,6 +22,32 @@ Bugs 3 (``_window_violations`` per-run isolation) and 6 (``_apply_tentative``
 ``eq_rem`` KeyError) are already covered by the replan/interaction and
 scheduling tests respectively (see the assessment doc's bug-to-test
 traceability table), so they are not duplicated here.
+
+Later additions (found by the property-based harness, test_property_based.py):
+
+  ES-gate microsecond quantization (pert.py ~3611 / ~3741)  → TestESGateQuantization
+
+    A candidate's CPM early-start is a full-precision float in hours, but the
+    event-loop time is an *actual* finish accumulated through microsecond-
+    quantized ``timedelta``s.  The exact ``abs_es > time`` gate could reject a
+    successor whose predecessors had all actually completed, when CPM-ES rounded
+    a fraction of a microsecond past the quantized event time — stranding it
+    forever (no future event to revive it) → spurious deadlock under *unlimited*
+    resources.  Fixed by comparing within the loop's own ``_EVENT_EPSILON``.
+    Reproduced by Hypothesis at ~1 in 30 000 random full-precision instances;
+    invisible to every integer/simple-fraction case.  See
+    ``devLogs/RCPSP_ROBUSTNESS_2026-09-07.md``.
+
+  `first`-strategy makespan inflation (pert.py ~4431)       → TestFirstStrategyMakespan
+
+    The `first` serial SGS dispatched exactly one activity per event step
+    (``return [act]``), but the event loop only ever enqueues *completion*
+    events, never the current instant — so a ready-but-unselected activity
+    could not be reconsidered until the next completion, stranding off-critical
+    activities and inflating the makespan above the CPM length under *unlimited*
+    resources (a non-active schedule).  Fixed by filling the timestep: start
+    every priority-ordered candidate that fits, committing tentatively after
+    each.  See ``devLogs/RCPSP_ROBUSTNESS_2026-09-07.md`` §7.
 """
 
 import logging
@@ -1567,3 +1593,200 @@ class TestReplanRecomputesPriorityMetrics:
             assert "mehh_8000_b" in p.infoDict[act], (
                 f"custom-heuristic key missing for {act.returnName()} after "
                 "replan + rule-based schedule (RP-l)")
+
+
+# ===========================================================================
+# ES-gate microsecond quantization — found by test_property_based.py (Hypothesis)
+# ===========================================================================
+
+class TestESGateQuantization:
+    """The candidate-selection ES gate must tolerate the sub-microsecond gap
+    between a CPM early-start (full-precision float hours) and an actual finish
+    time (accumulated through microsecond-quantized ``timedelta``s).
+
+    Before the fix, ``_collect_candidates_from_heap`` (pert.py ~3611) and its
+    twin in ``_select_candidate_activities`` (~3741) gated candidates with an
+    exact ``abs_es > time``.  For the instance below the terminal ``END``
+    activity's CPM early-start equals A3's early-finish = ``43.2792629804709`` h,
+    which converts to ``…45.346730`` (one microsecond *later* than A3's actual
+    accumulated finish ``…45.346729``).  So ``abs_es > time`` was true, ``END``
+    was pushed back with no future event to revive it, and the scheduler halted
+    at ``completed 5/6`` with a spurious "possible deadlock" warning — under
+    *unlimited* resources, where the schedule must be trivially feasible.
+
+    This is the minimal instance Hypothesis shrank to; it fails on the pre-fix
+    engine (``END`` stranded) and passes once the ES gate compares within
+    ``_EVENT_EPSILON``.  The exact full-precision durations are load-bearing:
+    rounding any of them to ~4 decimals destroys the microsecond collision and
+    the bug disappears (which is exactly why no hand-written test caught it).
+    """
+
+    # Frozen counterexample — do NOT round these durations.
+    _DURATIONS = [
+        18.957307212181263,   # A0
+        7.896469928463469,    # A1
+        0.9657284725362469,   # A2
+        16.425485839826166,   # A3
+    ]
+    # Precedence edges among A0..A3 (i -> j, i < j).
+    _EDGES = [(0, 1), (0, 3), (1, 3), (2, 3)]
+
+    def _witness_pert(self):
+        acts = [Activity(f"A{i}", d) for i, d in enumerate(self._DURATIONS)]
+        start, end = Activity("START", 0.0), Activity("END", 0.0)
+
+        succ = {a: [] for a in acts}
+        for i, j in self._EDGES:
+            succ[acts[i]].append(acts[j])
+        has_in = {j for _, j in self._EDGES}
+        has_out = {i for i, _ in self._EDGES}
+
+        fwd = {start: [acts[i] for i in range(len(acts)) if i not in has_in]}
+        fwd.update(succ)
+        for i in range(len(acts)):
+            if i not in has_out:
+                fwd[acts[i]].append(end)
+        fwd[end] = []
+        return _build(fwd)   # empty pools = unlimited capacity
+
+    def test_terminal_activity_not_stranded(self):
+        p = self._witness_pert()
+        result = p.calculateScheduleWithResources(sgs="max_use_res_ranked")
+
+        n_total = len(p.infoDict)
+        completed_names = {a.returnName() for a in p.completed}
+        # Direct symptom: every activity — including the terminal END — completes.
+        assert len(p.completed) == n_total, (
+            f"scheduler stranded {n_total - len(p.completed)} activit(y|ies) "
+            f"under unlimited resources: waiting="
+            f"{[a.returnName() for a in p.wait]} (ES-gate quantization regression)")
+        assert "END" in completed_names, "terminal END activity never completed"
+
+        # Under unlimited resources the constrained makespan must equal the CPM.
+        assert abs(result["scheduled_duration"] - result["cpm_duration"]) < 1e-6, (
+            f"makespan {result['scheduled_duration']:.6f} != "
+            f"CPM {result['cpm_duration']:.6f} under unlimited resources")
+
+    def test_independent_validator_agrees(self):
+        # The independent oracle must also report the schedule feasible — in
+        # particular its completeness check catches the stranded-END symptom.
+        p = self._witness_pert()
+        p.calculateScheduleWithResources(sgs="max_use_res_ranked")
+        vr = p.validate_schedule()
+        assert vr.is_feasible, (
+            "independent validator flagged the schedule infeasible:\n"
+            + vr.summary())
+
+    # -- The same bug's *second* mask: an inflated makespan (not a deadlock). --
+    # When the spuriously-deferred successor has a duration and a later event
+    # exists to revive it, the schedule completes but its makespan is inflated by
+    # the deferred activity's duration.  This is the exact instance the
+    # property-based harness shrank to (test_property_based.py, run 2026-09-07):
+    #   inst=(3, [1.38888045372999, 1.38888045372999, 1.0], [(0,1),(1,2)])
+    # Pre-fix: makespan 4.7778 vs CPM 3.7778 (feasible but +A2.duration=1.0 too
+    # long).  A0->A1->A2 chain; A2's CPM early-start rounds one microsecond past
+    # A1's quantized actual finish.
+    _CHAIN_DURATIONS = [1.38888045372999, 1.38888045372999, 1.0]
+
+    def _chain_pert(self):
+        a0, a1, a2 = (Activity(f"A{i}", d)
+                      for i, d in enumerate(self._CHAIN_DURATIONS))
+        start, end = Activity("START", 0.0), Activity("END", 0.0)
+        fwd = {start: [a0], a0: [a1], a1: [a2], a2: [end], end: []}
+        return _build(fwd)
+
+    def test_makespan_not_inflated_on_chain(self):
+        p = self._chain_pert()
+        r = p.calculateScheduleWithResources(sgs="max_use_res_ranked")
+        # Feasible AND correct makespan (both must hold; pre-fix it was feasible
+        # but the makespan was 1.0 h too long).
+        assert len(p.completed) == len(p.infoDict)
+        assert abs(r["scheduled_duration"] - r["cpm_duration"]) < 1e-6, (
+            f"makespan {r['scheduled_duration']:.6f} inflated vs "
+            f"CPM {r['cpm_duration']:.6f} under unlimited resources "
+            "(ES-gate quantization, makespan mask)")
+
+
+class TestFirstStrategyMakespan:
+    """The `first` serial SGS must return ``makespan == cpm`` under unlimited
+    resources, like every other strategy.
+
+    Before the fix (dev-log RCPSP_ROBUSTNESS_2026-09-07.md §7) the `first`
+    branch of ``_schedule_generation_scheme`` dispatched exactly one activity
+    per event step (``return [act]``).  The event loop only ever enqueues
+    *completion* events, never the current instant, so a second activity ready
+    at the same time but not chosen could not be reconsidered until the next
+    completion event.  On the diamond below, the off-critical A2 (``es = 0``,
+    ``A2 -> A3``) lost the priority contest at ``t = 0`` and was not started
+    until ``t = 26.85`` (A1's finish), pushing A3 and inflating the makespan by
+    exactly A2's duration (``44.245`` vs CPM ``43.279``).  The fix fills the
+    timestep — start every priority-ordered candidate that fits, committing
+    tentatively after each — so under unlimited resources everything ready
+    starts now.
+
+    A second test confirms the fix does NOT overbook under contention: two
+    independent activities sharing a single crew must still serialize.
+    """
+
+    # Same diamond witness as TestESGateQuantization, but exercised via `first`.
+    _DURATIONS = [
+        18.957307212181263,   # A0
+        7.896469928463469,    # A1
+        0.9657284725362469,   # A2 — off-critical, es=0, feeds only A3
+        16.425485839826166,   # A3
+    ]
+    _EDGES = [(0, 1), (0, 3), (1, 3), (2, 3)]
+
+    def _witness_pert(self):
+        acts = [Activity(f"A{i}", d) for i, d in enumerate(self._DURATIONS)]
+        start, end = Activity("START", 0.0), Activity("END", 0.0)
+        succ = {a: [] for a in acts}
+        for i, j in self._EDGES:
+            succ[acts[i]].append(acts[j])
+        has_in = {j for _, j in self._EDGES}
+        has_out = {i for i, _ in self._EDGES}
+        fwd = {start: [acts[i] for i in range(len(acts)) if i not in has_in]}
+        fwd.update(succ)
+        for i in range(len(acts)):
+            if i not in has_out:
+                fwd[acts[i]].append(end)
+        fwd[end] = []
+        return _build(fwd)   # empty pools = unlimited capacity
+
+    def test_first_makespan_equals_cpm_unlimited(self):
+        p = self._witness_pert()
+        r = p.calculateScheduleWithResources(sgs="first")
+        assert len(p.completed) == len(p.infoDict)
+        assert abs(r["scheduled_duration"] - r["cpm_duration"]) < 1e-6, (
+            f"`first` makespan {r['scheduled_duration']:.6f} != "
+            f"CPM {r['cpm_duration']:.6f} under unlimited resources "
+            "(single-dispatch serialization regression, §7)")
+        assert p.validate_schedule().is_feasible
+
+    def test_first_still_serializes_under_contention(self):
+        # Two independent activities, one shared crew of 1 -> the greedy fill
+        # must NOT start both at once (that would overbook); it must serialize
+        # them, so the makespan is the *sum* of durations, not the max.
+        st = datetime(2026, 1, 1)
+        rp = ResourcePool()
+        rp.resources["WELDER"] = ResourceAvailability(
+            "WELDER",
+            [{'start_date': st, 'end_date': st + timedelta(days=365),
+              'available_count': 1}],
+            resource_type='renewable',
+        )
+        a, b = Activity("A", 5.0), Activity("B", 3.0)
+        a.required_resources = [{'skill_type': 'WELDER', 'crew_count': 1}]
+        b.required_resources = [{'skill_type': 'WELDER', 'crew_count': 1}]
+        start, end = Activity("START", 0.0), Activity("END", 0.0)
+        fwd = {start: [a, b], a: [end], b: [end], end: []}
+        p = _build(fwd, start_time=st,
+                   pools=(rp, EquipmentPool(), LocationPool()))
+        r = p.calculateScheduleWithResources(sgs="first")
+        assert len(p.completed) == len(p.infoDict)
+        vr = p.validate_schedule()
+        assert vr.is_feasible and not vr.violations, (
+            "greedy fill overbooked the single shared crew:\n" + vr.summary())
+        assert abs(r["scheduled_duration"] - 8.0) < 1e-6, (
+            f"expected serialized makespan 8.0 (5+3), got "
+            f"{r['scheduled_duration']:.6f} — `first` overbooked the crew")
