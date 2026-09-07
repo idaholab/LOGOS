@@ -1,10 +1,11 @@
 [project]
 name = "logos"
 version = "0.1.0"
-description = "Add your description here"
+description = "Discrete optimization models for capital budgeting and outage scheduling, usable stand-alone or interfaced with RAVEN."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = []
 
-[tool.pytest.ini_options]
-addopts = "--import-mode=importlib"
+# The CPM unit-test suite carries its own configuration in
+# tests/unit_tests/CPM/pytest.ini (pythonpath + import mode), which pytest
+# picks up as the nearest config file. No root-level pytest options are needed.
