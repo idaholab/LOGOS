@@ -1,0 +1,460 @@
+
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Nuclear Outage Planning Data Model",
+  "description": "Schema for nuclear power plant outage planning optimization input data",
+  "type": "object",
+  "required": ["outage", "tasks", "resources", "equipment", "locations"],
+  "properties": {
+    "outage": {
+      "type": "object",
+      "description": "Outage configuration and metadata",
+      "required": ["outage_id", "start_date", "working_hours_per_day"],
+      "properties": {
+        "outage_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique identifier for this outage"
+        },
+        "start_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Outage start date in YYYY-MM-DD format"
+        },
+        "target_end_date": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Optional target completion date"
+        },
+        "working_hours_per_day": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 24,
+          "description": "Number of working hours per day"
+        }
+      },
+      "additionalProperties": false
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["task_id", "description", "duration", "successors", "required_resources", "required_equipment"],
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "duration": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "successors": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                { "type": "string", "minLength": 1 },
+                {
+                  "type": "object",
+                  "required": ["task_id"],
+                  "properties": {
+                    "task_id": { "type": "string", "minLength": 1 },
+                    "lag_hours": { "type": "number", "minimum": 0 }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "uniqueItems": false
+          },
+          "location_id": {
+            "type": ["string", "null"]
+          },
+          "zone_ids": {
+            "type": "array",
+            "description": "Optional list of zone IDs this activity must occupy simultaneously (Option C multi-zone). Each entry must reference a location_id declared in the 'locations' array. When present, the activity consumes a task slot and worker capacity in every listed zone. Falls back to [location_id] when omitted.",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "is_hold_point": {
+            "type": "boolean",
+            "default": false
+          },
+          "hold_point_type": {
+            "type": ["string", "null"],
+            "enum": ["NRC", "QA", "Engineering", "Operations", null]
+          },
+          "blocks_tasks": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "required_resources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["skill_type", "crew_count"],
+              "properties": {
+                "skill_type": { "type": "string", "minLength": 1 },
+                "crew_count": { "type": "integer", "minimum": 1 },
+                "alternative_skill_types": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "uniqueItems": true,
+                  "description": "Ordered list of substitute skill types to draw from when the primary skill_type pool is exhausted. Substitutes are tried in listed order."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required_equipment": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["equipment_id", "quantity_needed"],
+              "properties": {
+                "equipment_id": { "type": "string", "minLength": 1 },
+                "quantity_needed": { "type": "integer", "minimum": 1 }
+              },
+              "additionalProperties": false
+            }
+          },
+          "dose_rate_mrem_per_hour": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Radiation dose each assigned worker accumulates per hour on this task, in mRem/h. Omit or set to 0 for non-radiological tasks."
+          },
+          "window_earliest_start_hours": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Hard constraint: activity cannot start before this many hours after outage start. Omit if there is no earliest-start restriction."
+          },
+          "window_latest_finish_hours": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Hard constraint: activity must finish by this many hours after outage start (regulatory / Technical Specification window). Omit if there is no latest-finish restriction."
+          },
+          "wbs_group": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "description": "Optional WBS package identifier. All activities sharing the same wbs_group label are treated as a scheduling unit: when any member's float reaches zero, every member receives elevated (critical) priority simultaneously. Omit or set null for activities with no WBS grouping."
+          },
+          "mobilization_lead_hours": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Hours of advance preparation required before this activity can begin after its predecessors complete. Typically used for vendor specialists or long-lead equipment that must be ordered or mobilised in advance. Baked into CPM early start so all downstream metrics (slack, GRPW) account for the delay. Omit or set 0 for activities with no mobilisation lead time."
+          },
+          "time_windows": {
+            "type": "array",
+            "description": "Optional list of discrete allowed execution windows, each expressed as hours from outage start. When present, the activity must start and finish entirely within exactly one of the listed windows. If the first window is missed (resources unavailable), the scheduler waits for the next window rather than recording a violation. Takes precedence over the single-window fields window_earliest_start_hours and window_latest_finish_hours when non-empty. Use this for surveillance tests with multiple discrete Technical Specification windows.",
+            "items": {
+              "type": "object",
+              "required": ["earliest", "latest"],
+              "properties": {
+                "earliest": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Earliest allowed start time in hours from outage start."
+                },
+                "latest": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Latest allowed finish time in hours from outage start."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required_system_states": {
+            "type": "array",
+            "description": "Plant-system isolation state requirements. Activities holding the same state on a system can coexist; activities requiring a different state are blocked. Must reference system_id values declared in the top-level 'plant_systems' array.",
+            "items": {
+              "type": "object",
+              "required": ["system_id", "required_state"],
+              "properties": {
+                "system_id":      { "type": "string", "minLength": 1 },
+                "required_state": { "type": "string", "minLength": 1 }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required_consumables": {
+            "type": "array",
+            "description": "Consumable items permanently depleted when this activity starts (deduct-on-start). Must reference item_id values declared in the top-level 'consumables' array.",
+            "items": {
+              "type": "object",
+              "required": ["item_id", "quantity_needed"],
+              "properties": {
+                "item_id": { "type": "string", "minLength": 1 },
+                "quantity_needed": { "type": "number", "exclusiveMinimum": 0 }
+              },
+              "additionalProperties": false
+            }
+          },
+          "modes": {
+            "type": "array",
+            "description": "Optional list of execution modes (MMRCPSP). When present, the GP or caller selects one mode via Pert.set_modes() before scheduling. Each mode overrides duration, required_resources, and required_equipment; it may also override dose_rate_mrem_per_hour and mobilization_lead_hours.",
+            "items": {
+              "type": "object",
+              "required": ["mode_id", "duration", "required_resources", "required_equipment"],
+              "properties": {
+                "mode_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Unique identifier for this mode within the activity (e.g. 'normal', 'crash', 'reduced_crew')."
+                },
+                "duration": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Activity duration in hours under this mode."
+                },
+                "required_resources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["skill_type", "crew_count"],
+                    "properties": {
+                      "skill_type": { "type": "string", "minLength": 1 },
+                      "crew_count": { "type": "integer", "minimum": 1 }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required_equipment": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["equipment_id", "quantity_needed"],
+                    "properties": {
+                      "equipment_id": { "type": "string", "minLength": 1 },
+                      "quantity_needed": { "type": "integer", "minimum": 1 }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "dose_rate_mrem_per_hour": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Optional per-mode dose rate override (mRem/h). Omit to inherit the task-level value."
+                },
+                "mobilization_lead_hours": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Optional per-mode mobilization lead override. Omit to inherit the task-level value."
+                }
+              },
+              "additionalProperties": false
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": { "properties": { "is_hold_point": { "const": true } } },
+            "then": { "required": ["hold_point_type"] }
+          }
+        ]
+      }
+    },
+    "resources": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["skill_type", "availability_periods"],
+        "properties": {
+          "skill_type": { "type": "string", "minLength": 1 },
+          "resource_type": {
+            "type": "string",
+            "enum": ["renewable", "consumable"],
+            "default": "renewable",
+            "description": "renewable: capacity resets each period (default). consumable: capacity is drawn down permanently (e.g. radiation dose budget)."
+          },
+          "dose_budget_per_worker_mrem": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Per-worker outage dose budget in mRem. Only meaningful when resource_type is 'consumable'. Total pool budget = this value × peak available_count."
+          },
+          "availability_periods": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["start_date", "end_date", "available_count"],
+              "properties": {
+                "start_date": { "type": "string", "format": "date-time" },
+                "end_date": { "type": "string", "format": "date-time" },
+                "available_count": { "type": "integer", "minimum": 0 },
+                "reason": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "equipment": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["equipment_id", "description", "availability_periods"],
+        "properties": {
+          "equipment_id": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "zone_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional zone affinity. When set, only activities whose zone_ids list includes this value may use the equipment. Omit for unconstrained equipment (usable from any zone)."
+          },
+          "availability_periods": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["start_date", "end_date", "quantity_available"],
+              "properties": {
+                "start_date": { "type": "string", "format": "date-time" },
+                "end_date": { "type": "string", "format": "date-time" },
+                "quantity_available": { "type": "integer", "minimum": 0 },
+                "reason": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "locations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["location_id", "description", "availability_periods"],
+        "properties": {
+          "location_id": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "is_confined_space": { "type": "boolean", "default": false },
+          "zone_type": {
+            "type": "string",
+            "enum": ["physical", "permit"],
+            "default": "physical",
+            "description": "Zone classification. 'physical': a room or area with concurrent-task and worker-density limits (default). 'permit': a regulatory work-permit boundary that also enforces task/worker density limits."
+          },
+          "availability_periods": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["start_date", "end_date", "max_concurrent_tasks"],
+              "properties": {
+                "start_date": { "type": "string", "format": "date-time" },
+                "end_date": { "type": "string", "format": "date-time" },
+                "max_concurrent_tasks": { "type": "integer", "minimum": 0 },
+                "max_concurrent_workers": { "type": ["integer", "null"], "minimum": 0 },
+                "reason": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "consumables": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Consumable items permanently depleted when activities start (deduct-on-start). Examples: nitrogen cylinders, anti-contamination suits, one-use seals.",
+      "items": {
+        "type": "object",
+        "required": ["item_id", "description", "total_quantity"],
+        "properties": {
+          "item_id": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "total_quantity": { "type": "number", "exclusiveMinimum": 0 },
+          "restocks": {
+            "type": "array",
+            "description": "Mid-outage deliveries. delivery_hour is hours from outage start.",
+            "items": {
+              "type": "object",
+              "required": ["delivery_hour", "quantity"],
+              "properties": {
+                "delivery_hour": { "type": "number", "minimum": 0 },
+                "quantity": { "type": "number", "exclusiveMinimum": 0 }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "plant_systems": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Plant systems whose isolation state governs concurrent-activity compatibility. Activities requiring the same state can coexist; activities requiring different states are mutually exclusive while each holds its lock.",
+      "items": {
+        "type": "object",
+        "required": ["system_id", "description"],
+        "properties": {
+          "system_id":    { "type": "string", "minLength": 1 },
+          "description":  { "type": "string", "minLength": 1 },
+          "valid_states": {
+            "type": "array",
+            "description": "Enumeration of legal states for validation. Omit if unrestricted.",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "safety_functions": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Safety function definitions for documentation and mutual-exclusion encoding. Each entry names a safety function (e.g. ECCS, EDG) and lists its train identifiers. The scheduler enforces 'never two trains OOS simultaneously' by mapping each train to a distinct plant system state in plant_systems (see encoding note below). This array is metadata only — the scheduler does not read it directly.\n\nEncoding pattern (Option A): declare an abstract system in plant_systems with system_id = plant_system_id and valid_states = ['TRAIN_A_OOS', 'TRAIN_B_OOS', ...]. Activities working on Train A require required_state='TRAIN_A_OOS'; activities on Train B require 'TRAIN_B_OOS'. Because different states are mutually exclusive in SystemStatePool, the constraint is automatically enforced.\n\nFuture Option B: first-class SafetyFunctionPool with {trains, max_trains_oos} semantics — handles K>2 trains and per-function reporting without repurposing SystemStatePool. Implement if max_trains_oos_simultaneously > 1 or dedicated reporting is needed.",
+      "items": {
+        "type": "object",
+        "required": ["safety_function_id", "description", "train_ids", "plant_system_id"],
+        "properties": {
+          "safety_function_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique identifier for this safety function (e.g. 'ECCS', 'EDG', 'AFW')."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable name (e.g. 'Emergency Core Cooling System')."
+          },
+          "train_ids": {
+            "type": "array",
+            "minItems": 2,
+            "uniqueItems": true,
+            "description": "List of train identifiers for this safety function (e.g. ['TRAIN_A', 'TRAIN_B']). Each train maps to one valid_state in the plant_systems entry.",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "plant_system_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "References the system_id in plant_systems that encodes this safety function's mutual-exclusion constraint."
+          },
+          "max_trains_oos_simultaneously": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Maximum number of trains that may be out-of-service concurrently. Default 1 (only one train OOS at a time). Values > 1 require Option B (SafetyFunctionPool) — not yet implemented."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
