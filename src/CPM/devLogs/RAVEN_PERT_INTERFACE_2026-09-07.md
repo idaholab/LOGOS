@@ -253,14 +253,24 @@ each deck's `{act: value}` mapping was driven through the **real** `Pert` engine
 (mirroring the fixed `run()`), all producing a finite `end_time`
 (`.xml`→34 h, the `example_10.json` decks→71 h).
 
+**Harness wiring (done on this branch):** the two duration decks
+(`test_BaseCPMmodel.xml`, `test_BaseCPMmodel_map.xml`) are registered in
+`tests/tests`; the `CPMmodel/` working directory exists with the schedule JSONs
+(`test_case_1.json`, `example_10.json`) and `outage_schema.json` staged in it;
+and `BaseCPMmodel.initialize()` now resolves `project_file`/`schema` against
+`runInfoDict['WorkingDir']` (RAVEN launches the deck from `tests/`, not from the
+working dir, so bare filenames had to be anchored to `<WorkingDir>` — matching
+the `CapitalInvestmentModel` convention). Verified: both files load, validate,
+schedule, and yield a finite makespan through the real engine
+(`test_case_1`→52 h, `example_10`→71 h at default durations).
+
 **Not done here (needs the RAVEN env):**
 
-1. Wiring the decks into the RAVEN harness — the two CPM entries in
-   `tests/tests` are commented out, and `_res`/`_res_11`/`_res_GA` are
-   unregistered; there is no `CPMmodel/` working directory, and each deck's
-   `project_file` + `schema` (bare filenames) must be staged into that workdir.
-   Gold CSVs must be generated in a RAVEN-enabled environment.
-2. The **priority/GA decks are structurally valid but semantically inert**
-   until `run()` returns `scheduled_duration` instead of (or in addition to)
-   `getProjectDuration()` — see the blocking note under §3. Their descriptions
-   carry this caveat inline.
+1. **Gold regeneration.** The committed `tests/gold/CPMmodel/*.csv` are stale
+   (Jul 2024, old `start,b,c,d,…,CP` schema) and must be rebaselined against the
+   current output (`R_*` sampled inputs + `end_time`). This cannot be done
+   outside RAVEN because the input columns are RAVEN-MonteCarlo-sampled.
+2. `_res`/`_res_11`/`_res_GA` remain **unregistered**: the priority/GA decks are
+   structurally valid but semantically inert until `run()` returns
+   `scheduled_duration` instead of (or in addition to) `getProjectDuration()` —
+   see the blocking note under §3. Their descriptions carry this caveat inline.

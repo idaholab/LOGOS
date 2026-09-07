@@ -123,9 +123,22 @@ class BaseCPMmodel(ExternalModelPluginBase):
       inputFiles : list
         List of input files (if any).
     """
+    # Resolve project_file and schema against the RAVEN working directory.
+    # RAVEN launches the input deck from the directory that contains it (e.g.
+    # tests/), not from <WorkingDir>, so bare filenames must be anchored to the
+    # working dir where the schedule JSON and schema are staged. Absolute paths
+    # are honored as-is.
+    workingDir = runInfoDict['WorkingDir']
+    projectFile = self.project_file
+    if projectFile is not None and not os.path.isabs(projectFile):
+      projectFile = os.path.join(workingDir, projectFile)
+    schemaPath = getattr(self, 'schema', None)
+    if schemaPath is not None and not os.path.isabs(schemaPath):
+      schemaPath = os.path.join(workingDir, schemaPath)
+
     #Initialized once
     # 1) Load data & build schedule graph
-    self.pert = Pert.from_json_file(self.project_file, schema_path=self.schema)
+    self.pert = Pert.from_json_file(projectFile, schema_path=schemaPath)
 
     # 1.1) debug situations with schedule
     self.pert.debug_connectivity_and_es()
