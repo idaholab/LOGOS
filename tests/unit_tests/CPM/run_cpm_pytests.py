@@ -32,12 +32,18 @@ pytest starts.  It is used only by the ``heavy`` nightly registration
 runs the deterministic, modestly-sized "ci" profile.
 
 Optional-dependency test files self-skip when their dep is absent
-(``test_ga.py`` needs ``deap``; ``test_rcpsp_alns.py`` needs ``alns``) using
-``pytest.importorskip``.  pytest reports a run with skips-but-no-failures as a
-pass (exit code 0), so a dev environment lacking the optional packages does not
-break CI.  The two standalone regression scripts in this directory
-(``legacy_cpm_regression.py`` and ``psplib_regression.py``) are *not* pytest
-files and are intentionally not run here — they are manual/dev harnesses.
+(``test_ga.py`` needs ``deap``; ``test_rcpsp_alns.py`` needs ``alns``;
+``test_raven_interface.py`` needs ``ravenframework``) using
+``pytest.importorskip``.  When *some* tests still run, pytest reports the run as
+a pass (exit code 0).  But when a file's *only* tests all self-skip, the module-
+level ``importorskip`` skips at collection time, pytest collects **zero** items,
+and it returns exit code 5 ("no tests collected") — which RavenPython would
+otherwise treat as a failure.  ``main`` therefore normalizes exit code 5 to 0
+(see the comment there); a dev/CI environment lacking an optional package no
+longer reddens that file's registration.  The two standalone regression scripts
+in this directory (``legacy_cpm_regression.py`` and ``psplib_regression.py``)
+are *not* pytest files and are intentionally not run here — they are manual/dev
+harnesses.
 
 Manual use::
 
@@ -60,7 +66,8 @@ def main(argv):
     @ In, argv, list[str], arguments after the script name; an optional
       ``--thorough`` flag plus zero or more test-file names (relative to this
       directory).
-    @ Out, code, int, the pytest process exit code (0 == pass).
+    @ Out, code, int, the pytest exit code with 5 ("no tests collected")
+      normalized to 0 (0 == pass).
     """
     args = list(argv)
     if "--thorough" in args:
@@ -74,7 +81,17 @@ def main(argv):
     # the run is independent of the caller's working directory.  With none,
     # run the whole directory (auto-discovers every test_*.py).
     targets = [str(HERE / a) for a in args] if args else [str(HERE)]
-    return subprocess.call([sys.executable, "-m", "pytest", *targets])
+    code = subprocess.call([sys.executable, "-m", "pytest", *targets])
+    # pytest exit code 5 == "no tests collected".  This is the *pass* case for a
+    # file whose only tests all self-skip on a missing optional dependency
+    # (e.g. test_raven_interface.py when ``ravenframework`` is absent): the
+    # module-level ``pytest.importorskip`` skips at collection, leaving 0 items,
+    # so pytest returns 5.  RavenPython treats any non-zero exit as a failure,
+    # so without this remap a clean, expected skip would redden CI.  The remap
+    # is safe because 5 is reserved for "nothing collected": a real
+    # collection/import error is exit 2 and a genuine test failure is exit 1 —
+    # neither is masked here.
+    return 0 if code == 5 else code
 
 
 if __name__ == "__main__":
