@@ -1113,6 +1113,36 @@ HEAD 8, an uncommitted local bump toward 30–90).
 > split is now flat (~0.6–1.0 s each), no single hog. Rule of thumb for anyone
 > raising these knobs: **re-time a cold run** (`rm -rf tests/unit_tests/CPM/.hypothesis`
 > first), not a warm one, before it reaches CI.
+>
+> **Update — per-file registrations + a heavy nightly deep run (2026-09-07,
+> supersedes the single `cpm_pytest_suite` + `max_time = 900` above).** The one
+> aggregate registration was replaced by **one `RavenPython` block per test
+> file** in [`tests`](../../tests/unit_tests/CPM/tests). Motivation: the aggregate
+> form reported only "the CPM suite failed", and on a *timeout* rook `kill()`s
+> pytest before its end-of-run summary prints (rook `Tester.py:604-627`), so it
+> could not even name the file that hung — precisely the failure mode we hit. Each
+> block runs `python run_cpm_pytests.py <file>` (the shim now takes the target
+> file as an argument; `input` may carry args because rook builds the command as
+> `<python> <input>` and runs it through the shell). Per-file gives per-file
+> red/green on the dashboard and a per-file `max_time`: every file clears the
+> default 300 s comfortably (the heaviest, `cpm_property_based`, is ~15 s cold —
+> a ~20× margin), so the aggregate's 900 s crutch is gone.
+> [`test_tests_registration.py`](../../tests/unit_tests/CPM/test_tests_registration.py)
+> guards the one downside of per-file — a newly-added `test_*.py` silently never
+> running — by asserting every sibling test file has a block (and none is stale).
+>
+> Deep randomized exploration (the "high settings to catch bugs" the per-PR gate
+> deliberately does *not* run) now lives in a separate **`heavy = True`**
+> registration, `cpm_property_deep`: `heavy` gives it run-type `{"heavy"}` and
+> drops `"normal"` (rook `Tester.py:417-421`), so it is **skipped on every per-PR
+> run and executes only under `run_tests --heavy`** (nightly). It runs
+> `run_cpm_pytests.py --thorough test_property_based.py` → the *randomized*
+> `thorough` profile (2000 examples, fresh seed each run, `max_time = 3600`),
+> hunting new counterexamples off the PR critical path; a red there freezes into
+> `test_bugfix_regressions.py` like any other. This resolves the standing tension:
+> the per-PR `ci` gate stays modest and deterministic (reproducible reds, no CI
+> tax, no flaky reds on unrelated PRs), while the deep search runs where wall-clock
+> and non-determinism are acceptable.
 
 ### 10.5 Toolkit C — the shared feasibility gate (bug-family #2)  *(largest, own design note)*
 
