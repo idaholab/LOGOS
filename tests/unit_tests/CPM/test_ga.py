@@ -36,7 +36,7 @@ from CPM.ga import RCPSPGeneticAlgorithm, PRIORITY_RULES  # noqa: E402
 
 # ── shared fixtures ───────────────────────────────────────────────────────────
 # Data paths are centralized in conftest.py (see BRANCH_ASSESSMENT / H2).
-from conftest import SCHEMA_PATH, EXAMPLES_DIR  # noqa: E402
+from conftest import SCHEMA_PATH, EXAMPLES_DIR, assert_valid_schedule  # noqa: E402
 JSON_PATH = str(EXAMPLES_DIR / 'example_10.json')
 SCHEMA    = SCHEMA_PATH
 
@@ -671,6 +671,7 @@ class TestRun:
         }
         assert expected_keys.issubset(result.keys()), \
             f"Missing keys: {expected_keys - result.keys()}"
+        assert_valid_schedule(g.pert, "ga best schedule")
 
     def test_get_best_activity_list_length(self, run_results):
         g, hof, _ = run_results

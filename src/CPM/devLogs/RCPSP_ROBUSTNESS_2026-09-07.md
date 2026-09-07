@@ -5,8 +5,12 @@
 **Scope:** `src/CPM/pert.py` (the RCPSP engine), `src/CPM/schedule_validator.py`
 (the independent feasibility oracle), and the `tests/unit_tests/CPM/` suite.
 **Branch:** `mandd/res_opt`
-**Status:** brainstorm + a concrete starting point for prototype #1
-(property-based testing). No engine code changed by this note.
+**Status:** ACTIVE — the property harness of §3 is built and running in CI
+(hypothesis declared in `dependencies.xml`, commit `332bad0`). What began as a
+brainstorm has driven **four** engine fixes: ES-gate quantization (§6),
+`first`-strategy makespan inflation (§7), completion-gate quantization (§8), and
+sub-minute duration collapse (§9). Remaining open items and next phases are
+tracked in **§10**.
 
 ---
 
@@ -54,8 +58,10 @@ quality) that re-derive feasibility from the *actual* start/end times without
 trusting the scheduler. `conftest.py` already wraps it as
 `assert_valid_schedule(pert)`.
 
-**Gap:** only ~3 of ~37 test files call it. Most tests that build a schedule
-never ask the oracle whether that schedule is feasible.
+**Gap (updated 2026-09-07):** **20 of 35** test files now call it — up from the
+~3 of ~37 when this note was written, so the Toolkit-A sweep is well underway. The
+remaining ~15 that build a schedule still never ask the oracle whether it is
+feasible; finishing the sweep is tracked in §10.
 
 **Action:** make `assert_valid_schedule(pert)` the standard last line of every
 test that runs the scheduler. Guards families **1, 2, 5** for free (any interval
@@ -128,21 +134,26 @@ regression corpus becomes a growing fingerprint of every real failure mode.
 RCPSP instances and asserts the engine's existing invariants + validator on all
 of them. RAVEN-free, so it runs in the stand-alone CPM dev env.
 
-### 3.1 Prerequisite
+### 3.1 Prerequisite  — RESOLVED (2026-09-07)
 
-Hypothesis is **not installed** in the dev env yet:
+Hypothesis is a test-only dependency. **Resolution (commit `332bad0`):** it is
+declared in RAVEN's [`dependencies.xml`](../../../dependencies.xml) alongside the
+already-present `pytest`, so RAVEN's `establish_conda_env.sh` installs it into the
+`raven_libraries` conda env that CI builds — the same path every other CPM test
+dep (`deap`, `alns`, …) uses. The module still `pytest.importorskip`s Hypothesis so
+the suite collects cleanly in a bare dev env without it — mirroring the
+`ravenframework` guard in `test_raven_interface.py`.
+
+The `requirements-dev.txt` / `pyproject.toml` `[test]`-extra options floated
+originally were **not** taken: CI does not run `pip install -e ".[test]"`, it runs
+the RAVEN test harness against `raven_libraries`, so the dep has to live where that
+env is assembled. `setup.py` / `pyproject.toml` stay dependency-light on purpose.
+
+For a bare stand-alone dev env (no RAVEN), install it directly:
 
 ```bash
 pip install hypothesis
 ```
-
-Dependency declaration: `setup.py` has `dependencies = []` and the CPM suite is
-governed by `tests/unit_tests/CPM/pytest.ini`. Decide where the test-only dep
-lives — options: a `requirements-dev.txt`, or a `[project.optional-dependencies]`
-`test` extra in `pyproject.toml`. (Recommendation: a `test` extra, installed in
-CI via `pip install -e ".[test]"`.) The module below should `pytest.importorskip`
-Hypothesis so the suite still collects cleanly where it isn't installed —
-mirroring the `ravenframework` guard in `test_raven_interface.py`.
 
 ### 3.2 Construction API recap (verified against the current code)
 
@@ -324,9 +335,10 @@ python -m pytest test_property_based.py -v
 
 ## 4. Open decisions
 
-1. **Where the `hypothesis` test-dep is declared** (`requirements-dev.txt` vs a
-   `pyproject.toml` `[project.optional-dependencies].test` extra) and how CI
-   installs it.
+1. ~~**Where the `hypothesis` test-dep is declared** and how CI installs it.~~
+   **RESOLVED (2026-09-07, commit `332bad0`):** declared in RAVEN's
+   `dependencies.xml`; installed into the `raven_libraries` conda env by
+   `establish_conda_env.sh`. See §3.1.
 2. **Should the validator become a runtime post-condition** (behind a flag) in
    `calculateScheduleWithResources`, not only a test-time oracle? (Toolkit item
    A vs C.)
@@ -437,7 +449,7 @@ accumulated actual time can disagree at the ~µs level. The ES gate is merely
 where it surfaced first. **Rule to enforce (contract / review checklist):** every
 `datetime` comparison that pits a CPM-derived instant against an accumulated
 actual instant must be tolerant (`> t + _EVENT_EPSILON`, not `> t`). The lag
-gates at [`pert.py:3625`](../pert.py#L3625) / [`pert.py:3753`](../pert.py#L3753)
+gates at [`pert.py:3664`](../pert.py#L3664) / [`pert.py:3809`](../pert.py#L3809)
 (`pred_end + lag > time`) are the same shape and are candidates for the same
 treatment — not yet observed to fail, but on the same footing.
 
@@ -725,7 +737,8 @@ Same microsecond-quantization mechanism as §6.1, on the *other* side of the loo
   every waiting activity, `startTime + timedelta(hours=es)`, as an event instant.
   The terminal `END`'s ES equals A3's early-finish.
 - The main loop's **epsilon-merge** (pert.py ~3352) pops all events within
-  `_EVENT_EPSILON` (1 min) of the current instant and treats them as one.
+  `_EVENT_EPSILON` (1 min *at the time of this fix*; §9 later shrank it to 1 ms)
+  of the current instant and treats them as one.
 - `_update_ongoing_list` (pert.py ~5570) completed an ongoing activity only on an
   **exact** `time_index >= end_time`.
 
@@ -769,16 +782,17 @@ shortfall. This is consistent with the ES gate (§6.2) and the systemic rule in
 §6.3: *every comparison between an accumulated actual time and a CPM-derived
 float instant must carry the loop's `_EVENT_EPSILON` tolerance.*
 
-**Correctness of the early completion.** The tolerance is 1 min, but it can only
-fire when an event instant has *already been scheduled* within 1 min of the true
-finish — in practice the seeded successor ES or an epsilon-merged neighbour, i.e.
-essentially *at* the finish (µs away). It cannot complete an activity whose finish
-is genuinely in the future with no near event, because no such near `time_index`
-exists to trigger it. The independent validator (which checks precedence with its
-own `_PREC_TOL = 1 min`, and resource feasibility over whole intervals) is the
-backstop: the verification sweep below runs it on every instance and finds zero
-infeasibilities, so the tolerant completion never manufactures a precedence or
-resource violation.
+**Correctness of the early completion.** (The tolerance was 1 min when this
+subsection was written; §9 later shrank it to 1 ms — the argument holds at either
+scale, and *more* tightly at 1 ms.) The tolerance can only fire when an event
+instant has *already been scheduled* within the tolerance of the true finish — in
+practice the seeded successor ES or an epsilon-merged neighbour, i.e. essentially
+*at* the finish (µs away). It cannot complete an activity whose finish is genuinely
+in the future with no near event, because no such near `time_index` exists to
+trigger it. The independent validator (which checks precedence with its own
+`_PREC_TOL`, and resource feasibility over whole intervals) is the backstop: the
+verification sweep below runs it on every instance and finds zero infeasibilities,
+so the tolerant completion never manufactures a precedence or resource violation.
 
 ### 8.3 Verification
 
@@ -961,3 +975,357 @@ meaningful value it guards will silently erase that value — and if the oracle
 shares the same oversized grace, the erasure is invisible. Size quantization
 tolerances to the quantization, and keep the checker's tolerance no looser than
 the engine's.
+
+---
+
+## 10. Open items / next phases (backlog, 2026-09-07)
+
+The four fixes above closed the bugs the harness *could reach* in its current
+form. The items below are the known gaps — scattered as asides through §2–§9 and
+consolidated here so they stop being invisible. Ordered by ROI.
+
+### 10.1 Extend the generator to emit lags — exercise the lag gates  *(highest ROI)*
+
+The two lag gates ([`pert.py:3664`](../pert.py#L3664) /
+[`pert.py:3809`](../pert.py#L3809)) share the **exact** microsecond-quantization
+shape of the three gates fixed in §6/§8 (`pred_end + lag > time`, an exact
+comparison of a CPM-derived instant against an accumulated actual one). They are
+untested purely because `rcpsp_dag()` emits **no lags** — verified: no `lag`
+handling in `test_property_based.py`. This is a bug class we already know the
+shape of, sitting one generator change away from being fuzzed.
+
+- **Action:** add an optional `lag_dict` to `rcpsp_dag()` / `build_pert` (the API
+  is `p.lag_dict = {(a, b): hours}`, see §3.2 and `make_lag_pert`), drawing small
+  non-negative F-S lags on a subset of edges.
+- **Expectation:** the equality property (`makespan == cpm` under unlimited
+  resources, with CPM early-starts now lag-inflated) very likely shrinks a
+  counterexample on the lag gates — the §6/§8 fix then transfers directly
+  (`pred_end + lag > time + _EVENT_EPSILON`).
+- Closes the last open row of the §8.4 / §9.4 ledger.
+
+> **Status — ADDRESSED (2026-09-07, this pass).** `rcpsp_dag()` now draws a
+> non-negative F-S lag on a random subset of edges and `build_pert` writes them
+> into `lag_dict`; the equality property runs over all five SGS. Exactly as
+> predicted, it shrank two counterexamples on the lag gates — makespan inflated
+> by one activity slot, and (zero-duration successor) a hard deadlock. Both were
+> the microsecond-quantization shape §6/§8 anticipated; the fix transferred
+> verbatim (`pred_end + lag > time + _EVENT_EPSILON` at both gates). Full root
+> cause in **§11.1**; frozen in `test_bugfix_regressions.py::TestLagReleaseQuantization`.
+> This closes the last open row of the §8.4 / §9.4 ledger.
+
+### 10.2 Property harness Phase 2 — resource-constrained invariants
+
+The harness only proves the **unlimited-resource** case. Two of the four
+invariants listed in §2B are therefore **never property-tested**:
+
+- `makespan ≥ CPM` under finite resources, and
+- **monotonicity** — adding capacity cannot increase makespan.
+
+Phase 2 was deliberately deferred (see the module docstring, §3.3, §5.3) pending
+the per-activity crew-demand API.
+
+- **Prerequisite (do not guess):** read how `test_invariants.py` and
+  `test_replan_resources.py` attach per-activity crew demand + pool capacity, and
+  wire the generator to *that* API.
+- **Then:** sample a crew skill with a capacity and per-activity demand; assert
+  `makespan ≥ cpm − TOL`, `assert_valid_schedule`, and monotonicity (re-run with
+  `capacity+1`, assert makespan does not increase). Metamorphic variants in §2D
+  (extra slack unit, ID permutation) are cheap add-ons here.
+
+> **Status — ADDRESSED (2026-09-07, this pass).** Added `rcpsp_crew_instance`
+> (single renewable `CREW` skill, per-activity demand, capacity always ≥ the
+> largest single demand so the instance is guaranteed feasible) and two
+> properties over all five SGS: `test_resource_makespan_at_least_cpm`
+> (`makespan ≥ cpm`, feasible, all scheduled) and `test_resource_capacity_monotonic`
+> (`makespan(cap) ≥ makespan(cap+δ)`). The feasibility property immediately shrank
+> a counterexample — but it was **not** a real over-allocation: the validator's
+> resource sweeps lacked the `_PREC_TOL` grace the precedence check already has,
+> so a microsecond boundary sliver on a plain A→B chain read as `demand=2 > 1`.
+> Root cause in **§11.2**; fixed in the validator (not the engine) and frozen in
+> `test_bugfix_regressions.py::TestCrewBoundarySliverNotFlagged`. Monotonicity held
+> once the sliver false-positive was gone (no Graham-anomaly counterexample
+> surfaced within the `ci` profile's search).
+
+### 10.3 Finish the Toolkit-A oracle sweep
+
+20 of 35 test files now call `assert_valid_schedule` (§2A, updated). The remaining
+~15 that build a schedule but never validate it are silent holes — a
+path-specific feasibility slip in those areas would not be caught.
+
+- **Action:** make `assert_valid_schedule(pert)` the standard last line of every
+  test that runs the scheduler; audit the 15 non-adopters first (some may not
+  produce a full schedule and are legitimately exempt).
+
+> **Status — ADDRESSED (2026-09-07, this pass).** Swept the five remaining
+> schedule-producing files. `assert_valid_schedule(pert, "<context>")` now
+> follows every complete-and-feasible schedule site; every intentionally
+> partial / pre-scheduling / infeasible-by-design site is annotated with a
+> `# no oracle check:` reason (a comment, not a silent omission) so the exempt
+> set is auditable. Checks added: **test_replan.py** (17), **test_scale_performance.py** (7),
+> **test_system_state_pool.py** (9), **test_rcpsp_alns.py** (2), **test_ga.py** (1).
+> `test_schedule_validator.py` left untouched (it tests the oracle itself). Result:
+> **110 passed, 2 skipped** (`test_ga.py` / `test_rcpsp_alns.py` skip cleanly —
+> optional deps `deap` / `alns` absent, so their checks are placed but not
+> exercised in this env). No oracle failure surfaced on any path that ran — the
+> engine was already feasible everywhere the sweep newly checks; the value is the
+> standing guard against a future path-specific slip.
+
+### 10.4 CI operational profile for the property test  *(new — became live with `332bad0`)*
+
+Now that Hypothesis runs in CI, its **non-determinism** is a live concern the
+earlier sections never addressed: each CI run explores fresh random examples (the
+`.hypothesis` DB is not committed), so a run *can* surface a brand-new
+counterexample on an unrelated PR — desirable as a gate, but a source of
+"flaky-looking" reds. Cost also scales with `max_activities` (currently in flux:
+HEAD 8, an uncommitted local bump toward 30–90).
+
+- **Decide:** whether CI should pin a deterministic profile
+  (`hypothesis.settings(derandomize=True)` or a fixed `--hypothesis-seed`) for
+  reproducible reds, while a nightly/manual job runs the randomized, higher
+  `max_examples` exploration. Capture the chosen `max_activities` and
+  `max_examples` for CI explicitly rather than leaving them at the generator
+  default.
+- **Related:** time a full `run_cpm_pytests.py` at the chosen `max_activities`
+  before raising it, so CI wall-clock is a decision, not a surprise.
+
+> **Status — ADDRESSED (2026-09-07, this pass).** `test_property_based.py`
+> registers two Hypothesis profiles and loads one from `HYPOTHESIS_PROFILE`
+> (default `ci`): `ci` = `max_examples=150, deadline=None, derandomize=True`
+> (a CI red reproduces exactly from the recorded seed); `thorough` =
+> `max_examples=2000` for local deep runs
+> (`HYPOTHESIS_PROFILE=thorough pytest …`). Generator default pinned at
+> `max_activities=30`. `run_cpm_pytests.py` passes no Hypothesis args, so CI gets
+> `ci`.
+>
+> **CI timeout post-mortem (2026-09-07).** The first CI run of this suite
+> *timed out* — `cpm_pytest_suite` was killed at the framework's ~320 s default.
+> Root cause: two knobs had drifted well past the values this section intended —
+> the `ci` profile was registered at `max_examples=600` and *both* generators
+> defaulted to `max_activities=90`. The decisive trap is that **CI always runs
+> cold**: the `.hypothesis` example database is not committed, so CI re-explores
+> every example from scratch, whereas a local dev machine replays a warm DB and
+> looks 6–8× faster — a warm local "~17 s" hid a cold cost north of the CI
+> budget. Fix: `ci` → `max_examples=150`, `max_activities` → `30` (both now match
+> the numbers above), and the RAVEN test registration
+> ([`tests`](../../tests/unit_tests/CPM/tests)) gains `max_time = 900` as margin.
+> Re-measured **cold** (`.hypothesis` wiped): the property module runs in ~13 s
+> and the *whole* CPM suite (992 passed, 3 skipped) in **~15 s** — the per-property
+> split is now flat (~0.6–1.0 s each), no single hog. Rule of thumb for anyone
+> raising these knobs: **re-time a cold run** (`rm -rf tests/unit_tests/CPM/.hypothesis`
+> first), not a warm one, before it reaches CI.
+
+### 10.5 Toolkit C — the shared feasibility gate (bug-family #2)  *(largest, own design note)*
+
+Family #2 (a constraint enforced in one scheduler path but not the others) is the
+one root-cause family with **no structural fix yet**. Serial / parallel /
+from-scratch / replan each re-implement feasibility; §4.3 / §5.4 flag collapsing
+them into a single shared gate every dispatch path calls — the only invasive
+refactor in this note. **Deserves its own design note before touching `pert.py`.**
+
+> **Status — DESIGN NOTE WRITTEN, execution deferred (2026-09-07, this pass).**
+> See **§12**. The parallel side is already unified (`_fits_with_tentative` /
+> `_apply_tentative`); the only remaining duplication is the serial engine's
+> `_serial_check_feasibility`. Because this is the one item that touches the
+> production serial (GA/ALNS) path, it is *not* executed with the additive work
+> of this pass — it lands in its own PR gated on the mandatory differential
+> verification described in §12.
+
+### 10.6 Toolkit D — a real external oracle
+
+`psplib_regression.py` still compares to its *own* frozen output, so a
+*systematically* wrong scheduler stays green (§2D / §4.4). Either import published
+PSPLIB best-known-solution values, or brute-force / CP-SAT the optimum on
+≤ ~8-activity instances, and assert `makespan ≥ optimum`. This is the only item
+that would catch a "plausible but globally wrong" makespan; everything above
+catches feasibility violations, not sub-optimality.
+
+> **Status — ADDRESSED (2026-09-07, this pass).** New `test_psplib_oracle.py`
+> loads the four PSPLIB instances with published best-known solutions
+> (`j301_1`=43, `j601_1`=77, `j901_1`=73, `j1201_1`=105) from
+> `doc/demos/rcpsp/examples/`, reads the BKS from
+> `doc/demos/benchmarks/best_results.json`, runs all five SGS, and asserts the
+> one inequality no correct heuristic can violate:
+> `scheduled_duration − 2.0 ≥ BKS − TOL` (the −2.0 removes the START/END dummies,
+> as in `psplib_regression.py`) plus `assert_valid_schedule`. This is a genuine
+> *external* reference, distinct from the self-frozen goldens in
+> `psplib_regression.py`; it skips cleanly if the instance JSON or BKS table is
+> absent. Zero new dependencies.
+
+### 10.7 Doc hygiene (carried)
+
+- Open decision #2 (validator as a runtime post-condition behind a flag) and the
+  §6.3 contract/assertion program (Toolkit C detection logic) remain unstarted.
+- The embedded raw run logs are labelled "Initial" and "Third" testing outcome
+  with no "Second" — harmless, but a reader will look for the missing one.
+
+---
+
+## 11. Bugs found this pass (2026-09-07) — root cause, fix, freeze
+
+Two bugs surfaced the moment §10.1 (lags) and §10.2 (resource invariants)
+extended the fuzzer's reach. Both are bug-family #5 (microsecond quantization),
+the same family §6/§8/§9 fixed — the fuzzer simply reached two comparison sites
+those passes had not yet exercised. Documented here in the §6–§9 style so the
+family's footprint stays fully mapped.
+
+### 11.1 Lag-release microsecond quantization (engine)
+
+**Where.** The two lag-satisfaction gates the engine uses to decide whether a
+successor may start: one in `_collect_candidates_from_heap`, one in
+`_select_candidate_activities` ([`pert.py:3664`](../pert.py#L3664) /
+[`pert.py:3809`](../pert.py#L3809)). Both read, verbatim:
+
+```python
+if pred_end is not None and pred_end + timedelta(hours=lag_h) > time:
+    lag_unmet = True
+    break
+```
+
+**Root cause.** Identical in shape to §6/§8. `pred_end` is an actual completion
+instant — a `datetime` carrying an accumulated, microsecond-quantized timedelta.
+`time` is the candidate event instant, likewise µs-quantized, but the lag target
+`pred_end + timedelta(hours=lag_h)` is a *float-hours* offset added on top. When
+the lag release is supposed to coincide *exactly* with an event instant, the two
+sides differ by the ~1 µs quantization residue, and the exact `>` fires when it
+should not. The successor is then held back to the next event tick.
+
+Two distinct symptoms, both shrunk by the equality property (`makespan == cpm`
+under unlimited resources) once the generator emitted lags:
+
+- **Inflation (CE-1).** A non-zero-duration successor deferred by one event slot
+  → makespan one activity-duration longer than CPM. Silent wrong answer.
+- **Deadlock (CE-2).** A *zero-duration* successor whose lag release lands one µs
+  after its own scheduled instant is never re-queued (a zero-length activity
+  produces no later event to reopen the gate), so the schedule strands it —
+  `n_completed < n_activities`. Hard failure.
+
+**Fix.** Transfer the §6/§8 remedy verbatim — grant the gate the same
+`_EVENT_EPSILON` (1 ms) grace the ES gate directly above it already uses, so a
+lag whose release is within a millisecond of `time` counts as met:
+
+```python
+if (pred_end is not None
+        and pred_end + timedelta(hours=lag_h) > time + self._EVENT_EPSILON):
+    lag_unmet = True
+    break
+```
+
+`_EVENT_EPSILON` (1 ms) dwarfs the µs residue but is far below any real activity
+duration, so it erases only the quantization noise, never a genuine lag. Applied
+at **both** gates (`replace_all`).
+
+**Verification.** The equality property runs clean over all five SGS with lags
+enabled (`ci` profile). Both counterexamples are frozen, parametrized over all
+five SGS, in `test_bugfix_regressions.py::TestLagReleaseQuantization`
+(`test_lagged_successor_not_deferred`, a6_dur = 1.0 → inflation;
+`test_zero_duration_lagged_successor_not_stranded`, a6_dur = 0.0 → deadlock).
+
+### 11.2 Resource-sweep boundary sliver false-positive (validator)
+
+**Where.** The three resource-feasibility sweeps in the *oracle*, not the engine:
+`_check_crew_feasibility`, `_check_equipment_feasibility`,
+`_check_location_feasibility` in
+[`schedule_validator.py`](../schedule_validator.py). Each walks a time-sorted
+event list (ends before starts at equal instants) accumulating concurrent demand.
+
+**Root cause.** This one is an *oracle* bug — the engine's schedule was correct;
+the checker wrongly flagged it. §6.3's epsilon-tolerant completion gate
+deliberately lets a predecessor complete up to `_EVENT_EPSILON` early to avoid
+the deadlock class, so on a plain A→B chain over a shared capacity-1 crew, B can
+legitimately be placed ~1 µs *before* A's recorded end instant. The sweep's
+interval-advance guards (`if nxt <= t …` / `if nxt <= t or current_demand <= 0`)
+had **no tolerance**, so that sub-microsecond overlap registered as
+`concurrent_demand = 2 > capacity = 1` — a phantom over-allocation on a schedule
+that is, in every operational sense, a clean hand-off.
+
+The precedence check in the same file already carried a `_PREC_TOL`
+(1 ms) grace for exactly this reason (§9); the resource sweeps had simply never
+been reached by a chain-on-shared-crew instance before the §10.2 generator built
+one.
+
+**Fix — validator side, deliberately not the engine.** The counterexample is a
+correct schedule, so the engine must not change: widening or removing the §6.3
+completion-gate tolerance to make the instants coincide exactly would risk
+re-opening the very deadlock class §6.3 exists to prevent. The right move is to
+give the checker the same 1 ms grace its own precedence check already uses. All
+three sweeps changed from an exact interval-advance to a `_PREC_TOL`-tolerant
+one:
+
+```python
+# crew & equipment (shared guard shape):
+if (nxt - t) <= _PREC_TOL or current_demand <= 0:
+    ...
+# location:
+if (nxt - t) <= _PREC_TOL:
+    ...
+```
+
+A sliver thinner than `_PREC_TOL` is collapsed and no longer counted as overlap;
+anything wider is still a real concurrency and still flagged.
+
+**Verification.** The §10.2 feasibility property runs clean over all five SGS.
+Frozen in `test_bugfix_regressions.py::TestCrewBoundarySliverNotFlagged`:
+`test_chain_on_shared_crew_is_feasible` (the A→B chain, all five SGS) plus a
+**guard** test, `test_real_overallocation_still_flagged`, that forces two
+activities to genuinely overlap on a capacity-1 crew and asserts
+`_check_crew_feasibility` still returns exactly one violation — proving the grace
+discards only sub-millisecond noise, not real over-allocation.
+
+> **Cross-checker caution (restated from §9).** The engine and the oracle now
+> share a 1 ms convention at three coupled sites (`_EVENT_EPSILON` on the
+> completion + lag gates, `_PREC_TOL` on the precedence + resource-sweep checks).
+> They are intentionally equal; if either constant is ever retuned, both sides
+> must move together, or the oracle stops being an independent check of the
+> engine at the boundary.
+
+---
+
+## 12. §10.5 design note — the shared feasibility gate (execution deferred)
+
+§10.5 (bug-family #2: a constraint enforced on one dispatch path but not the
+others) is the one root-cause family with **no structural fix**. It is
+*intentionally not executed this pass* — it is the only change that touches the
+production serial engine (GA/ALNS), i.e. the exact silent-wrong-answer surface
+this whole effort exists to shrink. This section is the design note §10.5 called
+for; execution lands in its own PR behind the differential verification below.
+
+**Current state (already better than §4.3/§5.4 implied).** The *parallel* side is
+already unified: from-scratch, `_from` seeding, replan, and all five SGS
+(including look-ahead) funnel their placement test through a single pair —
+`_fits_with_tentative` ([`pert.py:4152`](../pert.py#L4152)) and
+`_apply_tentative` ([`pert.py:4288`](../pert.py#L4288)). The only genuine
+remaining duplication is the *serial* engine's `_serial_check_feasibility`
+([`pert.py:6576`](../pert.py#L6576), ~170 LOC), reached from the GA/ALNS serial
+decode path.
+
+**Obstacle (why this is not a mechanical merge).** The two gates read different
+capacity representations. The parallel gate consumes live per-event snapshot
+dicts (skill → remaining count at `time`); the serial gate walks profile lists it
+maintains itself. A naive "call the parallel gate from the serial path" would
+silently reinterpret one representation as the other — precisely the family-#2
+drift we are trying to remove, now injected by the fix.
+
+**Proposed approach.**
+1. Extract a **representation-neutral feasibility core** taking an explicit
+   `(demand, available)` view and returning the accept/reject decision + the
+   resource delta, with *no* knowledge of how either caller stores capacity.
+2. Adapt both callers to build that view: the parallel gate from its snapshot
+   dicts (a near-identity wrapper over today's `_fits_with_tentative`), the serial
+   gate from its profile lists.
+3. Keep the epsilon conventions (§11.2) inside the core so both paths inherit one
+   boundary rule.
+
+**Mandatory verification before merge (non-negotiable).** A differential test:
+run the current serial engine and the refactored one on thousands of fuzzed
+instances (reuse the §10.2 generator, add serial-specific shapes) and assert
+**identical** accept/reject decisions *and* identical makespans on every
+instance — not merely "both feasible." Only once that differential is green
+across a `thorough`-profile run does the refactor merge, and the differential
+harness itself is frozen so the two paths can never again diverge unnoticed.
+
+**Why deferred, explicitly.** Every other item this pass is additive (tests, a
+generator knob, an external oracle, docs) and cannot change a production
+makespan. §10.5 is the sole exception. Bundling an invasive engine refactor with
+the additive work would make a regression here indistinguishable from the new
+tests' own noise. It gets its own PR, its own differential gate, and its own
+review.

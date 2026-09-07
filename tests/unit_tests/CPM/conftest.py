@@ -20,9 +20,11 @@ Conventions
 
 import pytest
 from pathlib import Path
+from datetime import datetime, timedelta
 
 from CPM.activity import Activity
 from CPM.pert import Pert
+from CPM.outage_data import ResourcePool, ResourceAvailability
 from CPM.schedule_validator import validate_schedule
 
 # Repo root — anchors the test-data paths below (see SCHEMA_PATH / EXAMPLES_DIR).
@@ -86,6 +88,33 @@ def json_example_30():
 @pytest.fixture(scope="session")
 def json_test_case_1():
     return str(EXAMPLES_DIR / "test_case_1.json")
+
+
+# ---------------------------------------------------------------------------
+# Resource-pool builder
+# ---------------------------------------------------------------------------
+
+def make_crew_pool(skill, count, start_time=None, horizon_days=365):
+    """ResourcePool with one renewable skill available for `horizon_days`.
+
+    Mirrors the crew-pool template used across the resource tests (e.g.
+    test_invariants._make_crew_pool): a single renewable skill with a flat
+    availability of `count` from `start_time` onward.  Empty equipment/location
+    pools remain the caller's responsibility.
+    """
+    if start_time is None:
+        start_time = datetime(2026, 1, 1)
+    rp = ResourcePool()
+    rp.resources[skill] = ResourceAvailability(
+        skill,
+        [{
+            'start_date':      start_time,
+            'end_date':        start_time + timedelta(days=horizon_days),
+            'available_count': count,
+        }],
+        resource_type='renewable',
+    )
+    return rp
 
 
 # ---------------------------------------------------------------------------

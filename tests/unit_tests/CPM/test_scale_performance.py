@@ -21,6 +21,8 @@ from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import ResourcePool, ResourceAvailability, EquipmentPool, LocationPool
 
+from conftest import assert_valid_schedule
+
 _START = datetime(2026, 1, 1, 0, 0)
 
 
@@ -57,6 +59,7 @@ def _chain_pert(*activities):
 class TestCompletedSet:
 
     def test_completed_set_empty_after_reset(self):
+        # no oracle check: inspects pre-scheduling state after a bare reset.
         a = Activity('A', 2.0)
         b = Activity('B', 2.0)
         p = _chain_pert(a, b)
@@ -69,8 +72,10 @@ class TestCompletedSet:
         p = _chain_pert(a, b)
         p.calculateScheduleWithResources()
         assert set(p.completed) == p._completed_set
+        assert_valid_schedule(p, "full schedule: completed set mirrors list")
 
     def test_completed_set_populated_by_partial_reset(self):
+        # no oracle check: snapshots a mid-replan partial state (_partial_reset).
         a = Activity('A', 4.0)
         b = Activity('B', 4.0)
         p = _chain_pert(a, b)
@@ -82,6 +87,8 @@ class TestCompletedSet:
 
     def test_completed_set_updated_by_update_ongoing_list(self):
         """When _update_ongoing_list moves an act to completed, _completed_set syncs."""
+        # no oracle check: manually completes only A, leaving B unscheduled
+        # (partial state), so the Pert is not a complete schedule.
         a = Activity('A', 2.0)
         b = Activity('B', 2.0)
         p = _chain_pert(a, b)
@@ -101,6 +108,10 @@ class TestCompletedSet:
 # ---------------------------------------------------------------------------
 
 class TestReadySet:
+    # no oracle check: except test_ready_never_larger_than_wait (below), these
+    # tests manipulate/inspect the internal _ready / _completed_set structures
+    # directly (pre-scheduling, manual, or mid-replan partial state) and never
+    # produce a complete schedule on the Pert.
 
     def test_ready_set_empty_before_init(self):
         a = Activity('A', 2.0)
@@ -178,6 +189,7 @@ class TestReadySet:
         p.calculateScheduleWithResources()
         # After schedule, wait should be empty
         assert len(p._ready) <= len(p.wait)
+        assert_valid_schedule(p, "full schedule: ready subset of wait")
 
     def test_ready_set_after_partial_reset(self):
         """After partial reset from mid-schedule, _ready reflects the replan state."""
@@ -246,6 +258,7 @@ class TestSchedulingCorrectnessWithReadySet:
         assert a_st == _START
         assert b_st >= a_et
         assert c_st >= b_et
+        assert_valid_schedule(p, "chain schedules correctly")
 
     def test_diamond_both_branches_complete(self):
         """Diamond topology: both branches complete and END comes last."""
@@ -269,6 +282,7 @@ class TestSchedulingCorrectnessWithReadySet:
         _, a_et   = a.returnAbsTimes()
         _, b_et   = b.returnAbsTimes()
         assert end_et >= max(a_et, b_et)
+        assert_valid_schedule(p, "diamond: both branches complete")
 
     def test_resource_serialisation_still_works(self):
         """Two activities sharing a scarce resource must not overlap."""
@@ -299,6 +313,7 @@ class TestSchedulingCorrectnessWithReadySet:
         a_st, a_et = a.returnAbsTimes()
         b_st, b_et = b.returnAbsTimes()
         assert b_st >= a_et or a_st >= b_et   # serialised (either order)
+        assert_valid_schedule(p, "resource serialisation still works")
 
     def test_large_serial_chain_completes(self):
         """200-activity serial chain schedules without error."""
@@ -307,6 +322,7 @@ class TestSchedulingCorrectnessWithReadySet:
         result = p.calculateScheduleWithResources()
         assert result['n_completed'] == 200
         assert result['n_activities'] == 200
+        assert_valid_schedule(p, "200-activity serial chain")
 
     def test_completed_set_correct_after_full_schedule(self):
         """After scheduling, _completed_set equals the set of all activities."""
@@ -317,3 +333,4 @@ class TestSchedulingCorrectnessWithReadySet:
         p.calculateScheduleWithResources()
         expected = set(p.forwardDict.keys())
         assert p._completed_set == expected
+        assert_valid_schedule(p, "full schedule: completed set covers all")

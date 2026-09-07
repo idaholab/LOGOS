@@ -42,7 +42,7 @@ from CPM.rcpsp_alns import (                                       # noqa: E402
 
 # ── shared fixtures ───────────────────────────────────────────────────────────
 # Data paths are centralized in conftest.py (see BRANCH_ASSESSMENT / H2).
-from conftest import SCHEMA_PATH, EXAMPLES_DIR  # noqa: E402
+from conftest import SCHEMA_PATH, EXAMPLES_DIR, assert_valid_schedule  # noqa: E402
 JSON_PATH = str(EXAMPLES_DIR / 'example_10.json')
 SCHEMA    = SCHEMA_PATH
 
@@ -800,11 +800,13 @@ class TestRun:
         a, best_state, _ = run_results
         result = a.get_best_schedule(best_state)
         assert isinstance(result, dict)
+        assert_valid_schedule(a.pert, "alns best schedule")
 
     def test_get_best_schedule_has_duration_key(self, run_results):
         a, best_state, _ = run_results
         result = a.get_best_schedule(best_state)
         assert 'scheduled_duration' in result
+        assert_valid_schedule(a.pert, "alns best schedule duration")
 
     def test_get_best_activity_list_correct_length(self, run_results, pert):
         a, best_state, _ = run_results

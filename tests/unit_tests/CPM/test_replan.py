@@ -37,6 +37,8 @@ from CPM.activity import Activity
 from CPM.pert import Pert
 from CPM.outage_data import ResourcePool, EquipmentPool, LocationPool
 
+from conftest import assert_valid_schedule
+
 
 TOL = 1e-6
 
@@ -105,11 +107,13 @@ class TestActivityStatus:
         for act in p.forwardDict:
             if act.name not in ('START', 'END'):
                 assert act.status == 'completed'
+        assert_valid_schedule(p, "full run: all activities completed")
 
     def test_scheduler_sets_completed(self):
         p, (a,) = _chain_pert(4.0)
         _run_full(p)
         assert a.status == 'completed'
+        assert_valid_schedule(p, "full run: single activity completed")
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +121,9 @@ class TestActivityStatus:
 # ---------------------------------------------------------------------------
 
 class TestPartialReset:
+    # no oracle check: every test here snapshots a mid-replan partial state
+    # (_partial_reset clears pending activities), so the Pert is not a
+    # complete schedule at the assertion point.
 
     def test_completed_activity_in_completed_list(self):
         """Activity whose endTime ≤ current_time must end up in p.completed."""
@@ -236,6 +243,9 @@ class TestPartialReset:
 # ---------------------------------------------------------------------------
 
 class TestInjectActivities:
+    # no oracle check: these tests only build/inspect graph structure via
+    # _inject_activities; no scheduler is run, so there is no schedule to
+    # validate.
 
     def test_injected_activity_in_forward_dict(self):
         p, (a,) = _chain_pert(4.0)
@@ -286,6 +296,9 @@ class TestInjectActivities:
 # ---------------------------------------------------------------------------
 
 class TestGenerateInfoFrom:
+    # no oracle check: these tests inspect ES/EF recomputation after a
+    # mid-replan _partial_reset; the Pert holds a partial (not complete)
+    # schedule at the assertion point.
 
     def test_pending_es_floored_at_current_time(self):
         """Pending activities must not have ES before current_time_hours."""
@@ -339,6 +352,7 @@ class TestGenerateInfoFrom:
 class TestReplan:
 
     def test_raises_before_any_scheduling_run(self):
+        # no oracle check: asserts replan raises before any scheduling run.
         p, (a,) = _chain_pert(4.0)
         with pytest.raises(RuntimeError, match="calculateScheduleWithResources"):
             p.replan(2.0)
@@ -351,6 +365,7 @@ class TestReplan:
         p     = Pert(graph=fwd)
         p.startTime = datetime(2025, 6, 1, 0, 0)
         # no pools attached — should raise before any scheduling
+        # no oracle check: asserts replan raises when pools are missing.
         with pytest.raises((ValueError, RuntimeError)):
             p.replan(2.0)
 
@@ -360,6 +375,7 @@ class TestReplan:
         _run_full(p)
         result = p.replan(5.0)
         assert result['n_completed'] == result['n_activities']
+        assert_valid_schedule(p, "replan all-completed")
 
     def test_frozen_start_times_unchanged(self):
         """Completed activities must keep their original start times."""
@@ -369,6 +385,7 @@ class TestReplan:
         p.replan(5.0)
         a_st_after, _ = a.returnAbsTimes()
         assert a_st_after == a_st_before
+        assert_valid_schedule(p, "replan: frozen start times unchanged")
 
     def test_pending_activities_start_at_or_after_replan_time(self):
         """Activities rescheduled during replan must not start before replan time."""
@@ -379,6 +396,7 @@ class TestReplan:
         c_act = [act for act in p.forwardDict if act.name == 'C'][0]
         c_st, _ = c_act.returnAbsTimes()
         assert c_st >= replan_abs - timedelta(seconds=1)
+        assert_valid_schedule(p, "replan: pending start at/after replan time")
 
     def test_result_contains_replan_time_hours(self):
         p, (a, b) = _chain_pert(4.0, 4.0)
@@ -386,6 +404,7 @@ class TestReplan:
         result = p.replan(3.0)
         assert 'replan_time_hours' in result
         assert abs(result['replan_time_hours'] - 3.0) < TOL
+        assert_valid_schedule(p, "replan: result contains replan_time_hours")
 
     def test_replan_at_project_start_equivalent_to_full_run(self):
         """Replanning at t=0 with all activities pending is identical to a full run."""
@@ -393,12 +412,14 @@ class TestReplan:
         r_full = _run_full(p)
         r_replan = p.replan(0.0)
         assert r_replan['n_completed'] == r_full['n_activities']
+        assert_valid_schedule(p, "replan at project start equals full run")
 
     def test_replan_returns_scheduled_duration(self):
         p, (a, b) = _chain_pert(4.0, 4.0)
         _run_full(p)
         result = p.replan(4.0)
         assert result['scheduled_duration'] > 0.0
+        assert_valid_schedule(p, "replan: returns scheduled duration")
 
     def test_replan_idempotent(self):
         """Two successive replans from the same snapshot must both complete."""
@@ -407,6 +428,7 @@ class TestReplan:
         r1 = p.replan(5.0)
         r2 = p.replan(5.0)
         assert r1['n_completed'] == r2['n_completed']
+        assert_valid_schedule(p, "replan idempotent: second replan complete")
 
 
 # ---------------------------------------------------------------------------
@@ -430,6 +452,7 @@ class TestReplanWithInjection:
 
         completed_names = {act.name for act in p.completed}
         assert 'EMERG' in completed_names
+        assert_valid_schedule(p, "replan with injected activity scheduled")
 
     def test_injected_activity_in_graph_after_replan(self):
         """The injected activity must appear in forwardDict after replan."""
@@ -441,6 +464,7 @@ class TestReplanWithInjection:
         p.replan(3.0, new_activities=[new_act])
 
         assert new_act in p.forwardDict
+        assert_valid_schedule(p, "replan with injection: activity in graph")
 
     def test_injection_does_not_shrink_original_activities(self):
         """Injecting a new activity must not remove existing activities from the graph."""
@@ -453,6 +477,7 @@ class TestReplanWithInjection:
         p.replan(4.0, new_activities=[new_act])
 
         assert len(p.forwardDict) == n_before + 1
+        assert_valid_schedule(p, "replan with injection: originals preserved")
 
 
 # ---------------------------------------------------------------------------
@@ -486,6 +511,9 @@ class TestPredecessorWiring:
 
     def test_predecessor_wiring_adds_edge_to_forwarddict(self):
         """After injection with wiring, existing activity A → new activity."""
+        # no oracle check: NEW is wired as a predecessor of B, which is already
+        # in-progress/frozen at the replan time, so the resulting schedule is
+        # intentionally precedence-infeasible; the test only verifies the edge.
         p, _, a, b, _ = self._base_pert()
         new_act = Activity('NEW', 2.0)
         new_act.childs = ['B']    # NEW → B
@@ -511,6 +539,7 @@ class TestPredecessorWiring:
         n_st, _    = new_act.returnAbsTimes()
         # NEW cannot start before A finishes
         assert n_st >= a_et
+        assert_valid_schedule(p, "replan wiring: predecessor respected")
 
     def test_predecessor_wiring_unknown_new_activity_warns(self):
         """Wiring referencing a non-existent new activity is skipped gracefully."""
@@ -525,6 +554,7 @@ class TestPredecessorWiring:
         )
         # Scheduler completes normally
         assert new_act in p.forwardDict
+        assert_valid_schedule(p, "replan wiring: unknown new activity ignored")
 
     def test_predecessor_wiring_unknown_predecessor_warns(self):
         """Wiring referencing a non-existent existing activity is skipped."""
@@ -538,6 +568,7 @@ class TestPredecessorWiring:
         )
         # NEW is still in the graph; wiring simply absent
         assert new_act in p.forwardDict
+        assert_valid_schedule(p, "replan wiring: unknown predecessor ignored")
 
     def test_predecessor_wiring_string_shorthand(self):
         """Single predecessor name as a plain string (not list) is accepted."""
@@ -550,6 +581,7 @@ class TestPredecessorWiring:
             predecessor_wiring={'NEW': 'A'},   # string, not list
         )
         assert new_act in p.forwardDict[a]
+        assert_valid_schedule(p, "replan wiring: string shorthand predecessor")
 
     def test_predecessor_wiring_none_is_no_op(self):
         """predecessor_wiring=None (default) behaves identically to before."""
@@ -559,3 +591,4 @@ class TestPredecessorWiring:
         n_before = len(p.forwardDict)
         p.replan(4.0, new_activities=[new_act])
         assert len(p.forwardDict) == n_before + 1
+        assert_valid_schedule(p, "replan wiring: none is no-op")

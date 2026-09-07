@@ -1,10 +1,17 @@
 [Tests]
 
  [./cpm_pytest_suite]
-  # Runs the full CPM pytest suite (~840 tests) via a shim; see
+  # Runs the full CPM pytest suite (~990 tests) via a shim; see
   # run_cpm_pytests.py.  Optional-dependency tests (deap / alns) self-skip.
-  type  = 'RavenPython'
-  input = 'run_cpm_pytests.py'
+  # max_time raised above the framework default: the suite now includes the
+  # Hypothesis property tests (test_property_based.py), which explore fresh
+  # random examples on every CI run (the .hypothesis example DB is not
+  # committed, so CI always runs "cold").  The "ci" profile is sized to finish
+  # cold in ~15 s locally; max_time = 900 leaves generous margin for slower,
+  # contended CI runners without masking a genuine hang.
+  type     = 'RavenPython'
+  input    = 'run_cpm_pytests.py'
+  max_time = 900
  [../]
 
 []

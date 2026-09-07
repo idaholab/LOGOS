@@ -457,7 +457,20 @@ def _check_crew_feasibility(pert: 'Pert',
             # drop can bind on an interval that opens at an *end* event while
             # other activities keep demand high.
             nxt = events[idx + 1][0] if idx + 1 < len(events) else t
-            if nxt <= t or current_demand <= 0:
+            # Ignore over-demand intervals narrower than the quantization
+            # tolerance.  The engine's epsilon-tolerant completion gate
+            # (pert.py ~5601) can complete a predecessor up to _EVENT_EPSILON
+            # before its actual finish, so a resource-competing successor may
+            # start a few microseconds before the predecessor frees the
+            # resource — a sub-millisecond sliver that is pure float<->timedelta
+            # noise, not a real concurrent over-allocation.  The precedence
+            # check already tolerates the same slip via _PREC_TOL; without the
+            # matching grace here the resource oracle would be stricter than the
+            # precedence oracle and flag a phantom over-allocation on a plain
+            # A→B chain (RCPSP_ROBUSTNESS_2026-09-07.md bug-family #5).  A
+            # genuine overlap spans a meaningful fraction of an activity, far
+            # above the 1 ms tolerance, so it is still caught.
+            if (nxt - t) <= _PREC_TOL or current_demand <= 0:
                 continue
             avail = pert.crew_pool.get_availability_in_range(skill, t, nxt)
             if avail > 0 and current_demand > avail:
@@ -513,7 +526,20 @@ def _check_equipment_feasibility(pert: 'Pert',
             # Minimum availability over [t, next_event_time) — see the crew
             # check above for the rationale (finding C2b).
             nxt = events[idx + 1][0] if idx + 1 < len(events) else t
-            if nxt <= t or current_demand <= 0:
+            # Ignore over-demand intervals narrower than the quantization
+            # tolerance.  The engine's epsilon-tolerant completion gate
+            # (pert.py ~5601) can complete a predecessor up to _EVENT_EPSILON
+            # before its actual finish, so a resource-competing successor may
+            # start a few microseconds before the predecessor frees the
+            # resource — a sub-millisecond sliver that is pure float<->timedelta
+            # noise, not a real concurrent over-allocation.  The precedence
+            # check already tolerates the same slip via _PREC_TOL; without the
+            # matching grace here the resource oracle would be stricter than the
+            # precedence oracle and flag a phantom over-allocation on a plain
+            # A→B chain (RCPSP_ROBUSTNESS_2026-09-07.md bug-family #5).  A
+            # genuine overlap spans a meaningful fraction of an activity, far
+            # above the 1 ms tolerance, so it is still caught.
+            if (nxt - t) <= _PREC_TOL or current_demand <= 0:
                 continue
             avail = pert.equipment_pool.get_availability_in_range(eq_id, t, nxt)
             if avail > 0 and current_demand > avail:
@@ -577,7 +603,11 @@ def _check_location_feasibility(pert: 'Pert',
             # drop is not missed (finding C2b).  Both dimensions are checked on
             # every interval rather than only on start events.
             nxt = events[idx + 1][0] if idx + 1 < len(events) else t
-            if nxt <= t:
+            # Ignore intervals narrower than the quantization tolerance — the
+            # same sub-millisecond boundary sliver the crew/equipment sweeps
+            # skip (see the note there and bug-family #5); a real concurrency
+            # breach spans far more than 1 ms.
+            if (nxt - t) <= _PREC_TOL:
                 continue
             cap = pert.location_pool.get_capacity_in_range(loc_id, t, nxt)
             max_tasks   = cap.get('max_tasks', cap.get('max_concurrent_tasks', 9999))

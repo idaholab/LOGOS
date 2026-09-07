@@ -2039,3 +2039,214 @@ class TestSubMinuteDurationNotCollapsed:
                 f"[{sgs}] A{j} starts {-gap:.3f}s before A{i} (dur "
                 f"{durations[i]*3600:.2f}s) ends — sub-tolerance predecessor "
                 f"collapsed (§9)")
+
+
+class TestLagReleaseQuantization:
+    """A finish-to-start-lagged successor must be released at its exact lag
+    instant — ``pred_end + lag`` — not slip to the next event or be stranded.
+
+    Root cause (§10.1, bug-family #5): the two lag-satisfaction gates in the
+    candidate scan (``_collect_candidates_from_heap`` pert.py ~3651 and its twin
+    in ``_select_candidate_activities`` ~3781) gated the successor with an exact
+    ``pred_end + lag > time``.  ``pred_end`` is an actual finish accumulated
+    through microsecond-quantized ``timedelta``s, while ``time`` is the seeded
+    lag event (``pred.endTime + lag``, pushed at pert.py ~3396) or a CPM-derived
+    ES — either of which can land a microsecond *before* the exact float
+    ``pred_end + lag``.  So at the very release instant the strict ``>`` judged
+    the lag unmet and pushed the successor back.  Two masks, both frozen below:
+
+      * **Makespan inflation** — when a later event exists to revive the
+        successor, it starts there instead.  For CE-1 the successor A6 is
+        deferred from its correct start ``3.0263`` h to END's seeded ES
+        ``4.0263`` h, inflating the makespan by exactly A6's duration (``1.0``):
+        ``5.0263`` vs CPM ``4.0263`` under *unlimited* resources.
+      * **Deadlock** — when A6 has zero duration its ES, EF and END's ES all
+        collapse onto the lag instant and epsilon-merge into a single event;
+        the gate blocks A6 there, the heap empties, and the loop halts at
+        ``completed 9/11`` ("possible deadlock") — again under unlimited
+        resources, where the schedule is trivially feasible.
+
+    Fixed by granting the lag gate the same ``_EVENT_EPSILON`` grace the
+    adjacent ES gate already uses (``abs_es > time + _EVENT_EPSILON``).  These
+    are the exact instances the property harness shrank to
+    (test_property_based.py, run 2026-09-07); the full-precision durations and
+    lag are load-bearing — rounding them destroys the microsecond collision and
+    the bug disappears (which is why no hand-written test caught it).
+    Strategy-independent: all five SGS defer/strand the same way.
+    """
+
+    # Frozen counterexamples — do NOT round these values.
+    #   CE-1 (inflation): A5 dur, A6 dur, edge (5,6) lag.  makespan 5.0263 vs CPM 4.0263
+    #   CE-2 (deadlock):  same but A6 dur = 0 -> A6 (and END) never scheduled
+    _A5_DUR = 1.0358288979336319
+    _LAG_56 = 1.990429883583893
+    _N = 9
+    _EDGES = [(5, 6)]
+
+    def _build_lagged(self, a6_dur):
+        durations = [0.0] * self._N
+        durations[5] = self._A5_DUR
+        durations[6] = a6_dur
+        acts = [Activity(f"A{i}", float(durations[i])) for i in range(self._N)]
+        start, end = Activity("START", 0.0), Activity("END", 0.0)
+        succ = {a: [] for a in acts}
+        for i, j in self._EDGES:
+            succ[acts[i]].append(acts[j])
+        has_in = {j for _, j in self._EDGES}
+        has_out = {i for i, _ in self._EDGES}
+        fwd = {start: [acts[i] for i in range(self._N) if i not in has_in]}
+        fwd.update(succ)
+        for i in range(self._N):
+            if i not in has_out:
+                fwd[acts[i]].append(end)
+        fwd[end] = []
+        # lag_dict is the representation the engine schedules against; set it
+        # before generateInfo() so the CPM pass folds the lag in (mirrors
+        # conftest.make_lag_pert and test_property_based.build_pert).
+        p = Pert(graph=fwd)
+        rp, ep, lp = _pools()                       # empty pools = unlimited
+        p.crew_pool, p.equipment_pool, p.location_pool = rp, ep, lp
+        p.startTime = datetime(2026, 1, 1)
+        p.lag_dict = {(acts[5], acts[6]): self._LAG_56}
+        p.generateInfo()
+        return p
+
+    @pytest.mark.parametrize("sgs", _ALL_SGS)
+    def test_lagged_successor_not_deferred(self, sgs):
+        # CE-1: A6 has a real duration -> feasible but makespan inflated pre-fix.
+        p = self._build_lagged(a6_dur=1.0)
+        r = p.calculateScheduleWithResources(sgs=sgs)
+        assert len(p.completed) == len(p.infoDict), (
+            f"[{sgs}] only {len(p.completed)}/{len(p.infoDict)} scheduled")
+        assert abs(r["scheduled_duration"] - r["cpm_duration"]) < 1e-6, (
+            f"[{sgs}] makespan {r['scheduled_duration']:.6f} != CPM "
+            f"{r['cpm_duration']:.6f} under unlimited resources — lagged "
+            f"successor deferred past its release instant (§10.1)")
+        assert p.validate_schedule().is_feasible
+
+    @pytest.mark.parametrize("sgs", _ALL_SGS)
+    def test_zero_duration_lagged_successor_not_stranded(self, sgs):
+        # CE-2: A6 has zero duration -> pre-fix deadlock (A6 + END stranded).
+        p = self._build_lagged(a6_dur=0.0)
+        r = p.calculateScheduleWithResources(sgs=sgs)
+        assert len(p.completed) == len(p.infoDict), (
+            f"[{sgs}] scheduler stranded "
+            f"{len(p.infoDict) - len(p.completed)} activit(y|ies): waiting="
+            f"{[a.returnName() for a in p.wait]} (lag-gate quantization "
+            f"deadlock, §10.1)")
+        assert abs(r["scheduled_duration"] - r["cpm_duration"]) < 1e-6
+        assert p.validate_schedule().is_feasible
+
+
+class TestCrewBoundarySliverNotFlagged:
+    """The validator's resource sweeps must not report a phantom over-allocation
+    on the sub-millisecond boundary sliver between a predecessor's finish and a
+    resource-competing successor's start.
+
+    Root cause (§10.2, bug-family #5): the engine's epsilon-tolerant completion
+    gate (pert.py ~5601) completes a predecessor up to ``_EVENT_EPSILON`` before
+    its actual accumulated finish, so a successor on the same crew can start a
+    few microseconds *before* the predecessor frees the skill.  The precedence
+    check tolerates that slip via ``_PREC_TOL``, but the crew/equipment/location
+    sweeps (schedule_validator.py) had *no* tolerance — their event sort placed
+    the successor's start ahead of the predecessor's end and counted a
+    1-microsecond interval of ``demand=2`` against a capacity of ``1``.
+
+    Witness: the plain precedence chain A2 -> A9 -> A13 -> A14 with a single
+    renewable ``CREW`` of capacity 1, demanded by A13 and A14 (which therefore
+    can never truly overlap).  The scheduler places A14's start one microsecond
+    before A13's actual finish; pre-fix the crew sweep flagged
+    ``demand=2 exceeds availability=1`` at that instant, marking a feasible
+    schedule infeasible.  These are the exact durations Hypothesis shrank to
+    (test_property_based.py, run 2026-09-07) — load-bearing to the microsecond
+    collision.  Fixed by ignoring over-demand intervals narrower than
+    ``_PREC_TOL``, matching the precedence tolerance.
+    """
+
+    _CREW = "CREW"
+    _N = 15
+    _EDGES = [(2, 9), (9, 13), (13, 14)]
+    # Non-zero durations (all others 0); demand of 1 crew on A13 and A14.
+    _DUR = {2: 1.010053164930282, 9: 0.4711117882694583,
+            13: 1.339620036332705, 14: 1.0}
+    _DEMAND = {13: 1, 14: 1}
+
+    def _crew_pool(self, capacity, t0):
+        rp = ResourcePool()
+        rp.resources[self._CREW] = ResourceAvailability(
+            self._CREW,
+            [{'start_date': t0, 'end_date': t0 + timedelta(days=365),
+              'available_count': capacity}],
+            resource_type='renewable',
+        )
+        return rp
+
+    def _build_chain(self, capacity):
+        durations = [self._DUR.get(i, 0.0) for i in range(self._N)]
+        acts = [Activity(f"A{i}", float(durations[i])) for i in range(self._N)]
+        for i, cnt in self._DEMAND.items():
+            acts[i].required_resources = [
+                {'skill_type': self._CREW, 'crew_count': int(cnt)}]
+        start, end = Activity("START", 0.0), Activity("END", 0.0)
+        succ = {a: [] for a in acts}
+        for i, j in self._EDGES:
+            succ[acts[i]].append(acts[j])
+        has_in = {j for _, j in self._EDGES}
+        has_out = {i for i, _ in self._EDGES}
+        fwd = {start: [acts[i] for i in range(self._N) if i not in has_in]}
+        fwd.update(succ)
+        for i in range(self._N):
+            if i not in has_out:
+                fwd[acts[i]].append(end)
+        fwd[end] = []
+        t0 = datetime(2026, 1, 1)
+        p = Pert(graph=fwd)
+        p.crew_pool = self._crew_pool(capacity, t0)
+        p.equipment_pool = EquipmentPool()
+        p.location_pool = LocationPool()
+        p.startTime = t0
+        p.generateInfo()
+        return p
+
+    @pytest.mark.parametrize("sgs", _ALL_SGS)
+    def test_chain_on_shared_crew_is_feasible(self, sgs):
+        p = self._build_chain(capacity=1)
+        r = p.calculateScheduleWithResources(sgs=sgs)
+        assert r["n_completed"] == r["n_activities"]
+        vr = p.validate_schedule()
+        assert vr.is_feasible, (
+            f"[{sgs}] validator flagged a phantom crew over-allocation on a "
+            f"plain precedence chain (boundary-sliver regression, §10.2):\n"
+            + vr.summary())
+
+    def test_real_overallocation_still_flagged(self):
+        # Guard the tolerance: two PARALLEL activities each demanding the whole
+        # crew must still be caught — the fix must discard only sub-ms noise,
+        # never a genuine full-duration overlap.
+        t0 = datetime(2026, 1, 1)
+        a = Activity("A", 5.0)
+        b = Activity("B", 5.0)
+        a.required_resources = [{'skill_type': self._CREW, 'crew_count': 1}]
+        b.required_resources = [{'skill_type': self._CREW, 'crew_count': 1}]
+        start, end = Activity("START", 0.0), Activity("END", 0.0)
+        fwd = {start: [a, b], a: [end], b: [end], end: []}
+        p = Pert(graph=fwd)
+        p.crew_pool = self._crew_pool(1, t0)
+        p.equipment_pool = EquipmentPool()
+        p.location_pool = LocationPool()
+        p.startTime = t0
+        p.generateInfo()
+        # Force a genuine full overlap: both run [0, 5] h on the single crew.
+        for act in (a, b):
+            act.setActualStartTime(t0)
+            act.endTime = t0 + timedelta(hours=5)
+            act.status = 'completed'
+        start.setActualStartTime(t0); start.endTime = t0
+        end.setActualStartTime(t0 + timedelta(hours=5))
+        end.endTime = t0 + timedelta(hours=5)
+        p.completed = [start, a, b, end]
+        violations = []
+        _check_crew_feasibility(p, violations, [])
+        assert len(violations) == 1 and violations[0].type == 'crew', (
+            "genuine full-overlap crew over-allocation must still be flagged "
+            "after the boundary-sliver tolerance was added (§10.2)")

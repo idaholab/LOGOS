@@ -16,7 +16,7 @@ import json
 import pytest
 from datetime import datetime, timedelta
 
-from conftest import SCHEMA_PATH
+from conftest import SCHEMA_PATH, assert_valid_schedule
 from CPM.outage_data import SystemStatePool, ResourcePool, EquipmentPool, LocationPool
 from CPM.activity import Activity
 from CPM.pert import Pert
@@ -302,6 +302,7 @@ class TestSchedulerSystemState:
         p.system_state_pool = None
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 2
+        assert_valid_schedule(p, "no system-state pool schedules normally")
 
     def test_activity_without_system_state_unblocked(self):
         """Activity with no required_system_states runs freely."""
@@ -310,6 +311,7 @@ class TestSchedulerSystemState:
         p = _build_pert(fwd)
         result = p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert result['n_completed'] == 1
+        assert_valid_schedule(p, "activity without system state unblocked")
 
     def test_same_state_activities_run_in_parallel(self):
         """
@@ -330,6 +332,7 @@ class TestSchedulerSystemState:
         b_st, b_et = b.returnAbsTimes()
         # Both can start at time 0 (same state — compatible)
         assert a_st == b_st == _START
+        assert_valid_schedule(p, "same-state activities run in parallel")
 
     def test_different_state_activities_are_serialised(self):
         """
@@ -350,6 +353,7 @@ class TestSchedulerSystemState:
         b_st, b_et = b.returnAbsTimes()
         # Non-overlapping
         assert a_et <= b_st or b_et <= a_st
+        assert_valid_schedule(p, "different-state activities serialised")
 
     def test_unrelated_activity_not_blocked(self):
         """
@@ -368,6 +372,7 @@ class TestSchedulerSystemState:
         c_st, _ = c.returnAbsTimes()
         # Both start at t=0 since they share no locked system
         assert a_st == c_st == _START
+        assert_valid_schedule(p, "unrelated activity not blocked")
 
     def test_second_activity_starts_after_first_releases_lock(self):
         """
@@ -388,6 +393,7 @@ class TestSchedulerSystemState:
         b_st, b_et = b.returnAbsTimes()
         # A and B hold conflicting states — they must not overlap (either order)
         assert b_st >= a_et or a_st >= b_et
+        assert_valid_schedule(p, "second activity starts after first releases lock")
 
     def test_three_activities_two_states(self):
         """
@@ -415,6 +421,7 @@ class TestSchedulerSystemState:
         assert a_st == b_st == _START
         # C starts after BOTH A and B finish
         assert c_st >= max(a_et, b_et)
+        assert_valid_schedule(p, "three activities two states")
 
     def test_multi_system_requirement(self):
         """
@@ -437,6 +444,7 @@ class TestSchedulerSystemState:
         b_st, b_et = b.returnAbsTimes()
         # A and B conflict on VALVE_V1 — must not overlap (either order)
         assert b_st >= a_et or a_st >= b_et
+        assert_valid_schedule(p, "multi-system requirement")
 
     def test_pool_held_state_is_zero_after_schedule(self):
         """After all activities complete, no locks should remain held."""
@@ -447,6 +455,7 @@ class TestSchedulerSystemState:
         p = _build_pert(fwd)
         p.calculateScheduleWithResources(sgs='max_use_res_ranked')
         assert p.system_state_pool._held == {}
+        assert_valid_schedule(p, "pool held state is zero after schedule")
 
 
 # ===========================================================================
@@ -454,6 +463,9 @@ class TestSchedulerSystemState:
 # ===========================================================================
 
 class TestReplanSystemState:
+    # no oracle check: these tests drive _partial_reset to inspect mid-replan
+    # partial state (in-progress locks re-acquired, stale locks cleared); they
+    # do not run the scheduler to a complete feasible schedule on the Pert.
 
     def test_partial_reset_reacquires_for_in_progress(self):
         """

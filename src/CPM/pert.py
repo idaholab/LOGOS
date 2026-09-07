@@ -3648,7 +3648,22 @@ class Pert:
                     lag_h = self.lag_dict.get((pred, act), 0.0)
                     if lag_h > 0:
                         _, pred_end = pred.returnAbsTimes()
-                        if pred_end is not None and pred_end + timedelta(hours=lag_h) > time:
+                        # Tolerant lag gate: mirror the ES gate directly above
+                        # (`abs_es > time + _EVENT_EPSILON`).  `pred_end` is an
+                        # actual finish accumulated through microsecond-quantized
+                        # timedeltas, while `time` is a seeded/pushed event instant
+                        # (the lag event at pred_end+lag, or a CPM-derived ES) that
+                        # can land a microsecond *before* the exact float
+                        # pred_end+lag.  A strict `>` then spuriously judges the lag
+                        # unmet at the very release instant: the successor slips to
+                        # the next event (makespan inflated by one slot) or, when
+                        # all remaining events epsilon-merge into that instant, is
+                        # stranded forever (deadlock).  Grant the same _EVENT_EPSILON
+                        # grace so the lag is satisfied at its release instant.
+                        # See test_bugfix_regressions.py::TestLagReleaseQuantization.
+                        if (pred_end is not None
+                                and pred_end + timedelta(hours=lag_h)
+                                    > time + self._EVENT_EPSILON):
                             lag_unmet = True
                             break
             if lag_unmet:
@@ -3778,7 +3793,22 @@ class Pert:
                     lag_h = self.lag_dict.get((pred, act), 0.0)
                     if lag_h > 0:
                         _, pred_end = pred.returnAbsTimes()
-                        if pred_end is not None and pred_end + timedelta(hours=lag_h) > time:
+                        # Tolerant lag gate: mirror the ES gate directly above
+                        # (`abs_es > time + _EVENT_EPSILON`).  `pred_end` is an
+                        # actual finish accumulated through microsecond-quantized
+                        # timedeltas, while `time` is a seeded/pushed event instant
+                        # (the lag event at pred_end+lag, or a CPM-derived ES) that
+                        # can land a microsecond *before* the exact float
+                        # pred_end+lag.  A strict `>` then spuriously judges the lag
+                        # unmet at the very release instant: the successor slips to
+                        # the next event (makespan inflated by one slot) or, when
+                        # all remaining events epsilon-merge into that instant, is
+                        # stranded forever (deadlock).  Grant the same _EVENT_EPSILON
+                        # grace so the lag is satisfied at its release instant.
+                        # See test_bugfix_regressions.py::TestLagReleaseQuantization.
+                        if (pred_end is not None
+                                and pred_end + timedelta(hours=lag_h)
+                                    > time + self._EVENT_EPSILON):
                             lag_unmet = True
                             break
                 if lag_unmet:
