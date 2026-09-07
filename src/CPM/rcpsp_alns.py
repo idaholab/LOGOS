@@ -160,8 +160,20 @@ class RCPSPState:
         """
         Evaluate the schedule via Serial SGS and return the project duration.
 
-        Raises ``ValueError`` if the state is incomplete (destroyed).
-        Result is cached — subsequent calls are free.
+        The result is cached, so subsequent calls are free until the cache is
+        invalidated.
+
+        Returns
+        -------
+        float
+            Project duration (``scheduled_duration - 2``) from the serial SGS
+            decode.
+
+        Raises
+        ------
+        ValueError
+            If the state is incomplete (destroyed) — i.e. ``unscheduled`` is
+            non-empty.
         """
         if self.unscheduled:
             raise ValueError(
@@ -404,6 +416,16 @@ class RCPSPAdaptiveLNS:
 
         Uses iterative DFS to avoid recursion-limit issues on large instances.
         Only considers predecessor edges among the supplied activity set.
+
+        Parameters
+        ----------
+        activities : list of Activity
+            Activities to sort; only edges among this set are considered.
+
+        Returns
+        -------
+        list of Activity
+            The activities in topological (predecessors-first) order.
         """
         act_set = set(activities)
         result: List[Any] = []
@@ -449,6 +471,18 @@ class RCPSPAdaptiveLNS:
         Insertion at position ``p`` places ``act`` before the element
         currently at index ``p``.  ``greedy=True`` always inserts at ``lo``;
         otherwise a uniform random position in [lo, hi] is used.
+
+        Parameters
+        ----------
+        act : Activity
+            The activity to insert.
+        ordering : list of Activity
+            The current ordering, modified in place.
+        rng : numpy.random.Generator or None
+            Random generator used to pick a position when ``greedy`` is
+            ``False``; ignored (earliest position used) when ``None``.
+        greedy : bool
+            When ``True`` always insert at the earliest feasible position ``lo``.
         """
         pos_of: Dict[Any, int] = {a: p for p, a in enumerate(ordering)}
 
@@ -485,6 +519,19 @@ class RCPSPAdaptiveLNS:
         operator costs O(n log n) per call.  The RNG argument is accepted to
         match the ALNS operator protocol but is not used (selection is
         deterministic given the precomputed slack values).
+
+        Parameters
+        ----------
+        state : RCPSPState
+            The current complete solution state.
+        _rng : numpy.random.Generator
+            Accepted to match the ALNS operator protocol; unused.
+
+        Returns
+        -------
+        RCPSPState
+            A destroyed copy with the removed activities moved to
+            ``unscheduled``.
         """
         destroyed = state.copy()
         non_dummy = self._non_dummy(destroyed.ordering)
@@ -511,6 +558,18 @@ class RCPSPAdaptiveLNS:
         A starting index within the non-dummy positions is drawn uniformly;
         the following k positions are removed together, preserving contiguity
         in the original ordering.
+
+        Parameters
+        ----------
+        state : RCPSPState
+            The current complete solution state.
+        rng : numpy.random.Generator
+            Random generator used to choose the segment start.
+
+        Returns
+        -------
+        RCPSPState
+            A destroyed copy with the removed segment moved to ``unscheduled``.
         """
         destroyed = state.copy()
         non_dummy_positions = [
@@ -542,6 +601,19 @@ class RCPSPAdaptiveLNS:
 
         Provides unbiased diversification when the other operators have
         converged to a sub-region of the search space.
+
+        Parameters
+        ----------
+        state : RCPSPState
+            The current complete solution state.
+        rng : numpy.random.Generator
+            Random generator used to choose the activities to remove.
+
+        Returns
+        -------
+        RCPSPState
+            A destroyed copy with the removed activities moved to
+            ``unscheduled``.
         """
         destroyed = state.copy()
         non_dummy = self._non_dummy(destroyed.ordering)
@@ -570,6 +642,18 @@ class RCPSPAdaptiveLNS:
 
         Activities are processed in topological order (predecessors first) so
         that each insertion finds its correct feasible window.
+
+        Parameters
+        ----------
+        state : RCPSPState
+            The destroyed state whose ``unscheduled`` activities are re-inserted.
+        rng : numpy.random.Generator
+            Random generator used to choose insertion positions.
+
+        Returns
+        -------
+        RCPSPState
+            A repaired (complete) copy with ``unscheduled`` emptied.
         """
         repaired = state.copy()
         to_insert = self._topo_sort(repaired.unscheduled)
@@ -589,6 +673,19 @@ class RCPSPAdaptiveLNS:
 
         Produces a left-justified (greedy) insertion that tends to reduce
         makespan at the cost of diversity.
+
+        Parameters
+        ----------
+        state : RCPSPState
+            The destroyed state whose ``unscheduled`` activities are re-inserted.
+        rng : numpy.random.Generator
+            Accepted to match the ALNS operator protocol; insertion is
+            deterministic (earliest feasible position), so it is unused.
+
+        Returns
+        -------
+        RCPSPState
+            A repaired (complete) copy with ``unscheduled`` emptied.
         """
         repaired = state.copy()
         to_insert = self._topo_sort(repaired.unscheduled)

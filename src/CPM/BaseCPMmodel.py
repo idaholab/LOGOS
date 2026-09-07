@@ -30,14 +30,13 @@ from LOGOS.src.CPM.pert import Pert
 
 class BaseCPMmodel(ExternalModelPluginBase):
   """
-    This class is designed to create the base class for the critical path model (CPM)
+    Base class for the critical path (CPM) model.
+
+    A RAVEN ``ExternalModel`` plugin that loads a project schedule from a JSON
+    file, applies RAVEN-sampled activity durations or priorities, computes the
+    resource-constrained schedule, and reports the project completion time.
   """
   def __init__(self):
-    """
-      Constructor
-      @ In, None
-      @ Out, None
-    """
     ExternalModelPluginBase.__init__(self)
 
     self.project_file = None
@@ -57,10 +56,24 @@ class BaseCPMmodel(ExternalModelPluginBase):
 
   def _readMoreXML(self, container, xmlNode):
     """
-      Method to read the portion of the XML that belongs to the CPM model
-      @ In, container, object, self-like object where all the variables can be stored
-      @ In, xmlNode, xml.etree.ElementTree.Element, XML node that needs to be read
-      @ Out, None
+      Read the portion of the XML input that belongs to the CPM model.
+
+      Parses the ``project_file``, ``CPtime``, ``sgs`` and ``schema`` tags and
+      each ``map`` element, which binds a RAVEN variable to an activity
+      duration or priority.
+
+      Parameters
+      ----------
+      container : object
+        Self-like object where all the variables can be stored.
+      xmlNode : xml.etree.ElementTree.Element
+        XML node that needs to be read.
+
+      Raises
+      ------
+      IOError
+        If a ``map`` attribute is neither ``'duration'`` nor ``'priority'``, or
+        if an unrecognised XML child node is encountered.
     """
     self.mapping = {}
     self.duration_vars = []
@@ -96,11 +109,20 @@ class BaseCPMmodel(ExternalModelPluginBase):
 
   def initialize(self, container, runInfoDict, inputFiles):
     """
-      Method to initialize the CPM model
-      @ In, container, object, self-like object where all the variables can be stored
-      @ In, runInfoDict, dict, dictionary containing all the RunInfo parameters (XML node <RunInfo>)
-      @ In, inputFiles, list, list of input files (if any)
-      @ Out, None
+      Initialize the CPM model.
+
+      Loads the project schedule from ``project_file``, runs the connectivity
+      and capacity debug checks, and generates the CPM information for the
+      schedule graph.
+
+      Parameters
+      ----------
+      container : object
+        Self-like object where all the variables can be stored.
+      runInfoDict : dict
+        Dictionary containing all the RunInfo parameters (XML node ``<RunInfo>``).
+      inputFiles : list
+        List of input files (if any).
     """
     #Initialized once
     # 1) Load data & build schedule graph
@@ -114,9 +136,23 @@ class BaseCPMmodel(ExternalModelPluginBase):
 
   def run(self, container, inputDict):
     """
-      This method calculates the CP of the schedule project and its end time
-      @ In, container, object, self-like object where all the variables can be stored
-      @ In, inputDict, dict, dictionary of inputs from RAVEN
+      Calculate the critical path of the scheduled project and its end time.
+
+      Applies the RAVEN-sampled activity durations and priorities from
+      ``inputDict``, computes the resource-constrained schedule, and stores the
+      resulting project duration into ``container`` under the ``CPtime`` name.
+
+      Parameters
+      ----------
+      container : object
+        Self-like object where all the variables can be stored.
+      inputDict : dict
+        Dictionary of inputs from RAVEN.
+
+      Raises
+      ------
+      IOError
+        If a sampled duration or priority variable is missing from ``inputDict``.
     """
     try:
         inputDict_durations = dict(

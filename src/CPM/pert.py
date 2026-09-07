@@ -39,23 +39,28 @@ class Pert:
     A graph is a map with activities as keys and list of outgoing activities as
     values for every key. The graph starts with a 'START' node and ends with an
     'END' node.
+
+    Parameters
+    ----------
+    graph : dict, optional
+        Mapping of ``{Activity: [Activity, ...]}`` giving the successor
+        activities for each activity.  Provide this for manual construction.
+    outage_data : OutageData, optional
+        Object containing all planning data.  When supplied, the graph is built
+        automatically from its tasks.
+    priorities : dict, optional
+        Mapping of activity names to priority values.
+    seed : int, optional
+        Random seed for reproducibility (default 2506178).
+
+    Notes
+    -----
+    Either provide ``graph`` for manual construction, or ``outage_data`` to
+    load from JSON.  If ``outage_data`` is provided, the graph is built
+    automatically.
     """
 
     def __init__(self, graph=None, outage_data=None, priorities=None, seed=2506178):
-        """
-        Constructor for Pert scheduling system.
-
-        Args:
-            graph (dict, optional): Dictionary containing child activities for each activity
-                                    Format: {Activity: [Activity, Activity, ...]}
-            outage_data (OutageData, optional): OutageData object containing all planning data
-            priorities (dict, optional): Dictionary mapping activity names to priority values
-            seed (int): Random seed for reproducibility
-
-        Note:
-            Either provide 'graph' for manual construction, or 'outage_data' to load
-            from JSON. If outage_data is provided, the graph will be built automatically.
-        """
         # Initialize core data structures
         self.forwardDict = graph if graph is not None else {}
         self.backwardDict = {}
@@ -185,12 +190,31 @@ class Pert:
     @classmethod
     def from_json_file(cls, filepath: str, schema_path: str, priorities: Dict = None, seed: int = 2506178):
         """
-        Create Pert object from JSON file.
-        Args:
-            filepath (str): Path to outage input JSON
-            schema_path (str): Path to external JSON schema (required)
-            priorities (dict, optional): Activity priorities
-            seed (int): RNG seed
+        Create a Pert object from a JSON file.
+
+        The raw JSON is validated against an external schema before an
+        ``OutageData`` object is constructed; validation failure raises.
+
+        Parameters
+        ----------
+        filepath : str
+            Path to the outage input JSON.
+        schema_path : str
+            Path to the external JSON schema (required).
+        priorities : dict, optional
+            Activity priorities.
+        seed : int, optional
+            RNG seed (default 2506178).
+
+        Returns
+        -------
+        Pert
+            New instance built from the validated outage data.
+
+        Raises
+        ------
+        ValueError
+            If the outage data fails schema/semantic validation.
         """
         # 1) Load raw JSON
         import json
@@ -219,10 +243,11 @@ class Pert:
 
     def _build_graph_from_outage_data(self):
         """
-        Build the graph structure from OutageData tasks.
+        Build the graph structure from the ``OutageData`` tasks.
 
-        Creates Activity objects from task dictionaries and establishes
-        predecessor/successor relationships.
+        Creates :class:`Activity` objects from the task dictionaries, populates
+        ``forwardDict`` and ``lag_dict``, and adds implicit hold-point
+        dependencies (guarding against cycles).
         """
         # Create Activity objects from tasks
         for task_dict in self.outage_data.tasks:
@@ -274,9 +299,21 @@ class Pert:
 
     def _is_reachable(self, src, dst) -> bool:
         """
-        Return True if `dst` is reachable from `src` via forwardDict.
+        Return ``True`` if ``dst`` is reachable from ``src`` via ``forwardDict``.
 
-        This guard is used to prevent introducing cycles when adding new edges.
+        Used as a guard to prevent introducing cycles when adding new edges.
+
+        Parameters
+        ----------
+        src : Activity
+            Activity to start the reachability search from.
+        dst : Activity
+            Target activity being searched for.
+
+        Returns
+        -------
+        bool
+            ``True`` if ``dst`` is reachable from ``src``.
         """
         stack = [src]
         seen = set()
@@ -317,8 +354,10 @@ class Pert:
         """
         Reseed the random number generator.
 
-        Args:
-            seedValue (int): New seed value
+        Parameters
+        ----------
+        seedValue : int
+            New seed value.
         """
         self.seed = seedValue
         random.seed(self.seed)
@@ -328,10 +367,14 @@ class Pert:
         """
         Return activities with no predecessors (in-degree zero).
 
-        When a START node is present it will be the sole result.
-        When no START node exists, all activities that have no predecessors
-        in the graph are returned, allowing the scheduler and CPM to work
-        without a mandatory dummy start node.
+        When a START node is present it will be the sole result.  When no START
+        node exists, all activities that have no predecessors in the graph are
+        returned, allowing the scheduler and CPM to work without a mandatory
+        dummy start node.
+
+        Returns
+        -------
+        list of Activity
         """
         return [a for a in self.forwardDict
                 if not self.backwardDict.get(a)]
@@ -340,10 +383,13 @@ class Pert:
         """
         Return activities with no successors (out-degree zero).
 
-        When an END node is present it will be the sole result.
-        When no END node exists, all activities that have no successors
-        in the graph are returned, enabling multi-sink CPM and duration
-        calculation.
+        When an END node is present it will be the sole result.  When no END
+        node exists, all activities that have no successors in the graph are
+        returned, enabling multi-sink CPM and duration calculation.
+
+        Returns
+        -------
+        list of Activity
         """
         return [a for a in self.forwardDict
                 if not self.forwardDict.get(a)]
@@ -353,9 +399,9 @@ class Pert:
             """
             Reset the schedule graph structure.
 
-            Sets startActivity and endActivity if nodes named START/END are found;
-            otherwise leaves them as None and the scheduler/CPM will use
-            _get_sources() / _get_sinks() instead.
+            Sets ``startActivity`` and ``endActivity`` if nodes named START/END
+            are found; otherwise leaves them as ``None`` and the scheduler/CPM
+            will use ``_get_sources()`` / ``_get_sinks()`` instead.
             """
             for activity in self.forwardDict:
                 self.backwardDict[activity] = []
@@ -372,15 +418,16 @@ class Pert:
 
     def resetInfo(self):
         """
-        Reset the numeric values of the schedule graph.
+        Reset the numeric CPM values of the schedule graph.
 
-        Initializes:
-        - duration: the duration of the activity
-        - es: early start
-        - ef: early finish
-        - ls: late start
-        - lf: late finish
-        - slack: lf - ef or ls - es
+        Re-initialises each activity's ``infoDict`` entry:
+
+        - ``duration`` : the duration of the activity
+        - ``es`` : early start
+        - ``ef`` : early finish
+        - ``ls`` : late start
+        - ``lf`` : late finish
+        - ``slack`` : ``lf - ef`` or ``ls - es``
         """
         for activity in self.forwardDict:
             self.infoDict[activity] = {
@@ -404,10 +451,12 @@ class Pert:
 
     def returnGraph(self):
         """
-        Return the graph info contained in forwardDict.
+        Return the graph info contained in ``forwardDict``.
 
-        Returns:
-            dict: Graph structure (edges, nodes, and time values)
+        Returns
+        -------
+        dict
+            Graph structure (edges, nodes, and time values).
         """
         return self.forwardDict
 
@@ -415,8 +464,10 @@ class Pert:
         """
         Return the graph in symbolic form (using activity names).
 
-        Returns:
-            dict: Graph structure with activity names as keys and values
+        Returns
+        -------
+        dict
+            Graph structure with activity names as keys and values.
         """
         symbolicGraph = {}
         for key in self.forwardDict.keys():
@@ -461,17 +512,27 @@ class Pert:
 
     def set_priorities(self, new_priorities: Dict[str, float], mode: str = "replace"):
         """
-        Update the external priority map used by _select_candidate_activities('external').
-        mode: 'replace' replaces the map; 'merge' updates keys and keeps existing ones.
+        Update the external priority map used by
+        ``_select_candidate_activities('external')``.
 
-        Example priority map: task_id -> priority score
-        new_priorities = {
-            "T01": 0.9,
-            "T02": 0.8,
-            "T03": 0.3
-        }
-        pert.set_priorities(new_priorities, mode="replace")
+        Parameters
+        ----------
+        new_priorities : dict
+            Mapping of ``task_id`` to a numeric priority score.
+        mode : str, optional
+            ``'replace'`` replaces the map; ``'merge'`` updates keys and keeps
+            existing ones (default ``'replace'``).
 
+        Raises
+        ------
+        ValueError
+            If ``new_priorities`` is not a dict, contains an invalid entry, or
+            ``mode`` is neither ``'replace'`` nor ``'merge'``.
+
+        Examples
+        --------
+        >>> new_priorities = {"T01": 0.9, "T02": 0.8, "T03": 0.3}
+        >>> pert.set_priorities(new_priorities, mode="replace")
         """
         # Basic validation
         if not isinstance(new_priorities, dict):
@@ -490,16 +551,18 @@ class Pert:
 
     def _sync_infodict_durations(self):
         """
-        Synchronise the 'duration' field in infoDict with the current value stored
-        on each Activity object.
+        Synchronise the ``'duration'`` field in ``infoDict`` with the current
+        value stored on each :class:`Activity` object.
 
-        Why this is needed:
-            infoDict entries are populated by resetInfo(), which reads activity.duration
-            at the time of the call. If activity.duration is subsequently changed by
-            set_durations(), the infoDict 'duration' field becomes stale. generateInfo()
-            uses infoDict['duration'] (not activity.duration) during the forward/backward
-            pass, so all ES/EF/LS/LF values would be computed from the old durations
-            unless this sync is performed first.
+        Notes
+        -----
+        ``infoDict`` entries are populated by ``resetInfo()``, which reads
+        ``activity.duration`` at the time of the call.  If ``activity.duration``
+        is subsequently changed by ``set_durations()``, the ``infoDict``
+        ``'duration'`` field becomes stale.  ``generateInfo()`` uses
+        ``infoDict['duration']`` (not ``activity.duration``) during the
+        forward/backward pass, so all ES/EF/LS/LF values would be computed from
+        the old durations unless this sync is performed first.
         """
         for act in self.forwardDict.keys():
             if act in self.infoDict:
@@ -516,21 +579,28 @@ class Pert:
 
     def set_durations(self, new_durations: Dict[str, float]):
         """
-        Update activity durations and recompute all CPM values (ES, EF, LS, LF, slack).
+        Update activity durations and recompute all CPM values (ES, EF, LS, LF,
+        slack).
 
-        This must be called before calculateScheduleWithResources() whenever durations
-        have changed (e.g. each RAVEN Monte-Carlo iteration), otherwise the scheduler
-        operates on a stale CPM solution:
-            - The safety time limit (max_time = cpm_duration * 2) is wrong
-            - Candidate selection uses stale ES values to gate activity eligibility
-            - getProjectDuration() returns the wrong reference duration
+        This must be called before ``calculateScheduleWithResources()`` whenever
+        durations have changed (e.g. each RAVEN Monte-Carlo iteration), otherwise
+        the scheduler operates on a stale CPM solution:
 
-        Args:
-            new_durations (dict): Mapping of {task_id: duration_in_hours}
+        - the safety time limit (``max_time = cpm_duration * 2``) is wrong;
+        - candidate selection uses stale ES values to gate activity eligibility;
+        - ``getProjectDuration()`` returns the wrong reference duration.
 
-        Raises:
-            ValueError: If new_durations is not a dict or contains invalid entries
-            KeyError: If a task_id is not found in task_to_activity
+        Parameters
+        ----------
+        new_durations : dict
+            Mapping of ``{task_id: duration_in_hours}``.
+
+        Raises
+        ------
+        ValueError
+            If ``new_durations`` is not a dict or contains invalid entries.
+        KeyError
+            If a ``task_id`` is not found in ``task_to_activity``.
         """
         if not isinstance(new_durations, dict):
             raise ValueError("new_durations must be a dict of {task_id: float}.")
@@ -569,7 +639,7 @@ class Pert:
         """
         Apply execution modes to activities and recompute all CPM values.
 
-        Each entry in *mode_assignments* maps a ``task_id`` to the ``mode_id``
+        Each entry in ``mode_assignments`` maps a ``task_id`` to the ``mode_id``
         to activate for that activity.  Calling this is equivalent to calling
         ``activity.set_mode(mode_id)`` for each entry and then running
         ``_sync_infodict_durations()`` + ``generateInfo()`` — which is exactly
@@ -580,14 +650,18 @@ class Pert:
         ``calculateScheduleWithResources()`` and ``compute_fitness()`` to
         evaluate the schedule.
 
-        Args:
-            mode_assignments (dict): ``{task_id: mode_id}`` pairs.
+        Parameters
+        ----------
+        mode_assignments : dict
+            ``{task_id: mode_id}`` pairs.
 
-        Raises:
-            ValueError: If *mode_assignments* is not a dict, or if
-                ``activity.set_mode()`` raises (activity has no modes or
-                mode_id is not found).
-            KeyError: If a task_id is not found.
+        Raises
+        ------
+        ValueError
+            If ``mode_assignments`` is not a dict, or if ``activity.set_mode()``
+            raises (activity has no modes or ``mode_id`` is not found).
+        KeyError
+            If a ``task_id`` is not found.
         """
         if not isinstance(mode_assignments, dict):
             raise ValueError("mode_assignments must be a dict of {task_id: mode_id}.")
@@ -619,9 +693,10 @@ class Pert:
         topological order.
 
         Works with or without explicit START/END nodes:
-        - Sources (in-degree 0) are seeded with es=0 in the forward pass.
-        - Project duration is the maximum ef across all sink nodes.
-        - The backward pass propagates lf=project_duration from every sink.
+
+        - sources (in-degree 0) are seeded with ``es=0`` in the forward pass;
+        - project duration is the maximum ``ef`` across all sink nodes;
+        - the backward pass propagates ``lf=project_duration`` from every sink.
         """
         if not self.forwardDict:
             return
@@ -737,14 +812,22 @@ class Pert:
     def calculate_total_successors(self, topo: list | None = None):
         """Compute MTS (number of reachable successors) for every activity.
 
-        When *topo* is supplied (the topological order already computed by
+        When ``topo`` is supplied (the topological order already computed by
         ``generateInfo``), a single O(V+E) backward-DP pass is used instead
         of calling ``nx.descendants()`` once per activity (O(n²) total).
-        Without *topo* the old O(n²) path is kept for backward compatibility
+        Without ``topo`` the old O(n²) path is kept for backward compatibility
         with direct callers.
 
-        Note: the DP counts successor paths rather than unique reachable nodes,
-        so it over-counts when successors share common descendants.  This is
+        Parameters
+        ----------
+        topo : list or None, optional
+            Precomputed topological order of the activities.  When provided the
+            fast O(V+E) DP pass is used.
+
+        Notes
+        -----
+        The DP counts successor paths rather than unique reachable nodes, so it
+        over-counts when successors share common descendants.  This is
         acceptable for a scheduling priority heuristic.
         """
         if topo is not None:
@@ -762,10 +845,18 @@ class Pert:
     def calculate_total_predecessors(self, topo: list | None = None):
         """Compute MTP (number of reachable predecessors) for every activity.
 
-        When *topo* is supplied, a single O(V+E) forward-DP pass is used.
-        Without *topo* the old O(n²) path is kept for backward compatibility.
+        When ``topo`` is supplied, a single O(V+E) forward-DP pass is used.
+        Without ``topo`` the old O(n²) path is kept for backward compatibility.
 
-        Note: same path-count approximation as ``calculate_total_successors``.
+        Parameters
+        ----------
+        topo : list or None, optional
+            Precomputed topological order of the activities.  When provided the
+            fast O(V+E) DP pass is used.
+
+        Notes
+        -----
+        Same path-count approximation as ``calculate_total_successors``.
         """
         if topo is not None:
             # Forward pass: mtp[v] = Σ (1 + mtp[u]) for each direct predecessor u
@@ -782,10 +873,16 @@ class Pert:
     def calculate_greatest_rank_position_weight(self, topo: list | None = None):
         """Compute GRPW = duration(a) + Σ duration(all ancestors) for each activity.
 
-        When *topo* is supplied, a single O(V+E) forward-DP pass accumulates
+        When ``topo`` is supplied, a single O(V+E) forward-DP pass accumulates
         the predecessor duration sum without calling ``nx.ancestors()`` per
-        activity.  Without *topo* the old O(n²) path is kept for backward
+        activity.  Without ``topo`` the old O(n²) path is kept for backward
         compatibility.
+
+        Parameters
+        ----------
+        topo : list or None, optional
+            Precomputed topological order of the activities.  When provided the
+            fast O(V+E) DP pass is used.
         """
         if topo is not None:
             # grpw_anc[v] = sum of durations of all predecessors of v (path-weight
@@ -804,6 +901,14 @@ class Pert:
                 self.infoDict[a]['grpw'] = self.infoDict[a]['duration'] + sum(self.infoDict[b]['duration'] for b in pred)
 
     def calculate_greatest_resource_demand(self):
+        """
+        Compute each activity's greatest-resource-demand (``grd``) metric.
+
+        For every activity, ``grd`` is the sum of its crew headcount, equipment
+        quantities and occupied-zone count, each multiplied by the activity's
+        duration.  The result is written to ``self.infoDict[a]['grd']`` and is
+        used as an input to the priority-rule heuristics.
+        """
         for a in self.forwardDict.keys():
             res = a.getRequiredResources() # list of dict
             equip = a.getRequiredEquipment() # list of dict
@@ -820,6 +925,21 @@ class Pert:
             self.infoDict[a]['grd'] = grd
 
     def calculate_resource_requirement(self):
+        """
+        Compute each activity's normalised resource-requirement metrics.
+
+        Builds a per-resource utilisation vector over every skill, equipment
+        item and location, where each entry is the activity's demand divided by
+        that resource's maximum availability (occupied zones contribute 1.0).
+        Four scalars are then written to ``self.infoDict[a]``:
+
+        - ``rr``    — fraction of resource types the activity requires,
+        - ``avgrr`` — mean normalised requirement,
+        - ``maxrr`` — maximum normalised requirement,
+        - ``minrr`` — minimum normalised requirement.
+
+        These feed the priority-rule heuristics.
+        """
         for a in self.forwardDict.keys():
             res = a.getRequiredResources()
             eq  = a.getRequiredEquipment()
@@ -859,6 +979,16 @@ class Pert:
 
 # (ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, MinRReq)
     def calculate_gp_rules(self):
+        """
+        Compute the normalised inputs for the genetic-programming priority rules.
+
+        Normalises each activity's timing and resource metrics — ES, EF, LS, LF,
+        total predecessor/successor counts (TPC/TSC) and the resource-requirement
+        scalars — by their network-wide maxima (with zero-denominator guards for
+        trivial or single-activity networks), then evaluates the evolved
+        ``custom_priority_*`` heuristics and stores their outputs in
+        ``self.infoDict``.
+        """
         max_es  = max([self.infoDict[a]['es']  for a in self.forwardDict.keys()])
         max_ef  = max([self.infoDict[a]['ef']  for a in self.forwardDict.keys()])
         max_ls  = max([self.infoDict[a]['ls']  for a in self.forwardDict.keys()])
@@ -898,8 +1028,12 @@ class Pert:
         """
         Calculate early start (es) and early finish (ef) recursively.
 
-        Args:
-            activity (Activity): Current activity in forward scan
+        Parameters
+        ----------
+        activity : Activity
+            Current activity in the forward scan.
+        visited : set or None, optional
+            Set of already-visited activities used to avoid re-processing.
         """
 
         if visited is None:
@@ -920,8 +1054,12 @@ class Pert:
         """
         Calculate late start (ls) and late finish (lf) recursively.
 
-        Args:
-            activity (Activity): Current activity in backward scan
+        Parameters
+        ----------
+        activity : Activity
+            Current activity in the backward scan.
+        visited : set or None, optional
+            Set of already-visited activities used to avoid re-processing.
         """
 
         if visited is None:
@@ -949,7 +1087,8 @@ class Pert:
 
     def generateInfoForIsolated(self):
         """
-        Calculate timing for isolated activities (no predecessors AND no successors).
+        Calculate timing for isolated activities (no predecessors and no
+        successors).
 
         Uses the maximum LF across all sinks so the method works whether or not
         an explicit END node is present.
@@ -973,8 +1112,10 @@ class Pert:
         """
         Find isolated activities (no predecessors or successors).
 
-        Returns:
-            list: List of isolated Activity objects
+        Returns
+        -------
+        list of Activity
+            The isolated activities.
         """
         isolated = list(self.infoDict)
         for activity in self.forwardDict:
@@ -986,15 +1127,24 @@ class Pert:
         return isolated
 
     def _resolve_windows(self, act) -> list:
-        """Return a normalised list of (earliest_h, latest_h) float tuples.
+        """Return a normalised list of ``(earliest_h, latest_h)`` float tuples.
 
         Checks ``act.time_windows`` (multi-window list) first; falls back to
-        the legacy single-window fields
-        (``window_earliest_start_hours`` / ``window_latest_finish_hours``).
+        the legacy single-window fields (``window_earliest_start_hours`` /
+        ``window_latest_finish_hours``).
 
-        Returns an empty list when the activity has no window constraints.
-        The returned tuples use ``float('inf')`` for an absent latest bound
-        and ``0.0`` for an absent earliest bound.
+        Parameters
+        ----------
+        act : Activity
+            Activity whose time-window constraints are resolved.
+
+        Returns
+        -------
+        list of tuple of float
+            One ``(earliest_h, latest_h)`` tuple per window, using
+            ``float('inf')`` for an absent latest bound and ``0.0`` for an
+            absent earliest bound.  Empty when the activity has no window
+            constraints.
         """
         tw = getattr(act, 'time_windows', [])
         if tw:
@@ -1056,6 +1206,17 @@ class Pert:
         Activities without window fields (both None) are untouched.  When
         ``topo`` is absent (never from the CPM driver) a legacy local-only
         tightening is used instead — see ``_apply_time_windows_local``.
+
+        Parameters
+        ----------
+        topo : list or None, optional
+            Topological order of the activities.  When supplied, windows are
+            folded into a full forward/backward CPM re-relaxation; when absent
+            a legacy local-only tightening is used.
+
+        Returns
+        -------
+        None
         """
         # --- Resolve each activity's window envelope --------------------------
         west: dict = {}                 # earliest-start floor  (0.0 if no window)
@@ -1146,6 +1307,22 @@ class Pert:
         ES/EF/LF/LS/slack per activity but cannot propagate a raised ES to
         successors, so it reproduces the pre-C1 behaviour.  Kept so a direct,
         topo-less call neither crashes nor silently changes historical output.
+
+        Parameters
+        ----------
+        west : dict
+            Mapping of activity to its earliest-start floor (0.0 if no window).
+        wlf : dict
+            Mapping of activity to its latest-finish ceiling (``inf`` if none).
+        windowed : list of Activity
+            Activities that actually carry a window constraint.
+        windows_of : dict
+            Mapping of activity to the resolved windows, kept for the
+            infeasibility log.
+
+        Returns
+        -------
+        None
         """
         for act in windowed:
             info = self.infoDict[act]
@@ -1218,9 +1395,11 @@ class Pert:
                 self.infoDict[act]['wbs_slack'] = self.infoDict[act]['slack']
 
     def _is_zero(self, x: float, tol: float = 1e-6) -> bool:
+        """Return ``True`` if ``x`` is within ``tol`` of zero."""
         return abs(x) <= tol
 
     def _eq_with_tol(self, a: float, b: float, tol: float = 1e-6) -> bool:
+        """Return ``True`` if ``a`` and ``b`` are equal within ``tol``."""
         return abs(a - b) <= tol
 
     def getCriticalPath(self, return_all: bool = False):
@@ -1234,17 +1413,20 @@ class Pert:
         absent the search is performed from every zero-indegree node to every
         zero-outdegree node.
 
-        Args:
-            return_all (bool): If False (default) return the single longest
-                critical path as List[Activity].  If True return all critical
-                paths as List[List[Activity]], sorted longest-first.
+        Parameters
+        ----------
+        return_all : bool, optional
+            If ``False`` (default) return the single longest critical path as
+            ``List[Activity]``.  If ``True`` return all critical paths as
+            ``List[List[Activity]]``, sorted longest-first.
 
-        Returns:
-            List[Activity]           when return_all=False
-            List[List[Activity]]     when return_all=True  (may be empty list
-                                     if no strict critical path exists, in which
-                                     case the fallback heuristic is used for
-                                     the return_all=False case only)
+        Returns
+        -------
+        list of Activity or list of list of Activity
+            A single path when ``return_all=False``; all critical paths when
+            ``return_all=True`` (may be an empty list if no strict critical path
+            exists, in which case the fallback heuristic is used for the
+            ``return_all=False`` case only).
         """
         sources = [self.startActivity] if self.startActivity else self._get_sources()
         sinks   = [self.endActivity]   if self.endActivity   else self._get_sinks()
@@ -1322,12 +1504,16 @@ class Pert:
         """
         Return critical path(s) as activity name strings.
 
-        Args:
-            return_all (bool): Mirrors getCriticalPath(return_all).
+        Parameters
+        ----------
+        return_all : bool, optional
+            Mirrors ``getCriticalPath(return_all)``.
 
-        Returns:
-            List[str]            when return_all=False
-            List[List[str]]      when return_all=True
+        Returns
+        -------
+        list of str or list of list of str
+            A single path of names when ``return_all=False``; all critical
+            paths as name lists when ``return_all=True``.
         """
         if return_all:
             paths = self.getCriticalPath(return_all=True)
@@ -1338,10 +1524,12 @@ class Pert:
 
     def getCriticalPathWithLength(self):
         """
-        Get critical path as dictionary with durations.
+        Get critical path as a dictionary with durations.
 
-        Returns:
-            dict: {Activity: duration} for activities on critical path
+        Returns
+        -------
+        dict
+            ``{Activity: duration}`` for activities on the critical path.
         """
         return {activity: activity.duration for activity in self.getCriticalPath()}
 
@@ -1350,8 +1538,13 @@ class Pert:
         """
         Return the project duration in hours.
 
-        Uses endActivity.ef when an END node is present; otherwise returns
-        the maximum ef across all sink nodes.
+        Uses ``endActivity.ef`` when an END node is present; otherwise returns
+        the maximum ``ef`` across all sink nodes.
+
+        Returns
+        -------
+        float
+            Project duration in hours.
         """
         if self.endActivity:
             return self.infoDict[self.endActivity]["ef"]
@@ -1362,10 +1555,17 @@ class Pert:
 
     def returnScheduleEndTime(self):
         """
-        Get absolute end time of the schedule.
+        Get the absolute end time of the schedule.
 
-        Returns:
-            datetime: Absolute end time
+        Returns
+        -------
+        datetime
+            Absolute end time.
+
+        Raises
+        ------
+        ValueError
+            If the start time is not set.
         """
         if not self.startTime:
             raise ValueError("Start time not set")
@@ -1378,10 +1578,14 @@ class Pert:
         """
         Add a new activity to the existing schedule.
 
-        Args:
-            activity (Activity): Activity to be added
-            inConnections (list): List of predecessor activities
-            outConnections (list): List of successor activities
+        Parameters
+        ----------
+        activity : Activity
+            Activity to be added.
+        inConnections : list, optional
+            List of predecessor activities.
+        outConnections : list, optional
+            List of successor activities.
         """
         if inConnections is None:
             inConnections = []
@@ -1461,19 +1665,27 @@ class Pert:
           - Does NOT call resetInfo() / generateInfo() — the caller decides
             when to recompute CPM state (allows batching multiple insertions).
 
-        Args:
-            task_dict:      Task definition dict following the outage JSON schema
-                            (keys: task_id, duration, successors, …).
-            after_task_id:  ID of the predecessor task (new task starts after this).
-                            None means the new task has no predecessor (new source).
-            before_task_id: ID of the successor task (new task finishes before this).
-                            None means the new task has no successor (new sink).
+        Parameters
+        ----------
+        task_dict : dict
+            Task definition dict following the outage JSON schema (keys:
+            ``task_id``, ``duration``, ``successors``, …).
+        after_task_id : str, optional
+            ID of the predecessor task (the new task starts after this).
+            ``None`` means the new task has no predecessor (new source).
+        before_task_id : str, optional
+            ID of the successor task (the new task finishes before this).
+            ``None`` means the new task has no successor (new sink).
 
-        Returns:
+        Returns
+        -------
+        Activity
             The newly created Activity object.
 
-        Raises:
-            ValueError: If task_dict['task_id'] already exists in the network.
+        Raises
+        ------
+        ValueError
+            If ``task_dict['task_id']`` already exists in the network.
         """
         task_id: str = task_dict['task_id']
         if task_id in self.task_to_activity:
@@ -1647,6 +1859,13 @@ class Pert:
 
         Must be called *after* ``generateInfo()`` / ``_generate_info_from()``
         so that ``infoDict`` slack values are up to date.
+
+        Parameters
+        ----------
+        value_mode : str
+            Priority-value mode.  ``'TF_based'`` and ``'external'`` populate the
+            cache with static per-activity priorities; any other value leaves it
+            empty so candidate selection falls back to the O(n) scan.
         """
         self._priority_cache = {}
         if value_mode == 'TF_based':
@@ -1684,7 +1903,7 @@ class Pert:
             self._heap_push(act)
 
     def _heap_push(self, act: Activity) -> None:
-        """Push *act* onto ``_ready_heap`` with a fresh version tag.
+        """Push ``act`` onto ``_ready_heap`` with a fresh version tag.
 
         Incrementing ``_heap_seq[act]`` before pushing ensures that any prior
         heap entry for this activity compares unequal on the seq field and is
@@ -1692,6 +1911,11 @@ class Pert:
         At most one valid entry per activity exists in the heap at any time,
         eliminating the duplicate accumulation that occurred when all collected
         candidates were re-pushed each scheduling step.
+
+        Parameters
+        ----------
+        act : Activity
+            Activity to push onto the ready heap.
         """
         seq = self._heap_seq.get(act, 0) + 1
         self._heap_seq[act] = seq
@@ -1796,9 +2020,13 @@ class Pert:
         updated to the current list length so that ``compute_fitness()`` and
         the schedule-result snapshot only count violations from this run.
 
-        Args:
-            current_time_hours: Hours from outage start at which the replan
-                                 is triggered.
+        Parameters
+        ----------
+        current_time_hours : float
+            Hours from outage start at which the replan is triggered.
+        duration_overrides : dict, optional
+            Mapping of ``{task_id: new_total_duration}`` applied to in-progress
+            activities as a revised total duration.
         """
         current_abs = self.startTime + timedelta(hours=current_time_hours)
 
@@ -1968,18 +2196,19 @@ class Pert:
           preserved because it lives on the Activity objects themselves, not
           in these structural dicts.
 
-        Args:
-            new_activities: List of Activity objects to inject.  Activities
-                            whose names already exist in the graph are skipped
-                            with a warning.
-            predecessor_wiring: Optional ``{new_task_id: [existing_pred_id, ...]}``
-                dict.  For each entry, the named existing activities are
-                added as predecessors of the new activity (i.e. edges
-                existing_pred → new_task are inserted into ``forwardDict``).
-                Unknown task IDs on either side are skipped with a warning.
-                Lags for these edges default to 0; set them via
-                ``act.successor_lags`` before calling if non-zero lags are
-                needed.
+        Parameters
+        ----------
+        new_activities : list of Activity
+            Activity objects to inject.  Activities whose names already exist in
+            the graph are skipped with a warning.
+        predecessor_wiring : dict, optional
+            Optional ``{new_task_id: [existing_pred_id, ...]}`` dict.  For each
+            entry, the named existing activities are added as predecessors of
+            the new activity (i.e. edges ``existing_pred → new_task`` are
+            inserted into ``forwardDict``).  Unknown task IDs on either side are
+            skipped with a warning.  Lags for these edges default to 0; set them
+            via ``act.successor_lags`` before calling if non-zero lags are
+            needed.
         """
         # Ensure task_to_activity is complete for graph-built Pert objects
         # (graph= constructor does not populate this dict; injection needs it
@@ -2069,8 +2298,10 @@ class Pert:
         After the CPM pass, ``_apply_time_windows()`` is called to tighten
         ES/LF for windowed activities, same as in ``generateInfo()``.
 
-        Args:
-            current_time_hours: Hours from outage start at the replan point.
+        Parameters
+        ----------
+        current_time_hours : float
+            Hours from outage start at the replan point.
         """
         if not self.forwardDict:
             return
@@ -2209,8 +2440,15 @@ class Pert:
         5. Window-open times for pending activities.
         6. Shift-start boundaries for partial-day schedules.
 
-        Returns:
-            list: A valid heapq (min-heap) of datetime objects.
+        Parameters
+        ----------
+        current_time_hours : float
+            Offset from outage start (hours) at which the replan is anchored.
+
+        Returns
+        -------
+        list
+            A valid heapq (min-heap) of ``datetime`` objects.
         """
         current_abs = self.startTime + timedelta(hours=current_time_hours)
         events: set = set()
@@ -2290,15 +2528,28 @@ class Pert:
            (``len(completed) == n_activities``) accounts for them from the start.
         3. A ``'replan_time_hours'`` key is added to the result dict.
 
-        Args:
-            current_time_hours: Offset from outage start in hours.
-            sgs: Schedule Generation Scheme name.
-            max_time_hours: Safety cutoff (defaults to CPM × _max_time_factor).
-            priority_rule: Override priority rule (empty = TF-based).
+        Parameters
+        ----------
+        current_time_hours : float
+            Offset from outage start in hours.
+        sgs : str, optional
+            Schedule Generation Scheme name (default ``'max_use_res_ranked'``).
+        max_time_hours : float, optional
+            Safety cutoff (defaults to CPM × ``_max_time_factor``).
+        priority_rule : str, optional
+            Override priority rule (empty = TF-based).
 
-        Returns:
+        Returns
+        -------
+        dict
             Same dict as ``calculateScheduleWithResources()``, plus
             ``'replan_time_hours'``.
+
+        Raises
+        ------
+        ValueError
+            If the resource, equipment, and location pools are not initialised,
+            or if ``startTime`` is not set.
         """
         if not self.crew_pool or not self.equipment_pool or not self.location_pool:
             raise ValueError("Resource, equipment, and location pools must be initialised")
@@ -2485,33 +2736,47 @@ class Pert:
         7. ``_generate_info_from(current_time_hours)`` — partial CPM.
         8. ``calculateScheduleWithResources_from(...)`` — scheduling loop.
 
-        Args:
-            current_time_hours: Hours from outage start at the replan trigger.
-            new_activities: Optional list of Activity objects to inject.
-            predecessor_wiring: Optional ``{new_task_id: [existing_pred_id, ...]}``
-                passed directly to ``_inject_activities``.  Ignored when
-                ``new_activities`` is None or empty.
-            resource_updates: Optional list of dicts, each with keys:
-                ``skill_type`` (str), ``from_hour`` (float),
-                ``new_count`` (int), ``until_hour`` (float, optional).
-            equipment_updates: Optional list of dicts, each with keys:
-                ``equipment_id`` (str), ``from_hour`` (float),
-                ``new_quantity`` (int), ``until_hour`` (float, optional).
-            duration_overrides: Optional {task_id: new_total_duration_hours}
-                for in-progress activities whose remaining time has changed.
-                Updates ``act.duration`` permanently.
-            sgs: Schedule Generation Scheme strategy name.
-            max_time_hours: Safety cutoff in hours (default: CPM × 10).
+        Parameters
+        ----------
+        current_time_hours : float
+            Hours from outage start at the replan trigger.
+        new_activities : list, optional
+            List of Activity objects to inject.
+        predecessor_wiring : dict, optional
+            ``{new_task_id: [existing_pred_id, ...]}`` passed directly to
+            ``_inject_activities``.  Ignored when ``new_activities`` is None or
+            empty.
+        resource_updates : list, optional
+            List of dicts, each with keys ``skill_type`` (str),
+            ``from_hour`` (float), ``new_count`` (int), and
+            ``until_hour`` (float, optional).
+        equipment_updates : list, optional
+            List of dicts, each with keys ``equipment_id`` (str),
+            ``from_hour`` (float), ``new_quantity`` (int), and
+            ``until_hour`` (float, optional).
+        duration_overrides : dict, optional
+            ``{task_id: new_total_duration_hours}`` for in-progress activities
+            whose remaining time has changed.  Updates ``act.duration``
+            permanently.
+        sgs : str, optional
+            Schedule Generation Scheme strategy name
+            (default ``'max_use_res_ranked'``).
+        max_time_hours : float, optional
+            Safety cutoff in hours (default: CPM × 10).
 
-        Returns:
+        Returns
+        -------
+        dict
             Same dict as ``calculateScheduleWithResources()``, plus
             ``'replan_time_hours'``.
 
-        Raises:
-            ValueError: If pools or startTime are not set, or if a resource /
-                        equipment update specifies from_hour < 0.
-            RuntimeError: If called before any scheduling run has been
-                          performed.
+        Raises
+        ------
+        ValueError
+            If pools or ``startTime`` are not set, or if a resource / equipment
+            update specifies ``from_hour < 0``.
+        RuntimeError
+            If called before any scheduling run has been performed.
         """
         if not self.startTime:
             raise ValueError("startTime must be set before replanning")
@@ -2625,7 +2890,9 @@ class Pert:
         only generateInfo() if infoDict is already initialised) after any
         topology mutations before reading CPM results.
 
-        Returns:
+        Returns
+        -------
+        Pert
             A new Pert instance with independent topology, deep-copied pools,
             and fresh scheduling state.
         """
@@ -2746,11 +3013,15 @@ class Pert:
         Fractional-minute precision is preserved by comparing the total
         decimal hours within the day rather than the integer hour field.
 
-        Args:
-            t: Datetime to test.
+        Parameters
+        ----------
+        t : datetime
+            Datetime to test.
 
-        Returns:
-            bool: True if activities may start at *t*.
+        Returns
+        -------
+        bool
+            True if activities may start at *t*.
         """
         if self.working_hours_per_day >= 24:
             return True
@@ -2769,8 +3040,10 @@ class Pert:
         Used to snap an activity's eligible start forward to the next open
         shift window when the current time falls in an off-shift period.
 
-        Returns:
-            datetime: Start of the next (or current, if already in shift) window.
+        Returns
+        -------
+        datetime
+            Start of the next (or current, if already in shift) window.
         """
         if self._is_work_time(t):
             return t
@@ -2789,9 +3062,12 @@ class Pert:
         Only meaningful when ``working_hours_per_day < 24``; returns an empty
         list for 24/7 schedules.
 
-        Args:
-            start: Window start (inclusive).
-            end:   Window end (inclusive).
+        Parameters
+        ----------
+        start : datetime
+            Window start (inclusive).
+        end : datetime
+            Window end (inclusive).
         """
         if self.working_hours_per_day >= 24:
             return []
@@ -2881,8 +3157,10 @@ class Pert:
         activity is started, because completion times depend on the actual
         start time (which is determined by resource availability, not just ES).
 
-        Returns:
-            list: A valid heapq (min-heap) of datetime objects.
+        Returns
+        -------
+        list
+            A valid heapq (min-heap) of datetime objects.
         """
         events: set = set()
 
@@ -2972,20 +3250,31 @@ class Pert:
 
         Works in both standalone and RAVEN (BaseCPMmodel) modes.
 
-        Args:
-            sgs (str): Schedule Generation Scheme strategy name.
-            max_time_hours (float, optional): Safety cutoff in hours from
-                startTime.  Defaults to self._max_time_factor x the CPM duration.
+        Parameters
+        ----------
+        sgs : str
+            Schedule Generation Scheme strategy name.
+        max_time_hours : float, optional
+            Safety cutoff in hours from startTime.  Defaults to
+            self._max_time_factor x the CPM duration.
+        priority_rule : str, optional
+            Priority rule used to compute the value ordering when no external
+            priorities are supplied.
 
-        Returns:
-            dict: {
-                'scheduled_duration': float,   # hours from startTime to last end
-                'cpm_duration':        float,   # unconstrained CPM duration
-                'delay_hours':         float,   # total accumulated delay
-                'n_activities':        int,
-                'n_completed':         int,
-                'iterations':          int      # number of event-loop steps
-            }
+        Returns
+        -------
+        dict
+            Dictionary with the keys ``'scheduled_duration'`` (hours from
+            startTime to last end), ``'cpm_duration'`` (unconstrained CPM
+            duration), ``'delay_hours'`` (total accumulated delay),
+            ``'n_activities'``, ``'n_completed'``, and ``'iterations'``
+            (number of event-loop steps).
+
+        Raises
+        ------
+        ValueError
+            If the resource, equipment, and location pools are not initialised,
+            or if startTime is not set.
         """
         if not self.crew_pool or not self.equipment_pool or not self.location_pool:
             raise ValueError(
@@ -3195,13 +3484,17 @@ class Pert:
           than a fixed 1-hour increment, matching the variable step size of the
           event-driven loop.
 
-        Args:
-            selected (list):      Activities chosen to start at time_index.
-            candidates (dict):    Full candidate set considered this step.
-            time_index (datetime): Current event time.
-            elapsed_hours (float): Hours to the next event; used for delay
-                                   accounting on postponed activities.
-                                   Defaults to 0.0 if no next event exists.
+        Parameters
+        ----------
+        selected : list
+            Activities chosen to start at time_index.
+        candidates : dict
+            Full candidate set considered this step.
+        time_index : datetime
+            Current event time.
+        elapsed_hours : float, optional
+            Hours to the next event; used for delay accounting on postponed
+            activities.  Defaults to 0.0 if no next event exists.
         """
         if selected:
             for act in selected:
@@ -3262,6 +3555,22 @@ class Pert:
         Complexity per call: O(K log n + stale_entries × log n).  For fan/tight
         topologies with static priorities this is O(K log n) ≈ O(1) vs the
         O(n) full scan — converting O(n²/k) scheduling to O(n log n).
+
+        Parameters
+        ----------
+        time : datetime
+            Current event time being evaluated.
+        current_hours : float
+            Hours elapsed from startTime to ``time``.
+        value_assignment : str
+            Value/priority mode driving the ordering (e.g. ``'TF_based'`` or
+            ``'external'``).
+
+        Returns
+        -------
+        Dict[Activity, Dict]
+            Mapping of eligible candidate activities to their evaluation
+            metadata for this scheduling step.
         """
         # Estimate K: how many activities can start this step.
         _univ_min = self._univ_skill_min
@@ -3384,14 +3693,20 @@ class Pert:
         2. All its predecessors are complete
         3. Its early start (ES) <= current time
 
-        Args:
-            time (datetime): Current time in schedule
-            value_assignment (str): Method to assign priority values:
-                - 'TF_based': Use slack-based weight function
-                - 'external': Use externally provided priorities
+        Parameters
+        ----------
+        time : datetime
+            Current time in schedule.
+        value_assignment : str
+            Method to assign priority values: ``'TF_based'`` uses the
+            slack-based weight function, ``'external'`` uses externally
+            provided priorities.
 
-        Returns:
-            dict: {Activity: {'duration', 'es', 'ef', 'ls', 'lf', 'slack', 'value'}}
+        Returns
+        -------
+        dict
+            Mapping ``{Activity: {'duration', 'es', 'ef', 'ls', 'lf', 'slack',
+            'value'}}``.
         """
 
         candidates: Dict[Activity, Dict] = {}
@@ -3568,18 +3883,23 @@ class Pert:
         Complexity: O((K + extra) × (S + E + L)) instead of
         O(D × K × (S + E + L)).
 
-        Args:
-            start_time:        Window start (always included in the grid).
-            end_time:          Window end (always included in the grid).
-            extra_boundaries:  Optional iterable of additional datetime boundary
-                               points to add to the grid (e.g. candidate end
-                               times so that ``_apply_tentative`` stops at the
-                               right boundary for each candidate).
+        Parameters
+        ----------
+        start_time : datetime
+            Window start (always included in the grid).
+        end_time : datetime
+            Window end (always included in the grid).
+        extra_boundaries : iterable of datetime, optional
+            Additional datetime boundary points to add to the grid (e.g.
+            candidate end times so that ``_apply_tentative`` stops at the right
+            boundary for each candidate).
 
-        Returns:
-            Tuple ``(res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid)``
-            where ``grid`` is a sorted list of datetime boundary points.
-            Pass ``grid`` to :meth:`_fits_with_tentative` and
+        Returns
+        -------
+        tuple
+            ``(res_rem, eq_rem, loc_tasks_rem, loc_workers_rem, grid)`` where
+            ``grid`` is a sorted list of datetime boundary points.  Pass
+            ``grid`` to :meth:`_fits_with_tentative` and
             :meth:`_apply_tentative` to activate the O(K) fast path.
         """
         # ── 1. Build the boundary grid ────────────────────────────────────────
@@ -3743,14 +4063,20 @@ class Pert:
         (finding SC1).  A no-op (returns True) when dose tracking is disabled
         or the activity has no dose rate.
 
-        Args:
-            extra_consumed: Optional {skill: mRem} overlay of dose already
-                committed *tentatively* earlier in the current time-step but not
-                yet charged to the tracker (finding PD1).  When supplied, the
-                budget check accounts for it so that a second candidate selected
-                in the same parallel step cannot re-spend budget the first one
-                already tentatively drew.  When ``None`` the check uses the
-                tracker's committed state only (serial path / isolated checks).
+        Parameters
+        ----------
+        activity : Activity
+            Activity whose dose charge is being tested.
+        worker_map : dict
+            Mapping ``{skill: workers}`` of the workers to charge dose for.
+        extra_consumed : dict, optional
+            ``{skill: mRem}`` overlay of dose already committed *tentatively*
+            earlier in the current time-step but not yet charged to the tracker
+            (finding PD1).  When supplied, the budget check accounts for it so
+            that a second candidate selected in the same parallel step cannot
+            re-spend budget the first one already tentatively drew.  When
+            ``None`` the check uses the tracker's committed state only (serial
+            path / isolated checks).
         """
         if not self.dose_trackers:
             return True
@@ -3808,18 +4134,28 @@ class Pert:
     ) -> bool:
         """Check feasibility against remaining capacity snapshots.
 
-        Args:
-            grid: Optional sorted list of boundary datetimes returned by
-                  :meth:`_build_capacity_snapshots`.  When supplied, only
-                  the boundary points within ``[start_time, end_time)`` are
-                  checked — O(K) instead of O(D).  When ``None``, falls back
-                  to the original hour-by-hour iteration (backward compatible).
-            dose_rem: Optional {skill: mRem} overlay tracking dose already
-                  drawn *tentatively* by earlier candidates selected in this
-                  same time-step (finding PD1).  Mirrors ``res_rem`` for the
-                  cumulative dose budget: without it, every candidate's dose
-                  check reads the untouched tracker and same-step multi-select
-                  over-commits the budget.  ``None`` for isolated/serial checks.
+        Parameters
+        ----------
+        activity : Activity
+            Activity being tested for feasibility.
+        start_time : datetime
+            Candidate start time.
+        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem : dict
+            Remaining-capacity snapshots produced by
+            :meth:`_build_capacity_snapshots`.
+        grid : list of datetime, optional
+            Sorted list of boundary datetimes returned by
+            :meth:`_build_capacity_snapshots`.  When supplied, only the
+            boundary points within ``[start_time, end_time)`` are checked —
+            O(K) instead of O(D).  When ``None``, falls back to the original
+            hour-by-hour iteration (backward compatible).
+        dose_rem : dict, optional
+            ``{skill: mRem}`` overlay tracking dose already drawn *tentatively*
+            by earlier candidates selected in this same time-step (finding
+            PD1).  Mirrors ``res_rem`` for the cumulative dose budget: without
+            it, every candidate's dose check reads the untouched tracker and
+            same-step multi-select over-commits the budget.  ``None`` for
+            isolated/serial checks.
         """
         eff = self._effective_duration(activity)
         end_time = start_time + timedelta(hours=eff)
@@ -3934,23 +4270,35 @@ class Pert:
     ):
         """Decrement remaining capacity snapshots by activity's consumption.
 
-        Args:
-            grid: Optional sorted list of boundary datetimes returned by
-                  :meth:`_build_capacity_snapshots`.  When supplied, only
-                  the boundary points within ``[start_time, end_time)`` are
-                  decremented — O(K) instead of O(D).  When ``None``, falls
-                  back to the original hour-by-hour iteration.
-            dose_rem: Optional {skill: mRem} overlay accumulating dose drawn
-                  tentatively this time-step (finding PD1).  When supplied, this
-                  activity's resolved dose is added so the next candidate's
-                  :meth:`_fits_with_tentative` check sees it.  Unlike consumable
-                  and system-state state (mutated on the persistent pool here),
-                  dose is charged to the tracker only at commit — this overlay
-                  is transient and discarded at the end of the time-step, so
-                  analysis-only callers (e.g. ``_compute_earliest_feasible``)
-                  that pass ``None`` never leak tentative dose into the budget.
+        Parameters
+        ----------
+        activity : Activity
+            Activity whose consumption is applied to the snapshots.
+        start_time : datetime
+            Time at which the activity starts.
+        res_rem, eq_rem, loc_tasks_rem, loc_workers_rem : dict
+            Remaining-capacity snapshots produced by
+            :meth:`_build_capacity_snapshots`, decremented in place.
+        grid : list of datetime, optional
+            Sorted list of boundary datetimes returned by
+            :meth:`_build_capacity_snapshots`.  When supplied, only the
+            boundary points within ``[start_time, end_time)`` are decremented —
+            O(K) instead of O(D).  When ``None``, falls back to the original
+            hour-by-hour iteration.
+        dose_rem : dict, optional
+            ``{skill: mRem}`` overlay accumulating dose drawn tentatively this
+            time-step (finding PD1).  When supplied, this activity's resolved
+            dose is added so the next candidate's
+            :meth:`_fits_with_tentative` check sees it.  Unlike consumable
+            and system-state state (mutated on the persistent pool here),
+            dose is charged to the tracker only at commit — this overlay
+            is transient and discarded at the end of the time-step, so
+            analysis-only callers (e.g. ``_compute_earliest_feasible``)
+            that pass ``None`` never leak tentative dose into the budget.
 
-        Note: When ``grid`` is used the caller must ensure that the activity's
+        Notes
+        -----
+        When ``grid`` is used the caller must ensure that the activity's
         end time (``start_time + duration``) was included in ``extra_boundaries``
         when building the snapshot.  This guarantees the decrement stops at the
         correct boundary and does not bleed into subsequent intervals.
@@ -4049,8 +4397,26 @@ class Pert:
         """
         Select which candidate activities to start based on strategy.
 
-        Returns:
-            list: List of Activity objects selected to start
+        Parameters
+        ----------
+        candidates : dict
+            Candidate activities and their evaluation metadata.
+        time_index : datetime
+            Current event time at which candidates are evaluated.
+        choice : str
+            Schedule Generation Scheme name (e.g. ``'first'``,
+            ``'max_use_res_ranked'``, ``'max_use_res_shuffled'``,
+            ``'md_knapsack'``, ``'look_ahead'``).
+
+        Returns
+        -------
+        list
+            List of Activity objects selected to start.
+
+        Raises
+        ------
+        ValueError
+            If *choice* is not a recognised scheduling strategy.
         """
         if choice == 'first':
             # Serial SGS: try each candidate in priority order and start the
@@ -4221,13 +4587,18 @@ class Pert:
         'max_use_res_ranked', 'max_use_res_shuffled', 'md_knapsack', and
         'look_ahead' strategies.
 
-        Args:
-            activity (Activity): The activity to check.
-            start_time (datetime): Proposed start time.
+        Parameters
+        ----------
+        activity : Activity
+            The activity to check.
+        start_time : datetime
+            Proposed start time.
 
-        Returns:
-            bool: True if the activity can feasibly start at start_time given
-                currently ongoing activities.
+        Returns
+        -------
+        bool
+            True if the activity can feasibly start at start_time given
+            currently ongoing activities.
         """
         end_time = start_time + timedelta(hours=self._effective_duration(activity))
 
@@ -4329,21 +4700,30 @@ class Pert:
         severe penalty — consistent with nuclear outage priorities where
         missing a Technical Specification window is a regulatory failure.
 
-        Args:
-            alpha: Weight for makespan component (default 1.0).
-            beta:  Weight for delay component (default 0.5).
-            gamma: Weight for criticality / robustness component (default 0.3).
-            delta: Weight for window-violation component (default 2.0).
+        Parameters
+        ----------
+        alpha : float, optional
+            Weight for makespan component (default 1.0).
+        beta : float, optional
+            Weight for delay component (default 0.5).
+        gamma : float, optional
+            Weight for criticality / robustness component (default 0.3).
+        delta : float, optional
+            Weight for window-violation component (default 2.0).
 
-        Returns:
-            dict with keys ``composite``, ``makespan_ratio``, ``delay_ratio``,
-            ``criticality_ratio``, ``window_violation_ratio``,
+        Returns
+        -------
+        dict
+            Dictionary with keys ``composite``, ``makespan_ratio``,
+            ``delay_ratio``, ``criticality_ratio``, ``window_violation_ratio``,
             ``scheduled_duration``, ``cpm_duration``, ``delay_hours``,
-            ``n_window_violations``.
-            All float values; ``composite`` is the scalar to minimise.
+            ``n_window_violations``.  All float values; ``composite`` is the
+            scalar to minimise.
 
-        Raises:
-            RuntimeError: If called before any schedule has been computed.
+        Raises
+        ------
+        RuntimeError
+            If called before any schedule has been computed.
         """
         if not self._last_schedule_result:
             raise RuntimeError(
@@ -4402,18 +4782,26 @@ class Pert:
     def _size_buffer(durations: list, method: str, fraction: float) -> float:
         """Compute a CCPM buffer size from a list of activity durations.
 
-        Args:
-            durations: Activity durations in hours.  May be empty.
-            method:    ``'half'`` — ``fraction × Σ(d)``; standard cut-and-paste.
-                       ``'ssq'``  — ``√(Σ((d×fraction)²))``; statistically grounded
-                       (half-normal approximation of duration uncertainty).
-            fraction:  Scaling factor.  Typical value: 0.5.
+        Parameters
+        ----------
+        durations : list
+            Activity durations in hours.  May be empty.
+        method : str
+            ``'half'`` — ``fraction × Σ(d)``; standard cut-and-paste.
+            ``'ssq'`` — ``√(Σ((d×fraction)²))``; statistically grounded
+            (half-normal approximation of duration uncertainty).
+        fraction : float
+            Scaling factor.  Typical value: 0.5.
 
-        Returns:
+        Returns
+        -------
+        float
             Buffer size in hours (≥ 0.0).  Zero when *durations* is empty.
 
-        Raises:
-            ValueError: If *method* is not ``'half'`` or ``'ssq'``.
+        Raises
+        ------
+        ValueError
+            If *method* is not ``'half'`` or ``'ssq'``.
         """
         if not durations:
             return 0.0
@@ -4516,16 +4904,23 @@ class Pert:
         Calling twice is idempotent — the existing buffer is returned without
         modification if a project buffer already exists in the graph.
 
-        Args:
-            method:   ``'half'`` (50 % of chain sum) or ``'ssq'`` (default;
-                      sum-of-squares root — statistically grounded).
-            fraction: Scaling factor applied during sizing (default 0.5).
+        Parameters
+        ----------
+        method : str, optional
+            ``'half'`` (50 % of chain sum) or ``'ssq'`` (default;
+            sum-of-squares root — statistically grounded).
+        fraction : float, optional
+            Scaling factor applied during sizing (default 0.5).
 
-        Returns:
+        Returns
+        -------
+        Activity
             The :class:`Activity` representing the project buffer.
 
-        Raises:
-            RuntimeError: If called before any scheduling run.
+        Raises
+        ------
+        RuntimeError
+            If called before any scheduling run.
         """
         if not getattr(self, 'constrained_chain_list', None):
             raise RuntimeError(
@@ -4585,16 +4980,23 @@ class Pert:
         Must be called **after** :meth:`calculateScheduleWithResources` (and
         optionally after :meth:`insert_project_buffer`).
 
-        Args:
-            method:   ``'half'`` or ``'ssq'`` (default).
-            fraction: Scaling factor (default 0.5).
+        Parameters
+        ----------
+        method : str, optional
+            ``'half'`` or ``'ssq'`` (default).
+        fraction : float, optional
+            Scaling factor (default 0.5).
 
-        Returns:
+        Returns
+        -------
+        list
             List of :class:`Activity` objects representing the inserted feeding
             buffers (may be empty if the critical chain has no feeding inputs).
 
-        Raises:
-            RuntimeError: If called before any scheduling run.
+        Raises
+        ------
+        RuntimeError
+            If called before any scheduling run.
         """
         if not getattr(self, 'constrained_chain_list', None):
             raise RuntimeError(
@@ -4683,12 +5085,14 @@ class Pert:
         activity past its CPM finish time, the buffer's actual start is
         later than planned and ``consumed_hours > 0``.
 
-        Returns:
-            dict keyed by buffer activity name, each value a dict with:
+        Returns
+        -------
+        dict
+            Dictionary keyed by buffer activity name, each value a dict with:
             ``buffer_type``, ``size_hours``, ``cpm_start_hours``,
             ``actual_start_hours`` (None if not yet scheduled),
-            ``consumed_hours``, ``utilization_pct``.
-            Empty dict if no buffer activities exist.
+            ``consumed_hours``, ``utilization_pct``.  Empty dict if no buffer
+            activities exist.
         """
         if not self.startTime:
             return {}
@@ -4795,7 +5199,8 @@ class Pert:
             - Location slots (task or worker capacity)
             and list the scheduled activities (not only 'ongoing') consuming capacity.
 
-        Notes:
+        Notes
+        -----
         - Uses half-open interval semantics everywhere: [prev_end, act_start).
         - Skips pairs with missing times (unscheduled tasks).
         """
@@ -5164,15 +5569,11 @@ class Pert:
         """
         Get schedule as pandas DataFrame.
 
-        Returns:
-            pandas.DataFrame: Schedule with columns:
-                - activity_id
-                - description
-                - start_time
-                - end_time
-                - duration
-                - delay
-                - on_critical_path
+        Returns
+        -------
+        pandas.DataFrame
+            Schedule with columns: activity_id, description, start_time,
+            end_time, duration, delay, on_critical_path.
         """
         try:
             import pandas as pd
@@ -5292,11 +5693,15 @@ class Pert:
         Should be called after ``calculateScheduleWithResources()`` or
         ``calculateScheduleWithResources_from()``.
 
-        Returns:
-            ValidationResult with .is_feasible, .violations, .warnings,
-            and .summary() method.
+        Returns
+        -------
+        ValidationResult
+            Result with .is_feasible, .violations, .warnings, and .summary()
+            method.
 
-        Example::
+        Examples
+        --------
+        ::
 
             result = pert.validate_schedule()
             if not result.is_feasible:
@@ -5371,8 +5776,10 @@ class Pert:
                 and their combined demand >= availability in the overlap.
         Only adds arcs from earlier-start to later-start to preserve DAG property.
 
-        Returns:
-        augmented: Dict[Activity, List[Activity]]  (adjacency list)
+        Returns
+        -------
+        Dict[Activity, List[Activity]]
+            The augmented adjacency list.
         """
         # Copy precedence edges
         augmented = {a: list(self.forwardDict[a]) for a in self.forwardDict.keys()}
@@ -5528,8 +5935,10 @@ class Pert:
         Compute a 'critical chain' as the longest path over the augmented DAG
         using planned durations (not reduced by delay).
 
-        Returns:
-        path: List[Activity] from START to END (if present), else best available.
+        Returns
+        -------
+        List[Activity]
+            Path from START to END (if present), else the best available path.
         """
         # Kahn topological sort — use deque for O(1) popleft instead of O(n) pop(0)
         from collections import deque
@@ -5642,6 +6051,14 @@ class Pert:
     # ============================================================================
 
     def debug_connectivity_and_es(self):
+        """
+        Log graph-connectivity and early-start diagnostics at DEBUG level.
+
+        Emits START's successors with their ES/EF, then lists any activity that
+        is not reachable from START or that cannot reach END — the usual causes
+        of a stalled or disconnected schedule.  Diagnostic side effects only; no
+        value is returned and the schedule is not modified.
+        """
         logger.debug("=== Connectivity & ES debug ===")
         if not self.startActivity or not self.endActivity:
             logger.debug("Missing START or END in graph.")
@@ -5691,6 +6108,20 @@ class Pert:
 
 
     def debug_candidates_and_capacity(self, hours_ahead=24):
+        """
+        Log candidate activities and their feasibility hour-by-hour at DEBUG level.
+
+        Walks forward from ``self.startTime`` for ``hours_ahead`` hours and, at
+        each hour, logs the candidate set and whether each candidate is
+        schedulable there — a quick way to see which gate (precedence, resource,
+        equipment, window, ...) is holding work back.  Diagnostic side effects
+        only; nothing is returned.
+
+        Parameters
+        ----------
+        hours_ahead : int, optional
+            Number of hours past the start time to inspect (default 24).
+        """
         logger.debug("=== Candidates & capacity debug ===")
         t = self.startTime
         for k in range(hours_ahead + 1):
@@ -5774,33 +6205,41 @@ class Pert:
     def priority_calculation(self, eligible, priority_rule='LF', current_time: datetime = None):
         """Calculate activity priorities based on a named rule.
 
-        Args:
-            eligible (list): list of activities
-            priority_rule (str, optional): priority rule. Defaults to 'LF'.
-                lf: latest finish
-                ls: latest start
-                ef: early finish
-                es: early start
-                duration: activity duration, or shortest processing time
-                random: random shuffle
-                mts: most total successors
-                mtp: most total predecessors
-                rr: resource required
-                avgrr: average resource requirement
-                maxrr: maximum resource requirement
-                minrr: minimum resource requirement
-                grpw: greatest rank position weight
-                grd: greatest resource demand
-                wcs: worst case slack — LS_j - t; lower = higher urgency
-                acs: average case slack — (ES_j + LS_j) / 2 - t; lower = higher urgency
-                irsm: improved resource scheduling method — rr_j / (LS_j - t + 1); higher = higher urgency
-            current_time (datetime, optional): current scheduling time; required for wcs/acs/irsm.
+        Parameters
+        ----------
+        eligible : list
+            List of activities.
+        priority_rule : str, optional
+            Priority rule (defaults to 'LF').  Supported rules:
+            lf: latest finish;
+            ls: latest start;
+            ef: early finish;
+            es: early start;
+            duration: activity duration, or shortest processing time;
+            random: random shuffle;
+            mts: most total successors;
+            mtp: most total predecessors;
+            rr: resource required;
+            avgrr: average resource requirement;
+            maxrr: maximum resource requirement;
+            minrr: minimum resource requirement;
+            grpw: greatest rank position weight;
+            grd: greatest resource demand;
+            wcs: worst case slack — LS_j - t; lower = higher urgency;
+            acs: average case slack — (ES_j + LS_j) / 2 - t; lower = higher urgency;
+            irsm: improved resource scheduling method — rr_j / (LS_j - t + 1); higher = higher urgency.
+        current_time : datetime, optional
+            Current scheduling time; required for wcs/acs/irsm.
 
-        Raises:
-            IOError: Invalid priority rule
+        Returns
+        -------
+        list
+            List of ``(Activity, raw_value, normalized_value)`` tuples.
 
-        Returns:
-            list: [(Activity, raw_value, normalized_value), ...]
+        Raises
+        ------
+        IOError
+            If the priority rule is invalid.
         """
         rule = priority_rule.lower()
         if rule in ['lf', 'ls', 'ef', 'es', 'duration'] + list(CUSTOM_PRIORITY_FUNCS.keys()):
@@ -5889,14 +6328,21 @@ class Pert:
         """
         Sort a list with a primary key and an optional tie-breaker rule.
 
-        Args:
-            data (list): Input list
-            key_func (callable): Function to extract primary sort key
-            tie_breaker (callable, optional): Function for tie-breaking
-            reverse (bool): Whether to reverse the sort
+        Parameters
+        ----------
+        data : list
+            Input list.
+        key_func : callable
+            Function to extract primary sort key.
+        tie_breaker : callable, optional
+            Function for tie-breaking.
+        reverse : bool
+            Whether to reverse the sort.
 
-        Returns:
-            list: Sorted list
+        Returns
+        -------
+        list
+            Sorted list.
         """
         if tie_breaker is None:
             return sorted(data, key=key_func, reverse=reverse)
@@ -6074,13 +6520,19 @@ class Pert:
         no dicts are built or mutated, making it cheap to call repeatedly
         during the forward scan in _find_earliest_feasible_start_serial.
 
-        Args:
-            activity:         Candidate activity to evaluate.
-            start_time:       Proposed absolute start time.
-            schedule_profile: List of (act, abs_start, abs_end) tuples for
-                              every activity already scheduled this pass.
+        Parameters
+        ----------
+        activity : Activity
+            Candidate activity to evaluate.
+        start_time : datetime
+            Proposed absolute start time.
+        schedule_profile : list of tuple
+            List of (act, abs_start, abs_end) tuples for every activity
+            already scheduled this pass.
 
-        Returns:
+        Returns
+        -------
+        bool
             True if the activity can start at start_time without violating
             any resource, equipment, or location constraint.
         """
@@ -6253,14 +6705,20 @@ class Pert:
         candidate set and returns None rather than force-committing an
         infeasible placement.  Callers must treat None as "cannot schedule".
 
-        Args:
-            activity:         Activity to schedule.
-            min_start:        Earliest permissible start (from precedence).
-            schedule_profile: Already-committed (act, start, end) tuples.
+        Parameters
+        ----------
+        activity : Activity
+            Activity to schedule.
+        min_start : datetime
+            Earliest permissible start (from precedence).
+        schedule_profile : list of tuple
+            Already-committed (act, start, end) tuples.
 
-        Returns:
-            datetime: Earliest feasible absolute start time >= min_start, or
-            None if no feasible start exists.
+        Returns
+        -------
+        datetime or None
+            Earliest feasible absolute start time >= min_start, or None if no
+            feasible start exists.
         """
         # Build the candidate event set
         candidates: set = {min_start}
@@ -6346,30 +6804,39 @@ class Pert:
         Works in both standalone and RAVEN modes.  Compatible with the same
         post-schedule analytics (Gantt, constrained chain, TF, etc.).
 
-        Args:
-            priority_rule (str): Any rule accepted by priority_calculation().
-                Common choices:
-                  'lf'       — Latest Finish (default, most common in literature)
-                  'ls'       — Latest Start
-                  'mts'      — Most Total Successors
-                  'grpw'     — Greatest Rank Position Weight
-                  'grd'      — Greatest Resource Demand
-                  'random'   — Random shuffle
-                  (see priority_calculation docstring for full list)
-            max_time_hours (float, optional): Safety cutoff in hours from
-                startTime.  Defaults to 3× the CPM duration.  Any activity
-                whose computed start exceeds this limit is left unscheduled
-                and triggers a warning.
+        Parameters
+        ----------
+        priority_rule : str
+            Any rule accepted by priority_calculation().  Common choices:
+            'lf' — Latest Finish (default, most common in literature);
+            'ls' — Latest Start;
+            'mts' — Most Total Successors;
+            'grpw' — Greatest Rank Position Weight;
+            'grd' — Greatest Resource Demand;
+            'random' — Random shuffle (see priority_calculation docstring for
+            the full list).
+        max_time_hours : float, optional
+            Safety cutoff in hours from startTime.  Defaults to 3× the CPM
+            duration.  Any activity whose computed start exceeds this limit is
+            left unscheduled and triggers a warning.
+        _ordered : list of Activity, optional
+            Pre-computed activity ordering (e.g. from the GA) used directly in
+            place of a rule-derived ordering.
 
-        Returns:
-            dict: {
-                'scheduled_duration': float,  # hours, startTime → last end
-                'cpm_duration':        float,  # unconstrained CPM duration
-                'delay_hours':         float,  # total accumulated wait time
-                'n_activities':        int,
-                'n_completed':         int,    # activities successfully placed
-                'priority_rule':       str,
-            }
+        Returns
+        -------
+        dict
+            Dictionary with the keys ``'scheduled_duration'`` (hours, startTime
+            → last end), ``'cpm_duration'`` (unconstrained CPM duration),
+            ``'delay_hours'`` (total accumulated wait time), ``'n_activities'``,
+            ``'n_completed'`` (activities successfully placed), and
+            ``'priority_rule'``.
+
+        Raises
+        ------
+        ValueError
+            If the resource, equipment, and location pools are not initialised,
+            or if startTime is not set.
         """
         if not self.crew_pool or not self.equipment_pool or not self.location_pool:
             raise ValueError(
@@ -6600,24 +7067,41 @@ class Pert:
             - Precedence edges from forwardDict
             - Optional resource-flow edges (include_augmented_edges=True) from the augmented graph
 
-        Args:
-            filename: Output HTML file name.
-            library:  'pyvis' for interactive HTML; 'plotly' for static HTML.
-            highlight: Which chain to color:
-                'cpm' -> CPM critical path only
-                'constrained' -> resource-constrained chain only
-                'both' -> both chains distinct (purple for overlap)
-                'none' -> no special highlighting (only delay/normal coloring)
-            show_unscheduled: Include nodes without actual start/end times.
-            show_hold_points: Include activities flagged as hold points (if your Activity has such an attribute).
-            physics: Enable/disable PyVis force-directed physics. Default False for stable DAG layering.
-            layer_by: Vertical layering: 'es' (CPM ES), 'ls' (CPM LS), 'topo' (topological depth).
-            include_augmented_edges: If True, overlay resource-flow edges from _build_augmented_graph().
-            max_nodes: If >0, cap number of nodes added (useful for huge graphs); edges referencing hidden nodes are skipped.
+        Parameters
+        ----------
+        filename : str
+            Output HTML file name.
+        library : str
+            'pyvis' for interactive HTML; 'plotly' for static HTML.
+        highlight : str
+            Which chain to color: 'cpm' -> CPM critical path only;
+            'constrained' -> resource-constrained chain only; 'both' -> both
+            chains distinct (purple for overlap); 'none' -> no special
+            highlighting (only delay/normal coloring).
+        show_unscheduled : bool
+            Include nodes without actual start/end times.
+        show_hold_points : bool
+            Include activities flagged as hold points (if your Activity has
+            such an attribute).
+        physics : bool
+            Enable/disable PyVis force-directed physics. Default False for
+            stable DAG layering.
+        layer_by : str
+            Vertical layering: 'es' (CPM ES), 'ls' (CPM LS), 'topo'
+            (topological depth).
+        include_augmented_edges : bool
+            If True, overlay resource-flow edges from _build_augmented_graph().
+        max_nodes : int
+            If >0, cap number of nodes added (useful for huge graphs); edges
+            referencing hidden nodes are skipped.
+        show_edge_arrows : bool
+            Render arrowheads on edges.
 
-        Returns:
-            - PyVis Network object (if library='pyvis')
-            - Plotly Figure object (if library='plotly')
+        Returns
+        -------
+        object
+            PyVis Network object (if library='pyvis') or Plotly Figure object
+            (if library='plotly').
         """
 
         # --- Analytics guards (for color highlighting) ---
@@ -6978,10 +7462,13 @@ def _weight_function(total_float: float, project_duration: float = 10.0) -> floa
     for a 2 000-hour outage it shifts to ~20 h, preventing near-identical
     floats from receiving radically different priority weights.
 
-    Args:
-        total_float:      Float (slack) of the activity in hours.
-        project_duration: CPM project duration in hours (default 10 h gives
-                          the legacy behaviour for short toy networks).
+    Parameters
+    ----------
+    total_float : float
+        Float (slack) of the activity in hours.
+    project_duration : float, optional
+        CPM project duration in hours (default 10 h gives the legacy behaviour
+        for short toy networks).
     """
     threshold = max(5.0, 0.01 * project_duration)
     return 1.0 - 1.0 / (1.0 + math.exp(threshold - total_float))
@@ -6995,6 +7482,31 @@ def _weight_function(total_float: float, project_duration: float = 10.0) -> floa
 # --- PATCH 4b: color Gantt with Red/Orange/Blue buckets ---
 
 def plot_gantt_chart(pert, filename='gantt_chart.html', show_delays=True, tol: float = 0.01):
+    """
+    Render an interactive Plotly Gantt chart of a scheduled project.
+
+    Each activity is coloured by its criticality — on the resource-constrained
+    (critical) chain, near-critical (zero float within ``tol``), or having float
+    — and the figure is written to ``filename`` as a standalone HTML file.
+
+    Parameters
+    ----------
+    pert : Pert
+        A scheduled :class:`Pert` instance (``get_schedule_dataframe`` must
+        return populated start/end times).
+    filename : str, optional
+        Output HTML path (default ``'gantt_chart.html'``).
+    show_delays : bool, optional
+        Accepted for backward compatibility; currently not consumed.
+    tol : float, optional
+        Float tolerance (hours) below which an activity's total float is treated
+        as zero for the near-critical classification (default 0.01).
+
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        The rendered timeline figure (also written to ``filename``).
+    """
     import plotly.express as px
     df = pert.get_schedule_dataframe()
 
@@ -7237,18 +7749,29 @@ def plot_equipment_utilization(pert, equipment_id, filename=None, show_available
       - 'Available' (dashed line, optional): per-hour availability from EquipmentPool.
       - 'Deficit' markers (optional): red points where demand exceeds availability.
 
-    Args:
-        pert: Pert instance with a calculated schedule (calculateScheduleWithResources must have run).
-        equipment_id (str): Equipment identifier present in EquipmentPool.
-        filename (str or None): If provided, writes HTML to this path. Otherwise shows the figure.
-        show_available (bool): Whether to overlay the availability time series.
+    Parameters
+    ----------
+    pert : Pert
+        Pert instance with a calculated schedule
+        (calculateScheduleWithResources must have run).
+    equipment_id : str
+        Equipment identifier present in EquipmentPool.
+    filename : str or None
+        If provided, writes HTML to this path. Otherwise shows the figure.
+    show_available : bool
+        Whether to overlay the availability time series.
 
-    Returns:
+    Returns
+    -------
+    plotly.graph_objects.Figure
         A Plotly Figure object.
 
-    Raises:
-        ValueError: if no schedule has been calculated or equipment_id is not found.
-        ImportError: if required plotting libraries are missing.
+    Raises
+    ------
+    ValueError
+        If no schedule has been calculated or equipment_id is not found.
+    ImportError
+        If required plotting libraries are missing.
     """
     # --- Imports (aligned with other plotting funcs) ---
     try:
@@ -7450,21 +7973,25 @@ class MDKnapsackScheduler:
     Solves the problem: Given candidate activities and resource constraints,
     select the set of activities that maximizes value while respecting
     all resource limits.
+
+    Parameters
+    ----------
+    candidates : dict
+        Candidate activities with info.
+    crew_pool : ResourcePool
+        Resource availability.
+    equipment_pool : EquipmentPool
+        Equipment availability.
+    location_pool : LocationPool
+        Location availability.
+    time_point : datetime
+        Current scheduling time.
+    value_mode : str, optional
+        'uniform' or 'value_based'.
     """
 
     def __init__(self, candidates: Dict, crew_pool, equipment_pool,
                  location_pool, time_point: datetime, value_mode='uniform'):
-        """
-        Initialize MD-Knapsack optimizer.
-
-        Args:
-            candidates (dict): Candidate activities with info
-            crew_pool (ResourcePool): Resource availability
-            equipment_pool (EquipmentPool): Equipment availability
-            location_pool (LocationPool): Location availability
-            time_point (datetime): Current scheduling time
-            value_mode (str): 'uniform' or 'value_based'
-        """
         self.candidates = list(candidates.keys())
         self.candidate_info = candidates
         self.crew_pool = crew_pool
@@ -7477,12 +8004,15 @@ class MDKnapsackScheduler:
         """
         Solve the MD-Knapsack problem using greedy heuristic.
 
-        Returns:
-            list: Selected activities
+        Returns
+        -------
+        list
+            Selected activities.
 
-        Note:
-            This is a greedy approximation. For exact solution, would need
-            integer programming solver (e.g., PuLP, CPLEX).
+        Notes
+        -----
+        This is a greedy approximation. For exact solution, would need
+        integer programming solver (e.g., PuLP, CPLEX).
         """
         # Get resource capacities at current time
         capacities = self._get_capacities()
@@ -7597,6 +8127,24 @@ class MDKnapsackScheduler:
 
 
 class LookAheadScheduler:
+    """
+    Value-based schedule-generation strategy with a finite look-ahead horizon.
+
+    Ranks the candidate activities at each scheduling event by their immediate
+    value plus a discounted estimate of the future opportunities they unlock
+    within ``look_ahead_hours``, then greedily commits the feasible ones against
+    shared per-step capacity snapshots so a single event never overbooks a pool.
+
+    Parameters
+    ----------
+    pert : Pert
+        The :class:`Pert` instance whose network and resource pools are being
+        scheduled.
+    look_ahead_hours : int, optional
+        Size of the forward planning horizon, in hours, used when estimating an
+        activity's future opportunity value (default 24).
+    """
+
     def __init__(self, pert, look_ahead_hours=24):
         self.pert = pert
         self.look_ahead_hours = look_ahead_hours
@@ -7611,12 +8159,17 @@ class LookAheadScheduler:
         overbooking within a single scheduling step.  This mirrors the approach
         used by _schedule_generation_scheme for all other SGS strategies.
 
-        Args:
-            candidates (dict): {Activity: info_dict} from _select_candidate_activities.
-            time_point (datetime): Current scheduling event time.
+        Parameters
+        ----------
+        candidates : dict
+            {Activity: info_dict} from _select_candidate_activities.
+        time_point : datetime
+            Current scheduling event time.
 
-        Returns:
-            list: Activities selected to start at time_point, in selection order.
+        Returns
+        -------
+        list
+            Activities selected to start at time_point, in selection order.
         """
         # ── Step 1: score all candidates ────────────────────────────────────────
         scored = []

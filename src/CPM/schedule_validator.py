@@ -65,7 +65,22 @@ _DUR_TOL    = timedelta(seconds=60)   # 1-minute grace for duration consistency
 
 @dataclass
 class Violation:
-    """Single constraint breach or quality warning."""
+    """
+    Single constraint breach or quality warning.
+
+    Attributes
+    ----------
+    type : str
+        Violation category (see the module docstring).
+    activity : str
+        Activity name, or ``'a → b'`` for pairwise checks.
+    detail : str
+        Human-readable description.
+    severity : str
+        Either ``'error'`` or ``'warning'``.
+    excess : float
+        Quantitative excess (hours, workers, mRem, …).  Defaults to ``0.0``.
+    """
     type:      str            # violation category (see module docstring)
     activity:  str            # activity name, or 'a → b' for pairwise checks
     detail:    str            # human-readable description
@@ -80,12 +95,32 @@ class Violation:
 
 @dataclass
 class ValidationResult:
-    """Aggregated result of ``validate_schedule()``."""
+    """
+    Aggregated result of ``validate_schedule()``.
+
+    Attributes
+    ----------
+    is_feasible : bool
+        ``True`` only when the ``violations`` list is empty.
+    violations : list of Violation
+        Hard constraint breaches.
+    warnings : list of Violation
+        Soft quality issues.
+    """
     is_feasible: bool
     violations:  List[Violation] = field(default_factory=list)
     warnings:    List[Violation] = field(default_factory=list)
 
     def summary(self) -> str:
+        """
+        Build a human-readable multi-line validation report.
+
+        Returns
+        -------
+        str
+            Report listing the feasibility status, violation and warning
+            counts, and the individual violation and warning messages.
+        """
         lines = ['Schedule Validation Report', '=' * 50]
         status = 'FEASIBLE' if self.is_feasible else 'INFEASIBLE'
         lines.append(f'Status     : {status}')
@@ -115,7 +150,21 @@ class ValidationResult:
 # ===========================================================================
 
 def _crew_demand(act) -> dict:
-    """Return {skill: workers} for an activity, preferring actual assignment."""
+    """
+    Return the crew demand of an activity, preferring the actual assignment.
+
+    Parameters
+    ----------
+    act : Activity
+        The activity to inspect.
+
+    Returns
+    -------
+    dict
+        Mapping of ``skill_type`` to worker count.  Uses ``_actual_resources``
+        when the scheduler has committed an assignment, otherwise the
+        activity's declared ``required_resources``.
+    """
     actual = getattr(act, '_actual_resources', None)
     if actual:
         return dict(actual)
@@ -124,7 +173,19 @@ def _crew_demand(act) -> dict:
 
 
 def _eq_demand(act) -> dict:
-    """Return {equipment_id: quantity} for an activity."""
+    """
+    Return the equipment demand of an activity.
+
+    Parameters
+    ----------
+    act : Activity
+        The activity to inspect.
+
+    Returns
+    -------
+    dict
+        Mapping of ``equipment_id`` to the quantity needed.
+    """
     return {req['equipment_id']: req['quantity_needed']
             for req in act.getRequiredEquipment()}
 
@@ -135,7 +196,18 @@ def _eq_demand(act) -> dict:
 
 def _check_completeness(pert: 'Pert',
                         violations: list, warnings: list) -> None:
-    """All activities must be completed with valid start/end times."""
+    """
+    Check that all activities were scheduled with valid start and end times.
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
     n_total = len(pert.forwardDict)
     n_done  = len(pert.completed)
 
@@ -165,13 +237,23 @@ def _check_completeness(pert: 'Pert',
 
 def _check_durations(pert: 'Pert',
                      violations: list, warnings: list) -> None:
-    """endTime − startTime must match activity.duration within tolerance.
+    """
+    Check that ``endTime − startTime`` matches ``activity.duration`` within tolerance.
 
     Activities that were in-progress at replan time have ``_remaining_duration``
     set and a stale ``endTime`` from before the replan.  Their duration field
     may also have been updated by a ``duration_override``.  These activities
     cannot be checked by a simple ``endTime − startTime == duration`` test, so
     they are skipped.
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
     """
     for act in pert.completed:
         # Skip activities frozen mid-execution by a replan: their endTime was
@@ -198,7 +280,18 @@ def _check_durations(pert: 'Pert',
 
 def _check_precedence(pert: 'Pert',
                       violations: list, warnings: list) -> None:
-    """Every predecessor must finish (+ lag) before its successor starts."""
+    """
+    Check that every predecessor finishes (plus lag) before its successor starts.
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
     name_map = {a.name: a for a in pert.forwardDict}
     completed_set = pert._completed_set
 
@@ -228,7 +321,18 @@ def _check_precedence(pert: 'Pert',
 
 def _check_time_windows(pert: 'Pert',
                         violations: list, warnings: list) -> None:
-    """Activities must start and finish within their allowed time windows."""
+    """
+    Check that activities start and finish within their allowed time windows.
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
     for act in pert.completed:
         windows = pert._resolve_windows(act)
         if not windows:
@@ -260,7 +364,18 @@ def _check_time_windows(pert: 'Pert',
 
 def _check_hold_points(pert: 'Pert',
                        violations: list, warnings: list) -> None:
-    """No blocked task may start before its hold-point activity completes."""
+    """
+    Check that no blocked task starts before its hold-point activity completes.
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
     name_map = {a.name: a for a in pert.forwardDict}
     for act in pert.completed:
         if not act.is_hold_point:
@@ -289,7 +404,18 @@ def _check_hold_points(pert: 'Pert',
 
 def _check_crew_feasibility(pert: 'Pert',
                             violations: list, warnings: list) -> None:
-    """Crew demand must never exceed pool availability at any instant."""
+    """
+    Check that crew demand never exceeds pool availability at any instant.
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
     if not pert.crew_pool:
         return
 
@@ -342,7 +468,18 @@ def _check_crew_feasibility(pert: 'Pert',
 
 def _check_equipment_feasibility(pert: 'Pert',
                                  violations: list, warnings: list) -> None:
-    """Equipment demand must never exceed pool availability at any instant."""
+    """
+    Check that equipment demand never exceeds pool availability at any instant.
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
     if not pert.equipment_pool:
         return
 
@@ -387,7 +524,18 @@ def _check_equipment_feasibility(pert: 'Pert',
 
 def _check_location_feasibility(pert: 'Pert',
                                 violations: list, warnings: list) -> None:
-    """Location concurrency limits must never be exceeded (tasks and workers)."""
+    """
+    Check that location concurrency limits are never exceeded (tasks and workers).
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
     if not pert.location_pool:
         return
 
@@ -454,11 +602,21 @@ def _check_location_feasibility(pert: 'Pert',
 
 def _check_consumables(pert: 'Pert',
                        violations: list, warnings: list) -> None:
-    """Consumable inventory must never go negative when replaying the schedule.
+    """
+    Check that consumable inventory never goes negative when replaying the schedule.
 
     Uses a deep-copy of the pool reset to initial quantities so that the live
     pool state is never modified.  Activities are processed in start-time order;
     restocks are applied lazily as the replay cursor advances.
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
     """
     if not pert.consumable_pool:
         return
@@ -507,7 +665,18 @@ def _check_consumables(pert: 'Pert',
 
 def _check_equipment_zone_affinity(pert: 'Pert',
                                    violations: list, warnings: list) -> None:
-    """Equipment with a zone_id must only be used by activities in that zone."""
+    """
+    Check that zone-locked equipment is only used by activities in that zone.
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
     if not pert.equipment_pool:
         return
 
@@ -535,11 +704,21 @@ def _check_equipment_zone_affinity(pert: 'Pert',
 
 def _check_shift_calendar(pert: 'Pert',
                           violations: list, warnings: list) -> None:
-    """Activities must only execute during scheduled shift hours.
+    """
+    Check that activities only execute during scheduled shift hours.
 
     Checks that each activity's start and end fall within the repeating daily
     shift window ``[shift_start_hour, shift_start_hour + working_hours_per_day)``.
     Skipped when ``working_hours_per_day >= 24`` (continuous operations).
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
     """
     wpd = getattr(pert, 'working_hours_per_day', 24)
     if wpd is None or wpd >= 24:
@@ -592,7 +771,18 @@ def _check_shift_calendar(pert: 'Pert',
 
 def _check_dose_budgets(pert: 'Pert',
                         violations: list, warnings: list) -> None:
-    """Cumulative dose committed during the schedule must not exceed budgets."""
+    """
+    Check that cumulative dose committed during the schedule stays within budgets.
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
     if not pert.dose_trackers:
         return
 
@@ -621,7 +811,18 @@ def _check_dose_budgets(pert: 'Pert',
 
 def _check_system_states(pert: 'Pert',
                          violations: list, warnings: list) -> None:
-    """No two simultaneously active activities may require incompatible system states."""
+    """
+    Check that no two simultaneously active activities require incompatible states.
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
     if not pert.system_state_pool:
         return
 
@@ -666,7 +867,22 @@ def _check_system_states(pert: 'Pert',
 
 def _check_schedule_quality(pert: 'Pert',
                             violations: list, warnings: list) -> None:
-    """Soft quality indicators: delay, float consumption, window violations."""
+    """
+    Record soft quality indicators: delay, float consumption, window violations.
+
+    Reports resource-wait delay, activities that started beyond their CPM early
+    start, propagated window-violation log entries, and makespan stretch over
+    the CPM bound as warning-level :class:`Violation` objects.
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
 
     # 1. Delay — activities that waited for resources
     total_delay_h = 0.0
@@ -749,17 +965,23 @@ def _check_schedule_quality(pert: 'Pert',
 # ===========================================================================
 
 def validate_schedule(pert: 'Pert') -> ValidationResult:
-    """Run all post-schedule feasibility checks on *pert*.
+    """
+    Run all post-schedule feasibility checks on ``pert``.
 
     Should be called after ``calculateScheduleWithResources()`` or
     ``calculateScheduleWithResources_from()``.  Safe to call on a Pert instance
     that has not been scheduled yet — returns a single completeness violation.
 
-    Args:
-        pert: A fully initialised and (ideally) scheduled Pert instance.
+    Parameters
+    ----------
+    pert : Pert
+        A fully initialised and (ideally) scheduled Pert instance.
 
-    Returns:
-        ValidationResult with .is_feasible, .violations, .warnings, .summary()
+    Returns
+    -------
+    ValidationResult
+        Result exposing ``.is_feasible``, ``.violations``, ``.warnings`` and
+        ``.summary()``.
     """
     violations: list[Violation] = []
     warnings:   list[Violation] = []

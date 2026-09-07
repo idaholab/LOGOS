@@ -32,17 +32,19 @@ except ImportError:
 
 
 class OutageDataValidator:
-    """Validates outage planning data for schema compliance and referential integrity."""
+    """
+    Validate outage planning data for schema compliance and referential integrity.
+
+    Parameters
+    ----------
+    schema_path : str
+        Path to the JSON schema file to validate against.  A falsy value
+        causes an error to be logged and the process to exit.  A path that
+        does not exist falls back to the embedded default schema (see
+        ``_load_schema``).
+    """
 
     def __init__(self, schema_path: str):
-        """
-        Initialize the outage data validator.
-
-        Args:
-            schema_path (str, optional): Path to custom JSON schema file.
-                                         If None, attempt to load local 'outage_schema.json';
-                                         if not found, use embedded DEFAULT_SCHEMA.
-        """
         if not schema_path:
             logger.info("Error: --schema argument is required.")
             sys.exit(1)
@@ -53,7 +55,20 @@ class OutageDataValidator:
     # ------------------------- Schema Handling -------------------------
 
     def _load_schema(self, schema_path: Optional[str]) -> Dict:
-        """Load schema from provided path, local file, or embedded default."""
+        """
+        Load the JSON schema from a file, falling back to the embedded default.
+
+        Parameters
+        ----------
+        schema_path : str or None
+            Path to the schema file.  When the file does not exist, the
+            embedded ``DEFAULT_SCHEMA`` is returned instead.
+
+        Returns
+        -------
+        dict
+            The parsed JSON schema.
+        """
         if schema_path:
             p = Path(schema_path)
             if not p.exists():
@@ -64,8 +79,20 @@ class OutageDataValidator:
 
     def validate_schema(self, data: Dict) -> bool:
         """
-        Validate data against the JSON schema using Draft7Validator.
-        Collects ALL schema errors for comprehensive reporting.
+        Validate ``data`` against the JSON schema using ``Draft7Validator``.
+
+        Collects all schema errors (rather than stopping at the first) and
+        appends them to ``self.errors`` for comprehensive reporting.
+
+        Parameters
+        ----------
+        data : dict
+            The outage-planning data to validate.
+
+        Returns
+        -------
+        bool
+            ``True`` if the data satisfies the schema, ``False`` otherwise.
         """
         validator = Draft7Validator(self.schema)
         errors = sorted(validator.iter_errors(data), key=lambda e: e.path)
@@ -85,7 +112,23 @@ class OutageDataValidator:
                                        strict_resource_overlaps: bool = False) -> bool:
         """
         Validate referential integrity and semantic constraints.
-        Returns True if all checks pass; otherwise False.
+
+        Runs the full battery of ID-uniqueness, cross-reference, hold-point,
+        cycle, availability-period and resource-sufficiency checks, appending
+        any problems to ``self.errors`` / ``self.warnings``.
+
+        Parameters
+        ----------
+        data : dict
+            The outage-planning data to validate.
+        strict_resource_overlaps : bool, optional
+            When ``True``, overlapping resource availability periods are
+            treated as errors rather than warnings (default ``False``).
+
+        Returns
+        -------
+        bool
+            ``True`` if all hard checks pass, ``False`` otherwise.
         """
         all_valid = True
 
@@ -136,6 +179,19 @@ class OutageDataValidator:
     # -------------------------- Core Checks --------------------------
 
     def _validate_unique_ids_tasks(self, tasks: List[Dict]) -> bool:
+        """
+        Check that all task IDs are unique.
+
+        Parameters
+        ----------
+        tasks : list of dict
+            Task definitions to check.
+
+        Returns
+        -------
+        bool
+            ``True`` if no duplicate ``task_id`` values are found.
+        """
         ids = [t.get("task_id") for t in tasks]
         dup = self._duplicates(ids)
         if dup:
@@ -146,6 +202,23 @@ class OutageDataValidator:
         return True
 
     def _validate_unique_ids_by_field(self, items: List[Dict], field: str, label: str) -> bool:
+        """
+        Check that a given ID field is unique across a list of items.
+
+        Parameters
+        ----------
+        items : list of dict
+            Items to check.
+        field : str
+            Name of the ID field to test for uniqueness.
+        label : str
+            Human-readable label used in error and log messages.
+
+        Returns
+        -------
+        bool
+            ``True`` if no duplicate values of ``field`` are found.
+        """
         ids = [x.get(field) for x in items if field in x]
         dup = self._duplicates(ids)
         if dup:
@@ -157,9 +230,28 @@ class OutageDataValidator:
 
     @staticmethod
     def _duplicates(values: List[str]) -> Set[str]:
+        """Return the set of values that appear more than once in ``values``."""
         return {v for v in values if v is not None and values.count(v) > 1}
 
     def _validate_task_references(self, tasks: List[Dict], task_ids: Set[str]) -> bool:
+        """
+        Validate task successor and ``blocks_tasks`` references.
+
+        Checks that every successor and blocked-task reference points to an
+        existing task and that no task references itself.
+
+        Parameters
+        ----------
+        tasks : list of dict
+            Task definitions to check.
+        task_ids : set of str
+            The set of all defined task IDs.
+
+        Returns
+        -------
+        bool
+            ``True`` if every reference is valid and no self-references exist.
+        """
         valid = True
         for t in tasks:
             tid = t.get("task_id")
@@ -192,6 +284,21 @@ class OutageDataValidator:
         return valid
 
     def _validate_location_references(self, tasks: List[Dict], location_ids: Set[str]) -> bool:
+        """
+        Validate that every task's ``location_id`` refers to a defined location.
+
+        Parameters
+        ----------
+        tasks : list of dict
+            Task definitions to check.
+        location_ids : set of str
+            The set of all defined location IDs.
+
+        Returns
+        -------
+        bool
+            ``True`` if every referenced location exists.
+        """
         valid = True
         for t in tasks:
             loc = t.get("location_id")
@@ -205,6 +312,21 @@ class OutageDataValidator:
         return valid
 
     def _validate_equipment_references(self, tasks: List[Dict], equipment_ids: Set[str]) -> bool:
+        """
+        Validate that every task's required equipment refers to defined equipment.
+
+        Parameters
+        ----------
+        tasks : list of dict
+            Task definitions to check.
+        equipment_ids : set of str
+            The set of all defined equipment IDs.
+
+        Returns
+        -------
+        bool
+            ``True`` if every referenced equipment item exists.
+        """
         valid = True
         for t in tasks:
             for eq in t.get("required_equipment", []):
@@ -219,6 +341,21 @@ class OutageDataValidator:
         return valid
 
     def _validate_skill_references(self, tasks: List[Dict], skill_types: Set[str]) -> bool:
+        """
+        Validate that every task's required skills refer to defined resource skills.
+
+        Parameters
+        ----------
+        tasks : list of dict
+            Task definitions to check.
+        skill_types : set of str
+            The set of all defined resource skill types.
+
+        Returns
+        -------
+        bool
+            ``True`` if every required skill is defined.
+        """
         valid = True
         for t in tasks:
             for rr in t.get("required_resources", []):
@@ -234,10 +371,27 @@ class OutageDataValidator:
 
     def _validate_hold_points(self, tasks: List[Dict], task_ids: Set[str]) -> bool:
         """
-        Runtime hold-point checks to complement schema:
-          - If is_hold_point true → hold_point_type present
-          - If is_hold_point false → blocks_tasks must be empty; hold_point_type absent or null
-          - blocks_tasks may not contain self; must reference existing tasks
+        Runtime hold-point checks that complement the schema.
+
+        Verifies that:
+
+        - a hold point (``is_hold_point`` true) declares a ``hold_point_type``;
+        - a non-hold-point task has no ``hold_point_type`` or ``blocks_tasks``;
+        - ``blocks_tasks`` never contains self and references only existing tasks.
+
+        Parameters
+        ----------
+        tasks : list of dict
+            Task definitions to check.
+        task_ids : set of str
+            The set of all defined task IDs.
+
+        Returns
+        -------
+        bool
+            ``True`` if the hold-point logic is valid.  A hold point missing
+            its ``hold_point_type`` is recorded only as a warning and does not
+            fail the check.
         """
         valid = True
         for t in tasks:
@@ -274,7 +428,20 @@ class OutageDataValidator:
 
     def _validate_no_cycles(self, tasks: List[Dict]) -> bool:
         """
-        Check for cycles over successors and blocks_tasks using DFS.
+        Detect circular dependencies across successor and hold-point edges.
+
+        Builds a directed graph from task successors plus hold-point
+        ``blocks_tasks`` edges and searches for cycles using depth-first search.
+
+        Parameters
+        ----------
+        tasks : list of dict
+            Task definitions to check.
+
+        Returns
+        -------
+        bool
+            ``True`` if the task network is acyclic.
         """
         def _succ_ids(succs):
             return [s["task_id"] if isinstance(s, dict) else s for s in succs]
@@ -318,9 +485,22 @@ class OutageDataValidator:
 
     def _validate_availability_periods(self, items: List[Dict], group: str, strict: bool) -> None:
         """
-        Validate period ordering and overlap for resources/equipment/locations.
-        - strict=True → overlaps produce ERRORS
-        - strict=False → overlaps produce WARNINGS
+        Validate availability-period ordering and overlap for a group of items.
+
+        For each item, checks that every period has ``start_date < end_date``
+        and that periods do not overlap once sorted by start date.
+
+        Parameters
+        ----------
+        items : list of dict
+            Resource, equipment, or location definitions carrying
+            ``availability_periods``.
+        group : str
+            Which group is being validated: ``'resources'``, ``'equipment'``
+            or ``'locations'`` (selects the label used in messages).
+        strict : bool
+            When ``True`` overlapping periods are recorded as errors; when
+            ``False`` they are recorded as warnings.
         """
         for obj in items:
             # select periods per group
@@ -367,8 +547,16 @@ class OutageDataValidator:
 
     def _check_resource_sufficiency(self, data: Dict) -> None:
         """
-        Coarse check: max demand per skill vs max available across all periods.
-        Warns on impossible single-task demands.
+        Coarse resource-sufficiency check based on peak single-task demand.
+
+        Compares the maximum crew demand of any single task per skill against
+        the maximum availability of that skill across all periods, appending a
+        warning whenever a single task alone cannot be staffed.
+
+        Parameters
+        ----------
+        data : dict
+            The outage-planning data to check.
         """
         skill_max_demand: Dict[str, int] = {}
         for t in data.get("tasks", []):
@@ -398,7 +586,26 @@ class OutageDataValidator:
     def validate(self, data: Dict, *, strict_resource_overlaps: bool = False
                  ) -> Tuple[bool, List[str], List[str]]:
         """
-        Perform complete validation and return (is_valid, errors, warnings).
+        Perform complete validation of the outage-planning data.
+
+        Resets the error/warning accumulators, runs schema validation and
+        (when the schema passes) the referential-integrity checks, then logs
+        a summary.
+
+        Parameters
+        ----------
+        data : dict
+            The outage-planning data to validate.
+        strict_resource_overlaps : bool, optional
+            When ``True``, overlapping resource availability periods are
+            treated as errors rather than warnings (default ``False``).
+
+        Returns
+        -------
+        tuple
+            ``(is_valid, errors, warnings)`` where ``is_valid`` is ``True``
+            when no errors were recorded, and ``errors`` / ``warnings`` are the
+            accumulated message lists.
         """
         self.errors = []
         self.warnings = []

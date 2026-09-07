@@ -5,20 +5,34 @@ import random
 
 class mdkChoiceModel:
     """
-        This is the base class for the multi-dimensional knapsack problem adapted to the outage
-        scheduling problem
+    Base class for the multi-dimensional knapsack problem adapted to the outage
+    scheduling problem.
+
+    Selects a subset of candidate activities that maximises total value subject
+    to the availability of every shared resource, formulated as a 0/1
+    multi-dimensional knapsack and solved with Pyomo/GLPK.
+
+    Parameters
+    ----------
+    candidates : dict
+        Dictionary of candidate activities in the form
+        ``{activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': ,
+        'slack': , 'value': }}``.
+    resources : pandas.DataFrame
+        Present resource availability.
+    valueType : str
+        Approach employed to assign values to activities:
+
+        * ``'uniform'`` — assign equal value (1.0) to every activity.
+        * ``'value_based'`` — use the value specified in
+          ``candidates[activity]['value']``.
+
+    Raises
+    ------
+    ValueError
+        If ``valueType`` is neither ``'uniform'`` nor ``'value_based'``.
     """
     def __init__(self, candidates, resources, valueType):
-        """
-        Constructor
-        @ In, candidates, dict, dictionary of candidate activities in the form:
-                                {activity_instance: {'duration': , 'es': , 'ef': , 'ls': , 'lf': , 'slack': , 'value': }}
-        @ In, resources, pd.dataframe, present resources availability
-        @ In, valueType, string, approach employed to assign values to activities
-                                 * uniform: assign equal velua (1.) to every activity
-                                 * value_based: employ the value specified in candidates[activity]['value']
-        @ Out, None
-        """
         resourcesList = list(resources.keys())
 
         self.jobsID = [] # ID (string) of the candidate activities
@@ -49,9 +63,16 @@ class mdkChoiceModel:
 
     def run(self):
         """
-        Multi-dimensional knapsack solver
-        @ In, None
-        @ Out, selected, list, lis of selected activities
+        Solve the multi-dimensional knapsack and return the chosen activities.
+
+        Builds a Pyomo ``ConcreteModel`` with one binary variable per candidate
+        activity, maximises the total activity value subject to one capacity
+        constraint per resource, and solves it with the GLPK solver.
+
+        Returns
+        -------
+        list
+            The activity instances selected by the solver.
         """
         model = pyo.ConcreteModel()
 

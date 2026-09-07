@@ -17,6 +17,25 @@ class OutageData:
 
     Provides a single point of access to all outage information including
     tasks, resources, equipment, and locations.
+
+    Parameters
+    ----------
+    outage_config : dict
+        Outage configuration (ID, dates, etc.).
+    tasks : list
+        List of task dictionaries.
+    crew_pool : ResourcePool
+        Initialized resource pool.
+    equipment_pool : EquipmentPool
+        Initialized equipment pool.
+    location_pool : LocationPool
+        Initialized location pool.
+    consumable_pool : ConsumablePool, optional
+        Consumable inventory pool.  Defaults to an empty ConsumablePool
+        (no consumable constraints).
+    system_state_pool : SystemStatePool, optional
+        Plant-system isolation state pool.  Defaults to an empty
+        SystemStatePool (no state constraints).
     """
 
     def __init__(self, outage_config: Dict, tasks: List[Dict],
@@ -24,21 +43,6 @@ class OutageData:
                  location_pool: 'LocationPool',
                  consumable_pool: 'ConsumablePool' = None,
                  system_state_pool: 'SystemStatePool' = None):
-        """
-        Initialize outage data container.
-
-        Args:
-            outage_config (dict): Outage configuration (ID, dates, etc.)
-            tasks (list): List of task dictionaries
-            crew_pool (ResourcePool): Initialized resource pool
-            equipment_pool (EquipmentPool): Initialized equipment pool
-            location_pool (LocationPool): Initialized location pool
-            consumable_pool (ConsumablePool, optional): Consumable inventory pool.
-                Defaults to an empty ConsumablePool (no consumable constraints).
-            system_state_pool (SystemStatePool, optional): Plant-system isolation
-                state pool.  Defaults to an empty SystemStatePool (no state
-                constraints).
-        """
         self.outage_config = outage_config
         self.tasks = tasks
         self.crew_pool = crew_pool
@@ -68,23 +72,32 @@ class OutageData:
         """
         Load outage data from JSON file.
 
-        Args:
-            filepath (str): Path to JSON file containing outage data
+        Parameters
+        ----------
+        filepath : str
+            Path to JSON file containing outage data.
 
-        Returns:
-            OutageData: Initialized outage data object with all pools
+        Returns
+        -------
+        OutageData
+            Initialized outage data object with all pools.
 
-        Raises:
-            FileNotFoundError: If file doesn't exist
-            json.JSONDecodeError: If file is not valid JSON
-            KeyError: If required fields are missing
+        Raises
+        ------
+        FileNotFoundError
+            If file doesn't exist.
+        json.JSONDecodeError
+            If file is not valid JSON.
+        KeyError
+            If required fields are missing.
 
-        Example:
-            >>> outage = OutageData.from_json_file('example_30.json')
-            >>> print(outage.outage_id)
-            'RFO_2025_SPRING'
-            >>> print(outage.crew_pool.get_availability('MECHANIC', outage.start_date))
-            20
+        Examples
+        --------
+        >>> outage = OutageData.from_json_file('example_30.json')
+        >>> print(outage.outage_id)
+        'RFO_2025_SPRING'
+        >>> print(outage.crew_pool.get_availability('MECHANIC', outage.start_date))
+        20
         """
         with open(filepath, 'r') as f:
             data = json.load(f)
@@ -96,20 +109,27 @@ class OutageData:
         """
         Load outage data from dictionary.
 
-        Args:
-            data (dict): Dictionary containing outage data (parsed JSON)
+        Parameters
+        ----------
+        data : dict
+            Dictionary containing outage data (parsed JSON).
 
-        Returns:
-            OutageData: Initialized outage data object with all pools
+        Returns
+        -------
+        OutageData
+            Initialized outage data object with all pools.
 
-        Raises:
-            KeyError: If required fields are missing
+        Raises
+        ------
+        KeyError
+            If required fields are missing.
 
-        Example:
-            >>> import json
-            >>> with open('example_30.json', 'r') as f:
-            ...     data = json.load(f)
-            >>> outage = OutageData.from_dict(data)
+        Examples
+        --------
+        >>> import json
+        >>> with open('example_30.json', 'r') as f:
+        ...     data = json.load(f)
+        >>> outage = OutageData.from_dict(data)
         """
         # Extract main sections
         outage_config = data['outage']
@@ -129,11 +149,15 @@ class OutageData:
         """
         Get task dictionary by ID.
 
-        Args:
-            task_id (str): Task ID to find
+        Parameters
+        ----------
+        task_id : str
+            Task ID to find.
 
-        Returns:
-            dict or None: Task dictionary if found, None otherwise
+        Returns
+        -------
+        dict or None
+            Task dictionary if found, None otherwise.
         """
         for task in self.tasks:
             if task['task_id'] == task_id:
@@ -141,23 +165,22 @@ class OutageData:
         return None
 
     def get_all_task_ids(self) -> List[str]:
-        """
-        Get list of all task IDs.
-
-        Returns:
-            list: List of task ID strings
-        """
+        """Return a list of all task ID strings."""
         return [task['task_id'] for task in self.tasks]
 
     def get_tasks_by_location(self, location_id: str) -> List[Dict]:
         """
         Get all tasks that occur at a specific location.
 
-        Args:
-            location_id (str): Location ID to filter by
+        Parameters
+        ----------
+        location_id : str
+            Location ID to filter by.
 
-        Returns:
-            list: List of task dictionaries at that location
+        Returns
+        -------
+        list
+            List of task dictionaries at that location.
         """
         return [task for task in self.tasks if task.get('location_id') == location_id]
 
@@ -165,8 +188,10 @@ class OutageData:
         """
         Get all tasks that are hold points.
 
-        Returns:
-            list: List of hold point task dictionaries
+        Returns
+        -------
+        list
+            List of hold point task dictionaries.
         """
         return [task for task in self.tasks if task.get('is_hold_point', False)]
 
@@ -182,8 +207,10 @@ class OutageData:
         - All successor task IDs reference tasks that exist in the task list
         - No intra-task system-state conflicts (same system, different states)
 
-        Returns:
-            tuple: (is_valid, list_of_errors)
+        Returns
+        -------
+        tuple
+            ``(is_valid, list_of_errors)``.
         """
         errors = []
 
@@ -410,42 +437,52 @@ def load_outage_data(filepath: str) -> OutageData:
     It reads a JSON file and creates all necessary data structures
     including resource, equipment, and location pools.
 
-    Args:
-        filepath (str): Path to JSON file containing outage data
+    Parameters
+    ----------
+    filepath : str
+        Path to JSON file containing outage data.
 
-    Returns:
-        OutageData: Complete outage data object with all pools initialized
+    Returns
+    -------
+    OutageData
+        Complete outage data object with all pools initialized.
 
-    Raises:
-        FileNotFoundError: If file doesn't exist
-        json.JSONDecodeError: If file is not valid JSON
-        KeyError: If required fields are missing
-        ValueError: If data validation fails (overlapping periods, etc.)
+    Raises
+    ------
+    FileNotFoundError
+        If file doesn't exist.
+    json.JSONDecodeError
+        If file is not valid JSON.
+    KeyError
+        If required fields are missing.
+    ValueError
+        If data validation fails (overlapping periods, etc.).
 
-    Example:
-        >>> # Simple usage
-        >>> outage = load_outage_data('example_30.json')
-        >>>
-        >>> # Access different components
-        >>> print(f"Outage ID: {outage.outage_id}")
-        >>> print(f"Number of tasks: {len(outage.tasks)}")
-        >>>
-        >>> # Query resource availability
-        >>> from datetime import datetime
-        >>> time = datetime(2025, 3, 22, 10, 0, 0)
-        >>> mechanics = outage.crew_pool.get_availability('MECHANIC', time)
-        >>> print(f"Mechanics available: {mechanics}")
-        >>>
-        >>> # Check location capacity
-        >>> capacity = outage.location_pool.get_capacity('LOC_REACTOR_CAVITY', time)
-        >>> print(f"Reactor cavity capacity: {capacity}")
-        >>>
-        >>> # Validate data consistency
-        >>> is_valid, errors = outage.validate_data_consistency()
-        >>> if not is_valid:
-        ...     print("Errors found:")
-        ...     for error in errors:
-        ...         print(f"  - {error}")
+    Examples
+    --------
+    >>> # Simple usage
+    >>> outage = load_outage_data('example_30.json')
+    >>>
+    >>> # Access different components
+    >>> print(f"Outage ID: {outage.outage_id}")
+    >>> print(f"Number of tasks: {len(outage.tasks)}")
+    >>>
+    >>> # Query resource availability
+    >>> from datetime import datetime
+    >>> time = datetime(2025, 3, 22, 10, 0, 0)
+    >>> mechanics = outage.crew_pool.get_availability('MECHANIC', time)
+    >>> print(f"Mechanics available: {mechanics}")
+    >>>
+    >>> # Check location capacity
+    >>> capacity = outage.location_pool.get_capacity('LOC_REACTOR_CAVITY', time)
+    >>> print(f"Reactor cavity capacity: {capacity}")
+    >>>
+    >>> # Validate data consistency
+    >>> is_valid, errors = outage.validate_data_consistency()
+    >>> if not is_valid:
+    ...     print("Errors found:")
+    ...     for error in errors:
+    ...         print(f"  - {error}")
     """
     return OutageData.from_json_file(filepath)
 
@@ -466,15 +503,17 @@ class DoseBudgetTracker:
     A task draws from the budget when it starts; the budget is permanent (dose
     cannot be "returned").  Per-worker identity is not tracked; that requires a
     full worker-roster model and is deferred to a future iteration.
+
+    Parameters
+    ----------
+    skill_type : str
+        The skill type this tracker covers.
+    total_budget_mrem : float
+        Total mRem budget for the entire pool over the outage
+        (= dose_budget_per_worker_mrem × max_workers).
     """
 
     def __init__(self, skill_type: str, total_budget_mrem: float):
-        """
-        Args:
-            skill_type (str): The skill type this tracker covers.
-            total_budget_mrem (float): Total mRem budget for the entire pool
-                over the outage (= dose_budget_per_worker_mrem × max_workers).
-        """
         self.skill_type = skill_type
         self.total_budget_mrem = total_budget_mrem
         self.consumed_mrem: float = 0.0
@@ -490,6 +529,20 @@ class DoseBudgetTracker:
         Return True if this task fits within the remaining dose budget.
 
         A zero or negative dose rate is treated as no dose exposure (always fits).
+
+        Parameters
+        ----------
+        dose_rate_mrem_per_hour : float
+            Dose accumulated per worker per hour on the task, in mRem/hour.
+        crew_count : int
+            Number of workers assigned to the task.
+        duration_hours : float
+            Task duration, in hours.
+
+        Returns
+        -------
+        bool
+            True if the drawn dose fits within the remaining budget.
         """
         if dose_rate_mrem_per_hour <= 0.0:
             return True
@@ -498,7 +551,18 @@ class DoseBudgetTracker:
 
     def consume(self, dose_rate_mrem_per_hour: float,
                 crew_count: int, duration_hours: float) -> None:
-        """Permanently record dose drawn by a starting task."""
+        """
+        Permanently record dose drawn by a starting task.
+
+        Parameters
+        ----------
+        dose_rate_mrem_per_hour : float
+            Dose accumulated per worker per hour on the task, in mRem/hour.
+        crew_count : int
+            Number of workers assigned to the task.
+        duration_hours : float
+            Task duration, in hours.
+        """
         if dose_rate_mrem_per_hour > 0.0:
             self.consumed_mrem += dose_rate_mrem_per_hour * crew_count * duration_hours
 
@@ -520,28 +584,31 @@ class ResourceAvailability:
 
     Manages time-varying availability of a specific skill type throughout
     the outage, supporting queries for availability at any given time.
+
+    Parameters
+    ----------
+    skill_type : str
+        The skill/resource type (e.g., 'MECHANIC', 'I&C_TECH').
+    periods : list
+        List of dicts with keys:
+
+        - 'start_date' (datetime): Period start
+        - 'end_date' (datetime): Period end
+        - 'available_count' (int): Number of workers available
+        - 'reason' (str, optional): Explanation for this period
+    resource_type : str, optional
+        'renewable' (default) or 'consumable'.  Consumable resources
+        (e.g. radiation dose) are tracked with a pool-level
+        DoseBudgetTracker; renewable resources are not.
+    dose_budget_per_worker_mrem : float, optional
+        Per-worker dose budget for the outage in mRem.  Only meaningful
+        when resource_type='consumable'.  The total pool budget is this
+        value × peak available_count.
     """
 
     def __init__(self, skill_type: str, periods: List[Dict],
                  resource_type: str = 'renewable',
                  dose_budget_per_worker_mrem: float = 0.0):
-        """
-        Initialize resource availability.
-
-        Args:
-            skill_type (str): The skill/resource type (e.g., 'MECHANIC', 'I&C_TECH')
-            periods (list): List of dicts with keys:
-                - 'start_date' (datetime): Period start
-                - 'end_date' (datetime): Period end
-                - 'available_count' (int): Number of workers available
-                - 'reason' (str, optional): Explanation for this period
-            resource_type (str): 'renewable' (default) or 'consumable'.
-                Consumable resources (e.g. radiation dose) are tracked with a
-                pool-level DoseBudgetTracker; renewable resources are not.
-            dose_budget_per_worker_mrem (float): Per-worker dose budget for the
-                outage in mRem.  Only meaningful when resource_type='consumable'.
-                The total pool budget is this value × peak available_count.
-        """
         self.skill_type = skill_type
         self.resource_type = resource_type
         self.dose_budget_per_worker_mrem = dose_budget_per_worker_mrem
@@ -553,8 +620,10 @@ class ResourceAvailability:
         """
         Validate that periods don't have gaps or overlaps.
 
-        Raises:
-            ValueError: If periods have gaps or overlaps
+        Raises
+        ------
+        ValueError
+            If periods have gaps or overlaps.
         """
 
         for i in range(len(self.periods) - 1):
@@ -581,11 +650,15 @@ class ResourceAvailability:
         """
         Get available count at a specific timestamp.
 
-        Args:
-            timestamp (datetime): The time to query
+        Parameters
+        ----------
+        timestamp : datetime
+            The time to query.
 
-        Returns:
-            int: Number of workers available at that time (0 if unavailable)
+        Returns
+        -------
+        int
+            Number of workers available at that time (0 if unavailable).
         """
         for period in self.periods:
             if period['start_date'] <= timestamp < period['end_date']:
@@ -599,12 +672,17 @@ class ResourceAvailability:
         This is useful for checking if a task can be scheduled - it needs
         the minimum availability throughout its duration.
 
-        Args:
-            start (datetime): Range start
-            end (datetime): Range end
+        Parameters
+        ----------
+        start : datetime
+            Range start.
+        end : datetime
+            Range end.
 
-        Returns:
-            int: Minimum availability during the range
+        Returns
+        -------
+        int
+            Minimum availability during the range.
         """
         min_availability = float('inf')
 
@@ -619,8 +697,10 @@ class ResourceAvailability:
         """
         Get maximum availability across all periods.
 
-        Returns:
-            int: Maximum number of workers available at any time
+        Returns
+        -------
+        int
+            Maximum number of workers available at any time.
         """
         return max((p['available_count'] for p in self.periods), default=0)
 
@@ -628,12 +708,17 @@ class ResourceAvailability:
         """
         Get all periods that overlap with given time range.
 
-        Args:
-            start (datetime): Range start
-            end (datetime): Range end
+        Parameters
+        ----------
+        start : datetime
+            Range start.
+        end : datetime
+            Range end.
 
-        Returns:
-            list: List of period dictionaries that overlap the range
+        Returns
+        -------
+        list
+            List of period dictionaries that overlap the range.
         """
         return [p for p in self.periods
                 if p['start_date'] < end and start < p['end_date']]
@@ -643,8 +728,10 @@ class ResourceAvailability:
         """
         Get all availability periods.
 
-        Returns:
-            list: List of all period dictionaries
+        Returns
+        -------
+        list
+            List of all period dictionaries.
         """
         return self.periods.copy()
 
@@ -652,7 +739,8 @@ class ResourceAvailability:
                          from_hour: float,
                          new_count: int,
                          until_hour: float = None) -> None:
-        """Replace availability in [from_hour, until_hour) with new_count.
+        """
+        Replace availability in [from_hour, until_hour) with new_count.
 
         Performs a chop-and-replace on self.periods:
         - Periods entirely outside [from_dt, until_dt) are kept unchanged.
@@ -660,12 +748,17 @@ class ResourceAvailability:
         - Periods entirely within [from_dt, until_dt) are removed.
         - A new period covering [from_dt, until_dt) with new_count is inserted.
 
-        Args:
-            outage_start: Outage start datetime (converts hours → datetimes).
-            from_hour: Hours from outage start where the new count takes effect.
-            new_count: New available_count (≥ 0).
-            until_hour: Hours from outage start where the update ends.
-                        None = far future (year 9999 sentinel).
+        Parameters
+        ----------
+        outage_start : datetime
+            Outage start datetime (converts hours → datetimes).
+        from_hour : float
+            Hours from outage start where the new count takes effect.
+        new_count : int
+            New available_count (≥ 0).
+        until_hour : float, optional
+            Hours from outage start where the update ends.
+            None = far future (year 9999 sentinel).
         """
         from_dt  = outage_start + timedelta(hours=from_hour)
         until_dt = (outage_start + timedelta(hours=until_hour)
@@ -708,26 +801,29 @@ class EquipmentAvailability:
     Represents availability periods for a single equipment type.
 
     Similar to ResourceAvailability but for equipment/tools.
+
+    Parameters
+    ----------
+    equipment_id : str
+        Unique equipment identifier.
+    description : str
+        Human-readable description.
+    periods : list
+        List of dicts with keys:
+
+        - 'start_date' (datetime): Period start
+        - 'end_date' (datetime): Period end
+        - 'quantity_available' (int): Number of units available
+        - 'reason' (str, optional): Explanation for this period
+    zone_id : str, optional
+        Location zone this equipment is permanently assigned to.  When set,
+        only activities whose zone list includes this zone_id may use the
+        equipment.  None means unconstrained (any activity may use it
+        regardless of zone).
     """
 
     def __init__(self, equipment_id: str, description: str, periods: List[Dict],
                  zone_id: Optional[str] = None):
-        """
-        Initialize equipment availability.
-
-        Args:
-            equipment_id (str): Unique equipment identifier
-            description (str): Human-readable description
-            periods (list): List of dicts with keys:
-                - 'start_date' (datetime): Period start
-                - 'end_date' (datetime): Period end
-                - 'quantity_available' (int): Number of units available
-                - 'reason' (str, optional): Explanation for this period
-            zone_id (str, optional): Location zone this equipment is permanently
-                assigned to.  When set, only activities whose zone list includes
-                this zone_id may use the equipment.  None means unconstrained
-                (any activity may use it regardless of zone).
-        """
         self.equipment_id = equipment_id
         self.description = description
         self.zone_id: Optional[str] = zone_id
@@ -736,7 +832,14 @@ class EquipmentAvailability:
         self._validate_periods()
 
     def _validate_periods(self):
-        """Validate that periods don't overlap."""
+        """
+        Validate that periods don't overlap.
+
+        Raises
+        ------
+        ValueError
+            If periods overlap.
+        """
         for i in range(len(self.periods) - 1):
             current_end = self.periods[i]['end_date']
             next_start  = self.periods[i + 1]['start_date']
@@ -751,11 +854,15 @@ class EquipmentAvailability:
         """
         Get available quantity at a specific timestamp.
 
-        Args:
-            timestamp (datetime): The time to query
+        Parameters
+        ----------
+        timestamp : datetime
+            The time to query.
 
-        Returns:
-            int: Number of units available at that time (0 if unavailable)
+        Returns
+        -------
+        int
+            Number of units available at that time (0 if unavailable).
         """
         for period in self.periods:
             if period['start_date'] <= timestamp < period['end_date']:  # half-open
@@ -767,12 +874,17 @@ class EquipmentAvailability:
         """
         Get minimum availability within a time range.
 
-        Args:
-            start (datetime): Range start
-            end (datetime): Range end
+        Parameters
+        ----------
+        start : datetime
+            Range start.
+        end : datetime
+            Range end.
 
-        Returns:
-            int: Minimum quantity available during the range
+        Returns
+        -------
+        int
+            Minimum quantity available during the range.
         """
 
         min_availability = float('inf')
@@ -800,16 +912,22 @@ class EquipmentAvailability:
                          from_hour: float,
                          new_quantity: int,
                          until_hour: float = None) -> None:
-        """Replace quantity_available in [from_hour, until_hour) with new_quantity.
+        """
+        Replace quantity_available in [from_hour, until_hour) with new_quantity.
 
         Same chop-and-replace semantics as ResourceAvailability.update_from_hour.
 
-        Args:
-            outage_start: Outage start datetime.
-            from_hour: Hours from outage start where the new quantity takes effect.
-            new_quantity: New quantity_available (≥ 0).
-            until_hour: Hours from outage start where the update ends.
-                        None = far future (year 9999 sentinel).
+        Parameters
+        ----------
+        outage_start : datetime
+            Outage start datetime.
+        from_hour : float
+            Hours from outage start where the new quantity takes effect.
+        new_quantity : int
+            New quantity_available (≥ 0).
+        until_hour : float, optional
+            Hours from outage start where the update ends.
+            None = far future (year 9999 sentinel).
         """
         from_dt  = outage_start + timedelta(hours=from_hour)
         until_dt = (outage_start + timedelta(hours=until_hour)
@@ -851,29 +969,33 @@ class LocationAvailability:
     Represents availability periods for a physical location.
 
     Manages time-varying capacity constraints for a specific location.
+
+    Parameters
+    ----------
+    location_id : str
+        Unique location identifier.
+    description : str
+        Human-readable description.
+    periods : list
+        List of dicts with keys:
+
+        - 'start_date' (datetime): Period start
+        - 'end_date' (datetime): Period end
+        - 'max_concurrent_tasks' (int): Max simultaneous tasks
+        - 'max_concurrent_workers' (int, optional): Max simultaneous workers
+        - 'reason' (str, optional): Explanation for this period
+    is_confined : bool, optional
+        Whether this is a confined space.
+    zone_type : str, optional
+        Zone classification — 'physical' (default) or 'permit'.  Permit zones
+        enforce task/worker density limits like physical zones but also
+        represent regulatory work permits that must be acquired before any
+        activity in that zone can start.
     """
 
     def __init__(self, location_id: str, description: str,
                  periods: List[Dict], is_confined: bool = False,
                  zone_type: str = 'physical'):
-        """
-        Initialize location availability.
-
-        Args:
-            location_id (str): Unique location identifier
-            description (str): Human-readable description
-            periods (list): List of dicts with keys:
-                - 'start_date' (datetime): Period start
-                - 'end_date' (datetime): Period end
-                - 'max_concurrent_tasks' (int): Max simultaneous tasks
-                - 'max_concurrent_workers' (int, optional): Max simultaneous workers
-                - 'reason' (str, optional): Explanation for this period
-            is_confined (bool): Whether this is a confined space
-            zone_type (str): Zone classification — 'physical' (default) or 'permit'.
-                Permit zones enforce task/worker density limits like physical zones
-                but also represent regulatory work permits that must be acquired
-                before any activity in that zone can start.
-        """
         self.location_id = location_id
         self.description = description
         self.is_confined_space = is_confined
@@ -883,7 +1005,14 @@ class LocationAvailability:
         self._validate_periods()
 
     def _validate_periods(self):
-        """Validate that periods don't overlap."""
+        """
+        Validate that periods don't overlap.
+
+        Raises
+        ------
+        ValueError
+            If periods overlap.
+        """
         for i in range(len(self.periods) - 1):
             current_end = self.periods[i]['end_date']
             next_start  = self.periods[i + 1]['start_date']
@@ -898,13 +1027,18 @@ class LocationAvailability:
         """
         Get capacity constraints at a specific timestamp.
 
-        Args:
-            timestamp (datetime): The time to query
+        Parameters
+        ----------
+        timestamp : datetime
+            The time to query.
 
-        Returns:
-            dict: Dictionary with keys:
-                - 'max_tasks' (int): Maximum concurrent tasks
-                - 'max_workers' (int or None): Maximum concurrent workers
+        Returns
+        -------
+        dict
+            Dictionary with keys:
+
+            - 'max_tasks' (int): Maximum concurrent tasks
+            - 'max_workers' (int or None): Maximum concurrent workers
         """
 
         for period in self.periods:
@@ -920,12 +1054,17 @@ class LocationAvailability:
         """
         Get minimum capacity within a time range.
 
-        Args:
-            start (datetime): Range start
-            end (datetime): Range end
+        Parameters
+        ----------
+        start : datetime
+            Range start.
+        end : datetime
+            Range end.
 
-        Returns:
-            dict: Dictionary with minimum 'max_tasks' and 'max_workers' during range
+        Returns
+        -------
+        dict
+            Dictionary with minimum 'max_tasks' and 'max_workers' during range.
         """
 
         min_tasks   = float('inf')
@@ -951,11 +1090,15 @@ class LocationAvailability:
         """
         Check if location is accessible at a given time.
 
-        Args:
-            timestamp (datetime): The time to query
+        Parameters
+        ----------
+        timestamp : datetime
+            The time to query.
 
-        Returns:
-            bool: True if location allows at least one task at this time
+        Returns
+        -------
+        bool
+            True if location allows at least one task at this time.
         """
         capacity = self.get_capacity_at(timestamp)
         return capacity['max_tasks'] > 0
@@ -977,10 +1120,14 @@ class ResourcePool:
     Manages all resource availability throughout the outage.
 
     Central repository for querying workforce availability by skill type and time.
+
+    Attributes
+    ----------
+    resources : dict
+        Mapping of skill type to :class:`ResourceAvailability`.
     """
 
     def __init__(self):
-        """Initialize empty resource pool."""
         # {skill_type: ResourceAvailability}
         self.resources: Dict[str, ResourceAvailability] = {}
 
@@ -989,28 +1136,33 @@ class ResourcePool:
         """
         Create ResourcePool from JSON data.
 
-        Args:
-            resources_list (list): List of resource dictionaries from JSON
+        Parameters
+        ----------
+        resources_list : list
+            List of resource dictionaries from JSON.
 
-        Returns:
-            ResourcePool: Initialized resource pool
+        Returns
+        -------
+        ResourcePool
+            Initialized resource pool.
 
-        Example:
-            >>> data = {
-            ...     "resources": [
-            ...         {
-            ...             "skill_type": "MECHANIC",
-            ...             "availability_periods": [
-            ...                 {
-            ...                     "start_date": "2025-03-15T00:00:00",
-            ...                     "end_date": "2025-04-25T23:59:59",
-            ...                     "available_count": 20
-            ...                 }
-            ...             ]
-            ...         }
-            ...     ]
-            ... }
-            >>> pool = ResourcePool.from_json(data["resources"])
+        Examples
+        --------
+        >>> data = {
+        ...     "resources": [
+        ...         {
+        ...             "skill_type": "MECHANIC",
+        ...             "availability_periods": [
+        ...                 {
+        ...                     "start_date": "2025-03-15T00:00:00",
+        ...                     "end_date": "2025-04-25T23:59:59",
+        ...                     "available_count": 20
+        ...                 }
+        ...             ]
+        ...         }
+        ...     ]
+        ... }
+        >>> pool = ResourcePool.from_json(data["resources"])
         """
         pool = cls()
         for res_data in resources_list:
@@ -1038,12 +1190,17 @@ class ResourcePool:
         """
         Get availability for a skill at a specific time.
 
-        Args:
-            skill_type (str): The skill type to query
-            timestamp (datetime): The time to query
+        Parameters
+        ----------
+        skill_type : str
+            The skill type to query.
+        timestamp : datetime
+            The time to query.
 
-        Returns:
-            int: Number of workers available (0 if skill not found or unavailable)
+        Returns
+        -------
+        int
+            Number of workers available (0 if skill not found or unavailable).
         """
         if skill_type not in self.resources:
             return 0
@@ -1054,53 +1211,53 @@ class ResourcePool:
         """
         Get minimum availability for a skill within a time range.
 
-        Args:
-            skill_type (str): The skill type to query
-            start (datetime): Range start
-            end (datetime): Range end
+        Parameters
+        ----------
+        skill_type : str
+            The skill type to query.
+        start : datetime
+            Range start.
+        end : datetime
+            Range end.
 
-        Returns:
-            int: Minimum availability during the range
+        Returns
+        -------
+        int
+            Minimum availability during the range.
         """
         if skill_type not in self.resources:
             return 0
         return self.resources[skill_type].get_availability_in_range(start, end)
 
     def get_all_skills(self) -> List[str]:
-        """
-        Get list of all skill types in the pool.
-
-        Returns:
-            list: List of skill type strings
-        """
+        """Return a list of all skill types in the pool."""
         return list(self.resources.keys())
 
     def has_skill(self, skill_type: str) -> bool:
-        """
-        Check if a skill type exists in the pool.
-
-        Args:
-            skill_type (str): The skill type to check
-
-        Returns:
-            bool: True if skill exists in pool
-        """
+        """Return True if a skill type exists in the pool."""
         return skill_type in self.resources
 
     def update_skill_from_hour(self, skill_type: str, outage_start: datetime,
                                from_hour: float, new_count: int,
                                until_hour: float = None) -> None:
-        """Update availability for one skill from from_hour forward.
+        """
+        Update availability for one skill from from_hour forward.
 
         Delegates to ResourceAvailability.update_from_hour.  No-op (with
         warning) if skill_type is not registered in the pool.
 
-        Args:
-            skill_type: Skill to update.
-            outage_start: Outage start datetime.
-            from_hour: Hours from outage start where the change takes effect.
-            new_count: New absolute count (≥ 0).
-            until_hour: End of the update window. None = permanent.
+        Parameters
+        ----------
+        skill_type : str
+            Skill to update.
+        outage_start : datetime
+            Outage start datetime.
+        from_hour : float
+            Hours from outage start where the change takes effect.
+        new_count : int
+            New absolute count (≥ 0).
+        until_hour : float, optional
+            End of the update window. None = permanent.
         """
         import logging as _logging
         if skill_type not in self.resources:
@@ -1125,8 +1282,10 @@ class ResourcePool:
         """
         Return skill types whose resource_type is 'consumable'.
 
-        Returns:
-            list: Skill type strings for consumable resources.
+        Returns
+        -------
+        list
+            Skill type strings for consumable resources.
         """
         return [
             skill for skill, ra in self.resources.items()
@@ -1140,8 +1299,10 @@ class ResourcePool:
         The total pool budget is:
             dose_budget_per_worker_mrem × peak available_count
 
-        Returns:
-            dict: {skill_type: DoseBudgetTracker} — empty if no consumable resources.
+        Returns
+        -------
+        dict
+            {skill_type: DoseBudgetTracker} — empty if no consumable resources.
         """
         trackers = {}
         for skill in self.get_consumable_skills():
@@ -1160,10 +1321,14 @@ class EquipmentPool:
     Manages all equipment availability throughout the outage.
 
     Central repository for querying equipment availability by ID and time.
+
+    Attributes
+    ----------
+    equipment : dict
+        Mapping of equipment ID to :class:`EquipmentAvailability`.
     """
 
     def __init__(self):
-        """Initialize empty equipment pool."""
         # {equipment_id: EquipmentAvailability}
         self.equipment: Dict[str, EquipmentAvailability] = {}
 
@@ -1172,11 +1337,15 @@ class EquipmentPool:
         """
         Create EquipmentPool from JSON data.
 
-        Args:
-            equipment_list (list): List of equipment dictionaries from JSON
+        Parameters
+        ----------
+        equipment_list : list
+            List of equipment dictionaries from JSON.
 
-        Returns:
-            EquipmentPool: Initialized equipment pool
+        Returns
+        -------
+        EquipmentPool
+            Initialized equipment pool.
         """
         pool = cls()
         for eq_data in equipment_list:
@@ -1199,12 +1368,17 @@ class EquipmentPool:
         """
         Get availability for equipment at a specific time.
 
-        Args:
-            equipment_id (str): The equipment ID to query
-            timestamp (datetime): The time to query
+        Parameters
+        ----------
+        equipment_id : str
+            The equipment ID to query.
+        timestamp : datetime
+            The time to query.
 
-        Returns:
-            int: Number of units available (0 if not found or unavailable)
+        Returns
+        -------
+        int
+            Number of units available (0 if not found or unavailable).
         """
         if equipment_id not in self.equipment:
             return 0
@@ -1215,53 +1389,53 @@ class EquipmentPool:
         """
         Get minimum availability for equipment within a time range.
 
-        Args:
-            equipment_id (str): The equipment ID to query
-            start (datetime): Range start
-            end (datetime): Range end
+        Parameters
+        ----------
+        equipment_id : str
+            The equipment ID to query.
+        start : datetime
+            Range start.
+        end : datetime
+            Range end.
 
-        Returns:
-            int: Minimum availability during the range
+        Returns
+        -------
+        int
+            Minimum availability during the range.
         """
         if equipment_id not in self.equipment:
             return 0
         return self.equipment[equipment_id].get_availability_in_range(start, end)
 
     def get_all_equipment_ids(self) -> List[str]:
-        """
-        Get list of all equipment IDs in the pool.
-
-        Returns:
-            list: List of equipment ID strings
-        """
+        """Return a list of all equipment IDs in the pool."""
         return list(self.equipment.keys())
 
     def has_equipment(self, equipment_id: str) -> bool:
-        """
-        Check if equipment exists in the pool.
-
-        Args:
-            equipment_id (str): The equipment ID to check
-
-        Returns:
-            bool: True if equipment exists in pool
-        """
+        """Return True if equipment exists in the pool."""
         return equipment_id in self.equipment
 
     def update_equipment_from_hour(self, equipment_id: str, outage_start: datetime,
                                    from_hour: float, new_quantity: int,
                                    until_hour: float = None) -> None:
-        """Update quantity for one equipment item from from_hour forward.
+        """
+        Update quantity for one equipment item from from_hour forward.
 
         Delegates to EquipmentAvailability.update_from_hour.  No-op (with
         warning) if equipment_id is not registered in the pool.
 
-        Args:
-            equipment_id: Equipment to update.
-            outage_start: Outage start datetime.
-            from_hour: Hours from outage start where the change takes effect.
-            new_quantity: New absolute quantity (≥ 0).
-            until_hour: End of the update window. None = permanent.
+        Parameters
+        ----------
+        equipment_id : str
+            Equipment to update.
+        outage_start : datetime
+            Outage start datetime.
+        from_hour : float
+            Hours from outage start where the change takes effect.
+        new_quantity : int
+            New absolute quantity (≥ 0).
+        until_hour : float, optional
+            End of the update window. None = permanent.
         """
         import logging as _logging
         if equipment_id not in self.equipment:
@@ -1286,11 +1460,15 @@ class EquipmentPool:
         """
         Get description for equipment.
 
-        Args:
-            equipment_id (str): The equipment ID
+        Parameters
+        ----------
+        equipment_id : str
+            The equipment ID.
 
-        Returns:
-            str or None: Equipment description, or None if not found
+        Returns
+        -------
+        str or None
+            Equipment description, or None if not found.
         """
         if equipment_id not in self.equipment:
             return None
@@ -1300,11 +1478,15 @@ class EquipmentPool:
         """
         Return the zone this equipment is assigned to, or None if unconstrained.
 
-        Args:
-            equipment_id (str): The equipment ID
+        Parameters
+        ----------
+        equipment_id : str
+            The equipment ID.
 
-        Returns:
-            str or None: zone_id if the equipment is zone-locked, else None.
+        Returns
+        -------
+        str or None
+            zone_id if the equipment is zone-locked, else None.
         """
         if equipment_id not in self.equipment:
             return None
@@ -1319,10 +1501,14 @@ class LocationPool:
     Manages all location availability throughout the outage.
 
     Central repository for querying location capacity by ID and time.
+
+    Attributes
+    ----------
+    locations : dict
+        Mapping of location ID to :class:`LocationAvailability`.
     """
 
     def __init__(self):
-        """Initialize empty location pool."""
         # {location_id: LocationAvailability}
         self.locations: Dict[str, LocationAvailability] = {}
 
@@ -1331,11 +1517,15 @@ class LocationPool:
         """
         Create LocationPool from JSON data.
 
-        Args:
-            locations_list (list): List of location dictionaries from JSON
+        Parameters
+        ----------
+        locations_list : list
+            List of location dictionaries from JSON.
 
-        Returns:
-            LocationPool: Initialized location pool
+        Returns
+        -------
+        LocationPool
+            Initialized location pool.
         """
         pool = cls()
         for loc_data in locations_list:
@@ -1363,13 +1553,18 @@ class LocationPool:
         """
         Get capacity constraints for a location at a specific time.
 
-        Args:
-            location_id (str): The location ID to query
-            timestamp (datetime): The time to query
+        Parameters
+        ----------
+        location_id : str
+            The location ID to query.
+        timestamp : datetime
+            The time to query.
 
-        Returns:
-            dict: Dictionary with 'max_tasks' and 'max_workers' keys
-                  Returns {max_tasks: 0, max_workers: 0} if not found
+        Returns
+        -------
+        dict
+            Dictionary with 'max_tasks' and 'max_workers' keys.  Returns
+            {max_tasks: 0, max_workers: 0} if not found.
         """
         if location_id not in self.locations:
             return {'max_tasks': 0, 'max_workers': 0}
@@ -1380,13 +1575,19 @@ class LocationPool:
         """
         Get minimum capacity for a location within a time range.
 
-        Args:
-            location_id (str): The location ID to query
-            start (datetime): Range start
-            end (datetime): Range end
+        Parameters
+        ----------
+        location_id : str
+            The location ID to query.
+        start : datetime
+            Range start.
+        end : datetime
+            Range end.
 
-        Returns:
-            dict: Dictionary with minimum 'max_tasks' and 'max_workers'
+        Returns
+        -------
+        dict
+            Dictionary with minimum 'max_tasks' and 'max_workers'.
         """
         if location_id not in self.locations:
             return {'max_tasks': 0, 'max_workers': None}
@@ -1396,48 +1597,32 @@ class LocationPool:
         """
         Check if location is accessible at a given time.
 
-        Args:
-            location_id (str): The location ID to query
-            timestamp (datetime): The time to query
+        Parameters
+        ----------
+        location_id : str
+            The location ID to query.
+        timestamp : datetime
+            The time to query.
 
-        Returns:
-            bool: True if location allows at least one task at this time
+        Returns
+        -------
+        bool
+            True if location allows at least one task at this time.
         """
         if location_id not in self.locations:
             return False
         return self.locations[location_id].is_accessible_at(timestamp)
 
     def get_all_location_ids(self) -> List[str]:
-        """
-        Get list of all location IDs in the pool.
-
-        Returns:
-            list: List of location ID strings
-        """
+        """Return a list of all location IDs in the pool."""
         return list(self.locations.keys())
 
     def has_location(self, location_id: str) -> bool:
-        """
-        Check if location exists in the pool.
-
-        Args:
-            location_id (str): The location ID to check
-
-        Returns:
-            bool: True if location exists in pool
-        """
+        """Return True if a location exists in the pool."""
         return location_id in self.locations
 
     def is_confined_space(self, location_id: str) -> bool:
-        """
-        Check if location is a confined space.
-
-        Args:
-            location_id (str): The location ID to check
-
-        Returns:
-            bool: True if location is confined space, False otherwise
-        """
+        """Return True if a location is a confined space, False otherwise."""
         if location_id not in self.locations:
             return False
         return self.locations[location_id].is_confined_space
@@ -1446,11 +1631,15 @@ class LocationPool:
         """
         Return the zone_type for a location ('physical' or 'permit').
 
-        Args:
-            location_id (str): The location ID to query
+        Parameters
+        ----------
+        location_id : str
+            The location ID to query.
 
-        Returns:
-            str: zone_type string, or 'physical' if not found
+        Returns
+        -------
+        str
+            zone_type string, or 'physical' if not found.
         """
         if location_id not in self.locations:
             return 'physical'
@@ -1475,6 +1664,17 @@ class ConsumablePool:
     items (nitrogen cylinders, anti-contamination suits, specialty seals, etc.).
     Dose tracking remains as a dedicated ``DoseBudgetTracker`` — ConsumablePool
     covers non-radiological consumables.
+
+    Attributes
+    ----------
+    items : dict
+        Mapping of item_id to total quantity.
+    remaining : dict
+        Mapping of item_id to current remaining quantity.
+    description : dict
+        Mapping of item_id to human-readable description.
+    restocks : dict
+        Mapping of item_id to a sorted list of ``(delivery_hour, quantity)`` pairs.
     """
 
     def __init__(self):
@@ -1491,15 +1691,20 @@ class ConsumablePool:
         """
         Create ConsumablePool from the ``"consumables"`` JSON array.
 
-        Args:
-            consumables_list: List of dicts with keys:
-                - ``item_id`` (str)
-                - ``description`` (str)
-                - ``total_quantity`` (float)
-                - ``restocks`` (list, optional): [{delivery_hour, quantity}, ...]
+        Parameters
+        ----------
+        consumables_list : list
+            List of dicts with keys:
 
-        Returns:
-            ConsumablePool with all items loaded.
+            - ``item_id`` (str)
+            - ``description`` (str)
+            - ``total_quantity`` (float)
+            - ``restocks`` (list, optional): [{delivery_hour, quantity}, ...]
+
+        Returns
+        -------
+        ConsumablePool
+            Pool with all items loaded.
         """
         pool = cls()
         for entry in consumables_list:
@@ -1536,14 +1741,20 @@ class ConsumablePool:
         """
         Return True if ``qty`` units of ``item_id`` are available.
 
-        Args:
-            item_id: Consumable identifier.
-            qty: Quantity needed.
-            at_hour: Outage-offset hour at which the check is made.
-                     If supplied, pending restock deliveries up to this
-                     hour are applied before the comparison.
+        Parameters
+        ----------
+        item_id : str
+            Consumable identifier.
+        qty : float
+            Quantity needed.
+        at_hour : float, optional
+            Outage-offset hour at which the check is made.  If supplied,
+            pending restock deliveries up to this hour are applied before
+            the comparison.
 
-        Returns:
+        Returns
+        -------
+        bool
             True when the pool has sufficient remaining inventory, or when
             ``item_id`` is not registered (permissive default — unknown items
             are not constrained).
@@ -1560,6 +1771,13 @@ class ConsumablePool:
 
         Silently ignores unknown item IDs so that callers need not pre-check.
         Remaining is floored at 0 — it will never go negative.
+
+        Parameters
+        ----------
+        item_id : str
+            Consumable identifier.
+        qty : float
+            Quantity to deduct.
         """
         if item_id in self.remaining:
             self.remaining[item_id] = max(0.0, self.remaining[item_id] - qty)
@@ -1574,6 +1792,11 @@ class ConsumablePool:
 
         Idempotent: calling twice with the same hour applies each delivery
         at most once (tracked via ``_restock_cursor``).
+
+        Parameters
+        ----------
+        hour : float
+            Outage-offset hour up to which deliveries are applied.
         """
         for item_id, deliveries in self.restocks.items():
             cursor = self._restock_cursor.get(item_id, -1.0)
@@ -1647,6 +1870,11 @@ class SystemStatePool:
 
     A task that uses a power drop needs both a port (EquipmentPool) and
     the correct isolation state (SystemStatePool).
+
+    Attributes
+    ----------
+    systems : dict
+        Mapping of system_id to ``{'description': str, 'valid_states': [str]}``.
     """
 
     def __init__(self):
@@ -1661,14 +1889,19 @@ class SystemStatePool:
         """
         Create SystemStatePool from the ``"plant_systems"`` JSON array.
 
-        Args:
-            plant_systems_list: List of dicts with keys:
-                - ``system_id``   (str)
-                - ``description`` (str)
-                - ``valid_states`` (list of str, optional but recommended)
+        Parameters
+        ----------
+        plant_systems_list : list
+            List of dicts with keys:
 
-        Returns:
-            SystemStatePool with all systems registered.
+            - ``system_id``   (str)
+            - ``description`` (str)
+            - ``valid_states`` (list of str, optional but recommended)
+
+        Returns
+        -------
+        SystemStatePool
+            Pool with all systems registered.
         """
         pool = cls()
         for entry in plant_systems_list:
@@ -1697,6 +1930,16 @@ class SystemStatePool:
 
         If multiple activities hold the same state the value is still that
         single state (all holders agree by invariant).
+
+        Parameters
+        ----------
+        system_id : str
+            Plant system identifier.
+
+        Returns
+        -------
+        str or None
+            The held state, or None when the system is free.
         """
         states = self._held.get(system_id, {})
         if not states:
@@ -1708,11 +1951,16 @@ class SystemStatePool:
         """
         Return True if the candidate activity can start at the current time.
 
-        Args:
-            system_id:      Plant system identifier.
-            required_state: State the activity needs.
+        Parameters
+        ----------
+        system_id : str
+            Plant system identifier.
+        required_state : str
+            State the activity needs.
 
-        Returns:
+        Returns
+        -------
+        bool
             True when the system is free **or** already held in
             ``required_state`` (compatible shared lock).
             False when a different state is currently held.
@@ -1737,9 +1985,12 @@ class SystemStatePool:
         Called in ``_apply_tentative`` when a candidate activity is
         committed during the greedy selection loop.
 
-        Args:
-            system_id:      Plant system identifier.
-            required_state: State being held by the starting activity.
+        Parameters
+        ----------
+        system_id : str
+            Plant system identifier.
+        required_state : str
+            State being held by the starting activity.
         """
         if system_id not in self._held:
             self._held[system_id] = {}
@@ -1756,9 +2007,12 @@ class SystemStatePool:
 
         Called in ``_update_ongoing_list`` when an activity completes.
 
-        Args:
-            system_id:      Plant system identifier.
-            required_state: State being released by the finishing activity.
+        Parameters
+        ----------
+        system_id : str
+            Plant system identifier.
+        required_state : str
+            State being released by the finishing activity.
         """
         if system_id not in self._held:
             return

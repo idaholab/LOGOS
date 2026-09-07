@@ -1,6 +1,22 @@
 import math
 
 def normalized(arr,norm=0):
+    """
+    Scale a sequence of values by a common divisor.
+
+    Parameters
+    ----------
+    arr : list of float
+        Values to scale.
+    norm : float, optional
+        Divisor to apply.  When ``0`` (default) each element is divided by
+        ``max(arr)``; otherwise every element is divided by ``norm``.
+
+    Returns
+    -------
+    list of float
+        The scaled values.
+    """
     if(norm==0):
         newarr=[i/max(arr) for i in arr]
     else:
@@ -11,11 +27,17 @@ def normalize_tuples(data):
     """
     Normalize the second value in each tuple by dividing by the max value.
 
-    Args:
-        data (list of tuples): [(key, value), ...]
+    Parameters
+    ----------
+    data : list of tuple
+        Pairs in the form ``[(key, value), ...]``.
 
-    Returns:
-        list of tuples: [(key, normalized_value), ...]
+    Returns
+    -------
+    list of tuple
+        Pairs in the form ``[(key, normalized_value), ...]``.  Returns an empty
+        list when ``data`` is empty, and zeroes every value when the maximum
+        value is ``0``.
     """
     if not data:
         return []
@@ -35,6 +57,7 @@ def normalize_tuples(data):
     return normalized
 
 def safe_div(a, b):
+    """Return ``a / b``, or ``1`` when ``b`` is zero."""
     return a / b if b != 0 else 1
 
 def sigmoid_bipolar(x):
@@ -46,6 +69,35 @@ def sigmoid_inv(x):
     return 2 / (1 + math.exp(0.001*x))
 
 def custom_priority_mehh_8000_b(ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, MinRReq):
+    """
+    Priority score for the ``mehh_8000_b`` evolved (MEHH) heuristic rule.
+
+    Combines an activity's normalized CPM timing metrics and resource-requirement
+    metrics into a single scalar.  Registered in ``CUSTOM_PRIORITY_FUNCS`` and
+    evaluated by ``Pert.calculate_gp_rules`` to rank candidate activities.
+
+    Parameters
+    ----------
+    ES, EF : float
+        Normalized earliest-start and earliest-finish times of the activity.
+    LS, LF : float
+        Normalized latest-start and latest-finish times of the activity.
+    TPC : float
+        Normalized ``mtp`` (most-total-predecessors) count.
+    TSC : float
+        Normalized ``mts`` (most-total-successors) count.
+    RR : float
+        Resource-requirement ratio: fraction of resource types the activity
+        consumes.
+    AvgRReq, MaxRReq, MinRReq : float
+        Average, maximum and minimum normalized resource requirement across all
+        resource types.
+
+    Returns
+    -------
+    float
+        Priority score for the activity under this heuristic rule.
+    """
     return (
         LF * LS
         - max(-LF, min(AvgRReq, MaxRReq))
@@ -57,6 +109,35 @@ def custom_priority_mehh_8000_b(ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, 
     )
 
 def custom_priority_mehh_3375_b(ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, MinRReq):
+    """
+    Priority score for the ``mehh_3375_b`` evolved (MEHH) heuristic rule.
+
+    Combines an activity's normalized CPM timing metrics and resource-requirement
+    metrics into a single scalar.  Registered in ``CUSTOM_PRIORITY_FUNCS`` and
+    evaluated by ``Pert.calculate_gp_rules`` to rank candidate activities.
+
+    Parameters
+    ----------
+    ES, EF : float
+        Normalized earliest-start and earliest-finish times of the activity.
+    LS, LF : float
+        Normalized latest-start and latest-finish times of the activity.
+    TPC : float
+        Normalized ``mtp`` (most-total-predecessors) count.
+    TSC : float
+        Normalized ``mts`` (most-total-successors) count.
+    RR : float
+        Resource-requirement ratio: fraction of resource types the activity
+        consumes.
+    AvgRReq, MaxRReq, MinRReq : float
+        Average, maximum and minimum normalized resource requirement across all
+        resource types.
+
+    Returns
+    -------
+    float
+        Priority score for the activity under this heuristic rule.
+    """
     return (
         max(LS, MinRReq)
         + min(
@@ -72,6 +153,35 @@ def custom_priority_mehh_3375_b(ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, 
     )
 
 def custom_priority_mehh_1000_b(ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, MinRReq):
+    """
+    Priority score for the ``mehh_1000_b`` evolved (MEHH) heuristic rule.
+
+    Combines an activity's normalized CPM timing metrics and resource-requirement
+    metrics into a single scalar.  Registered in ``CUSTOM_PRIORITY_FUNCS`` and
+    evaluated by ``Pert.calculate_gp_rules`` to rank candidate activities.
+
+    Parameters
+    ----------
+    ES, EF : float
+        Normalized earliest-start and earliest-finish times of the activity.
+    LS, LF : float
+        Normalized latest-start and latest-finish times of the activity.
+    TPC : float
+        Normalized ``mtp`` (most-total-predecessors) count.
+    TSC : float
+        Normalized ``mts`` (most-total-successors) count.
+    RR : float
+        Resource-requirement ratio: fraction of resource types the activity
+        consumes.
+    AvgRReq, MaxRReq, MinRReq : float
+        Average, maximum and minimum normalized resource requirement across all
+        resource types.
+
+    Returns
+    -------
+    float
+        Priority score for the activity under this heuristic rule.
+    """
     return (
         -AvgRReq
         + LF * LS
@@ -95,6 +205,35 @@ def custom_priority_mehh_1000_b(ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, 
     )
 
 def custom_priority_mehh_125_b(ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, MinRReq):
+    """
+    Priority score for the ``mehh_125_b`` evolved (MEHH) heuristic rule.
+
+    Combines an activity's normalized CPM timing metrics and resource-requirement
+    metrics into a single scalar.  Registered in ``CUSTOM_PRIORITY_FUNCS`` and
+    evaluated by ``Pert.calculate_gp_rules`` to rank candidate activities.
+
+    Parameters
+    ----------
+    ES, EF : float
+        Normalized earliest-start and earliest-finish times of the activity.
+    LS, LF : float
+        Normalized latest-start and latest-finish times of the activity.
+    TPC : float
+        Normalized ``mtp`` (most-total-predecessors) count.
+    TSC : float
+        Normalized ``mts`` (most-total-successors) count.
+    RR : float
+        Resource-requirement ratio: fraction of resource types the activity
+        consumes.
+    AvgRReq, MaxRReq, MinRReq : float
+        Average, maximum and minimum normalized resource requirement across all
+        resource types.
+
+    Returns
+    -------
+    float
+        Priority score for the activity under this heuristic rule.
+    """
     return (
         -2 * AvgRReq
         + EF
@@ -104,6 +243,35 @@ def custom_priority_mehh_125_b(ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, M
     )
 
 def custom_priority_gphh_b(ES, EF, LS, LF, TPC, TSC, RR, AvgRReq, MaxRReq, MinRReq):
+    """
+    Priority score for the ``gphh_b`` evolved (GPHH) heuristic rule.
+
+    Combines an activity's normalized CPM timing metrics and resource-requirement
+    metrics into a single scalar.  Registered in ``CUSTOM_PRIORITY_FUNCS`` and
+    evaluated by ``Pert.calculate_gp_rules`` to rank candidate activities.
+
+    Parameters
+    ----------
+    ES, EF : float
+        Normalized earliest-start and earliest-finish times of the activity.
+    LS, LF : float
+        Normalized latest-start and latest-finish times of the activity.
+    TPC : float
+        Normalized ``mtp`` (most-total-predecessors) count.
+    TSC : float
+        Normalized ``mts`` (most-total-successors) count.
+    RR : float
+        Resource-requirement ratio: fraction of resource types the activity
+        consumes.
+    AvgRReq, MaxRReq, MinRReq : float
+        Average, maximum and minimum normalized resource requirement across all
+        resource types.
+
+    Returns
+    -------
+    float
+        Priority score for the activity under this heuristic rule.
+    """
     return (
         -AvgRReq
         - EF
