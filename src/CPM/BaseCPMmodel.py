@@ -17,7 +17,6 @@ import inspect
 from datetime import datetime
 import pandas as pd
 import numpy as np
-from operator import itemgetter
 
 #External Modules End-----------------------------------------------------------
 
@@ -152,24 +151,30 @@ class BaseCPMmodel(ExternalModelPluginBase):
       Raises
       ------
       IOError
-        If a sampled duration or priority variable is missing from ``inputDict``.
+        If a mapped RAVEN variable is missing from ``inputDict``.
     """
-    try:
-        inputDict_durations = dict(
-            zip(self.duration_vars, itemgetter(*self.duration_vars)(inputDict))
-        )
-        # ↓ now also calls _sync_infodict_durations() + generateInfo() internally
-        self.pert.set_durations(inputDict_durations)
-    except KeyError as e:
-        raise IOError(f"CPM Model: duration variable not found: {e}")
+    # Translate each RAVEN-sampled variable into an {activity_id: value} entry
+    # using the <map> table (self.mapping: {raven_var: (act_id, attr)}). The
+    # dicts are keyed by activity ID -- as expected by set_durations() /
+    # set_priorities() -- and each realization is coerced to a scalar float
+    # (RAVEN delivers sampled values as ndarrays).
+    def _scalar(raven_var):
+        if raven_var not in inputDict:
+            raise IOError(f"CPM Model: mapped variable not found: {raven_var}")
+        return float(np.ravel(inputDict[raven_var])[0])
 
-    try:
-        inputDict_priorities = dict(
-            zip(self.priority_vars, itemgetter(*self.priority_vars)(inputDict))
-        )
-        self.pert.set_priorities(inputDict_priorities, 'replace')
-    except KeyError as e:
-        raise IOError(f"CPM Model: priority variable not found: {e}")
+    durations, priorities = {}, {}
+    for raven_var, (act_id, attribute) in self.mapping.items():
+        if attribute == 'duration':
+            durations[act_id] = _scalar(raven_var)
+        elif attribute == 'priority':
+            priorities[act_id] = _scalar(raven_var)
+
+    # set_durations() also calls _sync_infodict_durations() + generateInfo()
+    if durations:
+        self.pert.set_durations(durations)
+    if priorities:
+        self.pert.set_priorities(priorities, 'replace')
 
     # ↓ _reset_scheduling_state() is called as the first thing inside here
     self.pert.calculateScheduleWithResources(self.sgs)

@@ -137,13 +137,30 @@ def run(self, container, inputDict):
     container.__dict__[self.CPtime] = np.asarray(float(self.pert.getProjectDuration()))
 ```
 
-This clears Bugs 1–3. To close Bug 4, add a `run()`-level unit test that
-builds a small `Pert` (or a fixture model), feeds a mock `inputDict` of
-1-element ndarrays for a **duration-only** model, and asserts `CPtime` is set
-to a finite float — i.e. the exact path that currently crashes.
+This clears Bugs 1–3. To close Bug 4, a `run()`-level unit test builds a small
+`Pert`, feeds a mock `inputDict` of 1-element ndarrays for a **duration-only**
+model, and asserts `CPtime` is set to a finite float — i.e. the exact path that
+previously crashed.
 
-**Status:** not yet applied (documentation-only session). Awaiting confirmation
-of the naming convention (Bug 2) before editing the core interface.
+**Status: applied.**
+
+- `run()` rewritten in [`BaseCPMmodel.py`](../BaseCPMmodel.py) as above; the
+  dead `from operator import itemgetter` import was removed. The `<map>`-based
+  `RAVEN_VAR → ACT_ID` translation is now used (Bug 2 resolved in favor of
+  "translate through `self.mapping`"); the RAVEN variable name may differ from
+  the activity ID).
+- Verified end-to-end against the **real** `Pert` engine on
+  `doc/demos/rcpsp/examples/test_case_1.json`: the duration-only path (2 vars,
+  and 1 var) yields a finite makespan; a mapped variable absent from
+  `inputDict` raises a clean `IOError`; the pre-fix body raised `ValueError` on
+  the identical inputs.
+- Bug 4 closed by `tests/unit_tests/CPM/test_raven_interface.py`, which drives
+  the real `run()` (instantiated via `__new__` to bypass the RAVEN base
+  `__init__`). It is guarded by `pytest.importorskip("ravenframework")`, so it
+  **runs in a RAVEN-enabled environment** and is skipped in the stand-alone CPM
+  dev env (where `ravenframework` is not importable).
+- Regression: CPM suite `903 passed, 3 skipped` (was `903 passed, 2 skipped`;
+  the extra skip is the new RAVEN-guarded module).
 
 ---
 
