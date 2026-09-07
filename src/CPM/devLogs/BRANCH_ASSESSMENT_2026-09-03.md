@@ -360,3 +360,13 @@ a file move that wasn't propagated to the tests, optional deps not installed,
 and config drift. Estimate the bulk of the red can be cleared by fixes #1–#3
 above; only #4 (2 buffer tests) is a genuine logic question. It is **not
 merge-ready today**, but it is close to recoverable.
+
+---
+
+## Merge-request description (copy into the GitHub MR)
+
+> **Status update (2026-09-07):** the recovery items above (B1, H2, H3, M4, M5,
+> M6, L7, L10) are resolved and the RAVEN interface has since been fixed and
+> tested; the suite is green (`903 passed, 3 skipped`). The block below is a
+> ready-to-paste MR description reflecting the branch's current state. The
+> remaining open items are captured under "Reviewer notes / known follow-ups".

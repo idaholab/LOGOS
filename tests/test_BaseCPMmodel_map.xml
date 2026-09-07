@@ -107,7 +107,7 @@
     </PointSet>
     <PointSet name="sim_PS_map">
       <Input>R_C101,R_C102,R_C103,R_C104,R_C105,R_C106,R_C107,R_C109,R_C110,R_C111</Input>
-      <Output>end_time,CP</Output>
+      <Output>end_time</Output>
     </PointSet>
   </DataObjects>
 
