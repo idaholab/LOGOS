@@ -1116,7 +1116,13 @@ def _check_equipment_zone_affinity(pert: 'Pert',
             continue  # unconstrained activity — no zone check needed
         for req in act.getRequiredEquipment():
             eq_id = req['equipment_id']
-            zone_id = pert.equipment_pool.get_zone_id(eq_id)
+            # Gap 1 / §6.4 touch-point 6: read the declared zone off the item's
+            # raw state instead of equipment_pool.get_zone_id — the same primitive
+            # the engine's own placement gate (_equipment_zone_conflict) consults,
+            # so trusting it would let one shared read blind both.  A missing id is
+            # unconstrained (None), matching the pool method's own contract.
+            ea = pert.equipment_pool.equipment.get(eq_id)
+            zone_id = ea.zone_id if ea else None
             if zone_id is None:
                 continue  # unconstrained equipment — no zone check needed
             if zone_id not in act_zones:

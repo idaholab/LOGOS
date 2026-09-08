@@ -53,6 +53,12 @@ the new check; the parity tests pin the max-flow legality test
 (``_bipartite_saturates`` / ``_substitution_is_feasible``) to an independent
 brute-force (Hall-condition) ground truth.
 
+Section 4 closes **touch-point 6** (the last Gap-1 item): the equipment
+zone-affinity check read an equipment's zone through
+``equipment_pool.get_zone_id`` — the *same* primitive the engine's placement
+gate (``_equipment_zone_conflict``) consults — and now reads the declared
+``zone_id`` off the item directly, so a lying primitive can no longer blind it.
+
 The module self-skips where Hypothesis is not installed (mirrors
 test_property_based.py / test_oracle_mutation.py).
 """
@@ -786,3 +792,48 @@ def test_legal_routing_is_feasible_and_conservation_is_load_bearing(inst):
         s = next(k for k, v in broken.items() if v > 0)
         broken[s] -= 1
         assert not _substitution_is_feasible(reqs, broken)   # non-conserving
+
+
+# ===========================================================================
+# 4. Equipment-zone decoupling (touch-point 6, Gap 1 — the last item)
+#
+# `_check_equipment_zone_affinity` used to read an equipment's zone through
+# `equipment_pool.get_zone_id` — the SAME primitive the engine's own placement
+# gate (`_equipment_zone_conflict`) consults.  A wrong answer there would
+# mis-place the activity AND blind the oracle in lockstep.  The check now reads
+# the declared `zone_id` off the equipment object directly, so the lie below is
+# caught even though the shared primitive reports "unconstrained".
+# ===========================================================================
+
+
+def test_equipment_zone_blind_spot_lying_primitive(monkeypatch):
+    """An out-of-zone equipment use is caught even when get_zone_id lies
+    'unconstrained' (None) — the crisp before/after of touch-point 6."""
+    # A needs a CRANE zone-locked to CONTAINMENT; place A there so the engine
+    # schedules it feasibly, then corrupt A into a foreign zone.
+    a = Activity('A', 4.0, required_resources=_mech(1),
+                 required_equipment=[{'equipment_id': 'CRANE',
+                                      'quantity_needed': 1}])
+    a.zone_ids = ['CONTAINMENT']
+    start, end = Activity('START', 0.0), Activity('END', 0.0)
+    fwd = {start: [a], a: [end], end: []}
+    p = Pert(graph=fwd)
+    p.crew_pool         = _rp('MECH', 10)
+    p.equipment_pool    = _crane_pool(qty=1, zone='CONTAINMENT')
+    p.location_pool     = LocationPool()
+    p.consumable_pool   = None
+    p.system_state_pool = None
+    p.startTime = START_DT
+    p = _finish(p)
+    assert validate_schedule(p).is_feasible          # feasible before corruption
+
+    _act(p, 'A').zone_ids = ['AUX_BLDG']             # move A out of the crane's zone
+
+    # Lie: the primitive reports the crane as unconstrained (None).
+    monkeypatch.setattr(p.equipment_pool, 'get_zone_id', lambda *a, **k: None)
+
+    # Rationale: under the old code `zone_id is None` would `continue` and skip,
+    # so the pre-touch-point-6 oracle would have been blind to the corruption.
+    assert p.equipment_pool.get_zone_id('CRANE') is None
+    # The decoupled check reads the declared zone_id off the item and still fires.
+    assert 'equipment_zone' in _types(p)

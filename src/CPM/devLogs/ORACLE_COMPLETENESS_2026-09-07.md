@@ -9,9 +9,9 @@ exposed to tests as `assert_valid_schedule` via `conftest.py`), its own tests in
 **Branch:** `mandd/res_opt`
 **Status:** ASSESSMENT + BACKLOG. §6.1, §6.2, §6.3 are now **DONE** (breadth
 trio landed on `mandd/res_opt`; see the status notes in each item and §8). §6.4
-is **DONE for touch-points 1–5** (availability + windows + crew-substitution
-legality; see §8b) — only touch-point 6 (`get_zone_id`) remains; §6.5 and the
-rest of §6.6 remain open for later PRs. Originally the honest answer to "have we
+is **DONE — Gap 1 fully closed** (touch-points 1–6: availability + windows +
+crew-substitution legality + equipment-zone; see §8b); §6.5 and the rest of §6.6
+remain open for later PRs. Originally the honest answer to "have we
 double-checked the checker is complete?" plus a prioritized plan to raise that
 confidence, all additive test work.
 **Companion:** extends the fuzz-and-freeze program documented in
@@ -82,8 +82,9 @@ them.
 > "forgetting to record a substitution" case above — is now **certified**: a new
 > `_check_substitution_legality` independently verifies the committed breakdown is
 > a legal, demand-conserving resolution of the *declared* requirements (§6.4
-> touch-point 5, §8b). The last remaining Gap-1 borrow is `get_zone_id` in the
-> equipment-zone check (touch-point 6).
+> touch-point 5, §8b). The last Gap-1 borrow — `get_zone_id` in the equipment-zone
+> check (touch-point 6) — is now decoupled too: the check reads the declared
+> `zone_id` off the equipment object directly. **Gap 1 is fully closed.**
 
 ## 3. Gap 2 — the fuzzer exercises only ~4 of the 13 checks
 
@@ -183,7 +184,7 @@ zero-coverage check (Gap 3).
 > `total_budget_mrem` → `dose` fires) and `test_within_budget_no_violation`
 > (happy-path negative). Gap 3's zero-coverage check is closed.
 
-### 6.4 Decouple the resource check from shared engine primitives — **DONE (touch-points 1–5; only 6 remains)**
+### 6.4 Decouple the resource check from shared engine primitives — **DONE (Gap 1 fully closed: touch-points 1–6)**
 Recompute availability from the raw pool definition inside the oracle, rather
 than calling `get_availability_in_range` / `_resolve_windows`, so a bug in a
 shared primitive can no longer hide (closes Gap 1). Biggest effort; biggest
@@ -244,9 +245,18 @@ the same assumption.
 > is the only observable state and the oracle treats it as truth; the named bug
 > ("forgetting to record") is what conservation catches.
 >
-> **Deferred (later PRs), still Gap 1:** only touch-point 6 — `equipment_pool.get_zone_id`
-> in the equipment-zone check. A *zone* question, not availability/windows/demand,
-> so it was out of this PR's approved scope.
+> **Update — touch-point 6 now DONE (Gap 1 fully closed).** The equipment-zone
+> check no longer reads the zone through `equipment_pool.get_zone_id` — the same
+> primitive the engine's own placement gate (`_equipment_zone_conflict`) consults,
+> so one shared read could mis-place the activity *and* blind the oracle in
+> lockstep. It now reads the declared `zone_id` off the equipment object directly
+> (`equipment_pool.equipment.get(eq_id).zone_id`, missing id → `None` =
+> unconstrained, matching the pool method's own contract) — a set-once,
+> never-mutated field, read like `.periods`. Behavior-preserving (the primitive
+> currently returns exactly this value); a differential lying-primitive test
+> (`get_zone_id → None`) confirms the oracle still fires `equipment_zone`. With
+> this, the oracle routes **no** availability / window / demand / zone judgement
+> through an engine primitive. Proof: `test_oracle_decoupling.py` §4.
 
 ### 6.5 Reconsider `_DUR_TOL`
 Justify 60 s against the engine's actual time precision, or tighten it. If a
@@ -289,11 +299,18 @@ now closed too.** The oracle no longer *only* trusts the engine-committed
 `_actual_resources` as crew demand: `_check_substitution_legality` independently
 certifies that breakdown is a legal, demand-conserving resolution of the declared
 requirements (conservation + a bipartite max-flow legality test), firing a new
-`substitution` violation otherwise. Behavior-preserving on correct output. What
-remains of Gap 1: **only touch-point 6** (`get_zone_id`). Also still open: 6.5
-(`_DUR_TOL`), the rest of 6.6 (multimode / safety-function / interaction audit),
-and the two feasible-side fuzz gaps 6.2 left open (system-states, consumables).
-See §8/§8b.
+`substitution` violation otherwise. Behavior-preserving on correct output.
+
+**Update (Gap 1, touch-point 6 — fully closed):** the equipment-zone check now
+reads the declared `zone_id` off the equipment object directly instead of through
+`equipment_pool.get_zone_id` (the primitive the engine's own placement gate also
+uses). **Gap 1 is now fully closed:** the oracle routes no availability, window,
+demand, or zone judgement through an engine primitive — it reads declared data
+directly and independently certifies the one committed decision
+(`_actual_resources`) it cannot re-derive. Still open (none are Gap-1 primitive
+coupling): 6.5 (`_DUR_TOL`), the rest of 6.6 (multimode / safety-function /
+interaction audit), and the two feasible-side fuzz gaps 6.2 left open
+(system-states, consumables). See §8/§8b.
 
 ## 8. What landed (breadth trio, `mandd/res_opt`)
 
@@ -350,7 +367,24 @@ change) and it closes Gap 1 for **availability + windows**.
   `'substitution'` added to `ALL_CHECK_TYPES`; the coverage meta-guard now enforces
   all **14** hard checks.
 
-Still open: **only touch-point 6** (`get_zone_id`) of Gap 1, plus **6.5**
-(`_DUR_TOL=60s` review), the rest of **6.6** (multimode / safety-function /
-interaction audit), and the feasible-side fuzzing of system-states + consumables
-deferred from 6.2.
+### Touch-point 6 (equipment-zone affinity) — landed; Gap 1 fully closed
+
+- **`src/CPM/schedule_validator.py`.** `_check_equipment_zone_affinity` now reads
+  the declared `zone_id` off the equipment object directly
+  (`equipment_pool.equipment.get(eq_id).zone_id`, missing id → `None`) instead of
+  calling `equipment_pool.get_zone_id` — the same primitive the engine's placement
+  gate (`_equipment_zone_conflict`) consults. Behavior-preserving; the one-call
+  decouple was the only production change.
+- **`tests/unit_tests/CPM/test_oracle_decoupling.py` (§4, new test).** A single
+  differential lying-primitive test: with the crane zone-locked and the activity
+  moved to a foreign zone, `get_zone_id` is patched to lie `None` (unconstrained);
+  the oracle still fires `equipment_zone` because it reads the declared field. The
+  existing `equipment_zone` mutation scenario and `TestEquipmentZoneAffinity` cover
+  the rest unchanged (behavior-preserving).
+
+With touch-point 6, **Gap 1 is fully closed** — the oracle borrows no
+availability / window / demand / zone answer from the engine.
+
+Still open (none are Gap-1 primitive coupling): **6.5** (`_DUR_TOL=60s` review),
+the rest of **6.6** (multimode / safety-function / interaction audit), and the
+feasible-side fuzzing of system-states + consumables deferred from 6.2.
