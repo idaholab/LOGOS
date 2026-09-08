@@ -1,0 +1,238 @@
+{
+  "outage": {
+    "outage_id": "TEST_CASE_3",
+    "start_date": "2025-06-01",
+    "target_end_date": "2025-06-15",
+    "working_hours_per_day": 24
+  },
+  
+  "tasks": [
+    {
+      "task_id": "START",
+      "description": "Project start",
+      "duration": 1.0,
+      "successors": ["C1"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [],
+      "required_equipment": []
+    },
+    {
+      "task_id": "C1",
+      "description": "Site preparation - Area A",
+      "duration": 4.0,
+      "successors": ["C2", "C3"],
+      "location_id": "LOC_AREA_A",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 2}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_CRANE", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "C2",
+      "description": "Equipment installation - Area A",
+      "duration": 12.0,
+      "successors": ["C5"],
+      "location_id": "LOC_AREA_A",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 3},
+        {"skill_type": "ELECTRICIAN", "crew_count": 2}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_CRANE", "quantity_needed": 1},
+        {"equipment_id": "EQ_TOOL_KIT", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "C3",
+      "description": "Site preparation - Area B",
+      "duration": 6.0,
+      "successors": ["C4"],
+      "location_id": "LOC_AREA_B",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 2}
+      ],
+      "required_equipment": []
+    },
+    {
+      "task_id": "C4",
+      "description": "Piping work - Area B",
+      "duration": 14.0,
+      "successors": ["C6"],
+      "location_id": "LOC_AREA_B",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 4}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_TOOL_KIT", "quantity_needed": 2}
+      ]
+    },
+    {
+      "task_id": "C5",
+      "description": "Electrical connections - Area A",
+      "duration": 8.0,
+      "successors": ["C6"],
+      "location_id": "LOC_AREA_A",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "ELECTRICIAN", "crew_count": 3}
+      ],
+      "required_equipment": [
+        {"equipment_id": "EQ_TOOL_KIT", "quantity_needed": 1}
+      ]
+    },
+    {
+      "task_id": "C6",
+      "description": "System testing and commissioning",
+      "duration": 10.0,
+      "successors": ["END"],
+      "location_id": "LOC_AREA_A",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 2},
+        {"skill_type": "ELECTRICIAN", "crew_count": 2}
+      ],
+      "required_equipment": []
+    },
+    {
+      "task_id": "END",
+      "description": "Project completion",
+      "duration": 1.0,
+      "successors": [],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [],
+      "required_equipment": []
+    }
+  ],
+  
+  "resources": [
+    {
+      "skill_type": "MECHANIC",
+      "availability_periods": [
+        {
+          "start_date": "2025-06-01T00:00:00",
+          "end_date": "2025-06-04T23:59:59",
+          "available_count": 5,
+          "reason": "Initial crew"
+        },
+        {
+          "start_date": "2025-06-05T00:00:00",
+          "end_date": "2025-06-10T23:59:59",
+          "available_count": 8,
+          "reason": "Reinforcement crew arrives"
+        },
+        {
+          "start_date": "2025-06-11T00:00:00",
+          "end_date": "2025-06-15T23:59:59",
+          "available_count": 5,
+          "reason": "Reinforcement crew departs"
+        }
+      ]
+    },
+    {
+      "skill_type": "ELECTRICIAN",
+      "availability_periods": [
+        {
+          "start_date": "2025-06-01T00:00:00",
+          "end_date": "2025-06-15T23:59:59",
+          "available_count": 5,
+          "reason": "Full project period"
+        }
+      ]
+    }
+  ],
+  
+  "equipment": [
+    {
+      "equipment_id": "EQ_CRANE",
+      "description": "Mobile Crane",
+      "availability_periods": [
+        {
+          "start_date": "2025-06-01T00:00:00",
+          "end_date": "2025-06-15T23:59:59",
+          "quantity_available": 1,
+          "reason": "Full project period"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EQ_TOOL_KIT",
+      "description": "Specialized Tool Kit",
+      "availability_periods": [
+        {
+          "start_date": "2025-06-01T00:00:00",
+          "end_date": "2025-06-03T23:59:59",
+          "quantity_available": 2,
+          "reason": "Initial inventory"
+        },
+        {
+          "start_date": "2025-06-04T00:00:00",
+          "end_date": "2025-06-15T23:59:59",
+          "quantity_available": 3,
+          "reason": "Additional tool kit arrives"
+        }
+      ]
+    }
+  ],
+  
+  "locations": [
+    {
+      "location_id": "LOC_AREA_A",
+      "description": "Work Area A - Primary Installation Zone",
+      "is_confined_space": false,
+      "availability_periods": [
+        {
+          "start_date": "2025-06-01T00:00:00",
+          "end_date": "2025-06-15T23:59:59",
+          "max_concurrent_tasks": 2,
+          "max_concurrent_workers": 8,
+          "reason": "Full project period"
+        }
+      ]
+    },
+    {
+      "location_id": "LOC_AREA_B",
+      "description": "Work Area B - Secondary Work Zone",
+      "is_confined_space": true,
+      "availability_periods": [
+        {
+          "start_date": "2025-06-01T00:00:00",
+          "end_date": "2025-06-02T23:59:59",
+          "max_concurrent_tasks": 0,
+          "max_concurrent_workers": 0,
+          "reason": "Safety prep period - no access"
+        },
+        {
+          "start_date": "2025-06-03T00:00:00",
+          "end_date": "2025-06-15T23:59:59",
+          "max_concurrent_tasks": 1,
+          "max_concurrent_workers": 4,
+          "reason": "Confined space - limited access"
+        }
+      ]
+    }
+  ]
+}

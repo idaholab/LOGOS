@@ -1,0 +1,166 @@
+
+{
+  "outage": {
+    "outage_id": "TEST_CASE_1",
+    "start_date": "2025-06-01",
+    "target_end_date": "2025-06-15",
+    "working_hours_per_day": 24
+  },
+  "tasks": [
+    {
+      "task_id": "START",
+      "description": "Project start",
+      "duration": 1,
+      "successors": ["A1"],
+      "location_id": null,
+      "required_resources": [],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "A1",
+      "description": "Initial setup and preparation",
+      "duration": 8,
+      "successors": ["A2", "A3"],
+      "location_id": "LOC_WORK_AREA",
+      "required_resources": [
+        { "skill_type": "TECHNICIAN", "crew_count": 2 },
+        { "skill_type": "RIGGER",     "crew_count": 1 }
+      ],
+      "required_equipment": [
+        { "equipment_id": "EQ_CRANE", "quantity_needed": 1 }
+      ],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "A2",
+      "description": "Component removal",
+      "duration": 12,
+      "successors": ["A4"],
+      "location_id": "LOC_WORK_AREA",
+      "required_resources": [
+        { "skill_type": "TECHNICIAN", "crew_count": 3 },
+        { "skill_type": "RIGGER",     "crew_count": 2 }
+      ],
+      "required_equipment": [
+        { "equipment_id": "EQ_CRANE", "quantity_needed": 1 }
+      ],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "A3",
+      "description": "Inspection and testing",
+      "duration": 16,
+      "successors": ["A5"],
+      "location_id": "LOC_WORK_AREA",
+      "required_resources": [
+        { "skill_type": "TECHNICIAN", "crew_count": 2 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "A4",
+      "description": "Component repair",
+      "duration": 20,
+      "successors": ["A6"],
+      "location_id": "LOC_WORK_AREA",
+      "required_resources": [
+        { "skill_type": "TECHNICIAN", "crew_count": 4 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "A5",
+      "description": "Documentation and reporting",
+      "duration": 6,
+      "successors": ["A6"],
+      "location_id": "LOC_WORK_AREA",
+      "required_resources": [
+        { "skill_type": "TECHNICIAN", "crew_count": 1 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "A6",
+      "description": "Component reinstallation",
+      "duration": 10,
+      "successors": ["END"],
+      "location_id": "LOC_WORK_AREA",
+      "required_resources": [
+        { "skill_type": "TECHNICIAN", "crew_count": 3 },
+        { "skill_type": "RIGGER",     "crew_count": 1 }
+      ],
+      "required_equipment": [
+        { "equipment_id": "EQ_CRANE", "quantity_needed": 1 }
+      ],
+      "is_hold_point": false
+    },
+    {
+      "task_id": "END",
+      "description": "Project completion",
+      "duration": 1,
+      "successors": [],
+      "location_id": null,
+      "required_resources": [],
+      "required_equipment": [],
+      "is_hold_point": false
+    }
+  ],
+  "resources": [
+    {
+      "skill_type": "TECHNICIAN",
+      "availability_periods": [
+        {
+          "start_date": "2025-06-01T00:00:00",
+          "end_date":   "2025-06-15T23:59:59",
+          "available_count": 5,
+          "reason": "Full project period"
+        }
+      ]
+    },
+    {
+      "skill_type": "RIGGER",
+      "availability_periods": [
+        {
+          "start_date": "2025-06-01T00:00:00",
+          "end_date":   "2025-06-15T23:59:59",
+          "available_count": 2,
+          "reason": "Rigging support for crane operations"
+        }
+      ]
+    }
+  ],
+  "equipment": [
+    {
+      "equipment_id": "EQ_CRANE",
+      "description": "Mobile Crane",
+      "availability_periods": [
+        {
+          "start_date": "2025-06-01T00:00:00",
+          "end_date":   "2025-06-15T23:59:59",
+          "quantity_available": 1,
+          "reason": "Full project period"
+        }
+      ]
+    }
+  ],
+  "locations": [
+    {
+      "location_id": "LOC_WORK_AREA",
+      "description": "Main Work Area",
+      "is_confined_space": false,
+      "availability_periods": [
+        {
+          "start_date": "2025-06-01T00:00:00",
+          "end_date":   "2025-06-15T23:59:59",
+          "max_concurrent_tasks": 3,
+          "max_concurrent_workers": 10,
+          "reason": "Full project period"
+        }
+      ]
+    }
+  ]
+}

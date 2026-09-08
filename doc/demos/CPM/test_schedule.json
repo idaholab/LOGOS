@@ -1,0 +1,26 @@
+{
+  "activities": [
+    {"id": "start", "duration": 2, "resources": {"res1": 1}},
+    {"id": "a",     "duration": 2, "resources": {"res1": 1}},
+    {"id": "b",     "duration": 3, "resources": {"res1": 1}},
+    {"id": "c",     "duration": 3, "resources": {"res1": 1}},
+    {"id": "d",     "duration": 4, "resources": {"res1": 1}},
+    {"id": "e",     "duration": 3, "resources": {"res1": 1}},
+    {"id": "f",     "duration": 2, "resources": {"res1": 1}},
+    {"id": "g",     "duration": 3, "resources": {"res1": 1}},
+    {"id": "h",     "duration": 4, "resources": {"res1": 1}},
+    {"id": "end",   "duration": 2, "resources": {"res1": 1}}
+  ],
+  "dependencies": {
+    "start": ["a", "d", "f"],
+    "a": ["b"],
+    "b": ["c"],
+    "c": ["g", "h"],
+    "d": ["e"],
+    "e": ["c"],
+    "f": ["c"],
+    "g": ["end"],
+    "h": ["end"],
+    "end": []
+  }
+}

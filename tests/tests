@@ -48,22 +48,43 @@
   input = 'test_BaseKnapsackModel.xml'
   UnorderedCsv = 'BaseKnapsack/PrintPS.csv'
  [../]
- 
+
  [./MultipleKnapsack]
   type  = 'RavenFramework'
   input = 'test_MultipleKnapsackModel.xml'
   UnorderedCsv = 'MultipleKnapsack/PrintPS.csv'
  [../]
- 
- [./CPMmodel]
+
+# CPM model system tests. The project_file is staged in the CPMmodel/ working
+# dir; the schema is the single canonical copy at src/CPM/outage_schema.json,
+# referenced from each deck by a relative path. BaseCPMmodel.initialize()
+# resolves both against <WorkingDir>. Gold must be (re)generated in a RAVEN env
+# -- see src/CPM/devLogs/RAVEN_PERT_INTERFACE_2026-09-07.md
+[./CPMmodel]
   type  = 'RavenFramework'
   input = 'test_BaseCPMmodel.xml'
   UnorderedCsv = 'CPMmodel/Print_sim_PS.csv'
- [../]
+[../]
 
- [./CPMmodel_map]
+[./CPMmodel_map]
   type  = 'RavenFramework'
   input = 'test_BaseCPMmodel_map.xml'
   UnorderedCsv = 'CPMmodel/Print_sim_PS_map.csv'
- [../]
+[../]
+
+# Priority / mixed decks: these read <scheduled_time> (the resource-constrained
+# makespan), which -- unlike <CPtime> -- responds to the sampled priorities.
+# The GA deck (test_BaseCPMmodel_res_GA.xml) stays unregistered: it needs the
+# optional 'deap' dep and its optimizer trajectory is not a stable gold.
+[./CPMmodel_res]
+  type  = 'RavenFramework'
+  input = 'test_BaseCPMmodel_res.xml'
+  UnorderedCsv = 'CPMmodel/Print_sim_PS_res.csv'
+[../]
+
+[./CPMmodel_mixed]
+  type  = 'RavenFramework'
+  input = 'test_BaseCPMmodel_res_11.xml'
+  UnorderedCsv = 'CPMmodel/Print_sim_PS_mixed.csv'
+[../]
 []

@@ -23,6 +23,11 @@
 *.pyc
 *.pyo
 
+# python test artifacts
+.hypothesis/
+.coverage
+.pytest_cache/
+
 # vim
 *~
 *.swp

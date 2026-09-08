@@ -1,0 +1,500 @@
+"""
+Property-based (Hypothesis) tests for the RCPSP engine.
+
+Generates random *valid* activity-on-node DAGs and asserts the invariants
+already codified in test_invariants.py, over inputs no hand-written fixture
+would cover.  Hypothesis shrinks any failure to a minimal counterexample; when
+it finds one, freeze the shrunk instance into test_bugfix_regressions.py.
+
+Phases (see src/CPM/devLogs/RCPSP_ROBUSTNESS_2026-09-07.md):
+  0.  smoke       — the generator + scheduler run without blowing up
+  1a. equality    — unlimited resources => makespan == CPM (and schedule feasible),
+                    including finish-to-start lags on a random subset of edges
+  1b. metamorphic — scaling every duration (and lag) by k scales CPM by k
+  2.  resources   — a renewable crew skill: makespan >= CPM and schedule feasible
+                    at each of two capacities (makespan monotonicity in capacity
+                    is NOT asserted — false for heuristic SGS; see §13 of the log)
+
+Run profiles (10.4):
+  The suite registers two Hypothesis profiles and loads one from the
+  HYPOTHESIS_PROFILE env var (default "ci"):
+    - "ci":       150 examples, derandomized so a CI failure reproduces exactly
+    - "thorough": 2000 examples, for deep local exploration
+  Deep run:  HYPOTHESIS_PROFILE=thorough pytest tests/unit_tests/CPM/test_property_based.py
+
+  CI always runs "cold": the .hypothesis example database is not committed, so
+  every CI run explores fresh examples from scratch (a warm local DB is much
+  faster and is NOT representative of CI cost).  The "ci" example count and the
+  generator's default max_activities (30) are together sized so the whole CPM
+  suite finishes cold in ~15 s locally, well inside the RAVEN test max_time.
+  Bumping either knob re-times the cold run before it lands in CI.
+
+The module self-skips where Hypothesis is not installed (mirrors the
+ravenframework guard in test_raven_interface.py), so the suite still collects
+cleanly in environments without it.  Install with: pip install hypothesis
+"""
+import os
+import math
+from datetime import datetime, timedelta
+
+import pytest
+
+hypothesis = pytest.importorskip("hypothesis")  # skip cleanly if not installed
+from hypothesis import given, settings, strategies as st, HealthCheck
+
+from conftest import assert_valid_schedule, make_crew_pool
+from CPM.activity import Activity
+from CPM.pert import Pert
+from CPM.outage_data import (
+    ResourcePool, EquipmentPool, LocationPool,
+    EquipmentAvailability, LocationAvailability,
+    ConsumablePool, SystemStatePool,
+)
+
+TOL = 1e-6
+SGS = "max_use_res_ranked"
+
+# Every schedule-generation scheme must satisfy the unlimited-resource
+# invariant makespan == CPM.  Pinning only the default let the `first`-strategy
+# makespan-inflation bug (dev log §7) hide; parametrize the equality property
+# across all five so a regression on any one strategy is caught.
+ALL_SGS = [
+    "first",
+    "max_use_res_ranked",
+    "max_use_res_shuffled",
+    "md_knapsack",
+    "look_ahead",
+]
+
+
+# ---------------------------------------------------------------------------
+# Hypothesis profiles (10.4)
+# ---------------------------------------------------------------------------
+# CI runs the deterministic "ci" profile so a failing example is reproducible
+# from the recorded seed; local deep runs select "thorough" via
+# HYPOTHESIS_PROFILE=thorough.  Registering here (rather than per @settings)
+# keeps example counts in one place and lets one env var scale the whole suite.
+
+settings.register_profile(
+    "ci",
+    max_examples=150,
+    deadline=None,
+    derandomize=True,
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large],
+)
+settings.register_profile(
+    "thorough",
+    max_examples=2000,
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large],
+)
+settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "ci"))
+
+
+# ---------------------------------------------------------------------------
+# Instance generator
+# ---------------------------------------------------------------------------
+
+@st.composite
+def rcpsp_dag(draw, max_activities=30, max_duration=20.0, max_lag=10.0,
+              with_lags=True):
+    """A random acyclic instance: n activities, durations, forward edges, lags.
+
+    Acyclic by construction — an edge i->j is only ever proposed for i < j, so
+    the topological order is the index order and no cycle can form.  Zero
+    durations and isolated nodes are allowed on purpose: those are exactly the
+    degenerate cases that fed bug-family #3 (multi-source, zero-duration,
+    disconnected) in the 2026-09-03 review.
+
+    When ``with_lags`` is set, a finish-to-start lag in [0, max_lag] is drawn for
+    a random subset of edges.  Lags participate in the CPM forward/backward pass
+    (pert.py:750/775) and in the scheduler's earliest-start (pert.py:6962), so
+    the equality invariant below now exercises lag arithmetic on both paths.
+    """
+    n = draw(st.integers(min_value=1, max_value=max_activities))
+    durations = draw(st.lists(
+        st.floats(min_value=0.0, max_value=max_duration,
+                  allow_nan=False, allow_infinity=False),
+        min_size=n, max_size=n))
+    edges = set()
+    for j in range(n):
+        for i in range(j):
+            if draw(st.booleans()):
+                edges.add((i, j))
+    edges = sorted(edges)
+    lags = {}
+    if with_lags:
+        for e in edges:
+            if draw(st.booleans()):
+                lags[e] = draw(st.floats(min_value=0.0, max_value=max_lag,
+                                         allow_nan=False, allow_infinity=False))
+    return n, durations, edges, lags
+
+
+def build_pert(n, durations, edges, lags=None):
+    """Wrap a generated instance in START/END and build a schedulable Pert.
+
+    Every generated activity is anchored to START (if it has no predecessor)
+    and to END (if it has no successor), so the graph always has a single
+    source and single sink and is fully connected.  Empty resource pools mean
+    unlimited capacity, so the resource-constrained makespan must equal the CPM
+    length for these instances.  Lags are written straight into ``lag_dict``
+    (the representation the engine schedules against — see pert.py:750); this
+    mirrors test_invariants._build and is not overwritten by generateInfo() on
+    the graph= construction path.
+    """
+    acts = [Activity(f"A{i}", float(durations[i])) for i in range(n)]
+    start, end = Activity("START", 0.0), Activity("END", 0.0)
+
+    succ = {a: [] for a in acts}
+    for i, j in edges:
+        succ[acts[i]].append(acts[j])
+
+    has_in = {j for _, j in edges}
+    has_out = {i for i, _ in edges}
+    sources = [acts[i] for i in range(n) if i not in has_in]   # -> START
+    sinks = [acts[i] for i in range(n) if i not in has_out]    # -> END
+
+    fwd = {start: list(sources)}
+    fwd.update(succ)
+    for s in sinks:
+        fwd[s].append(end)
+    fwd[end] = []
+
+    p = Pert(graph=fwd)
+    p.crew_pool, p.equipment_pool, p.location_pool = (
+        ResourcePool(), EquipmentPool(), LocationPool())       # empty = unlimited
+    if lags:
+        p.lag_dict = {(acts[i], acts[j]): float(L) for (i, j), L in lags.items()}
+    p.startTime = datetime(2026, 1, 1)
+    p.generateInfo()
+    return p
+
+
+# ---------------------------------------------------------------------------
+# Phase 0 — the generator + scheduler don't blow up
+# ---------------------------------------------------------------------------
+
+@given(rcpsp_dag())
+def test_generator_smoke(inst):
+    p = build_pert(*inst)
+    r = p.calculateScheduleWithResources(sgs=SGS)
+    assert r["scheduled_duration"] >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# Phase 1a — unlimited resources => makespan == CPM, and schedule is feasible
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("sgs", ALL_SGS)
+@given(rcpsp_dag())
+def test_unconstrained_makespan_equals_cpm(sgs, inst):
+    p = build_pert(*inst)
+    r = p.calculateScheduleWithResources(sgs=sgs)
+    assert_valid_schedule(p)
+    assert abs(r["scheduled_duration"] - r["cpm_duration"]) < TOL, (
+        f"[{sgs}] makespan {r['scheduled_duration']:.4f} != "
+        f"CPM {r['cpm_duration']:.4f}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 1b — metamorphic: scaling every duration (and lag) by k scales CPM by k
+# ---------------------------------------------------------------------------
+
+@given(rcpsp_dag(), st.floats(min_value=1.1, max_value=5.0,
+                              allow_nan=False, allow_infinity=False))
+def test_duration_scaling_scales_cpm(inst, k):
+    n, durations, edges, lags = inst
+    # Lags are on the critical path too, so scaling durations alone would break
+    # the k-relation; scale both to keep CPM homogeneous of degree 1.
+    scaled_lags = {e: L * k for e, L in lags.items()}
+    base = build_pert(n, durations, edges, lags) \
+        .calculateScheduleWithResources(sgs=SGS)
+    scaled = build_pert(n, [d * k for d in durations], edges, scaled_lags) \
+        .calculateScheduleWithResources(sgs=SGS)
+    assert math.isclose(scaled["cpm_duration"], base["cpm_duration"] * k,
+                        rel_tol=1e-6, abs_tol=1e-6), (
+        f"CPM {base['cpm_duration']:.4f} * {k:.4f} != scaled CPM "
+        f"{scaled['cpm_duration']:.4f}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — resource-constrained invariants (single renewable crew skill)
+# ---------------------------------------------------------------------------
+# Capacity is always >= the largest single-activity demand, so every activity
+# can eventually run (renewable => no cumulative exhaustion) and the instance is
+# guaranteed feasible.  The properties then hold unconditionally:
+#   - resources can only delay:  makespan >= CPM
+#   - the schedule validates and every activity is scheduled
+# NOTE: makespan monotonicity in capacity (more crew never lengthens the
+# schedule) is NOT asserted — it is false for these heuristic list-schedulers
+# (Graham anomalies) and for the nondeterministic shuffled SGS; see
+# test_resource_capacity_variants_valid and RCPSP_ROBUSTNESS_2026-09-07.md §13.
+# Lags are omitted here so a failure points unambiguously at the resource logic
+# rather than at lag arithmetic (Phase 1 already covers lags).
+
+CREW = "CREW"
+
+
+@st.composite
+def rcpsp_crew_instance(draw, max_activities=30, max_demand=3):
+    """A DAG plus a per-activity crew demand and two capacities cap_low<=cap_high.
+
+    ``floor`` is the largest single-activity demand (>=1), so both capacities
+    admit every activity and the schedule is always feasible.
+    """
+    n, durations, edges, _ = draw(
+        rcpsp_dag(max_activities=max_activities, with_lags=False))
+    demands = draw(st.lists(st.integers(min_value=0, max_value=max_demand),
+                            min_size=n, max_size=n))
+    floor = max(demands + [1])
+    cap_low = floor + draw(st.integers(min_value=0, max_value=3))
+    cap_high = cap_low + draw(st.integers(min_value=0, max_value=3))
+    return n, durations, edges, demands, cap_low, cap_high
+
+
+def build_resource_pert(n, durations, edges, demands, capacity):
+    """Like build_pert but with one renewable CREW skill of the given capacity."""
+    acts = [Activity(f"A{i}", float(durations[i])) for i in range(n)]
+    for i in range(n):
+        if demands[i] > 0:
+            acts[i].required_resources = [
+                {'skill_type': CREW, 'crew_count': int(demands[i])}]
+    start, end = Activity("START", 0.0), Activity("END", 0.0)
+
+    succ = {a: [] for a in acts}
+    for i, j in edges:
+        succ[acts[i]].append(acts[j])
+
+    has_in = {j for _, j in edges}
+    has_out = {i for i, _ in edges}
+    sources = [acts[i] for i in range(n) if i not in has_in]
+    sinks = [acts[i] for i in range(n) if i not in has_out]
+
+    fwd = {start: list(sources)}
+    fwd.update(succ)
+    for s in sinks:
+        fwd[s].append(end)
+    fwd[end] = []
+
+    T0 = datetime(2026, 1, 1)
+    p = Pert(graph=fwd)
+    p.crew_pool = make_crew_pool(CREW, int(capacity), T0)
+    p.equipment_pool = EquipmentPool()
+    p.location_pool = LocationPool()
+    p.startTime = T0
+    p.generateInfo()
+    return p
+
+
+@pytest.mark.parametrize("sgs", ALL_SGS)
+@given(rcpsp_crew_instance())
+def test_resource_makespan_at_least_cpm(sgs, inst):
+    """Resources can only delay: makespan >= CPM, schedule feasible, all scheduled."""
+    n, durations, edges, demands, cap_low, _cap_high = inst
+    p = build_resource_pert(n, durations, edges, demands, cap_low)
+    r = p.calculateScheduleWithResources(sgs=sgs)
+    assert_valid_schedule(p, f"[{sgs}] resource-constrained (cap={cap_low})")
+    assert r["n_completed"] == r["n_activities"], (
+        f"[{sgs}] only {r['n_completed']}/{r['n_activities']} activities scheduled")
+    assert r["scheduled_duration"] >= r["cpm_duration"] - TOL, (
+        f"[{sgs}] makespan {r['scheduled_duration']:.4f} < "
+        f"CPM {r['cpm_duration']:.4f}")
+
+
+@pytest.mark.parametrize("sgs", ALL_SGS)
+@given(rcpsp_crew_instance())
+def test_resource_capacity_variants_valid(sgs, inst):
+    """Both capacity variants of the same instance schedule *validly*: feasible,
+    every activity placed, and makespan >= CPM — asserted at cap_low AND cap_high.
+
+    This deliberately does NOT assert makespan monotonicity in capacity
+    (``makespan(cap_low) >= makespan(cap_high)``).  That invariant is *false* for
+    these schedulers and was removed after the nightly ``thorough`` sweep
+    falsified it on all five SGS (see RCPSP_ROBUSTNESS_2026-09-07.md §13):
+
+      * All five SGS are heuristic greedy list-schedulers, not optimal solvers.
+        Capacity feeds candidate-set truncation (``k_needed = max(1, max_slots)*8``
+        at pert.py:3593-3607; ``heapq.nlargest(k, ...)`` at pert.py:5578-5589), so
+        more crew can change the ordering and *lengthen* the makespan — a genuine,
+        deterministic Graham anomaly (witness: ``[first] cap=2->2.5 < cap=3->3.0``).
+        The inequality holds only for the *optimal* makespan, which none compute.
+      * ``max_use_res_shuffled`` is additionally nondeterministic: ``_shuffle_candidates``
+        calls ``random.shuffle`` (pert.py:5599) with no per-call seed, and
+        ``calculateScheduleWithResources`` never reseeds, so back-to-back runs draw
+        from a continuing RNG stream (witness: ``cap=1`` vs ``cap=1`` -> 2.0 vs 3.0,
+        identical input, different answer).
+
+    What remains — feasibility, completeness, and makespan >= CPM at each capacity
+    — is sound and unconditional.  Validating cap_high here also covers a capacity
+    ``test_resource_makespan_at_least_cpm`` (cap_low only) does not.
+    """
+    n, durations, edges, demands, cap_low, cap_high = inst
+    for cap in (cap_low, cap_high):
+        p = build_resource_pert(n, durations, edges, demands, cap)
+        r = p.calculateScheduleWithResources(sgs=sgs)
+        assert_valid_schedule(p, f"[{sgs}] resource-constrained (cap={cap})")
+        assert r["n_completed"] == r["n_activities"], (
+            f"[{sgs}] cap={cap}: only {r['n_completed']}/{r['n_activities']} "
+            f"activities scheduled")
+        assert r["scheduled_duration"] >= r["cpm_duration"] - TOL, (
+            f"[{sgs}] cap={cap}: makespan {r['scheduled_duration']:.4f} < "
+            f"CPM {r['cpm_duration']:.4f}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — multi-constraint feasible-side soundness (ORACLE_COMPLETENESS §6.2)
+# ---------------------------------------------------------------------------
+# Phases 1-2 fuzz only precedence, lags, and a single renewable crew skill, so
+# under randomized exploration only ~4 of the oracle's hard checks were ever
+# stressed (ORACLE_COMPLETENESS_2026-09-07.md, Gap 2).  This phase adds the
+# *feasible* side of five more — equipment, location (tasks + workers),
+# time-windows, consumables, and system-states — over many random DAG shapes, so
+# the oracle is exercised (no-false-positive) on those checks at all.  The
+# *infeasible* (sensitivity) side of every check is test_oracle_mutation.py's job.
+#
+# Feasible by construction, dimension by dimension:
+#   * capacities = the exact upper bound on concurrent demand (equipment qty =
+#     #activities needing it; location task/worker caps = counts/crew-sums of the
+#     activities placed there; crew cap = total crew demand), and every window is
+#     wide enough to admit any placement — so those checks run but never bind.
+#   * consumables: initial stock = TOTAL demand across all activities.  Deduction
+#     is deduct-on-start and the oracle resets to items and replays in start order;
+#     since Σ(remaining demands) == remaining stock at every step, every ready
+#     activity always fits in ANY order — no depletion, no deadlock, independent of
+#     the drawn DAG/SGS.
+#   * system-states: every state-touching activity requires the SAME state on the
+#     SAME system (a compatible shared lock), so any overlap is legal regardless of
+#     topology.
+# So no check can bind regardless of the drawn DAG, and any violation reported here
+# is a real oracle false-positive (or an engine bug) → fuzz-and-freeze.
+
+HORIZON = timedelta(days=365)   # covers any makespan these instances can reach
+WIDE_WINDOW_H = 1.0e6           # window latest-finish far beyond any makespan
+CONSUMABLE_ID = 'CONS'          # single shared depletable item the phase fuzzes
+SYSTEM_ID = 'SYS_1'             # single shared system the phase fuzzes
+SYSTEM_STATE = 'ALIGNED'        # the one state every state-touching activity holds
+
+
+@st.composite
+def rcpsp_multi_constraint_instance(draw, max_activities=20, max_demand=3,
+                                    max_consumable=2):
+    """A DAG plus, per activity: a crew demand, booleans for whether it also needs
+    the shared crane and whether it sits in the shared location, a consumable
+    demand drawn from the shared item, and a boolean for whether it holds the
+    shared system state."""
+    n, durations, edges, _ = draw(
+        rcpsp_dag(max_activities=max_activities, with_lags=False))
+    demands = draw(st.lists(st.integers(min_value=0, max_value=max_demand),
+                            min_size=n, max_size=n))
+    needs_equip = draw(st.lists(st.booleans(), min_size=n, max_size=n))
+    in_location = draw(st.lists(st.booleans(), min_size=n, max_size=n))
+    cons_demands = draw(st.lists(st.integers(min_value=0, max_value=max_consumable),
+                                 min_size=n, max_size=n))
+    needs_state = draw(st.lists(st.booleans(), min_size=n, max_size=n))
+    return (n, durations, edges, demands, needs_equip, in_location,
+            cons_demands, needs_state)
+
+
+def build_multi_constraint_pert(n, durations, edges, demands, needs_equip,
+                                in_location, cons_demands, needs_state):
+    """Build a Pert exercising crew + equipment + location + time-window +
+    consumable + system-state checks, feasible by construction (every capacity =
+    the exact concurrent-demand ceiling; every window wide open; consumable stock =
+    total demand; every state-touching activity holds the same compatible state)."""
+    acts = [Activity(f"A{i}", float(durations[i])) for i in range(n)]
+    for i in range(n):
+        acts[i].required_resources = (
+            [{'skill_type': CREW, 'crew_count': int(demands[i])}]
+            if demands[i] > 0 else [])
+        if needs_equip[i]:
+            acts[i].required_equipment = [
+                {'equipment_id': 'CRANE', 'quantity_needed': 1}]
+        if in_location[i]:
+            acts[i].location_id = 'LOC_1'
+        if cons_demands[i] > 0:
+            acts[i].required_consumables = [
+                {'item_id': CONSUMABLE_ID,
+                 'quantity_needed': int(cons_demands[i])}]
+        if needs_state[i]:
+            acts[i].required_system_states = [
+                {'system_id': SYSTEM_ID, 'required_state': SYSTEM_STATE}]
+        # A window every placement satisfies, so time_windows runs but never binds.
+        acts[i].window_earliest_start_hours = 0.0
+        acts[i].window_latest_finish_hours  = WIDE_WINDOW_H
+
+    start, end = Activity("START", 0.0), Activity("END", 0.0)
+    succ = {a: [] for a in acts}
+    for i, j in edges:
+        succ[acts[i]].append(acts[j])
+    has_in = {j for _, j in edges}
+    has_out = {i for i, _ in edges}
+    sources = [acts[i] for i in range(n) if i not in has_in]
+    sinks   = [acts[i] for i in range(n) if i not in has_out]
+    fwd = {start: list(sources)}
+    fwd.update(succ)
+    for s in sinks:
+        fwd[s].append(end)
+    fwd[end] = []
+
+    T0 = datetime(2026, 1, 1)
+    # Capacities = exact upper bounds on concurrent demand → never binding.
+    crew_cap    = sum(demands) or 1
+    equip_qty   = sum(1 for x in needs_equip if x) or 1
+    loc_tasks   = sum(1 for x in in_location if x) or 1
+    loc_workers = sum(demands[i] for i in range(n) if in_location[i]) or 1
+
+    p = Pert(graph=fwd)
+    p.crew_pool = make_crew_pool(CREW, int(crew_cap), T0)
+    ep = EquipmentPool()
+    ep.equipment['CRANE'] = EquipmentAvailability(
+        'CRANE', 'polar crane',
+        [{'start_date': T0, 'end_date': T0 + HORIZON,
+          'quantity_available': int(equip_qty)}])
+    p.equipment_pool = ep
+    lp = LocationPool()
+    lp.locations['LOC_1'] = LocationAvailability(
+        'LOC_1', 'shared bay',
+        [{'start_date': T0, 'end_date': T0 + HORIZON,
+          'max_concurrent_tasks': int(loc_tasks),
+          'max_concurrent_workers': int(loc_workers)}])
+    p.location_pool = lp
+    # Consumable stock = TOTAL demand → replay only depletes and Σ(remaining
+    # demands) == remaining stock at every step, so every ready activity always
+    # fits in any order (feasible regardless of DAG/SGS).  Must register the item;
+    # an unregistered id is skipped by both engine fits and oracle has_item.
+    total_cons = sum(cons_demands)
+    if total_cons > 0:
+        cp = ConsumablePool()
+        cp.items[CONSUMABLE_ID]           = float(total_cons)
+        cp.remaining[CONSUMABLE_ID]       = float(total_cons)
+        cp.description[CONSUMABLE_ID]     = 'shared consumable'
+        cp.restocks[CONSUMABLE_ID]        = []
+        cp._restock_cursor[CONSUMABLE_ID] = -1.0
+        p.consumable_pool = cp
+    else:
+        p.consumable_pool = None
+    # Every state-touching activity holds the SAME state on the SAME system (a
+    # compatible shared lock), so any overlap is legal (feasible regardless of
+    # topology).  An empty pool is enough for the oracle to run — it compares the
+    # declared states directly.
+    p.system_state_pool = SystemStatePool() if any(needs_state) else None
+    p.startTime = T0
+    p.generateInfo()
+    return p
+
+
+@pytest.mark.parametrize("sgs", ALL_SGS)
+@given(rcpsp_multi_constraint_instance())
+def test_multi_constraint_schedule_is_valid(sgs, inst):
+    """Feasible-by-construction multi-constraint instance (crew, equipment,
+    location, time-windows, consumables, system-states): schedule validates,
+    every activity runs, and makespan >= CPM."""
+    p = build_multi_constraint_pert(*inst)
+    r = p.calculateScheduleWithResources(sgs=sgs)
+    assert_valid_schedule(p, f"[{sgs}] multi-constraint")
+    assert r["n_completed"] == r["n_activities"], (
+        f"[{sgs}] only {r['n_completed']}/{r['n_activities']} activities scheduled")
+    assert r["scheduled_duration"] >= r["cpm_duration"] - TOL, (
+        f"[{sgs}] makespan {r['scheduled_duration']:.4f} < "
+        f"CPM {r['cpm_duration']:.4f}")

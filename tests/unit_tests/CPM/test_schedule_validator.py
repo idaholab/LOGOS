@@ -1,0 +1,901 @@
+"""
+test_schedule_validator.py — Tests for schedule_validator.validate_schedule()
+
+Each test class exercises one violation category by constructing a minimal
+Pert instance, running calculateScheduleWithResources(), then either
+introducing a synthetic defect or verifying a natural defect is caught.
+"""
+
+import pytest
+from datetime import datetime, timedelta
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from CPM.activity import Activity
+from CPM.pert import Pert
+from CPM.outage_data import (
+    ResourcePool, ResourceAvailability,
+    EquipmentPool, EquipmentAvailability,
+    LocationPool, LocationAvailability,
+    ConsumablePool, SystemStatePool,
+)
+from CPM.schedule_validator import validate_schedule, Violation
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+START_DT = datetime(2026, 1, 1, 0, 0)
+HORIZON  = timedelta(days=30)
+
+
+def _rp(skill: str, count: int) -> ResourcePool:
+    rp = ResourcePool()
+    rp.resources[skill] = ResourceAvailability(
+        skill,
+        [{'start_date': START_DT, 'end_date': START_DT + HORIZON,
+          'available_count': count}],
+    )
+    return rp
+
+
+def _simple_pert(durations=(4.0, 4.0), crew=2, pool_size=10) -> Pert:
+    """START → A → B → END, MECH skill, given pool size."""
+    a = Activity('A', durations[0], required_resources=[
+        {'skill_type': 'MECH', 'crew_count': crew, 'alternative_skill_types': []}])
+    b = Activity('B', durations[1], required_resources=[
+        {'skill_type': 'MECH', 'crew_count': crew, 'alternative_skill_types': []}])
+    start = Activity('START', 0.0)
+    end   = Activity('END',   0.0)
+    fwd   = {start: [a], a: [b], b: [end], end: []}
+    p = Pert(graph=fwd)
+    p.crew_pool     = _rp('MECH', pool_size)
+    p.equipment_pool = EquipmentPool()
+    p.location_pool  = LocationPool()
+    p.consumable_pool   = None
+    p.system_state_pool = None
+    p.startTime = START_DT
+    return p
+
+
+def _schedule(p: Pert) -> dict:
+    p.generateInfo()
+    return p.calculateScheduleWithResources(sgs='max_use_res_ranked',
+                                            max_time_hours=200)
+
+
+# ===========================================================================
+# Happy-path: valid schedule produces no violations
+# ===========================================================================
+
+class TestHappyPath:
+    def test_valid_schedule_is_feasible(self):
+        p = _simple_pert()
+        _schedule(p)
+        result = p.validate_schedule()
+        assert result.is_feasible
+        assert result.violations == []
+
+    def test_result_repr(self):
+        p = _simple_pert()
+        _schedule(p)
+        r = p.validate_schedule()
+        assert 'ValidationResult' in repr(r)
+
+    def test_summary_contains_status(self):
+        p = _simple_pert()
+        _schedule(p)
+        s = p.validate_schedule().summary()
+        assert 'FEASIBLE' in s
+
+
+# ===========================================================================
+# Completeness
+# ===========================================================================
+
+class TestCompleteness:
+    def test_unscheduled_pert_reports_completeness_violation(self):
+        p = _simple_pert()
+        p.generateInfo()   # CPM only — no scheduling run
+        result = validate_schedule(p)
+        types = [v.type for v in result.violations]
+        assert 'completeness' in types
+
+    def test_full_schedule_has_no_completeness_violation(self):
+        p = _simple_pert()
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'completeness' not in types
+
+
+# ===========================================================================
+# Duration consistency
+# ===========================================================================
+
+class TestDuration:
+    def test_tampered_endtime_detected(self):
+        p = _simple_pert()
+        _schedule(p)
+        # Artificially corrupt one activity's endTime
+        for act in p.completed:
+            if act.name == 'A':
+                act.endTime = act.startTime + timedelta(hours=99)
+                break
+        result = validate_schedule(p)
+        types = [v.type for v in result.violations]
+        assert 'duration' in types
+
+    def test_subminute_discrepancy_detected(self):
+        # Bug-family #9: a 56.25 s (0.015625 h) duration collapse — masked by
+        # the old _DUR_TOL = 60 s, caught at 1 ms.  Shrinking endTime keeps the
+        # fault isolated to 'duration' (an earlier finish only adds precedence
+        # slack, so no precedence violation is triggered as a side effect).
+        p = _simple_pert()
+        _schedule(p)
+        for act in p.completed:
+            if act.name == 'A':
+                correct_end = act.startTime + timedelta(hours=act.duration)
+                act.endTime = correct_end - timedelta(seconds=56.25)
+                break
+        types = [v.type for v in validate_schedule(p).violations]
+        assert 'duration' in types
+
+    def test_correct_durations_no_violation(self):
+        p = _simple_pert()
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'duration' not in types
+
+
+# ===========================================================================
+# Precedence
+# ===========================================================================
+
+class TestPrecedence:
+    def test_tampered_starttime_breaks_precedence(self):
+        p = _simple_pert()
+        _schedule(p)
+        # Move B's startTime to before A finishes
+        a_act = next(a for a in p.completed if a.name == 'A')
+        b_act = next(a for a in p.completed if a.name == 'B')
+        b_act.startTime = a_act.startTime        # B starts when A starts → violates A→B
+        b_act.endTime   = b_act.startTime + timedelta(hours=b_act.duration)
+        result = validate_schedule(p)
+        types = [v.type for v in result.violations]
+        assert 'precedence' in types
+
+    def test_valid_order_no_precedence_violation(self):
+        p = _simple_pert()
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'precedence' not in types
+
+    def test_lag_violation_detected(self):
+        """Validator catches when B starts before A.endTime + lag."""
+        p = _simple_pert()
+        _schedule(p)
+        a_act = next(x for x in p.completed if x.name == 'A')
+        b_act = next(x for x in p.completed if x.name == 'B')
+        # Inject a 4-hour lag requirement between A and B
+        a_act.successor_lags = {b_act.name: 4.0}
+        # B currently starts right after A — violates the 4h lag
+        result = validate_schedule(p)
+        assert 'precedence' in [v.type for v in result.violations]
+
+
+# ===========================================================================
+# Time windows
+# ===========================================================================
+
+class TestTimeWindows:
+    def test_activity_outside_window_detected(self):
+        p = _simple_pert()
+        _schedule(p)
+        # Inject a narrow window on A after scheduling so the validator sees a breach
+        a_act = next(x for x in p.completed if x.name == 'A')
+        # A starts at h=0, ends at h=4; impose window [10h, 20h] → clear breach
+        a_act.window_earliest_start_hours = 10.0
+        a_act.window_latest_finish_hours  = 20.0
+        result = validate_schedule(p)
+        types = [v.type for v in result.violations] + [w.type for w in result.warnings]
+        assert 'time_window' in types
+
+    def test_activity_inside_window_no_violation(self):
+        p = _simple_pert()
+        for act in p.forwardDict:
+            if act.name == 'A':
+                act.window_earliest_start_hours = 0.0
+                act.window_latest_finish_hours  = 100.0
+                break
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'time_window' not in types
+
+
+# ===========================================================================
+# Crew feasibility
+# ===========================================================================
+
+class TestCrewFeasibility:
+    def test_overloaded_crew_detected_when_injected(self):
+        """Scheduler respects crew limits, so we inject a violation manually."""
+        p = _simple_pert(pool_size=2)   # only 2 MECH
+        _schedule(p)
+        # Artificially force A and B to overlap
+        a_act = next(a for a in p.completed if a.name == 'A')
+        b_act = next(a for a in p.completed if a.name == 'B')
+        b_act.startTime = a_act.startTime          # both running simultaneously
+        b_act.endTime   = b_act.startTime + timedelta(hours=b_act.duration)
+        # Combined demand = 4 MECH, pool = 2 → violation
+        result = validate_schedule(p)
+        types = [v.type for v in result.violations]
+        assert 'crew' in types
+
+    def test_scheduler_does_not_overload_crew(self):
+        """The scheduler itself must not produce crew violations on a fresh run."""
+        p = _simple_pert(pool_size=2)
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'crew' not in types
+
+
+# ===========================================================================
+# Substitution legality (Gap 1, touch-point 5)
+# ===========================================================================
+
+class TestSubstitutionLegality:
+    """The oracle independently certifies that the engine-committed crew breakdown
+    (``_actual_resources``) is a legal, demand-conserving resolution of the
+    *declared* requirements — it no longer trusts the breakdown verbatim as the
+    crew sweep's demand (ORACLE_COMPLETENESS §6.4 touch-point 5). A breakdown that
+    under-records demand or charges a disallowed skill would otherwise slip past
+    the crew sweep, which reads that same breakdown."""
+
+    def _make_pert(self, required_resources, pool):
+        a = Activity('A', 4.0, required_resources=required_resources)
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a], a: [end], end: []}
+        p = Pert(graph=fwd)
+        p.crew_pool         = pool
+        p.equipment_pool    = EquipmentPool()
+        p.location_pool     = LocationPool()
+        p.consumable_pool   = None
+        p.system_state_pool = None
+        p.startTime = START_DT
+        return p
+
+    def _pool(self, **counts):
+        rp = ResourcePool()
+        for skill, count in counts.items():
+            rp.resources[skill] = ResourceAvailability(
+                skill, [{'start_date': START_DT, 'end_date': START_DT + HORIZON,
+                         'available_count': count}])
+        return rp
+
+    def test_legal_substitution_no_violation(self):
+        """A committed breakdown that uses a declared alternative skill and
+        conserves demand is accepted (behaviour-preserving on legal output)."""
+        p = self._make_pert(
+            [{'skill_type': 'MECH', 'crew_count': 2,
+              'alternative_skill_types': ['WELDER']}],
+            self._pool(MECH=10, WELDER=10))
+        _schedule(p)
+        # A legal all-WELDER substitution, full demand met.
+        next(x for x in p.completed if x.name == 'A')._actual_resources = {'WELDER': 2}
+        assert 'substitution' not in [v.type for v in validate_schedule(p).violations]
+
+    def test_non_conserving_breakdown_detected(self):
+        """A breakdown recording fewer workers than declared is flagged (the
+        engine 'forgot to record a substitution' — the crew sweep would validate
+        against the too-low demand and miss a real over-allocation)."""
+        p = self._make_pert(
+            [{'skill_type': 'MECH', 'crew_count': 3, 'alternative_skill_types': []}],
+            self._pool(MECH=10))
+        _schedule(p)
+        next(x for x in p.completed if x.name == 'A')._actual_resources = {'MECH': 1}
+        assert 'substitution' in [v.type for v in validate_schedule(p).violations]
+
+    def test_illegal_skill_breakdown_detected(self):
+        """A breakdown charging a skill no requirement allows is flagged even when
+        the recorded total matches the declared demand (only the max-flow legality
+        path, not a conservation check, catches this)."""
+        p = self._make_pert(
+            [{'skill_type': 'MECH', 'crew_count': 2,
+              'alternative_skill_types': ['WELDER']}],
+            self._pool(MECH=10, WELDER=10))
+        _schedule(p)
+        # ELEC is neither the primary nor a declared alternative; total still 2.
+        next(x for x in p.completed if x.name == 'A')._actual_resources = {'ELEC': 2}
+        assert 'substitution' in [v.type for v in validate_schedule(p).violations]
+
+    def test_scheduler_output_is_legal(self):
+        """The scheduler's own committed breakdown never trips the check."""
+        p = self._make_pert(
+            [{'skill_type': 'MECH', 'crew_count': 2,
+              'alternative_skill_types': ['WELDER']}],
+            self._pool(MECH=10, WELDER=10))
+        _schedule(p)
+        assert 'substitution' not in [v.type for v in p.validate_schedule().violations]
+
+
+# ===========================================================================
+# Equipment feasibility
+# ===========================================================================
+
+class TestEquipmentFeasibility:
+    def _make_pert_with_equipment(self):
+        a = Activity('A', 4.0,
+                     required_resources=[{'skill_type': 'MECH', 'crew_count': 1,
+                                          'alternative_skill_types': []}],
+                     required_equipment=[{'equipment_id': 'CRANE', 'quantity_needed': 1}])
+        b = Activity('B', 4.0,
+                     required_resources=[{'skill_type': 'MECH', 'crew_count': 1,
+                                          'alternative_skill_types': []}],
+                     required_equipment=[{'equipment_id': 'CRANE', 'quantity_needed': 1}])
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a, b], a: [end], b: [end], end: []}
+        p = Pert(graph=fwd)
+        p.crew_pool = _rp('MECH', 10)
+        ep = EquipmentPool()
+        ep.equipment['CRANE'] = EquipmentAvailability(
+            'CRANE', 'polar crane',
+            [{'start_date': START_DT, 'end_date': START_DT + HORIZON,
+              'quantity_available': 1}])
+        p.equipment_pool    = ep
+        p.location_pool     = LocationPool()
+        p.consumable_pool   = None
+        p.system_state_pool = None
+        p.startTime = START_DT
+        return p, a, b
+
+    def test_equipment_overload_detected(self):
+        p, a_act, b_act = self._make_pert_with_equipment()
+        _schedule(p)
+        # Force overlap to create equipment overload
+        a_obj = next(x for x in p.completed if x.name == 'A')
+        b_obj = next(x for x in p.completed if x.name == 'B')
+        b_obj.startTime = a_obj.startTime
+        b_obj.endTime   = b_obj.startTime + timedelta(hours=4)
+        result = validate_schedule(p)
+        assert 'equipment' in [v.type for v in result.violations]
+
+    def test_scheduler_serialises_equipment_conflict(self):
+        p, _, _ = self._make_pert_with_equipment()
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'equipment' not in types
+
+
+# ===========================================================================
+# Location feasibility
+# ===========================================================================
+
+class TestLocationFeasibility:
+    def _make_pert_with_location(self, max_tasks=1):
+        a = Activity('A', 4.0, location_id='LOC_1',
+                     required_resources=[{'skill_type': 'MECH', 'crew_count': 1,
+                                          'alternative_skill_types': []}])
+        b = Activity('B', 4.0, location_id='LOC_1',
+                     required_resources=[{'skill_type': 'MECH', 'crew_count': 1,
+                                          'alternative_skill_types': []}])
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a, b], a: [end], b: [end], end: []}
+        p = Pert(graph=fwd)
+        p.crew_pool = _rp('MECH', 10)
+        p.equipment_pool = EquipmentPool()
+        lp = LocationPool()
+        lp.locations['LOC_1'] = LocationAvailability(
+            'LOC_1', 'test location',
+            [{'start_date': START_DT, 'end_date': START_DT + HORIZON,
+              'max_concurrent_tasks': max_tasks,
+              'max_concurrent_workers': max_tasks * 4}])
+        p.location_pool     = lp
+        p.consumable_pool   = None
+        p.system_state_pool = None
+        p.startTime = START_DT
+        return p
+
+    def test_location_overload_detected(self):
+        p = self._make_pert_with_location(max_tasks=1)
+        _schedule(p)
+        # Force both activities into the same time slot
+        a_obj = next(x for x in p.completed if x.name == 'A')
+        b_obj = next(x for x in p.completed if x.name == 'B')
+        b_obj.startTime = a_obj.startTime
+        b_obj.endTime   = b_obj.startTime + timedelta(hours=4)
+        result = validate_schedule(p)
+        assert 'location' in [v.type for v in result.violations]
+
+    def test_scheduler_serialises_location_conflict(self):
+        p = self._make_pert_with_location(max_tasks=1)
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'location' not in types
+
+
+# ===========================================================================
+# System-state conflicts
+# ===========================================================================
+
+class TestSystemStates:
+    def _make_state_pert(self, same_state=True):
+        state_b = 'CLOSED' if same_state else 'OPEN'
+        a = Activity('A', 4.0,
+                     required_resources=[{'skill_type': 'MECH', 'crew_count': 1,
+                                          'alternative_skill_types': []}])
+        a.required_system_states = [{'system_id': 'V1', 'required_state': 'CLOSED'}]
+        b = Activity('B', 4.0,
+                     required_resources=[{'skill_type': 'MECH', 'crew_count': 1,
+                                          'alternative_skill_types': []}])
+        b.required_system_states = [{'system_id': 'V1', 'required_state': state_b}]
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a, b], a: [end], b: [end], end: []}
+
+        from CPM.outage_data import SystemStatePool
+        ssp = SystemStatePool()
+
+        p = Pert(graph=fwd)
+        p.crew_pool         = _rp('MECH', 10)
+        p.equipment_pool    = EquipmentPool()
+        p.location_pool     = LocationPool()
+        p.consumable_pool   = None
+        p.system_state_pool = ssp
+        p.startTime = START_DT
+        return p
+
+    def test_incompatible_states_in_overlap_detected(self):
+        p = self._make_state_pert(same_state=False)
+        _schedule(p)
+        # Force overlap
+        a_obj = next(x for x in p.completed if x.name == 'A')
+        b_obj = next(x for x in p.completed if x.name == 'B')
+        b_obj.startTime = a_obj.startTime
+        b_obj.endTime   = b_obj.startTime + timedelta(hours=4)
+        result = validate_schedule(p)
+        assert 'system_state' in [v.type for v in result.violations]
+
+    def test_compatible_states_no_violation(self):
+        p = self._make_state_pert(same_state=True)
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'system_state' not in types
+
+
+# ===========================================================================
+# Hold points
+# ===========================================================================
+
+class TestHoldPoints:
+    def test_blocked_task_before_holdpoint_detected(self):
+        hp  = Activity('HP',  0.0, is_hold_point=True, blocks_tasks=['B'])
+        b   = Activity('B',   4.0, required_resources=[
+            {'skill_type': 'MECH', 'crew_count': 1, 'alternative_skill_types': []}])
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [hp, b], hp: [b], b: [end], end: []}
+        p = Pert(graph=fwd)
+        p.crew_pool = _rp('MECH', 10)
+        p.equipment_pool = EquipmentPool()
+        p.location_pool  = LocationPool()
+        p.consumable_pool = p.system_state_pool = None
+        p.startTime = START_DT
+        _schedule(p)
+        # Force B to start before HP ends
+        hp_obj = next(x for x in p.completed if x.name == 'HP')
+        b_obj  = next(x for x in p.completed if x.name == 'B')
+        hp_obj.startTime = START_DT + timedelta(hours=8)
+        hp_obj.endTime   = hp_obj.startTime   # zero-duration
+        b_obj.startTime  = START_DT            # before HP
+        b_obj.endTime    = b_obj.startTime + timedelta(hours=4)
+        result = validate_schedule(p)
+        assert 'hold_point' in [v.type for v in result.violations]
+
+
+# ===========================================================================
+# Quality warnings
+# ===========================================================================
+
+class TestQualityWarnings:
+    def test_delayed_activities_produce_warning(self):
+        p = _simple_pert(pool_size=2)   # tight pool forces delay
+        _schedule(p)
+        result = p.validate_schedule()
+        # With 2 MECH and 2-crew activities in series, delay may be zero;
+        # but the schedule should still be feasible
+        assert result.is_feasible
+
+    def test_summary_includes_section_headers(self):
+        p = _simple_pert()
+        _schedule(p)
+        summary = p.validate_schedule().summary()
+        assert 'Status' in summary
+        assert 'Violations' in summary
+        assert 'Warnings' in summary
+
+
+# ===========================================================================
+# Consumables
+# ===========================================================================
+
+class TestConsumables:
+    def _make_pert_with_consumables(self, total_qty: float) -> Pert:
+        """A and B each need 1 unit of 'SEAL'.  total_qty controls whether
+        there is enough inventory."""
+        a = Activity('A', 4.0, required_resources=[
+            {'skill_type': 'MECH', 'crew_count': 1, 'alternative_skill_types': []}])
+        a.required_consumables = [{'item_id': 'SEAL', 'quantity_needed': 1}]
+        b = Activity('B', 4.0, required_resources=[
+            {'skill_type': 'MECH', 'crew_count': 1, 'alternative_skill_types': []}])
+        b.required_consumables = [{'item_id': 'SEAL', 'quantity_needed': 1}]
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a], a: [b], b: [end], end: []}
+        p = Pert(graph=fwd)
+        p.crew_pool      = _rp('MECH', 10)
+        p.equipment_pool = EquipmentPool()
+        p.location_pool  = LocationPool()
+        p.system_state_pool = None
+        # Build a consumable pool with the requested total
+        cp = ConsumablePool()
+        cp.items['SEAL']           = float(total_qty)
+        cp.remaining['SEAL']       = float(total_qty)
+        cp.description['SEAL']     = 'valve seals'
+        cp.restocks['SEAL']        = []
+        cp._restock_cursor['SEAL'] = -1.0
+        p.consumable_pool = cp
+        p.startTime = START_DT
+        return p
+
+    def test_consumable_shortage_detected(self):
+        """Schedule with 2 SEALs, then reduce pool to 1 → validator fires shortage.
+
+        The scheduler enforces consumable constraints, so we must schedule with
+        enough inventory first.  After scheduling we reduce the declared total so
+        the validator's replay (which resets to pool.items) sees a shortage.
+        """
+        p = self._make_pert_with_consumables(total_qty=2)
+        _schedule(p)
+        # Reduce the declared initial stock so the validator replay runs short
+        p.consumable_pool.items['SEAL'] = 1.0
+        result = validate_schedule(p)
+        types = [v.type for v in result.violations]
+        assert 'consumable' in types
+
+    def test_sufficient_consumables_no_violation(self):
+        """2 SEALs available, 2 needed → no consumable violation."""
+        p = self._make_pert_with_consumables(total_qty=2)
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'consumable' not in types
+
+
+# ===========================================================================
+# Equipment zone affinity
+# ===========================================================================
+
+class TestEquipmentZoneAffinity:
+    def _make_pert_with_zoned_equipment(self, act_zones: list) -> Pert:
+        """Activity A uses CRANE which is zone-locked to 'CONTAINMENT'."""
+        a = Activity('A', 4.0,
+                     required_resources=[{'skill_type': 'MECH', 'crew_count': 1,
+                                          'alternative_skill_types': []}],
+                     required_equipment=[{'equipment_id': 'CRANE', 'quantity_needed': 1}])
+        a.zone_ids = list(act_zones)
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a], a: [end], end: []}
+        p = Pert(graph=fwd)
+        p.crew_pool = _rp('MECH', 10)
+        ep = EquipmentPool()
+        ep.equipment['CRANE'] = EquipmentAvailability(
+            'CRANE', 'polar crane',
+            [{'start_date': START_DT, 'end_date': START_DT + HORIZON,
+              'quantity_available': 1}],
+            zone_id='CONTAINMENT',
+        )
+        p.equipment_pool    = ep
+        p.location_pool     = LocationPool()
+        p.consumable_pool   = None
+        p.system_state_pool = None
+        p.startTime = START_DT
+        return p
+
+    def test_out_of_zone_equipment_use_detected(self):
+        """Schedule with correct zone, then reassign activity to wrong zone.
+
+        The scheduler blocks activities that use zone-locked equipment from the
+        wrong zone, so we schedule successfully first (activity in CONTAINMENT),
+        then move the activity to AUX_BLDG post-schedule so the validator sees
+        the zone mismatch.
+        """
+        p = self._make_pert_with_zoned_equipment(act_zones=['CONTAINMENT'])
+        _schedule(p)
+        # After scheduling, move activity to a different zone
+        a_obj = next(x for x in p.completed if x.name == 'A')
+        a_obj.zone_ids = ['AUX_BLDG']
+        result = validate_schedule(p)
+        types = [v.type for v in result.violations]
+        assert 'equipment_zone' in types
+
+    def test_correct_zone_no_violation(self):
+        """Activity is in zone 'CONTAINMENT' — matches equipment zone."""
+        p = self._make_pert_with_zoned_equipment(act_zones=['CONTAINMENT'])
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'equipment_zone' not in types
+
+    def test_unconstrained_equipment_no_zone_violation(self):
+        """Equipment without zone_id must not trigger zone violations."""
+        p = self._make_pert_with_zoned_equipment(act_zones=[])
+        # Override zone_id to None
+        p.equipment_pool.equipment['CRANE'].zone_id = None
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'equipment_zone' not in types
+
+
+# ===========================================================================
+# Location worker limits
+# ===========================================================================
+
+class TestLocationWorkers:
+    def _make_pert_with_worker_limit(self, max_workers: int) -> Pert:
+        """A and B run in LOC_1; each needs 2 MECH workers."""
+        a = Activity('A', 4.0, location_id='LOC_1',
+                     required_resources=[{'skill_type': 'MECH', 'crew_count': 2,
+                                          'alternative_skill_types': []}])
+        b = Activity('B', 4.0, location_id='LOC_1',
+                     required_resources=[{'skill_type': 'MECH', 'crew_count': 2,
+                                          'alternative_skill_types': []}])
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a, b], a: [end], b: [end], end: []}
+        p = Pert(graph=fwd)
+        p.crew_pool = _rp('MECH', 10)
+        p.equipment_pool = EquipmentPool()
+        lp = LocationPool()
+        lp.locations['LOC_1'] = LocationAvailability(
+            'LOC_1', 'test location',
+            [{'start_date': START_DT, 'end_date': START_DT + HORIZON,
+              'max_concurrent_tasks': 99,        # tasks limit not the issue
+              'max_concurrent_workers': max_workers}])
+        p.location_pool     = lp
+        p.consumable_pool   = None
+        p.system_state_pool = None
+        p.startTime = START_DT
+        return p
+
+    def test_worker_limit_violation_detected(self):
+        """Force A and B to overlap; combined 4 workers > limit of 3."""
+        p = self._make_pert_with_worker_limit(max_workers=3)
+        _schedule(p)
+        a_obj = next(x for x in p.completed if x.name == 'A')
+        b_obj = next(x for x in p.completed if x.name == 'B')
+        b_obj.startTime = a_obj.startTime          # force simultaneous start
+        b_obj.endTime   = b_obj.startTime + timedelta(hours=4)
+        result = validate_schedule(p)
+        types = [v.type for v in result.violations]
+        assert 'location' in types
+        # Detail should mention workers
+        worker_viols = [v for v in result.violations
+                        if v.type == 'location' and 'workers' in v.detail]
+        assert worker_viols, 'expected a worker-limit violation detail'
+
+    def test_sufficient_worker_capacity_no_violation(self):
+        """5-worker limit; scheduler serialises so at most 2 at a time."""
+        p = self._make_pert_with_worker_limit(max_workers=5)
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'location' not in types
+
+
+# ===========================================================================
+# Shift calendar
+# ===========================================================================
+
+class TestShiftCalendar:
+    def _make_pert_with_shift(self, wpd: int, shift_start: int) -> Pert:
+        """Single A activity; shift settings injected on Pert after construction."""
+        a = Activity('A', 4.0, required_resources=[
+            {'skill_type': 'MECH', 'crew_count': 1, 'alternative_skill_types': []}])
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a], a: [end], end: []}
+        p = Pert(graph=fwd)
+        p.crew_pool      = _rp('MECH', 10)
+        p.equipment_pool = EquipmentPool()
+        p.location_pool  = LocationPool()
+        p.consumable_pool   = None
+        p.system_state_pool = None
+        p.startTime = START_DT
+        p.working_hours_per_day = wpd
+        p.shift_start_hour      = shift_start
+        return p
+
+    def test_activity_outside_shift_detected(self):
+        """Shift is 08:00–20:00 (12 h); A is scheduled at h=0 (midnight) → violation."""
+        p = self._make_pert_with_shift(wpd=12, shift_start=8)
+        _schedule(p)
+        # A starts at offset h=0 → hour-of-day = 0 (midnight), outside [8, 20]
+        result = validate_schedule(p)
+        types = [v.type for v in result.violations]
+        assert 'shift_calendar' in types
+
+    def test_activity_inside_shift_no_violation(self):
+        """Full 24-h shift → no shift violation regardless of schedule."""
+        p = self._make_pert_with_shift(wpd=24, shift_start=0)
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'shift_calendar' not in types
+
+    def test_no_shift_constraint_skipped(self):
+        """working_hours_per_day=24 means the check is entirely skipped."""
+        p = _simple_pert()
+        p.working_hours_per_day = 24
+        p.shift_start_hour = 0
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'shift_calendar' not in types
+
+
+# ===========================================================================
+# Dose budgets
+# ===========================================================================
+
+class TestDoseBudgets:
+    def _make_pert_with_dose(self, budget_per_worker=500.0, peak=4,
+                             dose_rate=50.0, crew=2) -> Pert:
+        """START → A → B → END where MECH is a *consumable* (dose-tracked) skill.
+
+        Dose trackers must be built explicitly here: like every helper in this
+        file we assign ``crew_pool`` *after* ``Pert(graph=...)``, so
+        ``Pert.__init__`` (which only builds trackers when a crew_pool exists at
+        construction) leaves ``dose_trackers == {}`` — and the validator's
+        ``if not pert.dose_trackers: return`` guard would then make
+        ``_check_dose_budgets`` a silent no-op.  Mirror
+        test_dose_budget._pert_with_pools and populate them before scheduling.
+        """
+        a = Activity('A', 4.0, required_resources=[
+            {'skill_type': 'MECH', 'crew_count': crew, 'alternative_skill_types': []}])
+        a.dose_rate_mrem_per_hour = dose_rate
+        b = Activity('B', 4.0, required_resources=[
+            {'skill_type': 'MECH', 'crew_count': crew, 'alternative_skill_types': []}])
+        b.dose_rate_mrem_per_hour = dose_rate
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a], a: [b], b: [end], end: []}
+        p = Pert(graph=fwd)
+        rp = ResourcePool()
+        rp.resources['MECH'] = ResourceAvailability(
+            'MECH',
+            [{'start_date': START_DT, 'end_date': START_DT + HORIZON,
+              'available_count': peak}],
+            resource_type='consumable',
+            dose_budget_per_worker_mrem=budget_per_worker)
+        p.crew_pool         = rp
+        p.equipment_pool    = EquipmentPool()
+        p.location_pool     = LocationPool()
+        p.consumable_pool   = None
+        p.system_state_pool = None
+        p.startTime = START_DT
+        p.dose_trackers = rp.build_dose_trackers()   # build BEFORE scheduling
+        return p
+
+    def test_over_budget_dose_detected(self):
+        """Schedule within budget, then push consumed above budget → 'dose' fires.
+
+        The scheduler gates every task start on ``DoseBudgetTracker.fits()`` and
+        resets the trackers at the start of each run, so a *naturally*
+        over-budget schedule cannot be produced.  Mirror the consumable/zone
+        tests and mutate the live tracker post-schedule (as
+        test_dose_budget.py:189 does).
+        """
+        p = self._make_pert_with_dose(budget_per_worker=500.0, peak=4)
+        _schedule(p)
+        tracker = p.dose_trackers['MECH']
+        assert tracker.consumed_mrem > 0.0        # scheduling actually consumed dose
+        assert tracker.total_budget_mrem > 0.0    # so the <=0 guard does not skip
+        tracker.consumed_mrem = tracker.total_budget_mrem + 1000.0
+        result = validate_schedule(p)
+        types = [v.type for v in result.violations]
+        assert 'dose' in types
+
+    def test_within_budget_no_violation(self):
+        """Generous budget → the scheduled dose stays within budget, no violation."""
+        p = self._make_pert_with_dose(budget_per_worker=500.0, peak=4)
+        _schedule(p)
+        types = [v.type for v in p.validate_schedule().violations]
+        assert 'dose' not in types
+
+
+# ===========================================================================
+# Mode consistency: live profile must realize the committed execution mode
+# ===========================================================================
+
+class TestModeConsistency:
+    """The oracle independently certifies that an activity's live profile faithfully
+    realizes its committed execution mode (``selected_mode_id``) against the
+    *declared* ``modes`` list (ORACLE_COMPLETENESS §6.6). The scheduling loop reads
+    only the live fields and never re-reads ``modes``, so a buggy/partial mode
+    application or a post-selection mutation of a live field would otherwise slip
+    past every other check, which has no notion that modes exist — mirroring the
+    committed-decision certification of ``TestSubstitutionLegality``."""
+
+    def _make_pert(self):
+        """START → A → END where A has two modes: normal(8h,2 MECH)/crash(4h,4 MECH)."""
+        a = Activity('A', 8.0, required_resources=[
+            {'skill_type': 'MECH', 'crew_count': 2, 'alternative_skill_types': []}])
+        a.modes = [
+            {'mode_id': 'normal', 'duration': 8.0,
+             'required_resources': [{'skill_type': 'MECH', 'crew_count': 2,
+                                     'alternative_skill_types': []}],
+             'required_equipment': []},
+            {'mode_id': 'crash', 'duration': 4.0,
+             'required_resources': [{'skill_type': 'MECH', 'crew_count': 4,
+                                     'alternative_skill_types': []}],
+             'required_equipment': []},
+        ]
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a], a: [end], end: []}
+        p = Pert(graph=fwd)
+        p.crew_pool         = _rp('MECH', 10)
+        p.equipment_pool    = EquipmentPool()
+        p.location_pool     = LocationPool()
+        p.consumable_pool   = None
+        p.system_state_pool = None
+        p.startTime = START_DT
+        return p
+
+    def _act_A(self, p):
+        return next(x for x in p.completed if x.name == 'A')
+
+    def test_faithful_mode_no_violation(self):
+        """A faithfully-applied mode schedules feasibly and never trips the check
+        (behaviour-preserving on correct ``set_mode`` output)."""
+        p = self._make_pert()
+        p.set_modes({'A': 'crash'})
+        _schedule(p)
+        result = validate_schedule(p)
+        assert result.is_feasible, result.summary()
+        assert 'mode' not in [v.type for v in result.violations]
+        assert self._act_A(p).selected_mode_id == 'crash'   # committed & preserved
+
+    def test_divergent_live_resources_detected(self):
+        """A live ``required_resources`` that is not the selected mode's is flagged.
+
+        Corrupting a *resource* field (not duration) isolates the ``mode`` check:
+        a duration corruption would also trip ``_check_durations`` because
+        ``endTime − startTime`` reflects the scheduled mode duration.  The engine
+        committed the crash mode (4 MECH); the live profile is then rewritten to a
+        2-MECH profile that matches no committed mode."""
+        p = self._make_pert()
+        p.set_modes({'A': 'crash'})
+        _schedule(p)
+        a = self._act_A(p)
+        assert a.selected_mode_id == 'crash'
+        a.required_resources = [{'skill_type': 'MECH', 'crew_count': 2,
+                                 'alternative_skill_types': []}]
+        assert 'mode' in [v.type for v in validate_schedule(p).violations]
+
+    def test_dangling_selected_mode_id_detected(self):
+        """A committed ``selected_mode_id`` naming no declared mode is flagged."""
+        p = self._make_pert()
+        p.set_modes({'A': 'crash'})
+        _schedule(p)
+        self._act_A(p).selected_mode_id = 'turbo'    # not among declared modes
+        assert 'mode' in [v.type for v in validate_schedule(p).violations]
+
+    def test_single_mode_activity_silent(self):
+        """A single-mode activity (no modes, ``selected_mode_id`` None) is never
+        checked — the whole existing suite has no committed mode, so the check is
+        behaviour-preserving."""
+        p = _simple_pert()
+        _schedule(p)
+        assert 'mode' not in [v.type for v in validate_schedule(p).violations]

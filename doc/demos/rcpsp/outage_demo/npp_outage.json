@@ -1,0 +1,1266 @@
+{
+  "outage": {
+    "outage_id": "UNIT2_RFO_SPRING",
+    "start_date": "2025-04-07",
+    "target_end_date": "2025-04-24",
+    "working_hours_per_day": 24
+  },
+
+  "tasks": [
+    {
+      "task_id": "START",
+      "description": "Outage start",
+      "duration": 1.0,
+      "successors": ["T01", "T36", "T37", "T40", "T43", "T51", "T55", "T62"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [],
+      "required_equipment": []
+    },
+
+    {
+      "task_id": "T01",
+      "description": "Reactor shutdown and initial cooldown",
+      "duration": 24.0,
+      "successors": [{"task_id": "T02", "lag_hours": 24}],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [],
+      "required_equipment": []
+    },
+
+    {
+      "task_id": "T02",
+      "description": "RCS pressure boundary confirmation (QA hold point)",
+      "duration": 4.0,
+      "successors": ["T03", "T12", "T20", "T22", "T24", "T26", "T28", "T29", "T31", "T34", "T46", "T57", "T60", "T64"],
+      "location_id": null,
+      "is_hold_point": true,
+      "hold_point_type": "QA",
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 2}],
+      "required_equipment": []
+    },
+
+    {
+      "task_id": "T03",
+      "description": "Reactor vessel head removal",
+      "duration": 16.0,
+      "successors": ["T04"],
+      "location_id": "REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 4}],
+      "required_equipment": [{"equipment_id": "POLAR_CRANE", "quantity_needed": 1}]
+    },
+
+    {
+      "task_id": "T04",
+      "description": "Upper internals removal",
+      "duration": 12.0,
+      "successors": ["T05"],
+      "location_id": "REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [{"equipment_id": "POLAR_CRANE", "quantity_needed": 1}]
+    },
+
+    {
+      "task_id": "T05",
+      "description": "Fuel offload to spent fuel pool",
+      "duration": 48.0,
+      "successors": ["T06"],
+      "location_id": "REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "RCT", "crew_count": 4}],
+      "required_equipment": [{"equipment_id": "FUEL_MACH", "quantity_needed": 1}],
+      "dose_rate_mrem_per_hour": 3.0
+    },
+
+    {
+      "task_id": "T06",
+      "description": "In-core inspection (eddy-current)",
+      "duration": 24.0,
+      "successors": ["T07"],
+      "location_id": "REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "RCT", "crew_count": 2}],
+      "required_equipment": [{"equipment_id": "EC_RIG", "quantity_needed": 1}],
+      "dose_rate_mrem_per_hour": 8.0,
+      "time_windows": [
+        {"earliest": 48,  "latest": 168},
+        {"earliest": 210, "latest": 290}
+      ]
+    },
+
+    {
+      "task_id": "T07",
+      "description": "Fuel reload from spent fuel pool",
+      "duration": 36.0,
+      "successors": ["T08"],
+      "location_id": "REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "RCT", "crew_count": 4}],
+      "required_equipment": [{"equipment_id": "FUEL_MACH", "quantity_needed": 1}],
+      "dose_rate_mrem_per_hour": 3.0
+    },
+
+    {
+      "task_id": "T08",
+      "description": "Upper internals reinstallation",
+      "duration": 12.0,
+      "successors": ["T09"],
+      "location_id": "REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [{"equipment_id": "POLAR_CRANE", "quantity_needed": 1}]
+    },
+
+    {
+      "task_id": "T09",
+      "description": "Reactor vessel head reinstallation",
+      "duration": 16.0,
+      "successors": [{"task_id": "T10", "lag_hours": 6}],
+      "location_id": "REACTOR_CAVITY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 4}],
+      "required_equipment": [{"equipment_id": "POLAR_CRANE", "quantity_needed": 1}]
+    },
+
+    {
+      "task_id": "T10",
+      "description": "RCS fill, vent, and heat-up",
+      "duration": 8.0,
+      "successors": ["T11"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 2}],
+      "required_equipment": []
+    },
+
+    {
+      "task_id": "T11",
+      "description": "RCS leak check and pressure boundary test (QA hold point)",
+      "duration": 6.0,
+      "successors": ["END"],
+      "location_id": null,
+      "is_hold_point": true,
+      "hold_point_type": "QA",
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 2}],
+      "required_equipment": []
+    },
+
+    {
+      "task_id": "T12",
+      "description": "ECCS Train A isolation and maintenance",
+      "duration": 20.0,
+      "successors": ["T13"],
+      "location_id": "SG_BAY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [],
+      "required_system_states": [{"system_id": "ECCS_A", "required_state": "OOS"}],
+      "wbs_group": "ECCS_A_MAINT"
+    },
+
+    {
+      "task_id": "T13",
+      "description": "ECCS Train A valve functional testing",
+      "duration": 8.0,
+      "successors": ["T14"],
+      "location_id": "SG_BAY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 2}],
+      "required_equipment": [],
+      "required_system_states": [{"system_id": "ECCS_A", "required_state": "OOS"}],
+      "wbs_group": "ECCS_A_MAINT"
+    },
+
+    {
+      "task_id": "T14",
+      "description": "ECCS Train A return to service and post-maintenance verification",
+      "duration": 4.0,
+      "successors": ["T15", "T16"],
+      "location_id": "SG_BAY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 2}],
+      "required_equipment": [],
+      "required_system_states": [{"system_id": "ECCS_A", "required_state": "OPERATIONAL"}]
+    },
+
+    {
+      "task_id": "T15",
+      "description": "ECCS Train A post-maintenance operability test",
+      "duration": 6.0,
+      "successors": ["END"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 2}],
+      "required_equipment": [],
+      "window_earliest_start_hours": 0,
+      "window_latest_finish_hours": 240
+    },
+
+    {
+      "task_id": "T16",
+      "description": "ECCS Train B isolation and maintenance",
+      "duration": 20.0,
+      "successors": ["T17"],
+      "location_id": "SG_BAY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [],
+      "required_system_states": [{"system_id": "ECCS_B", "required_state": "OOS"}],
+      "wbs_group": "ECCS_B_MAINT"
+    },
+
+    {
+      "task_id": "T17",
+      "description": "ECCS Train B valve functional testing",
+      "duration": 8.0,
+      "successors": ["T18"],
+      "location_id": "SG_BAY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 2}],
+      "required_equipment": [],
+      "required_system_states": [{"system_id": "ECCS_B", "required_state": "OOS"}],
+      "wbs_group": "ECCS_B_MAINT"
+    },
+
+    {
+      "task_id": "T18",
+      "description": "ECCS Train B return to service and post-maintenance verification",
+      "duration": 4.0,
+      "successors": ["T19"],
+      "location_id": "SG_BAY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 2}],
+      "required_equipment": [],
+      "required_system_states": [{"system_id": "ECCS_B", "required_state": "OPERATIONAL"}]
+    },
+
+    {
+      "task_id": "T19",
+      "description": "ECCS Train B post-maintenance operability test",
+      "duration": 6.0,
+      "successors": ["END"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 2}],
+      "required_equipment": [],
+      "window_earliest_start_hours": 0,
+      "window_latest_finish_hours": 240
+    },
+
+    {
+      "task_id": "T20",
+      "description": "Steam Generator 1 eddy-current tube inspection",
+      "duration": 24.0,
+      "successors": ["T21"],
+      "location_id": "SG_BAY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "RCT", "crew_count": 2}],
+      "required_equipment": [{"equipment_id": "EC_RIG", "quantity_needed": 1}],
+      "dose_rate_mrem_per_hour": 5.0,
+      "wbs_group": "SG1_WORK"
+    },
+
+    {
+      "task_id": "T21",
+      "description": "Steam Generator 1 tube plugging and repair",
+      "duration": 12.0,
+      "successors": ["END"],
+      "location_id": "SG_BAY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "SG1_WORK"
+    },
+
+    {
+      "task_id": "T22",
+      "description": "Steam Generator 2 eddy-current tube inspection",
+      "duration": 24.0,
+      "successors": ["T23"],
+      "location_id": "SG_BAY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "RCT", "crew_count": 2}],
+      "required_equipment": [{"equipment_id": "EC_RIG", "quantity_needed": 1}],
+      "dose_rate_mrem_per_hour": 5.0,
+      "wbs_group": "SG2_WORK",
+      "modes": [
+        {
+          "mode_id": "normal",
+          "duration": 24.0,
+          "required_resources": [{"skill_type": "RCT", "crew_count": 2}],
+          "required_equipment": [{"equipment_id": "EC_RIG", "quantity_needed": 1}],
+          "dose_rate_mrem_per_hour": 5.0
+        },
+        {
+          "mode_id": "crash",
+          "duration": 16.0,
+          "required_resources": [{"skill_type": "RCT", "crew_count": 3}],
+          "required_equipment": [{"equipment_id": "EC_RIG", "quantity_needed": 2}],
+          "dose_rate_mrem_per_hour": 6.0
+        }
+      ]
+    },
+
+    {
+      "task_id": "T23",
+      "description": "Steam Generator 2 tube plugging and repair",
+      "duration": 12.0,
+      "successors": ["END"],
+      "location_id": "SG_BAY",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "SG2_WORK"
+    },
+
+    {
+      "task_id": "T24",
+      "description": "RCP-1 reactor coolant pump seal replacement",
+      "duration": 16.0,
+      "successors": ["T25"],
+      "location_id": "CONTAINMENT",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {
+          "skill_type": "MECHANIC",
+          "crew_count": 4,
+          "alternative_skill_types": ["WELDER"]
+        }
+      ],
+      "required_equipment": [],
+      "required_consumables": [{"item_id": "AC_SUIT", "quantity_needed": 6}]
+    },
+
+    {
+      "task_id": "T25",
+      "description": "RCP-1 post-maintenance functional test",
+      "duration": 4.0,
+      "successors": ["END"],
+      "location_id": "CONTAINMENT",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 2}],
+      "required_equipment": []
+    },
+
+    {
+      "task_id": "T26",
+      "description": "RCP-2 reactor coolant pump seal replacement",
+      "duration": 16.0,
+      "successors": ["T27"],
+      "location_id": "CONTAINMENT",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {
+          "skill_type": "MECHANIC",
+          "crew_count": 4,
+          "alternative_skill_types": ["WELDER"]
+        }
+      ],
+      "required_equipment": [],
+      "required_consumables": [{"item_id": "AC_SUIT", "quantity_needed": 6}]
+    },
+
+    {
+      "task_id": "T27",
+      "description": "RCP-2 post-maintenance functional test",
+      "duration": 4.0,
+      "successors": ["END"],
+      "location_id": "CONTAINMENT",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 2}],
+      "required_equipment": []
+    },
+
+    {
+      "task_id": "T28",
+      "description": "Containment isolation valve operability test (Tech Spec surveillance)",
+      "duration": 8.0,
+      "successors": ["END"],
+      "location_id": "CONTAINMENT",
+      "zone_ids": ["CONTAINMENT", "ELEC_ROOM"],
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC",    "crew_count": 2},
+        {"skill_type": "ELECTRICIAN", "crew_count": 1}
+      ],
+      "required_equipment": [],
+      "window_earliest_start_hours": 72,
+      "window_latest_finish_hours": 200
+    },
+
+    {
+      "task_id": "T29",
+      "description": "Pressurizer heater element replacement",
+      "duration": 20.0,
+      "successors": ["T30"],
+      "location_id": "CONTAINMENT",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "ELECTRICIAN", "crew_count": 3},
+        {"skill_type": "WELDER",      "crew_count": 2}
+      ],
+      "required_equipment": []
+    },
+
+    {
+      "task_id": "T30",
+      "description": "Pressurizer system leak test (NRC hold point)",
+      "duration": 6.0,
+      "successors": [{"task_id": "T11", "lag_hours": 4}],
+      "location_id": null,
+      "is_hold_point": true,
+      "hold_point_type": "NRC",
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 2}],
+      "required_equipment": []
+    },
+
+    {
+      "task_id": "T31",
+      "description": "Main turbine internal inspection",
+      "duration": 24.0,
+      "successors": ["T32"],
+      "location_id": "TURBINE_HALL",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 4}],
+      "required_equipment": []
+    },
+
+    {
+      "task_id": "T32",
+      "description": "Main turbine bearing replacement",
+      "duration": 12.0,
+      "successors": ["T33"],
+      "location_id": "TURBINE_HALL",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC", "crew_count": 3},
+        {"skill_type": "WELDER",   "crew_count": 2}
+      ],
+      "required_equipment": []
+    },
+
+    {
+      "task_id": "T33",
+      "description": "Main turbine reassembly and alignment",
+      "duration": 8.0,
+      "successors": ["END", "T63"],
+      "location_id": "TURBINE_HALL",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 4}],
+      "required_equipment": []
+    },
+
+    {
+      "task_id": "T34",
+      "description": "Main electrical bus inspection and maintenance",
+      "duration": 12.0,
+      "successors": ["T35"],
+      "location_id": "ELEC_ROOM",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 4}],
+      "required_equipment": [],
+      "mobilization_lead_hours": 12
+    },
+
+    {
+      "task_id": "T35",
+      "description": "Main electrical bus high-potential test (Tech Spec surveillance)",
+      "duration": 4.0,
+      "successors": ["END"],
+      "location_id": "ELEC_ROOM",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 2}],
+      "required_equipment": [],
+      "window_earliest_start_hours": 0,
+      "window_latest_finish_hours": 300
+    },
+
+    {
+      "task_id": "T36",
+      "description": "SFP cooling train 1 pump and heat exchanger maintenance",
+      "duration": 12.0,
+      "successors": ["T38"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 2}],
+      "required_equipment": [],
+      "required_system_states": [{"system_id": "SFP_COOLING", "required_state": "TRAIN_1_OOS"}]
+    },
+
+    {
+      "task_id": "T37",
+      "description": "SFP cooling train 2 pump and heat exchanger maintenance",
+      "duration": 12.0,
+      "successors": ["T38"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 2}],
+      "required_equipment": [],
+      "required_system_states": [{"system_id": "SFP_COOLING", "required_state": "TRAIN_2_OOS"}]
+    },
+
+    {
+      "task_id": "T38",
+      "description": "SFP cooling system return to normal operation and flow test",
+      "duration": 4.0,
+      "successors": ["END"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 1}],
+      "required_equipment": [],
+      "required_system_states": [{"system_id": "SFP_COOLING", "required_state": "NORMAL"}]
+    },
+
+    {
+      "task_id": "T40",
+      "description": "EDG-1 engine teardown, bearing replacement, and cooling system overhaul",
+      "duration": 20.0,
+      "successors": ["T41"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "EDG1_MAINT"
+    },
+
+    {
+      "task_id": "T41",
+      "description": "EDG-1 governor, fuel injection, and exhaust system service",
+      "duration": 8.0,
+      "successors": ["T42"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 2}],
+      "required_equipment": [],
+      "wbs_group": "EDG1_MAINT"
+    },
+
+    {
+      "task_id": "T42",
+      "description": "EDG-1 load bank acceptance test (stepped loading to 100%)",
+      "duration": 6.0,
+      "successors": ["END"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "ELECTRICIAN", "crew_count": 2},
+        {"skill_type": "MECHANIC",    "crew_count": 1}
+      ],
+      "required_equipment": [],
+      "wbs_group": "EDG1_MAINT"
+    },
+
+    {
+      "task_id": "T43",
+      "description": "EDG-2 engine teardown, bearing replacement, and cooling system overhaul",
+      "duration": 20.0,
+      "successors": ["T44"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "EDG2_MAINT"
+    },
+
+    {
+      "task_id": "T44",
+      "description": "EDG-2 governor, fuel injection, and exhaust system service",
+      "duration": 8.0,
+      "successors": ["T45"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 2}],
+      "required_equipment": [],
+      "wbs_group": "EDG2_MAINT"
+    },
+
+    {
+      "task_id": "T45",
+      "description": "EDG-2 load bank acceptance test (stepped loading to 100%)",
+      "duration": 6.0,
+      "successors": ["END"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "ELECTRICIAN", "crew_count": 2},
+        {"skill_type": "MECHANIC",    "crew_count": 1}
+      ],
+      "required_equipment": [],
+      "wbs_group": "EDG2_MAINT"
+    },
+
+    {
+      "task_id": "T46",
+      "description": "RHR Train A pump disassembly, bearing replacement, and internal inspection",
+      "duration": 16.0,
+      "successors": ["T47"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "RHR_MAINT"
+    },
+
+    {
+      "task_id": "T47",
+      "description": "RHR Train A mechanical seal weld repair",
+      "duration": 10.0,
+      "successors": ["T48"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "WELDER", "crew_count": 2}],
+      "required_equipment": [],
+      "wbs_group": "RHR_MAINT"
+    },
+
+    {
+      "task_id": "T48",
+      "description": "RHR Train A reassembly, return-to-service, and flow verification test",
+      "duration": 4.0,
+      "successors": ["T49"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC",    "crew_count": 2},
+        {"skill_type": "ELECTRICIAN", "crew_count": 1}
+      ],
+      "required_equipment": [],
+      "wbs_group": "RHR_MAINT"
+    },
+
+    {
+      "task_id": "T49",
+      "description": "RHR Train B pump disassembly, bearing replacement, and internal inspection",
+      "duration": 16.0,
+      "successors": ["T50"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "RHR_MAINT"
+    },
+
+    {
+      "task_id": "T50",
+      "description": "RHR Train B reassembly, return-to-service, and flow verification test",
+      "duration": 4.0,
+      "successors": ["END"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC",    "crew_count": 2},
+        {"skill_type": "ELECTRICIAN", "crew_count": 1}
+      ],
+      "required_equipment": [],
+      "wbs_group": "RHR_MAINT"
+    },
+
+    {
+      "task_id": "T51",
+      "description": "Main feedwater pump-A disassembly, impeller inspection, and wear-ring replacement",
+      "duration": 18.0,
+      "successors": ["T52"],
+      "location_id": "TURBINE_HALL",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "FW_MAINT"
+    },
+
+    {
+      "task_id": "T52",
+      "description": "Main feedwater pump-A shaft seal weld repair and casing restoration",
+      "duration": 10.0,
+      "successors": ["T53"],
+      "location_id": "TURBINE_HALL",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "WELDER", "crew_count": 2}],
+      "required_equipment": [],
+      "wbs_group": "FW_MAINT"
+    },
+
+    {
+      "task_id": "T53",
+      "description": "Main feedwater pump-A reassembly and precision shaft alignment",
+      "duration": 16.0,
+      "successors": ["T54"],
+      "location_id": "TURBINE_HALL",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "FW_MAINT"
+    },
+
+    {
+      "task_id": "T54",
+      "description": "Main feedwater pump-A hydrostatic test and performance acceptance run",
+      "duration": 4.0,
+      "successors": ["END"],
+      "location_id": "TURBINE_HALL",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC",    "crew_count": 1},
+        {"skill_type": "ELECTRICIAN", "crew_count": 1}
+      ],
+      "required_equipment": [],
+      "wbs_group": "FW_MAINT"
+    },
+
+    {
+      "task_id": "T64",
+      "description": "4160V Class 1E bus 1A breaker inspection, trip-coil replacement, and relay calibration",
+      "duration": 16.0,
+      "successors": ["T65"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "AC_BUS"
+    },
+
+    {
+      "task_id": "T65",
+      "description": "4160V Class 1E bus 1B breaker inspection, trip-coil replacement, and relay calibration (sequential — single bus energized at a time)",
+      "duration": 16.0,
+      "successors": ["T66"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "AC_BUS"
+    },
+
+    {
+      "task_id": "T66",
+      "description": "480V MCC safety-related bus load testing, breaker coordination, and protection setting verification",
+      "duration": 12.0,
+      "successors": ["T67"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 2}],
+      "required_equipment": [],
+      "wbs_group": "AC_BUS"
+    },
+
+    {
+      "task_id": "T67",
+      "description": "AC distribution system post-maintenance integrated test and load-flow verification (QA hold point)",
+      "duration": 8.0,
+      "successors": ["END"],
+      "location_id": null,
+      "is_hold_point": true,
+      "hold_point_type": "QA",
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 2}],
+      "required_equipment": [],
+      "wbs_group": "AC_BUS"
+    },
+
+    {
+      "task_id": "T57",
+      "description": "RPS Channel A instrument loop calibrations — neutron flux detectors, RTDs, pressure transmitters",
+      "duration": 20.0,
+      "successors": ["T58"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "RPS_CALIB"
+    },
+
+    {
+      "task_id": "T58",
+      "description": "RPS Channel B instrument loop calibrations — independent channel (independence requirement enforces serial execution)",
+      "duration": 20.0,
+      "successors": ["T59"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "RPS_CALIB"
+    },
+
+    {
+      "task_id": "T59",
+      "description": "RPS functional test — reactor trip breaker test and protection logic verification (QA hold point)",
+      "duration": 8.0,
+      "successors": ["END"],
+      "location_id": null,
+      "is_hold_point": true,
+      "hold_point_type": "QA",
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 2}],
+      "required_equipment": [],
+      "wbs_group": "RPS_CALIB"
+    },
+
+    {
+      "task_id": "T60",
+      "description": "Main control board I&C loop calibrations — temperature, pressure, and flow transmitters",
+      "duration": 24.0,
+      "successors": ["T61"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 2}],
+      "required_equipment": [],
+      "wbs_group": "INST_CALIB"
+    },
+
+    {
+      "task_id": "T61",
+      "description": "Control board functional acceptance test and post-calibration operability verification",
+      "duration": 6.0,
+      "successors": ["END"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 2}],
+      "required_equipment": [],
+      "wbs_group": "INST_CALIB"
+    },
+
+    {
+      "task_id": "T62",
+      "description": "Class 1E battery systems maintenance and capacity test (4 battery strings)",
+      "duration": 20.0,
+      "successors": ["END"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 2}],
+      "required_equipment": [],
+      "wbs_group": "ELEC_SYS"
+    },
+
+    {
+      "task_id": "T63",
+      "description": "Turbine control system loop calibrations and function tests",
+      "duration": 14.0,
+      "successors": ["END"],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "ELECTRICIAN", "crew_count": 2}],
+      "required_equipment": [],
+      "wbs_group": "TCS_CALIB"
+    },
+
+    {
+      "task_id": "T55",
+      "description": "Component cooling water pump overhaul and heat exchanger tube cleaning (all trains)",
+      "duration": 20.0,
+      "successors": ["T56"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [{"skill_type": "MECHANIC", "crew_count": 3}],
+      "required_equipment": [],
+      "wbs_group": "CCW_MAINT"
+    },
+
+    {
+      "task_id": "T56",
+      "description": "CCW system return-to-service, leak check, and flow balance verification",
+      "duration": 4.0,
+      "successors": ["END"],
+      "location_id": "AUX_BUILDING",
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [
+        {"skill_type": "MECHANIC",    "crew_count": 1},
+        {"skill_type": "ELECTRICIAN", "crew_count": 1}
+      ],
+      "required_equipment": [],
+      "wbs_group": "CCW_MAINT"
+    },
+
+    {
+      "task_id": "END",
+      "description": "Outage complete — unit cleared for startup",
+      "duration": 1.0,
+      "successors": [],
+      "location_id": null,
+      "is_hold_point": false,
+      "hold_point_type": null,
+      "blocks_tasks": [],
+      "required_resources": [],
+      "required_equipment": []
+    }
+  ],
+
+  "resources": [
+    {
+      "skill_type": "MECHANIC",
+      "resource_type": "renewable",
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-11T00:00:00",
+          "available_count": 6,
+          "reason": "Initial outage crew (days 1-4) — reduced mobilization, full crew not yet on-site"
+        },
+        {
+          "start_date": "2025-04-11T00:00:00",
+          "end_date": "2025-04-18T00:00:00",
+          "available_count": 10,
+          "reason": "Contract reinforcement crew arrives (days 5-11)"
+        },
+        {
+          "start_date": "2025-04-18T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "available_count": 6,
+          "reason": "Contract reinforcement crew departs (days 12-17)"
+        }
+      ]
+    },
+    {
+      "skill_type": "ELECTRICIAN",
+      "resource_type": "renewable",
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "available_count": 4,
+          "reason": "Full outage period — tighter pool drives sequencing of parallel electrical work"
+        }
+      ]
+    },
+    {
+      "skill_type": "WELDER",
+      "resource_type": "renewable",
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "available_count": 3,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "skill_type": "RCT",
+      "resource_type": "consumable",
+      "dose_budget_per_worker_mrem": 400,
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "available_count": 6,
+          "reason": "Full outage period — ALARA budget 400 mRem/worker"
+        }
+      ]
+    }
+  ],
+
+  "equipment": [
+    {
+      "equipment_id": "POLAR_CRANE",
+      "description": "Reactor building polar crane",
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "quantity_available": 1,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "equipment_id": "EC_RIG",
+      "description": "Eddy-current inspection rig",
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-09T00:00:00",
+          "quantity_available": 1,
+          "reason": "Single rig on-site at outage start"
+        },
+        {
+          "start_date": "2025-04-09T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "quantity_available": 2,
+          "reason": "Second rig arrives day 2 (h=48)"
+        }
+      ]
+    },
+    {
+      "equipment_id": "FUEL_MACH",
+      "description": "Refueling machine (fuel handling bridge)",
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "quantity_available": 1,
+          "reason": "Full outage period"
+        }
+      ]
+    }
+  ],
+
+  "locations": [
+    {
+      "location_id": "REACTOR_CAVITY",
+      "description": "Reactor cavity and refueling pool (radiological controlled area)",
+      "is_confined_space": true,
+      "zone_type": "permit",
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "max_concurrent_tasks": 1,
+          "max_concurrent_workers": 6,
+          "reason": "Full outage — one task at a time, radiological permit limit"
+        }
+      ]
+    },
+    {
+      "location_id": "SG_BAY",
+      "description": "Steam generator bay (both SG alcoves)",
+      "is_confined_space": false,
+      "zone_type": "physical",
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "max_concurrent_tasks": 2,
+          "max_concurrent_workers": 10,
+          "reason": "Full outage — two SG alcoves available simultaneously"
+        }
+      ]
+    },
+    {
+      "location_id": "CONTAINMENT",
+      "description": "Reactor containment building",
+      "is_confined_space": false,
+      "zone_type": "physical",
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-08T00:00:00",
+          "max_concurrent_tasks": 0,
+          "max_concurrent_workers": 0,
+          "reason": "Initial 24h containment isolation — no entry permitted"
+        },
+        {
+          "start_date": "2025-04-08T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "max_concurrent_tasks": 3,
+          "max_concurrent_workers": 15,
+          "reason": "Containment access authorized after initial isolation"
+        }
+      ]
+    },
+    {
+      "location_id": "TURBINE_HALL",
+      "description": "Turbine building — main floor",
+      "is_confined_space": false,
+      "zone_type": "physical",
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "max_concurrent_tasks": 2,
+          "max_concurrent_workers": 12,
+          "reason": "Full outage period"
+        }
+      ]
+    },
+    {
+      "location_id": "AUX_BUILDING",
+      "description": "Auxiliary building — EDG room, RHR pump rooms, CCW system",
+      "is_confined_space": false,
+      "zone_type": "physical",
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "max_concurrent_tasks": 3,
+          "max_concurrent_workers": 20,
+          "reason": "Full outage — up to 3 simultaneous work packages in auxiliary building"
+        }
+      ]
+    },
+    {
+      "location_id": "ELEC_ROOM",
+      "description": "Main electrical switchgear room",
+      "is_confined_space": false,
+      "zone_type": "permit",
+      "availability_periods": [
+        {
+          "start_date": "2025-04-07T00:00:00",
+          "end_date": "2025-04-24T23:59:59",
+          "max_concurrent_tasks": 1,
+          "max_concurrent_workers": 4,
+          "reason": "Full outage — single work permit at a time in switchgear room"
+        }
+      ]
+    }
+  ],
+
+  "consumables": [
+    {
+      "item_id": "AC_SUIT",
+      "description": "Anti-contamination protective suits (single-use)",
+      "total_quantity": 10,
+      "restocks": [
+        {
+          "delivery_hour": 96,
+          "quantity": 20
+        }
+      ]
+    }
+  ],
+
+  "plant_systems": [
+    {
+      "system_id": "ECCS_A",
+      "description": "Emergency Core Cooling System — Train A",
+      "valid_states": ["OOS", "OPERATIONAL"]
+    },
+    {
+      "system_id": "ECCS_B",
+      "description": "Emergency Core Cooling System — Train B",
+      "valid_states": ["OOS", "OPERATIONAL"]
+    },
+    {
+      "system_id": "SFP_COOLING",
+      "description": "Spent Fuel Pool cooling system (two-train redundant)",
+      "valid_states": ["TRAIN_1_OOS", "TRAIN_2_OOS", "NORMAL"]
+    }
+  ],
+
+  "safety_functions": [
+    {
+      "safety_function_id": "ECCS",
+      "description": "Emergency Core Cooling System — mutual exclusion enforced via explicit precedence (T14 precedes T16)",
+      "train_ids": ["TRAIN_A", "TRAIN_B"],
+      "plant_system_id": "ECCS_A",
+      "max_trains_oos_simultaneously": 1
+    }
+  ]
+}
