@@ -136,6 +136,16 @@ class BaseCPMmodel(ExternalModelPluginBase):
     if schemaPath is not None and not os.path.isabs(schemaPath):
       schemaPath = os.path.join(workingDir, schemaPath)
 
+    # project_file is required: fail early with a clear message if the node is
+    # missing or the resolved file (and the optional schema, if given) does not
+    # exist, rather than letting Pert.from_json_file raise a less obvious error.
+    if self.project_file is None:
+      raise IOError("CPMmodel: the required <project_file> node is missing from the input")
+    if not os.path.isfile(projectFile):
+      raise IOError("CPMmodel: project_file '" + str(projectFile) + "' does not exist")
+    if schemaPath is not None and not os.path.isfile(schemaPath):
+      raise IOError("CPMmodel: schema '" + str(schemaPath) + "' does not exist")
+
     #Initialized once
     # 1) Load data & build schedule graph
     self.pert = Pert.from_json_file(projectFile, schema_path=schemaPath)

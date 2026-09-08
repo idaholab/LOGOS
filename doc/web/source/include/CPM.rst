@@ -29,7 +29,8 @@ Example of a CPM external model in a RAVEN input file:
 
    <Models>
      <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
-       <variables>R_C101, R_C102, R_C103, end_time</variables>
+       <inputs>R_C101, R_C102, R_C103</inputs>
+       <outputs>end_time</outputs>
        <project_file>example_10.json</project_file>
        <schema>outage_schema.json</schema>
        <CPtime>end_time</CPtime>
