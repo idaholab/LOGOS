@@ -4,7 +4,7 @@ Fuzzed oracle-sensitivity ("mutation") tests for schedule_validator.
 The whole fuzz-and-freeze program (see
 src/CPM/devLogs/RCPSP_ROBUSTNESS_2026-09-07.md) assumes the independent oracle
 ``schedule_validator.validate_schedule`` flags *every* infeasible schedule the
-engine can emit.  ``test_schedule_validator.py`` proves each of the 14 hard
+engine can emit.  ``test_schedule_validator.py`` proves each of the 15 hard
 checks catches *one* hand-crafted corruption — but a single example per check is
 not the same as "the oracle is sensitive to this class of defect."  See
 src/CPM/devLogs/ORACLE_COMPLETENESS_2026-09-07.md §6.1.
@@ -95,11 +95,11 @@ BIG_HOURS = 999.0               # a corruption offset far outside any fuzzed ran
 
 SGS = 'max_use_res_ranked'
 
-# The 14 hard checks run by validate_schedule (see its dispatch block).
+# The 15 hard checks run by validate_schedule (see its dispatch block).
 # The scenario table below must cover every one; the meta-test enforces it.
 ALL_CHECK_TYPES = frozenset({
     'completeness', 'duration', 'precedence', 'time_window', 'hold_point',
-    'crew', 'substitution', 'equipment', 'equipment_zone', 'location',
+    'crew', 'substitution', 'mode', 'equipment', 'equipment_zone', 'location',
     'consumable', 'shift_calendar', 'dose', 'system_state',
 })
 
@@ -299,6 +299,36 @@ def mut_substitution(p):
     a._actual_resources = {'WELDER': crew}
 
 
+def build_mode(d):
+    # A *single* mode-bearing activity whose one declared mode mirrors the
+    # activity's constructor profile, applied via set_modes so the engine commits
+    # selected_mode_id='base' with live fields == the declared mode (feasible, and
+    # every OTHER check trivially clean on a single activity).  set_mode leaves the
+    # live profile a faithful realization of the mode → 'mode' silent pre-mutation.
+    a = Activity('A', d.dur_a, required_resources=_mech(d.crew))
+    a.modes = [
+        {'mode_id': 'base', 'duration': d.dur_a,
+         'required_resources': _mech(d.crew), 'required_equipment': []},
+    ]
+    start, end = Activity('START', 0.0), Activity('END', 0.0)
+    fwd = {start: [a], a: [end], end: []}
+    p = Pert(graph=fwd)
+    p.crew_pool         = _rp('MECH', 10)
+    p.equipment_pool    = EquipmentPool()
+    p.location_pool     = LocationPool()
+    p.consumable_pool   = None
+    p.system_state_pool = None
+    p.startTime = START_DT
+    p.set_modes({'A': 'base'})          # commit the mode before scheduling
+    return _finish(p)
+def mut_mode(p):
+    # Stamp a selected_mode_id that names no declared mode — a dangling committed
+    # decision.  No other check reads selected_mode_id and the live fields are
+    # untouched (still the validly-scheduled 'base' profile), so ONLY 'mode' can
+    # fire, and it does so regardless of the fuzzed durations/crew.
+    _act(p, 'A').selected_mode_id = 'GHOST_MODE'
+
+
 def _crane_pool(qty=1, zone=None):
     ep = EquipmentPool()
     ep.equipment['CRANE'] = EquipmentAvailability(
@@ -467,6 +497,7 @@ SCENARIOS = [
     Scenario('hold_point',         build_hold_point,        mut_hold_point,        'hold_point'),
     Scenario('crew',               build_crew,              mut_crew,              'crew'),
     Scenario('substitution',       build_substitution,      mut_substitution,      'substitution'),
+    Scenario('mode',               build_mode,              mut_mode,              'mode'),
     Scenario('equipment',          build_equipment,         mut_equipment,         'equipment'),
     Scenario('location_tasks',     build_location_tasks,    mut_location_tasks,    'location'),
     Scenario('location_workers',   build_location_workers,  mut_location_workers,  'location'),
@@ -523,7 +554,7 @@ def test_oracle_detects_mutation(scenario, params):
 # ---------------------------------------------------------------------------
 
 def test_scenarios_cover_every_hard_check():
-    """Every one of the 13 validate_schedule hard checks has a mutation scenario.
+    """Every one of the 15 validate_schedule hard checks has a mutation scenario.
 
     If a new check is added to schedule_validator without a scenario here, this
     fails loudly rather than letting the new check go un-fuzzed.

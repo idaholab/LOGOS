@@ -10,8 +10,12 @@ exposed to tests as `assert_valid_schedule` via `conftest.py`), its own tests in
 **Status:** ASSESSMENT + BACKLOG. §6.1, §6.2, §6.3 are now **DONE** (breadth
 trio landed on `mandd/res_opt`; see the status notes in each item and §8). §6.4
 is **DONE — Gap 1 fully closed** (touch-points 1–6: availability + windows +
-crew-substitution legality + equipment-zone; see §8b); §6.5 and the rest of §6.6
-remain open for later PRs. Originally the honest answer to "have we
+crew-substitution legality + equipment-zone; see §8b). §6.6 is **DONE** — the
+constraint-type audit found multimode/execution-mode the one genuine gap and
+closed it with `_check_mode_consistency` (type `mode`; the 15th hard check);
+safety-function and interaction constraints reduce to existing checks. Only §6.5
+(`_DUR_TOL`) and the two feasible-side fuzz gaps §6.2 left open remain for later
+PRs. Originally the honest answer to "have we
 double-checked the checker is complete?" plus a prioritized plan to raise that
 confidence, all additive test work.
 **Companion:** extends the fuzz-and-freeze program documented in
@@ -34,10 +38,11 @@ So: **have we double-checked that this checker is complete?**
 
 We have established something weaker and worth naming precisely. The oracle is:
 
-- **Broad** — 14 hard feasibility checks (+ 1 warnings pass), covering
+- **Broad** — 15 hard feasibility checks (+ 1 warnings pass), covering
   completeness, durations, precedence (incl. lags), time-windows, hold-points,
-  crew, crew-substitution legality, equipment, equipment-zone affinity,
-  location, consumables, shift-calendar, dose budgets, and system-states.
+  crew, crew-substitution legality, execution-mode consistency, equipment,
+  equipment-zone affinity, location, consumables, shift-calendar, dose budgets,
+  and system-states.
 - **Per-type sensitivity-tested** — for **12 of the 13** checks,
   `test_schedule_validator.py` does genuine fault injection: build a valid
   schedule, corrupt it (tamper an `endTime`, force a crew overlap, move a task
@@ -111,10 +116,14 @@ would catch it. The nightly `thorough` run (2000 examples) does not help: it is
   microsecond-quantized engine, 60 s is a large hole — a real sub-minute
   duration bug (exactly the bug-family #9 class already found once) would pass.
 - **Constraint *types* the engine models but the oracle may not check as
-  feasibility:** multimode (is the *selected mode* valid/consistent?), and
-  safety-function / interaction constraints beyond `system_state`. Some may
-  reduce to checks that already exist; some may not. The mapping has not been
-  audited. ~~substitution (was the substituted skill actually *legal* — in the
+  feasibility:** ~~multimode (is the *selected mode* valid/consistent?)~~, and
+  safety-function / interaction constraints beyond `system_state`. **— now
+  audited (§6.6):** multimode is **checked** — `_check_mode_consistency` certifies
+  the live profile faithfully realizes the committed `selected_mode_id` against
+  the declared `modes`; safety-function reduces to `system_state` (the engine
+  models no first-class safety-function pool); interactions beyond `system_state`
+  are not enforced by the engine (only FS precedence + system-state exclusion).
+  ~~substitution (was the substituted skill actually *legal* — in the
   allowed alternatives — or just recorded?)~~ **— now checked:**
   `_check_substitution_legality` verifies the committed breakdown is a legal,
   demand-conserving resolution of the declared requirements (§6.4 touch-point 5).
@@ -263,15 +272,38 @@ Justify 60 s against the engine's actual time precision, or tighten it. If a
 generous tolerance is genuinely needed for a real reason (e.g. float
 accumulation over long horizons), document that reason inline.
 
-### 6.6 Audit constraint-type coverage — **PARTIAL (substitution legality DONE)**
+### 6.6 Audit constraint-type coverage — **DONE**
 Map every engine-modeled constraint (multimode, substitution legality,
 safety-function, interactions) to a validator check, and either add the missing
 check or document why it reduces to an existing one.
 
-> **Status — substitution legality DONE** (via §6.4 touch-point 5:
-> `_check_substitution_legality`). Still to audit: multimode (selected-mode
-> validity/consistency), safety-function, and interaction constraints beyond
-> `system_state`.
+> **Status — DONE.** The audit mapped each engine-enforced constraint to an oracle
+> check. Outcome:
+>
+> - **Substitution legality — checked** (§6.4 touch-point 5:
+>   `_check_substitution_legality`).
+> - **Multimode / execution-mode consistency — the one genuine gap; now checked.**
+>   `Activity.set_mode` bakes a declared mode's profile into the activity's *live*
+>   fields and stamps `selected_mode_id`; the scheduling loop reads only the live
+>   fields and never re-reads `modes`. A buggy/partial mode application (a mixed
+>   profile), a directly-stamped `selected_mode_id`, or a post-selection mutation
+>   would therefore be scheduled and validated with no notion that modes exist.
+>   `_check_mode_consistency` (type `mode`, the 15th hard check) independently
+>   certifies, for every completed activity carrying a committed `selected_mode_id`,
+>   that the live fields faithfully realize the *declared* mode entry in `act.modes`
+>   (duration / `required_resources` / `required_equipment` always; the optional
+>   dose / mobilization-lead / consumables / system-states only when the selected
+>   mode declares them — mirroring `set_mode`'s write logic). Reads declared data
+>   only, no engine primitive; silent (behavior-preserving) on correct `set_mode`
+>   output and on all single-mode activities (`selected_mode_id is None`). Covered
+>   by `TestModeConsistency` (direct faults) + a `mode` mutation scenario, taking
+>   `ALL_CHECK_TYPES` / the mutation meta-guard to **15 hard checks**.
+> - **Safety-function / LCO — reduces to `system_state`.** The engine models no
+>   first-class safety-function pool (`SafetyFunctionPool` is not implemented; the
+>   schema's `safety_functions` is metadata only); the working encoding is
+>   trains-as-system-states, already certified by `_check_system_states`.
+> - **Interactions beyond `system_state` — not a gap.** The engine enforces none
+>   beyond FS precedence and system-state mutual exclusion, both already checked.
 
 ## 7. Bottom line
 
@@ -308,9 +340,19 @@ uses). **Gap 1 is now fully closed:** the oracle routes no availability, window,
 demand, or zone judgement through an engine primitive — it reads declared data
 directly and independently certifies the one committed decision
 (`_actual_resources`) it cannot re-derive. Still open (none are Gap-1 primitive
-coupling): 6.5 (`_DUR_TOL`), the rest of 6.6 (multimode / safety-function /
-interaction audit), and the two feasible-side fuzz gaps 6.2 left open
+coupling): 6.5 (`_DUR_TOL`) and the two feasible-side fuzz gaps 6.2 left open
 (system-states, consumables). See §8/§8b.
+
+**Update (§6.6 constraint-type audit — DONE):** the audit closed the last
+constraint-type gap. Multimode/execution-mode consistency is the same shape of
+committed-decision blind spot as substitution: `set_mode` bakes a declared mode
+into the live fields and stamps `selected_mode_id`, but the scheduler and every
+other check then read only the live fields. `_check_mode_consistency` (type
+`mode`, the 15th hard check) independently certifies the live profile faithfully
+realizes the committed mode against the declared `modes`, reading no engine
+primitive; behavior-preserving on correct `set_mode` output. Safety-function
+reduces to `system_state` (no first-class engine pool) and interactions beyond
+`system_state` are not engine-enforced — neither needs a new check. See §6.6.
 
 ## 8. What landed (breadth trio, `mandd/res_opt`)
 
@@ -385,6 +427,33 @@ change) and it closes Gap 1 for **availability + windows**.
 With touch-point 6, **Gap 1 is fully closed** — the oracle borrows no
 availability / window / demand / zone answer from the engine.
 
-Still open (none are Gap-1 primitive coupling): **6.5** (`_DUR_TOL=60s` review),
-the rest of **6.6** (multimode / safety-function / interaction audit), and the
-feasible-side fuzzing of system-states + consumables deferred from 6.2.
+### §6.6 constraint-type audit — landed; the last constraint-type gap closed
+
+- **`src/CPM/schedule_validator.py`.** New `_check_mode_consistency` (type `mode`,
+  the 15th hard check) + a pure `_selected_mode_mismatch(act)` helper. For every
+  completed activity carrying a committed `selected_mode_id`, it certifies the live
+  fields (`duration` / `required_resources` / `required_equipment` always; the
+  optional dose / mobilization-lead / consumables / system-states only when the
+  selected mode declares them, mirroring `set_mode`'s write logic) faithfully
+  realize the *declared* mode entry in `act.modes`. Reads declared data only, no
+  engine primitive; silent (behavior-preserving) on correct `set_mode` output and
+  on all single-mode activities (`selected_mode_id is None`). Same committed-decision
+  shape as `_check_substitution_legality`.
+- **`tests/unit_tests/CPM/test_schedule_validator.py`.** `TestModeConsistency`
+  (faithful-mode happy-path negative + divergent-live-resources and dangling-
+  `selected_mode_id` fault injections + a single-mode-silent test).
+- **`tests/unit_tests/CPM/test_oracle_mutation.py`.** A `mode` scenario (build a
+  mode-bearing activity, commit it via `set_modes`, mutate by stamping a dangling
+  `selected_mode_id`) and `'mode'` added to `ALL_CHECK_TYPES`; the coverage
+  meta-guard now enforces all **15** hard checks.
+- **Audit reductions (no new check needed).** Safety-function / LCO reduces to
+  `system_state` (the engine models no first-class safety-function pool); constraint
+  interactions beyond `system_state` are not engine-enforced (only FS precedence +
+  system-state mutual exclusion, both already checked).
+
+With §6.6, the constraint-type coverage audit is complete: every engine-enforced
+constraint maps to an oracle check.
+
+Still open (none are Gap-1 primitive coupling, none constraint-type gaps): **6.5**
+(`_DUR_TOL=60s` review) and the feasible-side fuzzing of system-states +
+consumables deferred from 6.2.

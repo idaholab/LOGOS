@@ -42,6 +42,7 @@ Violation types
     shift_calendar    Activity executes outside the shift window
     dose              Cumulative dose exceeds tracker budget
     system_state      Two simultaneous activities require incompatible states
+    mode              Live profile diverges from the committed execution mode
 """
 
 from __future__ import annotations
@@ -66,6 +67,10 @@ if TYPE_CHECKING:
 # as feasible (RCPSP_ROBUSTNESS_2026-09-07.md §9).
 _PREC_TOL   = timedelta(milliseconds=1)   # quantization grace; matches Pert._EVENT_EPSILON
 _DUR_TOL    = timedelta(seconds=60)   # 1-minute grace for duration consistency
+# Float grace for comparing a live numeric field against its declared mode value.
+# set_mode writes float(mode[key]) into the live field, so on correct output the
+# two are bit-identical; this only absorbs float<->literal representation noise.
+_MODE_TOL   = 1e-9
 
 
 # ===========================================================================
@@ -518,6 +523,99 @@ def _substitution_is_feasible(required, actual) -> bool:
     return _bipartite_saturates(actual, demand, allowed)
 
 
+def _selected_mode_mismatch(act) -> str | None:
+    """
+    Does an activity's live profile faithfully realize its committed mode?
+
+    Independent verification (declared data only) that an activity carrying a
+    committed ``selected_mode_id`` has live fields equal to the *declared* mode
+    entry in ``act.modes`` that ``Activity.set_mode`` was supposed to bake in.
+    The scheduler reads only the live fields and never re-reads ``modes``, so a
+    buggy or partial mode application — a mixed profile, a directly-stamped
+    ``selected_mode_id``, or a post-selection mutation of a live field — would
+    otherwise be scheduled and validated with no notion that modes exist (§6.6).
+
+    Fields are compared in the same order ``set_mode`` writes them: ``duration``,
+    ``required_resources`` and ``required_equipment`` always; the optional
+    ``dose_rate_mrem_per_hour``, ``mobilization_lead_hours``,
+    ``required_consumables`` and ``required_system_states`` **only when the key
+    is present in the selected mode** — ``set_mode`` leaves the live field
+    untouched when the mode omits the key, so a live-vs-declared comparison is
+    undefined there.  On correct output every live field is
+    ``float(...)``/``list(...)`` of the *same* declared dict this reads, so the
+    comparison is identical by construction (no dict-shape normalization needed).
+
+    Parameters
+    ----------
+    act : Activity
+        The completed activity to inspect.
+
+    Returns
+    -------
+    str or None
+        ``None`` when no mode is committed (``selected_mode_id is None``) or the
+        live profile matches the declared mode; otherwise a human-readable reason
+        naming the first field that diverges (or the dangling selection).
+    """
+    mode_id = getattr(act, 'selected_mode_id', None)
+    if mode_id is None:
+        # No committed decision to certify.  Single-mode activities and
+        # legitimately-unselected multimode activities (partial set_modes) land
+        # here; their live fields are the declared single-mode profile, already
+        # covered by the duration / crew / equipment sweeps.
+        return None
+
+    modes = getattr(act, 'modes', None) or []
+    mode = next((m for m in modes if m.get('mode_id') == mode_id), None)
+    if mode is None:
+        return (f"committed selected_mode_id '{mode_id}' is not among the "
+                f"activity's declared modes "
+                f"{[m.get('mode_id') for m in modes]}")
+
+    declared_dur = mode.get('duration')
+    if declared_dur is None:
+        return (f"selected mode '{mode_id}' is missing its required 'duration' "
+                f"key")
+    if abs(float(act.duration) - float(declared_dur)) > _MODE_TOL:
+        return (f"live duration {act.duration} != mode '{mode_id}' duration "
+                f"{declared_dur}")
+
+    declared_res = mode.get('required_resources', [])
+    if act.required_resources != declared_res:
+        return (f"live required_resources {act.required_resources} != mode "
+                f"'{mode_id}' required_resources {declared_res}")
+
+    declared_eq = mode.get('required_equipment', [])
+    if act.required_equipment != declared_eq:
+        return (f"live required_equipment {act.required_equipment} != mode "
+                f"'{mode_id}' required_equipment {declared_eq}")
+
+    # Optional per-mode fields: compared only when the mode declares them
+    # (set_mode does not reset them otherwise), mirroring its write logic.
+    if 'dose_rate_mrem_per_hour' in mode:
+        live = getattr(act, 'dose_rate_mrem_per_hour', None)
+        if live is None or abs(float(live) - float(mode['dose_rate_mrem_per_hour'])) > _MODE_TOL:
+            return (f"live dose_rate_mrem_per_hour {live} != mode '{mode_id}' "
+                    f"value {mode['dose_rate_mrem_per_hour']}")
+    if 'mobilization_lead_hours' in mode:
+        live = getattr(act, 'mobilization_lead_hours', None)
+        if live is None or abs(float(live) - float(mode['mobilization_lead_hours'])) > _MODE_TOL:
+            return (f"live mobilization_lead_hours {live} != mode '{mode_id}' "
+                    f"value {mode['mobilization_lead_hours']}")
+    if 'required_consumables' in mode:
+        live = getattr(act, 'required_consumables', None)
+        if live != list(mode['required_consumables']):
+            return (f"live required_consumables {live} != mode '{mode_id}' "
+                    f"required_consumables {mode['required_consumables']}")
+    if 'required_system_states' in mode:
+        live = getattr(act, 'required_system_states', None)
+        if live != list(mode['required_system_states']):
+            return (f"live required_system_states {live} != mode '{mode_id}' "
+                    f"required_system_states {mode['required_system_states']}")
+
+    return None
+
+
 # ===========================================================================
 # Individual check functions
 # ===========================================================================
@@ -860,6 +958,42 @@ def _check_substitution_legality(pert: 'Pert',
                     f'{declared_total})'),
             severity='error',
             excess=float(abs(recorded_total - declared_total)),
+        ))
+
+
+def _check_mode_consistency(pert: 'Pert',
+                            violations: list, warnings: list) -> None:
+    """
+    Check that each activity's live profile realizes its committed execution mode.
+
+    For every completed activity carrying an engine-committed ``selected_mode_id``,
+    independently verify — against the *declared* ``modes`` list only, never an
+    engine primitive — that the live fields the scheduler actually used are a
+    faithful realization of that declared mode (:func:`_selected_mode_mismatch`).
+    The scheduling loop reads only the live fields and never re-reads ``modes``,
+    so a buggy/partial mode application or a post-selection mutation would slip
+    past every other check, which has no notion that modes exist (Gap 1-analogous
+    committed-decision certification, §6.6 — cf. :func:`_check_substitution_legality`).
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
+    for act in pert.completed:
+        reason = _selected_mode_mismatch(act)
+        if reason is None:
+            # No committed mode, or the live profile faithfully realizes it.
+            continue
+        violations.append(Violation(
+            type='mode',
+            activity=act.name,
+            detail=reason,
+            severity='error',
         ))
 
 
@@ -1426,6 +1560,7 @@ def validate_schedule(pert: 'Pert') -> ValidationResult:
     _check_hold_points(pert,               violations, warnings)
     _check_crew_feasibility(pert,          violations, warnings)
     _check_substitution_legality(pert,     violations, warnings)
+    _check_mode_consistency(pert,          violations, warnings)
     _check_equipment_feasibility(pert,     violations, warnings)
     _check_equipment_zone_affinity(pert,   violations, warnings)
     _check_location_feasibility(pert,      violations, warnings)

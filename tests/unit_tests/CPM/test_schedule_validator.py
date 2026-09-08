@@ -797,3 +797,90 @@ class TestDoseBudgets:
         _schedule(p)
         types = [v.type for v in p.validate_schedule().violations]
         assert 'dose' not in types
+
+
+# ===========================================================================
+# Mode consistency: live profile must realize the committed execution mode
+# ===========================================================================
+
+class TestModeConsistency:
+    """The oracle independently certifies that an activity's live profile faithfully
+    realizes its committed execution mode (``selected_mode_id``) against the
+    *declared* ``modes`` list (ORACLE_COMPLETENESS §6.6). The scheduling loop reads
+    only the live fields and never re-reads ``modes``, so a buggy/partial mode
+    application or a post-selection mutation of a live field would otherwise slip
+    past every other check, which has no notion that modes exist — mirroring the
+    committed-decision certification of ``TestSubstitutionLegality``."""
+
+    def _make_pert(self):
+        """START → A → END where A has two modes: normal(8h,2 MECH)/crash(4h,4 MECH)."""
+        a = Activity('A', 8.0, required_resources=[
+            {'skill_type': 'MECH', 'crew_count': 2, 'alternative_skill_types': []}])
+        a.modes = [
+            {'mode_id': 'normal', 'duration': 8.0,
+             'required_resources': [{'skill_type': 'MECH', 'crew_count': 2,
+                                     'alternative_skill_types': []}],
+             'required_equipment': []},
+            {'mode_id': 'crash', 'duration': 4.0,
+             'required_resources': [{'skill_type': 'MECH', 'crew_count': 4,
+                                     'alternative_skill_types': []}],
+             'required_equipment': []},
+        ]
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a], a: [end], end: []}
+        p = Pert(graph=fwd)
+        p.crew_pool         = _rp('MECH', 10)
+        p.equipment_pool    = EquipmentPool()
+        p.location_pool     = LocationPool()
+        p.consumable_pool   = None
+        p.system_state_pool = None
+        p.startTime = START_DT
+        return p
+
+    def _act_A(self, p):
+        return next(x for x in p.completed if x.name == 'A')
+
+    def test_faithful_mode_no_violation(self):
+        """A faithfully-applied mode schedules feasibly and never trips the check
+        (behaviour-preserving on correct ``set_mode`` output)."""
+        p = self._make_pert()
+        p.set_modes({'A': 'crash'})
+        _schedule(p)
+        result = validate_schedule(p)
+        assert result.is_feasible, result.summary()
+        assert 'mode' not in [v.type for v in result.violations]
+        assert self._act_A(p).selected_mode_id == 'crash'   # committed & preserved
+
+    def test_divergent_live_resources_detected(self):
+        """A live ``required_resources`` that is not the selected mode's is flagged.
+
+        Corrupting a *resource* field (not duration) isolates the ``mode`` check:
+        a duration corruption would also trip ``_check_durations`` because
+        ``endTime − startTime`` reflects the scheduled mode duration.  The engine
+        committed the crash mode (4 MECH); the live profile is then rewritten to a
+        2-MECH profile that matches no committed mode."""
+        p = self._make_pert()
+        p.set_modes({'A': 'crash'})
+        _schedule(p)
+        a = self._act_A(p)
+        assert a.selected_mode_id == 'crash'
+        a.required_resources = [{'skill_type': 'MECH', 'crew_count': 2,
+                                 'alternative_skill_types': []}]
+        assert 'mode' in [v.type for v in validate_schedule(p).violations]
+
+    def test_dangling_selected_mode_id_detected(self):
+        """A committed ``selected_mode_id`` naming no declared mode is flagged."""
+        p = self._make_pert()
+        p.set_modes({'A': 'crash'})
+        _schedule(p)
+        self._act_A(p).selected_mode_id = 'turbo'    # not among declared modes
+        assert 'mode' in [v.type for v in validate_schedule(p).violations]
+
+    def test_single_mode_activity_silent(self):
+        """A single-mode activity (no modes, ``selected_mode_id`` None) is never
+        checked — the whole existing suite has no committed mode, so the check is
+        behaviour-preserving."""
+        p = _simple_pert()
+        _schedule(p)
+        assert 'mode' not in [v.type for v in validate_schedule(p).violations]
