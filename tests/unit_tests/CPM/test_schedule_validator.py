@@ -127,6 +127,21 @@ class TestDuration:
         types = [v.type for v in result.violations]
         assert 'duration' in types
 
+    def test_subminute_discrepancy_detected(self):
+        # Bug-family #9: a 56.25 s (0.015625 h) duration collapse — masked by
+        # the old _DUR_TOL = 60 s, caught at 1 ms.  Shrinking endTime keeps the
+        # fault isolated to 'duration' (an earlier finish only adds precedence
+        # slack, so no precedence violation is triggered as a side effect).
+        p = _simple_pert()
+        _schedule(p)
+        for act in p.completed:
+            if act.name == 'A':
+                correct_end = act.startTime + timedelta(hours=act.duration)
+                act.endTime = correct_end - timedelta(seconds=56.25)
+                break
+        types = [v.type for v in validate_schedule(p).violations]
+        assert 'duration' in types
+
     def test_correct_durations_no_violation(self):
         p = _simple_pert()
         _schedule(p)

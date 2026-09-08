@@ -66,7 +66,21 @@ if TYPE_CHECKING:
 # 60 s, which masked exactly such violations: a 56.25 s successor overlap read
 # as feasible (RCPSP_ROBUSTNESS_2026-09-07.md §9).
 _PREC_TOL   = timedelta(milliseconds=1)   # quantization grace; matches Pert._EVENT_EPSILON
-_DUR_TOL    = timedelta(seconds=60)   # 1-minute grace for duration consistency
+# _DUR_TOL is the grace on the duration-consistency check (endTime − startTime vs
+# timedelta(hours=duration)).  On the normal path the engine sets
+# endTime = startTime + timedelta(hours=duration) (activity.setActualStartTime), and
+# _check_durations re-derives `expected` with the identical expression, so `delta` is
+# 0 bit-for-bit — no legitimate mechanism inflates it: shift calendars and mobilization
+# lead only gate *start* times, so idle gaps fall *between* activities, never within
+# one; the hours->timedelta conversion is a single exact microsecond quantization that
+# cancels on both sides.  The one real in-activity divergence — an in-progress activity
+# whose duration was clamped by a replan duration_override — is excluded by the
+# _remaining_duration skip in _check_durations, not by this tolerance.  So 1 ms
+# (matching Pert._EVENT_EPSILON / _PREC_TOL) is all the grace warranted; it absorbs only
+# float<->timedelta rounding.  It was 60 s — a pre-fix leftover that would have masked
+# bug-family #9's 56.25 s duration collapse, the same oversized constant since tightened
+# on the precedence side (RCPSP_ROBUSTNESS_2026-09-07.md §9).
+_DUR_TOL    = timedelta(milliseconds=1)   # quantization grace; matches Pert._EVENT_EPSILON
 # Float grace for comparing a live numeric field against its declared mode value.
 # set_mode writes float(mode[key]) into the live field, so on correct output the
 # two are bit-identical; this only absorbs float<->literal representation noise.
@@ -665,6 +679,10 @@ def _check_durations(pert: 'Pert',
                      violations: list, warnings: list) -> None:
     """
     Check that ``endTime − startTime`` matches ``activity.duration`` within tolerance.
+
+    On the normal path this difference is exactly zero — the engine derives
+    ``endTime`` from ``startTime`` and ``duration`` — so the tolerance
+    (``_DUR_TOL``) is only quantization-scale (1 ms), not a substantive grace.
 
     Activities that were in-progress at replan time have ``_remaining_duration``
     set and a stale ``endTime`` from before the replan.  Their duration field

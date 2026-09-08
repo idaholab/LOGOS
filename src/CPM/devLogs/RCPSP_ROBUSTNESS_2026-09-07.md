@@ -762,8 +762,13 @@ Shrink the epsilon to an actual quantization tolerance, on **both** surfaces:
 +_PREC_TOL   = timedelta(milliseconds=1)   # quantization grace; matches Pert._EVENT_EPSILON
 ```
 
-`_DUR_TOL` (the validator's *duration-consistency* grace, a separate concern) is
-left at 60 s.
+`_DUR_TOL` (the validator's *duration-consistency* grace, a separate concern) was
+left at 60 s here, then tightened 60 s → 1 ms in its own pass once it was shown
+that the duration delta is identically 0 on the normal path (the engine derives
+`endTime` from `startTime`+`duration` and the oracle re-derives the same expression),
+so 60 s would likewise have masked this 56.25 s collapse. See
+`ORACLE_COMPLETENESS_2026-09-07.md` §6.5 — with that, the oversized-tolerance
+class is closed on **both** the precedence and duration surfaces.
 
 **Why 1 ms is the right cell.** The noise it must absorb is chain quantization:
 each hours→`timedelta` conversion rounds to the µs, so an accumulated actual time

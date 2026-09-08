@@ -7,18 +7,22 @@ exposed to tests as `assert_valid_schedule` via `conftest.py`), its own tests in
 `tests/unit_tests/CPM/test_schedule_validator.py`, and the property harness in
 `tests/unit_tests/CPM/test_property_based.py`.
 **Branch:** `mandd/res_opt`
-**Status:** ASSESSMENT + BACKLOG. §6.1, §6.2, §6.3 are now **DONE** (breadth
-trio landed on `mandd/res_opt`; see the status notes in each item and §8). §6.4
-is **DONE — Gap 1 fully closed** (touch-points 1–6: availability + windows +
+**Status:** ASSESSMENT + BACKLOG — **COMPLETE**. §6.1, §6.2, §6.3 are now **DONE**
+(breadth trio landed on `mandd/res_opt`; see the status notes in each item and §8).
+§6.4 is **DONE — Gap 1 fully closed** (touch-points 1–6: availability + windows +
 crew-substitution legality + equipment-zone; see §8b). §6.6 is **DONE** — the
 constraint-type audit found multimode/execution-mode the one genuine gap and
 closed it with `_check_mode_consistency` (type `mode`; the 15th hard check);
 safety-function and interaction constraints reduce to existing checks. §6.2 is
-now **fully DONE** — the feasible side of consumables and system-states is fuzzed
-too, closing the last soundness-side gap. Only §6.5 (`_DUR_TOL`) remains for a
-later PR. Originally the honest answer to "have we
-double-checked the checker is complete?" plus a prioritized plan to raise that
-confidence, all additive test work.
+**fully DONE** — the feasible side of consumables and system-states is fuzzed
+too, closing the last soundness-side gap. §6.5 (`_DUR_TOL`) is now **DONE** —
+tightened 60 s → 1 ms after proving the duration delta is identically 0 on the
+normal path (the engine derives `endTime` from `startTime`+`duration`, and the
+oracle re-derives the identical expression; see §6.5), frozen by a 56.25 s
+regression test that is red under the old 60 s. **The oracle-completeness backlog
+is now fully closed — all of §6.1–§6.6 are DONE.** Originally the honest answer to
+"have we double-checked the checker is complete?" plus a prioritized plan to raise
+that confidence, all additive test work.
 **Companion:** extends the fuzz-and-freeze program documented in
 `RCPSP_ROBUSTNESS_2026-09-07.md` (§10 backlog). Treat these as a §11.
 
@@ -112,10 +116,14 @@ would catch it. The nightly `thorough` run (2000 examples) does not help: it is
 - **Dose budget: zero tests.** Confirmed — no fault injection, no happy-path,
   nothing in `test_schedule_validator.py`. It is the one hard check with no test
   at all.
-- **Tolerance masking:** `_DUR_TOL = 60 s` silently passes any duration error
-  under a minute, while precedence uses `_PREC_TOL = 1 ms`. For a
-  microsecond-quantized engine, 60 s is a large hole — a real sub-minute
-  duration bug (exactly the bug-family #9 class already found once) would pass.
+- **Tolerance masking — NOW CLOSED (§6.5).** `_DUR_TOL` was `60 s` and silently
+  passed any duration error under a minute, while precedence uses `_PREC_TOL = 1 ms`.
+  For a microsecond-quantized engine, 60 s was a large hole — a real sub-minute
+  duration bug (exactly the bug-family #9 class already found once, at 56.25 s)
+  would pass. Now tightened to `1 ms` (see §6.5): the duration delta is identically
+  0 on the normal path, so 1 ms is all the grace warranted, and bug-family #9's
+  56.25 s discrepancy would now be caught (frozen by
+  `test_schedule_validator.py::TestDuration::test_subminute_discrepancy_detected`).
 - **Constraint *types* the engine models but the oracle may not check as
   feasibility:** ~~multimode (is the *selected mode* valid/consistent?)~~, and
   safety-function / interaction constraints beyond `system_state`. **— now
@@ -187,7 +195,7 @@ builders already in `test_invariants.py`.
 > activity requires the SAME state on the SAME system (a compatible shared lock),
 > so any overlap is legal in any topology. No restocks and a single shared
 > state keep the guarantee topology-independent; the richer variants (restock
-> timing, forced-serial multi-state) are deferred (see §6.5 / out-of-scope notes).
+> timing, forced-serial multi-state) are deferred (see the out-of-scope notes).
 
 ### 6.3 Add the dose fault-injection test *(quick win)* — **DONE**
 Mirror the consumable pattern: build a schedule with a dose budget, exceed it
@@ -274,10 +282,42 @@ the same assumption.
 > this, the oracle routes **no** availability / window / demand / zone judgement
 > through an engine primitive. Proof: `test_oracle_decoupling.py` §4.
 
-### 6.5 Reconsider `_DUR_TOL`
-Justify 60 s against the engine's actual time precision, or tighten it. If a
-generous tolerance is genuinely needed for a real reason (e.g. float
-accumulation over long horizons), document that reason inline.
+### 6.5 Reconsider `_DUR_TOL` — **DONE**
+The mandate was "justify 60 s against the engine's actual time precision, or
+tighten it." The investigation resolved it decisively: **tighten to 1 ms**, no
+generous tolerance is warranted.
+
+For every activity the oracle actually checks, the duration delta is
+**identically 0.0** — not merely "~ms":
+
+- The engine sets `endTime = startTime + timedelta(hours=duration)`
+  (`activity.setActualStartTime`, the only normal-path writer), and
+  `_check_durations` re-derives `expected` with the *identical* expression, so
+  `actual − expected ≡ 0` bit-for-bit (naive datetimes, exact integer-µs arithmetic).
+- Shift calendars and mobilization lead only gate *when* an activity may start;
+  an activity runs contiguously through off-shift periods, so idle gaps fall
+  *between* activities, never within one → 0 contribution. No calendar adjustment
+  is needed.
+- The hours→timedelta conversion is a single exact microsecond quantization that
+  cancels on both sides; no float chaining over the horizon.
+- No preemption/splitting exists.
+- The one genuine in-activity divergence — an in-progress activity whose duration
+  was clamped by a replan `duration_override` (`pert.py` ~2103-2126) — is already
+  excluded by the `_remaining_duration` skip in `_check_durations`, **not** by this
+  tolerance.
+
+So 60 s was an unjustified pre-fix leftover (it was left at 60 s when `_PREC_TOL`
+was tightened 60 s → 1 ms in commit `ed4c79de` for bug-family #9); worse, it sat
+*above* bug-family #9's own 56.25 s discrepancy and would have masked exactly that
+class of bug. **Change:** `_DUR_TOL = timedelta(milliseconds=1)` with an inline
+rationale block (matching `_EVENT_EPSILON` / `_PREC_TOL`), plus a docstring note
+that the difference is exactly 0 on the normal path. **Freeze:**
+`test_schedule_validator.py::TestDuration::test_subminute_discrepancy_detected`
+corrupts an endTime by −56.25 s (shrinking, so the fault stays isolated to
+`duration`), asserts `'duration'` is flagged — green at 1 ms, verified red under
+the old 60 s. Full CPM suite green cold (1050 passed, 3 skipped); thorough property
+run green — 1 ms produces no false positives across shift-calendar, substitution,
+multimode, and fuzzed schedules. This closes the oracle-completeness backlog.
 
 ### 6.6 Audit constraint-type coverage — **DONE**
 Map every engine-modeled constraint (multimode, substitution legality,
@@ -347,9 +387,10 @@ reads the declared `zone_id` off the equipment object directly instead of throug
 uses). **Gap 1 is now fully closed:** the oracle routes no availability, window,
 demand, or zone judgement through an engine primitive — it reads declared data
 directly and independently certifies the one committed decision
-(`_actual_resources`) it cannot re-derive. Still open (none are Gap-1 primitive
-coupling): 6.5 (`_DUR_TOL`) alone — 6.2's feasible-side fuzz of system-states and
-consumables is now DONE. See §8/§8b.
+(`_actual_resources`) it cannot re-derive. **Nothing open:** 6.5 (`_DUR_TOL`) is
+now DONE — tightened 60 s → 1 ms (see §6.5) — and 6.2's feasible-side fuzz of
+system-states and consumables is DONE, so the oracle-completeness backlog is fully
+closed. See §8/§8b.
 
 **Update (§6.6 constraint-type audit — DONE):** the audit closed the last
 constraint-type gap. Multimode/execution-mode consistency is the same shape of
@@ -463,6 +504,8 @@ availability / window / demand / zone answer from the engine.
 With §6.6, the constraint-type coverage audit is complete: every engine-enforced
 constraint maps to an oracle check.
 
-Still open (none are Gap-1 primitive coupling, none constraint-type gaps): **6.5**
-(`_DUR_TOL=60s` review) alone — 6.2's feasible-side fuzzing of system-states +
-consumables is now DONE (Phase 3 fuzzes all five constraint types over all 5 SGS).
+**Nothing open** — the oracle-completeness backlog is fully closed. **6.5**
+(`_DUR_TOL`) is now DONE — tightened 60 s → 1 ms after proving the duration delta
+is identically 0 on the normal path (see §6.5), frozen by a 56.25 s regression
+test — and 6.2's feasible-side fuzzing of system-states + consumables is DONE
+(Phase 3 fuzzes all five constraint types over all 5 SGS).
