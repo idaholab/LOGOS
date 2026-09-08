@@ -8,8 +8,10 @@ exposed to tests as `assert_valid_schedule` via `conftest.py`), its own tests in
 `tests/unit_tests/CPM/test_property_based.py`.
 **Branch:** `mandd/res_opt`
 **Status:** ASSESSMENT + BACKLOG. §6.1, §6.2, §6.3 are now **DONE** (breadth
-trio landed on `mandd/res_opt`; see the status notes in each item and §8);
-§6.4–6.6 remain open for later PRs. Originally the honest answer to "have we
+trio landed on `mandd/res_opt`; see the status notes in each item and §8). §6.4
+is **DONE for touch-points 1–5** (availability + windows + crew-substitution
+legality; see §8b) — only touch-point 6 (`get_zone_id`) remains; §6.5 and the
+rest of §6.6 remain open for later PRs. Originally the honest answer to "have we
 double-checked the checker is complete?" plus a prioritized plan to raise that
 confidence, all additive test work.
 **Companion:** extends the fuzz-and-freeze program documented in
@@ -32,10 +34,10 @@ So: **have we double-checked that this checker is complete?**
 
 We have established something weaker and worth naming precisely. The oracle is:
 
-- **Broad** — 13 hard feasibility checks (+ 1 warnings pass), covering
+- **Broad** — 14 hard feasibility checks (+ 1 warnings pass), covering
   completeness, durations, precedence (incl. lags), time-windows, hold-points,
-  crew, equipment, equipment-zone affinity, location, consumables,
-  shift-calendar, dose budgets, and system-states.
+  crew, crew-substitution legality, equipment, equipment-zone affinity,
+  location, consumables, shift-calendar, dose budgets, and system-states.
 - **Per-type sensitivity-tested** — for **12 of the 13** checks,
   `test_schedule_validator.py` does genuine fault injection: build a valid
   schedule, corrupt it (tamper an `endTime`, force a crew overlap, move a task
@@ -74,6 +76,15 @@ a subroutine cannot catch a bug in that subroutine. Everything fuzz-and-freeze
 has found so far lives *outside* these primitives; nothing has probed *inside*
 them.
 
+> **Update (Gap 1 progress).** The four availability/window primitives are now
+> **decoupled** — the oracle recomputes them from raw declared data (§6.4 core,
+> touch-points 1–4). The `_crew_demand`/`_actual_resources` trust — including the
+> "forgetting to record a substitution" case above — is now **certified**: a new
+> `_check_substitution_legality` independently verifies the committed breakdown is
+> a legal, demand-conserving resolution of the *declared* requirements (§6.4
+> touch-point 5, §8b). The last remaining Gap-1 borrow is `get_zone_id` in the
+> equipment-zone check (touch-point 6).
+
 ## 3. Gap 2 — the fuzzer exercises only ~4 of the 13 checks
 
 The property generator (`test_property_based.py`) builds precedence + lags + a
@@ -99,11 +110,13 @@ would catch it. The nightly `thorough` run (2000 examples) does not help: it is
   microsecond-quantized engine, 60 s is a large hole — a real sub-minute
   duration bug (exactly the bug-family #9 class already found once) would pass.
 - **Constraint *types* the engine models but the oracle may not check as
-  feasibility:** multimode (is the *selected mode* valid/consistent?),
-  substitution (was the substituted skill actually *legal* — in the allowed
-  alternatives — or just recorded?), and safety-function / interaction
-  constraints beyond `system_state`. Some may reduce to checks that already
-  exist; some may not. The mapping has not been audited.
+  feasibility:** multimode (is the *selected mode* valid/consistent?), and
+  safety-function / interaction constraints beyond `system_state`. Some may
+  reduce to checks that already exist; some may not. The mapping has not been
+  audited. ~~substitution (was the substituted skill actually *legal* — in the
+  allowed alternatives — or just recorded?)~~ **— now checked:**
+  `_check_substitution_legality` verifies the committed breakdown is a legal,
+  demand-conserving resolution of the declared requirements (§6.4 touch-point 5).
 
 ## 5. What is genuinely solid (don't lose this)
 
@@ -170,7 +183,7 @@ zero-coverage check (Gap 3).
 > `total_budget_mrem` → `dose` fires) and `test_within_budget_no_violation`
 > (happy-path negative). Gap 3's zero-coverage check is closed.
 
-### 6.4 Decouple the resource check from shared engine primitives — **DONE (core: availability + windows)**
+### 6.4 Decouple the resource check from shared engine primitives — **DONE (touch-points 1–5; only 6 remains)**
 Recompute availability from the raw pool definition inside the oracle, rather
 than calling `get_availability_in_range` / `_resolve_windows`, so a bug in a
 shared primitive can no longer hide (closes Gap 1). Biggest effort; biggest
@@ -205,22 +218,50 @@ the same assumption.
 > behavior shipped on feasible data. The entire pre-existing oracle suite stays
 > green **without edits** (behavior-preserving); full CPM suite green cold.
 >
-> **Deferred (later PRs), still Gap 1:** touch-point 5 — `_crew_demand`'s
-> preference for the engine-populated `_actual_resources` (a bug there validates
-> against a too-low demand; needs independent substitution-legality resolution,
-> overlaps 6.6) — and touch-point 6 — `equipment_pool.get_zone_id` in the
-> equipment-zone check. Both are *demand*/*zone* questions, not availability or
-> windows, so they were out of this PR's approved scope.
+> **Update — touch-point 5 now DONE.** `_crew_demand` still reads the
+> engine-committed `_actual_resources` (it is raw observable state, like
+> `.periods` — the *split* is a scheduling decision the oracle cannot re-derive),
+> but a new **`_check_substitution_legality`** independently *certifies* that
+> breakdown is a legal, demand-conserving resolution of the *declared*
+> `required_resources` — reading declared data only, never an engine primitive.
+> It fires a new `substitution` violation when the recorded workers don't sum to
+> the declared demand (**non-conservation** — the "forgot to record a
+> substitution" bug), or admit no legal skill→requirement routing (**illegal
+> substitution**). Legality is a bipartite **max-flow** saturation, *not* a
+> per-skill membership test: allowed skill sets can overlap across requirements,
+> so an all-"allowed" breakdown can still be unroutable (e.g. required
+> `[{MECH,1},{ELEC,1}]` with recorded `{MECH:2}`). On correct engine output the
+> resolution is legal + conserving by construction, so the check is silent —
+> **behavior-preserving**, like the availability/window decoupling. Proof:
+> `test_oracle_decoupling.py` §3 (differential blind-spot tests — the lie is
+> invisible to `_crew_demand` yet caught by the new check — plus max-flow parity
+> against a brute-force Hall-condition ground truth); `test_schedule_validator.py`
+> `TestSubstitutionLegality`; and a `substitution` scenario in
+> `test_oracle_mutation.py` (with the meta-guard extended to 14 checks).
+>
+> **Documented boundary (out of scope):** if the engine records a *clean, legal*
+> breakdown while internally having run a *different, dirty* one, `_actual_resources`
+> is the only observable state and the oracle treats it as truth; the named bug
+> ("forgetting to record") is what conservation catches.
+>
+> **Deferred (later PRs), still Gap 1:** only touch-point 6 — `equipment_pool.get_zone_id`
+> in the equipment-zone check. A *zone* question, not availability/windows/demand,
+> so it was out of this PR's approved scope.
 
 ### 6.5 Reconsider `_DUR_TOL`
 Justify 60 s against the engine's actual time precision, or tighten it. If a
 generous tolerance is genuinely needed for a real reason (e.g. float
 accumulation over long horizons), document that reason inline.
 
-### 6.6 Audit constraint-type coverage
+### 6.6 Audit constraint-type coverage — **PARTIAL (substitution legality DONE)**
 Map every engine-modeled constraint (multimode, substitution legality,
 safety-function, interactions) to a validator check, and either add the missing
 check or document why it reduces to an existing one.
+
+> **Status — substitution legality DONE** (via §6.4 touch-point 5:
+> `_check_substitution_legality`). Still to audit: multimode (selected-mode
+> validity/consistency), safety-function, and interaction constraints beyond
+> `system_state`.
 
 ## 7. Bottom line
 
@@ -241,10 +282,18 @@ fuzzed for equipment/location/time-windows on top of the original crew slice
 asks the engine "how much is available?" or "what are the windows?"; it recomputes
 both from the raw declared data, and differential tests prove it still catches an
 infeasibility a *lying* primitive would hide. The structural blind spot is
-therefore closed for availability and windows. What remains: the two demand/zone
-touch-points of Gap 1 (5 = `_actual_resources`, 6 = `get_zone_id`), 6.5
-(`_DUR_TOL`), 6.6 (constraint-type audit), and the two feasible-side fuzz gaps
-6.2 left open (system-states, consumables). See §8.
+therefore closed for availability and windows.
+
+**Update (Gap 1, touch-point 5):** **the crew-demand/substitution blind spot is
+now closed too.** The oracle no longer *only* trusts the engine-committed
+`_actual_resources` as crew demand: `_check_substitution_legality` independently
+certifies that breakdown is a legal, demand-conserving resolution of the declared
+requirements (conservation + a bipartite max-flow legality test), firing a new
+`substitution` violation otherwise. Behavior-preserving on correct output. What
+remains of Gap 1: **only touch-point 6** (`get_zone_id`). Also still open: 6.5
+(`_DUR_TOL`), the rest of 6.6 (multimode / safety-function / interaction audit),
+and the two feasible-side fuzz gaps 6.2 left open (system-states, consumables).
+See §8/§8b.
 
 ## 8. What landed (breadth trio, `mandd/res_opt`)
 
@@ -274,8 +323,34 @@ fuzz-and-freeze reds surfaced during bring-up (only test-construction fixes).
   parity/equivalence tests. Registered `[./cpm_oracle_decoupling]`.
 
 This is the first production change in the program (a decoupling, not a behavior
-change) and it closes Gap 1 for **availability + windows**. Still open: the two
-demand/zone touch-points of Gap 1 — **touch-point 5** (`_actual_resources` /
-substitution demand, overlaps 6.6) and **touch-point 6** (`get_zone_id`) —
-plus **6.5** (`_DUR_TOL=60s` review), **6.6** (constraint-type audit), and the
-feasible-side fuzzing of system-states + consumables deferred from 6.2.
+change) and it closes Gap 1 for **availability + windows**.
+
+### Touch-point 5 (crew-demand / substitution legality) — landed after the core
+
+- **`src/CPM/schedule_validator.py`.** Three more pure helpers — `_allowed_skills`
+  (primary ∪ declared alternatives), `_bipartite_saturates` (Edmonds–Karp max-flow
+  saturation of the skill→requirement transportation graph), and
+  `_substitution_is_feasible` (conservation + saturation) — plus the new check
+  `_check_substitution_legality`, wired into `validate_schedule` right after the
+  crew sweep, and a new `substitution` Violation type. The oracle now *certifies*
+  the engine-committed `_actual_resources` breakdown against the *declared*
+  requirements instead of trusting it verbatim. Reads declared data only;
+  **behavior-preserving** on correct engine output (legal + conserving by
+  construction → the check is silent).
+- **`tests/unit_tests/CPM/test_oracle_decoupling.py` (§3, extended).** Differential
+  blind-spot tests (a non-conserving under-count and an illegal-skill charge are
+  each invisible to `_crew_demand` — proving the old crew-sweep blind spot — yet
+  caught by `_check_substitution_legality`), an overlap-trap test showing max-flow
+  is required over a membership check, and Hypothesis parity tests pinning the flow
+  to a brute-force Hall-condition ground truth.
+- **`tests/unit_tests/CPM/test_schedule_validator.py`.** `TestSubstitutionLegality`
+  (legal-substitution happy-path negative + non-conserving and illegal-skill fault
+  injections + a scheduler-output soundness test).
+- **`tests/unit_tests/CPM/test_oracle_mutation.py`.** A `substitution` scenario and
+  `'substitution'` added to `ALL_CHECK_TYPES`; the coverage meta-guard now enforces
+  all **14** hard checks.
+
+Still open: **only touch-point 6** (`get_zone_id`) of Gap 1, plus **6.5**
+(`_DUR_TOL=60s` review), the rest of **6.6** (multimode / safety-function /
+interaction audit), and the feasible-side fuzzing of system-states + consumables
+deferred from 6.2.

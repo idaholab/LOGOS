@@ -34,6 +34,7 @@ Violation types
     time_window       Activity starts/finishes outside its allowed window
     hold_point        Blocked task started before hold-point completion
     crew              Skill demand exceeds pool capacity at some instant
+    substitution      Committed crew breakdown is not a legal/conserving resolution
     equipment         Equipment demand exceeds pool capacity at some instant
     equipment_zone    Zone-locked equipment used by out-of-zone activity
     location          Location concurrency limit exceeded (tasks or workers)
@@ -46,7 +47,7 @@ Violation types
 from __future__ import annotations
 
 import copy
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, List
@@ -341,6 +342,180 @@ def _resolve_windows_indep(act) -> list:
             float(wlf)  if wlf  is not None else float('inf'),
         )]
     return []
+
+
+# ---------------------------------------------------------------------------
+# Gap-1 decoupling, touch-point 5 (ORACLE_COMPLETENESS_2026-09-07.md §6.4)
+#
+# The crew sweep reads each activity's committed substitution breakdown
+# ``act._actual_resources`` ({skill: workers}) as its per-skill demand.  That
+# breakdown is a *scheduling decision* — which legal skill the engine drew from
+# — so the oracle cannot re-derive it independently (two legal breakdowns can
+# differ).  But the oracle used to trust it *blindly*, which hid two engine
+# bugs:
+#
+#   * non-conservation — the recorded workers sum to less than the declared
+#     demand (a substitution the engine forgot to record); the sweep then
+#     validates against a too-low demand and misses a real over-allocation, and
+#   * illegal substitution — a skill is charged that no requirement legally
+#     allows (not its primary ``skill_type``, not in ``alternative_skill_types``);
+#     the declared requirement was never legally satisfiable, yet the sweep
+#     validates against the illegal skills and passes.
+#
+# The check below (``_check_substitution_legality``) closes both by
+# *independently verifying* — from the declared ``required_resources`` only,
+# never an engine primitive — that the recorded breakdown is a legal,
+# demand-conserving resolution of the requirements.  This is the right
+# independence boundary: read the committed split (raw observable state, like
+# ``.periods``) but certify its validity rather than assume it.  On every
+# correct engine schedule the resolution is legal and conserving by construction
+# (an activity only starts once its full demand is met from the primary skill
+# plus declared alternatives), so the check is silent — behaviour-preserving,
+# like the availability/window decoupling above.
+#
+# Legality is a bipartite (skill -> requirement) feasibility, NOT a per-skill
+# membership test: allowed skill sets can overlap across requirements, so a
+# breakdown can charge only "allowed" skills and still admit no legal routing
+# (e.g. required [{MECH,1},{ELEC,1}] with recorded {MECH:2} — MECH is allowed
+# and the total matches, yet the ELEC requirement is unfillable).  A max-flow
+# saturating both sides is the exact test.
+# ---------------------------------------------------------------------------
+
+def _allowed_skills(req) -> set:
+    """
+    Skills that may legally staff a requirement: its primary plus alternatives.
+
+    Parameters
+    ----------
+    req : dict
+        One ``required_resources`` entry: ``{'skill_type': str, 'crew_count':
+        int, 'alternative_skill_types': [str, ...]}`` (alternatives optional).
+
+    Returns
+    -------
+    set of str
+        ``{skill_type} ∪ alternative_skill_types``.
+    """
+    return {req['skill_type']} | set(req.get('alternative_skill_types', []))
+
+
+def _bipartite_saturates(supply: dict, demand: list, allowed: list) -> bool:
+    """
+    Can the recorded per-skill ``supply`` exactly staff every requirement?
+
+    Feasibility of a transportation problem on a tiny bipartite graph — skills
+    on one side, requirements on the other — solved by max-flow: a source feeds
+    each skill up to ``supply[skill]``; each skill connects (uncapped) to every
+    requirement it may legally staff; each requirement drains ``demand[i]`` to a
+    sink.  The assignment is legal iff the max-flow saturates the sink — i.e.
+    every requirement's ``crew_count`` is met using only allowed skills without
+    drawing more of any skill than was recorded.
+
+    A per-skill membership test is *not* sufficient: allowed sets can overlap
+    across requirements, so an all-"allowed" breakdown may still admit no legal
+    routing.  Graphs here are tiny (a handful of skills and requirements), so a
+    plain BFS-augmenting (Edmonds–Karp) max-flow is more than fast enough.
+
+    Parameters
+    ----------
+    supply : dict
+        ``{skill: workers}`` recorded for the activity (the flow available from
+        each skill).  Zero or absent counts contribute no flow.
+    demand : list of int
+        ``crew_count`` per requirement, index-aligned with ``allowed``.
+    allowed : list of set
+        Per-requirement set of legally-usable skills, index-aligned with
+        ``demand`` (see :func:`_allowed_skills`).
+
+    Returns
+    -------
+    bool
+        ``True`` iff a feasible assignment saturating every requirement exists.
+    """
+    total_demand = sum(demand)
+    if total_demand == 0:
+        return True
+    # Node ids: 0 = source, 1..S = skills, then R requirements, sink last.
+    skills = [s for s, w in supply.items() if w > 0]
+    skill_idx = {s: 1 + i for i, s in enumerate(skills)}
+    n_skills = len(skills)
+    n_reqs = len(demand)
+    src = 0
+    req_base = 1 + n_skills
+    sink = req_base + n_reqs
+    n = sink + 1
+    INF = total_demand   # no edge need carry more than the whole demand
+    cap = [[0] * n for _ in range(n)]
+    for s in skills:
+        cap[src][skill_idx[s]] = supply[s]
+    for j in range(n_reqs):
+        cap[req_base + j][sink] = demand[j]
+        for s in skills:
+            if s in allowed[j]:
+                cap[skill_idx[s]][req_base + j] = INF
+    # Edmonds–Karp: repeatedly augment along a BFS shortest path.
+    max_flow = 0
+    while True:
+        parent = [-1] * n
+        parent[src] = src
+        q = deque([src])
+        while q:
+            u = q.popleft()
+            for v in range(n):
+                if parent[v] == -1 and cap[u][v] > 0:
+                    parent[v] = u
+                    if v == sink:
+                        q.clear()
+                        break
+                    q.append(v)
+        if parent[sink] == -1:
+            break
+        bottleneck = INF
+        v = sink
+        while v != src:
+            u = parent[v]
+            bottleneck = min(bottleneck, cap[u][v])
+            v = u
+        v = sink
+        while v != src:
+            u = parent[v]
+            cap[u][v] -= bottleneck
+            cap[v][u] += bottleneck
+            v = u
+        max_flow += bottleneck
+    return max_flow == total_demand
+
+
+def _substitution_is_feasible(required, actual) -> bool:
+    """
+    Is a recorded substitution breakdown a legal, demand-conserving resolution?
+
+    Independent verification (declared data only) that ``actual`` — the engine's
+    committed ``{skill: workers}`` for an activity — is a valid resolution of the
+    activity's declared ``required_resources``: the recorded workers must (a)
+    **conserve demand** (sum to the declared total ``crew_count``) and (b) admit
+    a **legal assignment** to the requirements using only each requirement's
+    allowed skills (:func:`_bipartite_saturates`).
+
+    Parameters
+    ----------
+    required : list of dict
+        The activity's declared ``required_resources``.
+    actual : dict
+        The engine-committed ``{skill: workers}`` breakdown
+        (``Activity._actual_resources``).
+
+    Returns
+    -------
+    bool
+        ``True`` iff ``actual`` conserves the declared demand and is legally
+        assignable; ``False`` for any non-conserving or illegal breakdown.
+    """
+    demand = [int(r['crew_count']) for r in required]
+    if sum(int(w) for w in actual.values()) != sum(demand):
+        return False
+    allowed = [_allowed_skills(r) for r in required]
+    return _bipartite_saturates(actual, demand, allowed)
 
 
 # ===========================================================================
@@ -639,6 +814,53 @@ def _check_crew_feasibility(pert: 'Pert',
                         severity='error',
                         excess=float(excess),
                     ))
+
+
+def _check_substitution_legality(pert: 'Pert',
+                                 violations: list, warnings: list) -> None:
+    """
+    Check that each activity's committed crew substitution is legal and conserving.
+
+    For every completed activity carrying an engine-committed ``_actual_resources``
+    breakdown, independently verify — against the *declared* ``required_resources``
+    only, never an engine primitive — that the breakdown conserves the declared
+    crew demand and assigns workers only to legally-usable skills
+    (:func:`_substitution_is_feasible`).  A breakdown that under-records demand or
+    charges a disallowed skill would otherwise slip past the crew sweep, which
+    reads the same breakdown as its per-skill demand (Gap 1, touch-point 5 — see
+    the comment block above :func:`_allowed_skills`).
+
+    Parameters
+    ----------
+    pert : Pert
+        The scheduled ``Pert`` instance to inspect.
+    violations : list
+        Accumulator for error-level :class:`Violation` objects.
+    warnings : list
+        Accumulator for warning-level :class:`Violation` objects.
+    """
+    for act in pert.completed:
+        actual = getattr(act, '_actual_resources', None)
+        if not actual:
+            # No committed substitution record → nothing to certify.  The crew
+            # sweep uses the declared demand for such activities, which is
+            # trivially legal.  (START/END and zero-crew activities land here.)
+            continue
+        required = act.getRequiredResources()
+        if _substitution_is_feasible(required, actual):
+            continue
+        declared_total = sum(int(r['crew_count']) for r in required)
+        recorded_total = sum(int(w) for w in actual.values())
+        violations.append(Violation(
+            type='substitution',
+            activity=act.name,
+            detail=(f'committed crew breakdown {dict(actual)} is not a legal, '
+                    f'demand-conserving resolution of its requirements '
+                    f'(recorded {recorded_total} workers vs declared '
+                    f'{declared_total})'),
+            severity='error',
+            excess=float(abs(recorded_total - declared_total)),
+        ))
 
 
 def _check_equipment_feasibility(pert: 'Pert',
@@ -1197,6 +1419,7 @@ def validate_schedule(pert: 'Pert') -> ValidationResult:
     _check_time_windows(pert,              violations, warnings)
     _check_hold_points(pert,               violations, warnings)
     _check_crew_feasibility(pert,          violations, warnings)
+    _check_substitution_legality(pert,     violations, warnings)
     _check_equipment_feasibility(pert,     violations, warnings)
     _check_equipment_zone_affinity(pert,   violations, warnings)
     _check_location_feasibility(pert,      violations, warnings)

@@ -40,6 +40,19 @@ This module proves that decoupling two ways:
    *valid* pools, documenting that §6.4 shipped no behaviour change on
    feasible data.
 
+Section 3 extends the same discipline to **touch-point 5** (§8b, still Gap 1):
+the oracle's ``_crew_demand`` used to trust the engine-committed
+``act._actual_resources`` verbatim as the crew sweep's per-skill demand, so a
+buggy/lying substitution breakdown — one that records *fewer* workers than
+declared, or charges a skill no requirement allows — fooled the sweep silently.
+``_check_substitution_legality`` now independently certifies that the committed
+breakdown is a **legal, demand-conserving** resolution of the *declared*
+``required_resources`` (reading declared data only).  The differential tests here
+show each lie is invisible to ``_crew_demand`` (the old blind spot) yet caught by
+the new check; the parity tests pin the max-flow legality test
+(``_bipartite_saturates`` / ``_substitution_is_feasible``) to an independent
+brute-force (Hall-condition) ground truth.
+
 The module self-skips where Hypothesis is not installed (mirrors
 test_property_based.py / test_oracle_mutation.py).
 """
@@ -68,6 +81,11 @@ from CPM.schedule_validator import (
     _min_avail_over,
     _min_location_cap_over,
     _resolve_windows_indep,
+    _crew_demand,
+    _allowed_skills,
+    _bipartite_saturates,
+    _substitution_is_feasible,
+    _check_substitution_legality,
 )
 
 
@@ -534,3 +552,237 @@ def _window_act(draw):
 def test_resolve_windows_indep_matches_engine(act):
     """`_resolve_windows_indep` reproduces `Pert._resolve_windows` exactly."""
     assert _resolve_windows_indep(act) == _REF_PERT._resolve_windows(act)
+
+
+# ===========================================================================
+# 3. Substitution-legality decoupling (touch-point 5, Gap 1)
+#
+# `_crew_demand` trusts the engine-committed `act._actual_resources` verbatim as
+# the crew sweep's per-skill demand.  A buggy/lying breakdown therefore fools the
+# sweep two ways: recording FEWER workers than declared (non-conservation), or
+# charging a skill no requirement allows (illegal substitution).  The new
+# `_check_substitution_legality` closes both by certifying the committed
+# breakdown is a legal, demand-conserving resolution of the DECLARED
+# requirements, reading declared data only.
+# ===========================================================================
+
+
+def _req(skill, crew, alt=()):
+    """One `required_resources` entry."""
+    return {'skill_type': skill, 'crew_count': crew,
+            'alternative_skill_types': list(alt)}
+
+
+def _single(required_resources, pool_skill='MECH', pool_size=10):
+    """START → A → END; A carries `required_resources`, staffed from a generous
+    single-skill pool.  Scheduled and returned (A is in `.completed`)."""
+    a = Activity('A', 4.0, required_resources=required_resources)
+    start, end = Activity('START', 0.0), Activity('END', 0.0)
+    fwd = {start: [a], a: [end], end: []}
+    p = Pert(graph=fwd)
+    p.crew_pool         = _rp(pool_skill, pool_size)
+    p.equipment_pool    = EquipmentPool()
+    p.location_pool     = LocationPool()
+    p.consumable_pool   = None
+    p.system_state_pool = None
+    p.startTime = START_DT
+    return _finish(p)
+
+
+def _subst_types(p):
+    """Violation types from `_check_substitution_legality` alone (isolates the
+    new check from the rest of `validate_schedule`)."""
+    v, w = [], []
+    _check_substitution_legality(p, v, w)
+    return [x.type for x in v]
+
+
+# ---------------------------------------------------------------------------
+# 3a. Differential blind-spot tests
+# ---------------------------------------------------------------------------
+
+def test_substitution_underrecord_blind_to_crew_demand():
+    """A non-conserving under-count fools `_crew_demand` but not the new check."""
+    p = _single([_req('MECH', 3)])            # declares 3 MECH
+    a = _act(p, 'A')
+    a._actual_resources = {'MECH': 1}         # engine "forgot" 2 workers
+
+    # (a) the crew sweep's demand path swallows the lie verbatim …
+    assert _crew_demand(a) == {'MECH': 1}
+    # … so the sweep sees demand 1 ≤ pool and stays silent (the old blind spot).
+    assert 'crew' not in _types(p)
+    # (b) the independent legality check still fires.
+    assert 'substitution' in _subst_types(p)
+    assert 'substitution' in _types(p)
+
+
+def test_substitution_illegal_skill_blind_to_crew_demand():
+    """An illegal-skill charge fools `_crew_demand` but not the new check."""
+    p = _single([_req('MECH', 2, alt=['WELDER'])])   # MECH or WELDER only
+    a = _act(p, 'A')
+    a._actual_resources = {'ELEC': 2}                # neither primary nor alt
+
+    assert _crew_demand(a) == {'ELEC': 2}
+    # ELEC is absent from the pool → 0 availability → the crew sweep's `avail > 0`
+    # guard means it cannot fire, so the illegal charge is invisible to it …
+    assert 'crew' not in _types(p)
+    # … while conservation holds (2 == 2), so only the max-flow legality path can
+    # catch it — and it does.
+    assert 'substitution' in _subst_types(p)
+    assert 'substitution' in _types(p)
+
+
+def test_substitution_legal_substitution_is_silent():
+    """A genuinely legal substitution ({WELDER:2} for a MECH/WELDER requirement)
+    conserves demand and routes legally → the check stays silent (positive
+    control: the decoupling is behaviour-preserving on correct engine output)."""
+    p = _single([_req('MECH', 2, alt=['WELDER'])])
+    a = _act(p, 'A')
+    a._actual_resources = {'WELDER': 2}       # legal alternative, full demand
+    assert _subst_types(p) == []
+    assert 'substitution' not in _types(p)
+
+
+def test_substitution_schedule_then_corrupt():
+    """Feasible as scheduled; corrupting the committed breakdown to a conserving
+    but ILLEGAL routing makes `validate_schedule` fire 'substitution' end-to-end
+    (and, being conserving, only the max-flow legality path can catch it)."""
+    p = _single([_req('MECH', 3)])
+    assert validate_schedule(p).is_feasible          # engine's own record is legal
+    # 1 legal MECH + 2 illegal WELDER: sums to the declared 3 (conservation holds)
+    # yet no legal routing staffs a MECH-only requirement from WELDER workers.
+    _act(p, 'A')._actual_resources = {'MECH': 1, 'WELDER': 2}
+    result = validate_schedule(p)
+    assert not result.is_feasible
+    assert 'substitution' in [v.type for v in result.violations]
+
+
+def test_overlap_trap_needs_maxflow_not_membership():
+    """The membership-only shortcut is unsound; the max-flow check is not.
+
+    Required [{MECH,1},{ELEC,1}] with recorded {MECH:2}: MECH is "allowed" (by the
+    first requirement) and the recorded total matches the declared total, so a
+    per-skill membership + conservation test would wrongly pass.  No legal routing
+    fills the ELEC requirement, though — only the bipartite max-flow catches it."""
+    # A needs 1 MECH + 1 ELEC; stock both so the engine schedules it feasibly
+    # (with {MECH:1, ELEC:1}) before we corrupt the committed record.
+    a = Activity('A', 4.0, required_resources=[_req('MECH', 1), _req('ELEC', 1)])
+    start, end = Activity('START', 0.0), Activity('END', 0.0)
+    fwd = {start: [a], a: [end], end: []}
+    p = Pert(graph=fwd)
+    rp = _rp('MECH', 10)
+    rp.resources['ELEC'] = ResourceAvailability(
+        'ELEC', [{'start_date': START_DT, 'end_date': START_DT + HORIZON,
+                  'available_count': 10}])
+    p.crew_pool         = rp
+    p.equipment_pool    = EquipmentPool()
+    p.location_pool     = LocationPool()
+    p.consumable_pool   = None
+    p.system_state_pool = None
+    p.startTime = START_DT
+    p = _finish(p)
+    _act(p, 'A')._actual_resources = {'MECH': 2}     # every worker "allowed", total ok
+    assert 'substitution' in _subst_types(p)
+
+
+# ---------------------------------------------------------------------------
+# 3b. Property / parity tests — pin the flow to an independent ground truth
+# ---------------------------------------------------------------------------
+# Ground truth is Hall's saturation (defect) condition for a transportation
+# problem, enumerated over all requirement subsets — completely independent of
+# the Edmonds–Karp max-flow in `_bipartite_saturates`.  For a subset S of
+# requirements, the demands in S are jointly fillable iff the total supply of
+# skills that may legally staff SOME requirement in S is at least the total
+# demand of S; the whole instance saturates iff this holds for every S.
+
+_SKILLS = ['MECH', 'ELEC', 'WELDER', 'IC']
+
+
+def _saturates_bruteforce(supply: dict, demand: list, allowed: list) -> bool:
+    """Hall/defect condition over every requirement subset (ground truth)."""
+    n = len(demand)
+    for mask in range(1 << n):
+        subset = [j for j in range(n) if mask & (1 << j)]
+        need = sum(demand[j] for j in subset)
+        adj_supply = sum(w for s, w in supply.items()
+                         if w > 0 and any(s in allowed[j] for j in subset))
+        if need > adj_supply:
+            return False
+    return True
+
+
+def _subst_feasible_bruteforce(required, actual) -> bool:
+    """`_substitution_is_feasible` ground truth: conservation + Hall saturation."""
+    demand = [int(r['crew_count']) for r in required]
+    if sum(int(w) for w in actual.values()) != sum(demand):
+        return False
+    allowed = [_allowed_skills(r) for r in required]
+    return _saturates_bruteforce(actual, demand, allowed)
+
+
+@st.composite
+def _requirements(draw):
+    """1–4 requirements over a small skill alphabet (crew 0–4, optional alts)."""
+    n = draw(st.integers(min_value=1, max_value=4))
+    reqs = []
+    for _ in range(n):
+        primary = draw(st.sampled_from(_SKILLS))
+        crew = draw(st.integers(min_value=0, max_value=4))
+        alts = draw(st.lists(st.sampled_from(_SKILLS), max_size=3, unique=True))
+        reqs.append(_req(primary, crew, [s for s in alts if s != primary]))
+    return reqs
+
+
+@st.composite
+def _supply(draw):
+    """An arbitrary recorded `{skill: workers}` breakdown over the alphabet."""
+    skills = draw(st.lists(st.sampled_from(_SKILLS), max_size=4, unique=True))
+    return {s: draw(st.integers(min_value=0, max_value=6)) for s in skills}
+
+
+@given(reqs=_requirements(), supply=_supply())
+@settings()
+def test_bipartite_saturates_matches_bruteforce(reqs, supply):
+    """`_bipartite_saturates` (max-flow) == Hall-condition brute force."""
+    demand = [r['crew_count'] for r in reqs]
+    allowed = [_allowed_skills(r) for r in reqs]
+    assert (_bipartite_saturates(supply, demand, allowed)
+            == _saturates_bruteforce(supply, demand, allowed))
+
+
+@given(reqs=_requirements(), actual=_supply())
+@settings()
+def test_substitution_is_feasible_matches_bruteforce(reqs, actual):
+    """`_substitution_is_feasible` == conservation + Hall brute force."""
+    assert (_substitution_is_feasible(reqs, actual)
+            == _subst_feasible_bruteforce(reqs, actual))
+
+
+@st.composite
+def _legal_routing(draw):
+    """Requirements plus an `actual` built from an actually-legal, fully-staffing
+    routing (each requirement's `crew_count` drawn only from its allowed skills)."""
+    reqs = draw(_requirements())
+    actual: dict = {}
+    for r in reqs:
+        allowed = sorted(_allowed_skills(r))       # always non-empty (has primary)
+        for _ in range(r['crew_count']):
+            s = draw(st.sampled_from(allowed))
+            actual[s] = actual.get(s, 0) + 1
+    return reqs, actual
+
+
+@given(inst=_legal_routing())
+@settings()
+def test_legal_routing_is_feasible_and_conservation_is_load_bearing(inst):
+    """A breakdown built from a legal routing certifies feasible; dropping any one
+    recorded worker (breaking conservation) must certify infeasible."""
+    reqs, actual = inst
+    assert _substitution_is_feasible(reqs, actual)
+    assert _subst_feasible_bruteforce(reqs, actual)
+
+    if sum(actual.values()) > 0:
+        broken = dict(actual)
+        s = next(k for k, v in broken.items() if v > 0)
+        broken[s] -= 1
+        assert not _substitution_is_feasible(reqs, broken)   # non-conserving

@@ -4,7 +4,7 @@ Fuzzed oracle-sensitivity ("mutation") tests for schedule_validator.
 The whole fuzz-and-freeze program (see
 src/CPM/devLogs/RCPSP_ROBUSTNESS_2026-09-07.md) assumes the independent oracle
 ``schedule_validator.validate_schedule`` flags *every* infeasible schedule the
-engine can emit.  ``test_schedule_validator.py`` proves each of the 13 hard
+engine can emit.  ``test_schedule_validator.py`` proves each of the 14 hard
 checks catches *one* hand-crafted corruption — but a single example per check is
 not the same as "the oracle is sensitive to this class of defect."  See
 src/CPM/devLogs/ORACLE_COMPLETENESS_2026-09-07.md §6.1.
@@ -95,12 +95,12 @@ BIG_HOURS = 999.0               # a corruption offset far outside any fuzzed ran
 
 SGS = 'max_use_res_ranked'
 
-# The 13 hard checks run by validate_schedule (schedule_validator.py:1027-1039).
+# The 14 hard checks run by validate_schedule (see its dispatch block).
 # The scenario table below must cover every one; the meta-test enforces it.
 ALL_CHECK_TYPES = frozenset({
     'completeness', 'duration', 'precedence', 'time_window', 'hold_point',
-    'crew', 'equipment', 'equipment_zone', 'location', 'consumable',
-    'shift_calendar', 'dose', 'system_state',
+    'crew', 'substitution', 'equipment', 'equipment_zone', 'location',
+    'consumable', 'shift_calendar', 'dose', 'system_state',
 })
 
 
@@ -271,6 +271,34 @@ def build_crew(d):
 def mut_crew(p):  _force_overlap(p)
 
 
+def build_substitution(d):
+    # A single MECH activity from a generous pool → always feasible, and the
+    # engine commits a legal, conserving _actual_resources ({'MECH': crew}).  The
+    # mutation replaces it with an illegal breakdown so the substitution-legality
+    # check must fire.  (Single activity keeps every OTHER check trivially clean,
+    # so only 'substitution' can appear post-mutation.)
+    a = Activity('A', d.dur_a, required_resources=_mech(d.crew))
+    start, end = Activity('START', 0.0), Activity('END', 0.0)
+    fwd = {start: [a], a: [end], end: []}
+    p = Pert(graph=fwd)
+    p.crew_pool         = _rp('MECH', 10)
+    p.equipment_pool    = EquipmentPool()
+    p.location_pool     = LocationPool()
+    p.consumable_pool   = None
+    p.system_state_pool = None
+    p.startTime = START_DT
+    return _finish(p)
+def mut_substitution(p):
+    # Charge WELDER — not the requirement's primary skill and not among its
+    # (empty) alternatives.  The recorded total still equals the declared demand
+    # (conservation holds), so this exercises the max-flow legality path, not the
+    # cheap conservation short-circuit: no legal routing staffs a MECH-only
+    # requirement from WELDER workers → 'substitution' fires.
+    a = _act(p, 'A')
+    crew = sum(int(r['crew_count']) for r in a.getRequiredResources())
+    a._actual_resources = {'WELDER': crew}
+
+
 def _crane_pool(qty=1, zone=None):
     ep = EquipmentPool()
     ep.equipment['CRANE'] = EquipmentAvailability(
@@ -438,6 +466,7 @@ SCENARIOS = [
     Scenario('time_window',        build_time_window,       mut_time_window,       'time_window'),
     Scenario('hold_point',         build_hold_point,        mut_hold_point,        'hold_point'),
     Scenario('crew',               build_crew,              mut_crew,              'crew'),
+    Scenario('substitution',       build_substitution,      mut_substitution,      'substitution'),
     Scenario('equipment',          build_equipment,         mut_equipment,         'equipment'),
     Scenario('location_tasks',     build_location_tasks,    mut_location_tasks,    'location'),
     Scenario('location_workers',   build_location_workers,  mut_location_workers,  'location'),

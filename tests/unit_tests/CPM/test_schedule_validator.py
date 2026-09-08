@@ -227,6 +227,86 @@ class TestCrewFeasibility:
 
 
 # ===========================================================================
+# Substitution legality (Gap 1, touch-point 5)
+# ===========================================================================
+
+class TestSubstitutionLegality:
+    """The oracle independently certifies that the engine-committed crew breakdown
+    (``_actual_resources``) is a legal, demand-conserving resolution of the
+    *declared* requirements — it no longer trusts the breakdown verbatim as the
+    crew sweep's demand (ORACLE_COMPLETENESS §6.4 touch-point 5). A breakdown that
+    under-records demand or charges a disallowed skill would otherwise slip past
+    the crew sweep, which reads that same breakdown."""
+
+    def _make_pert(self, required_resources, pool):
+        a = Activity('A', 4.0, required_resources=required_resources)
+        start = Activity('START', 0.0)
+        end   = Activity('END',   0.0)
+        fwd   = {start: [a], a: [end], end: []}
+        p = Pert(graph=fwd)
+        p.crew_pool         = pool
+        p.equipment_pool    = EquipmentPool()
+        p.location_pool     = LocationPool()
+        p.consumable_pool   = None
+        p.system_state_pool = None
+        p.startTime = START_DT
+        return p
+
+    def _pool(self, **counts):
+        rp = ResourcePool()
+        for skill, count in counts.items():
+            rp.resources[skill] = ResourceAvailability(
+                skill, [{'start_date': START_DT, 'end_date': START_DT + HORIZON,
+                         'available_count': count}])
+        return rp
+
+    def test_legal_substitution_no_violation(self):
+        """A committed breakdown that uses a declared alternative skill and
+        conserves demand is accepted (behaviour-preserving on legal output)."""
+        p = self._make_pert(
+            [{'skill_type': 'MECH', 'crew_count': 2,
+              'alternative_skill_types': ['WELDER']}],
+            self._pool(MECH=10, WELDER=10))
+        _schedule(p)
+        # A legal all-WELDER substitution, full demand met.
+        next(x for x in p.completed if x.name == 'A')._actual_resources = {'WELDER': 2}
+        assert 'substitution' not in [v.type for v in validate_schedule(p).violations]
+
+    def test_non_conserving_breakdown_detected(self):
+        """A breakdown recording fewer workers than declared is flagged (the
+        engine 'forgot to record a substitution' — the crew sweep would validate
+        against the too-low demand and miss a real over-allocation)."""
+        p = self._make_pert(
+            [{'skill_type': 'MECH', 'crew_count': 3, 'alternative_skill_types': []}],
+            self._pool(MECH=10))
+        _schedule(p)
+        next(x for x in p.completed if x.name == 'A')._actual_resources = {'MECH': 1}
+        assert 'substitution' in [v.type for v in validate_schedule(p).violations]
+
+    def test_illegal_skill_breakdown_detected(self):
+        """A breakdown charging a skill no requirement allows is flagged even when
+        the recorded total matches the declared demand (only the max-flow legality
+        path, not a conservation check, catches this)."""
+        p = self._make_pert(
+            [{'skill_type': 'MECH', 'crew_count': 2,
+              'alternative_skill_types': ['WELDER']}],
+            self._pool(MECH=10, WELDER=10))
+        _schedule(p)
+        # ELEC is neither the primary nor a declared alternative; total still 2.
+        next(x for x in p.completed if x.name == 'A')._actual_resources = {'ELEC': 2}
+        assert 'substitution' in [v.type for v in validate_schedule(p).violations]
+
+    def test_scheduler_output_is_legal(self):
+        """The scheduler's own committed breakdown never trips the check."""
+        p = self._make_pert(
+            [{'skill_type': 'MECH', 'crew_count': 2,
+              'alternative_skill_types': ['WELDER']}],
+            self._pool(MECH=10, WELDER=10))
+        _schedule(p)
+        assert 'substitution' not in [v.type for v in p.validate_schedule().violations]
+
+
+# ===========================================================================
 # Equipment feasibility
 # ===========================================================================
 
