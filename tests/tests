@@ -55,10 +55,11 @@
   UnorderedCsv = 'MultipleKnapsack/PrintPS.csv'
  [../]
 
-# CPM model system tests. Input data (project_file + schema) is staged in the
-# CPMmodel/ working dir; BaseCPMmodel.initialize() resolves those names against
-# <WorkingDir>. Gold must be (re)generated in a RAVEN env -- see
-# src/CPM/devLogs/RAVEN_PERT_INTERFACE_2026-09-07.md
+# CPM model system tests. The project_file is staged in the CPMmodel/ working
+# dir; the schema is the single canonical copy at src/CPM/outage_schema.json,
+# referenced from each deck by a relative path. BaseCPMmodel.initialize()
+# resolves both against <WorkingDir>. Gold must be (re)generated in a RAVEN env
+# -- see src/CPM/devLogs/RAVEN_PERT_INTERFACE_2026-09-07.md
 [./CPMmodel]
   type  = 'RavenFramework'
   input = 'test_BaseCPMmodel.xml'

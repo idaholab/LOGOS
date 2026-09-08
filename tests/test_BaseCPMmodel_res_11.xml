@@ -23,7 +23,7 @@
     <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
       <variables>R_C101,R_C102,R_C103,R_C104,R_C105,R_C106,R_C107,R_C109,R_C110,R_C111,end_time</variables>
       <CPtime>end_time</CPtime>
-      <schema>outage_schema.json</schema>
+      <schema>../../src/CPM/outage_schema.json</schema>
       <sgs>max_use_res_ranked</sgs>
       <project_file>example_10.json</project_file>
       <!-- durations sampled for the first five activities ... -->
