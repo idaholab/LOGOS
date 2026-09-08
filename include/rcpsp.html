@@ -65,6 +65,16 @@
 <li class="toctree-l2"><a class="reference internal" href="#settings">Settings</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="#the-pert-class">The <code class="docutils literal notranslate"><span class="pre">Pert</span></code> Class</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#construction">Construction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#modeled-constraints">Modeled constraints</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cpm-timing-analysis">CPM timing analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#resource-constrained-scheduling">Resource-constrained scheduling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#scenario-updates-multi-mode-and-replanning">Scenario updates, multi-mode, and replanning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#critical-chain-ccpm-buffering">Critical Chain (CCPM) buffering</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#validation-reporting-and-visualization">Validation, reporting, and visualization</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="PluginForRavenCode.html">Plugin for the RAVEN Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="CashflowAndNPVModels.html">SSC Cashflow and NPV Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="Knapsack.html">Knapsack Models</a></li>
@@ -377,6 +387,213 @@ Specifies an upper bound on the makespan.</p></li>
 <span class="w">  </span>...
 <span class="nt">&lt;/Logos&gt;</span>
 </pre></div>
+</div>
+</section>
+</section>
+<section id="the-pert-class">
+<span id="sec-pert-class"></span><h1>The <code class="docutils literal notranslate"><span class="pre">Pert</span></code> Class<a class="headerlink" href="#the-pert-class" title="Link to this heading"></a></h1>
+<p>While the formulation above is solved exactly as a mixed-integer program,
+LOGOS also provides an event-driven scheduling engine — the <code class="docutils literal notranslate"><span class="pre">Pert</span></code> class —
+for large, richly constrained schedules (such as full nuclear-outage models)
+where an exact MILP is impractical. The <code class="docutils literal notranslate"><span class="pre">Pert</span></code> class is the core scheduling
+engine of the CPM module. It represents a project schedule as a directed
+acyclic graph of <code class="docutils literal notranslate"><span class="pre">Activity</span></code> objects bounded by a <code class="docutils literal notranslate"><span class="pre">START</span></code> and an <code class="docutils literal notranslate"><span class="pre">END</span></code>
+node, computes the classical CPM/PERT timing quantities (early start, early
+finish, late start, late finish, and slack) and the critical path, and — when
+resource, equipment, and location pools are provided — solves the
+resource-constrained project scheduling problem heuristically using an
+event-driven scheduling engine. It also supports Critical Chain Project
+Management (CCPM) buffering, mid-outage replanning, and several
+schedule-generation strategies.</p>
+<section id="construction">
+<h2>Construction<a class="headerlink" href="#construction" title="Link to this heading"></a></h2>
+<p>A <code class="docutils literal notranslate"><span class="pre">Pert</span></code> object can be built in two ways.</p>
+<p><strong>1. From an</strong> <code class="docutils literal notranslate"><span class="pre">OutageData</span></code> <strong>object (recommended).</strong>
+When an <code class="docutils literal notranslate"><span class="pre">OutageData</span></code> instance is supplied, the activity graph and all
+resource, equipment, location, consumable, and system-state pools are built
+automatically from the planning data (typically loaded from a JSON file). This
+is the path used for full nuclear-outage models.</p>
+<p><strong>2. From a manual</strong> <code class="docutils literal notranslate"><span class="pre">graph</span></code> <strong>dictionary.</strong>
+For simple CPM-only problems, the graph can be provided directly as a
+dictionary mapping each <code class="docutils literal notranslate"><span class="pre">Activity</span></code> to the list of its outgoing activities.</p>
+<p>The constructor accepts the following parameters:</p>
+<ul class="simple">
+<li><p><strong>graph</strong> (dictionary, optional): mapping of the form
+<code class="docutils literal notranslate"><span class="pre">{Activity:</span> <span class="pre">[Activity,</span> <span class="pre">...]}</span></code> giving the successor activities of each
+activity. Provide this for manual construction.</p></li>
+<li><p><strong>outage_data</strong> (<code class="docutils literal notranslate"><span class="pre">OutageData</span></code>, optional): object containing all planning
+data. When supplied, the graph is built automatically from its tasks.</p></li>
+<li><p><strong>priorities</strong> (dictionary, optional): mapping of activity names to external
+priority values used to order candidates during resource-constrained
+scheduling.</p></li>
+<li><p><strong>seed</strong> (integer, optional): random seed for reproducibility
+(<strong>default</strong>: <code class="docutils literal notranslate"><span class="pre">2506178</span></code>).</p></li>
+</ul>
+<p>Either <code class="docutils literal notranslate"><span class="pre">graph</span></code> or <code class="docutils literal notranslate"><span class="pre">outage_data</span></code> must be provided. A convenience class
+method, <code class="docutils literal notranslate"><span class="pre">Pert.from_json_file(filepath,</span> <span class="pre">schema_path)</span></code>, loads and validates an
+<code class="docutils literal notranslate"><span class="pre">OutageData</span></code> object from a JSON file and returns the corresponding <code class="docutils literal notranslate"><span class="pre">Pert</span></code>
+instance.</p>
+<p>Example — manual graph construction:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">LOGOS.src.CPM.pert</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pert</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">LOGOS.src.CPM.activity</span><span class="w"> </span><span class="kn">import</span> <span class="n">Activity</span>
+
+<span class="n">start</span> <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"start"</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+<span class="n">b</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"b"</span><span class="p">,</span>     <span class="mi">20</span><span class="p">)</span>
+<span class="n">c</span>     <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"c"</span><span class="p">,</span>      <span class="mi">5</span><span class="p">)</span>
+<span class="n">end</span>   <span class="o">=</span> <span class="n">Activity</span><span class="p">(</span><span class="s2">"end"</span><span class="p">,</span>   <span class="mi">20</span><span class="p">)</span>
+
+<span class="n">graph</span> <span class="o">=</span> <span class="p">{</span><span class="n">start</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">],</span>
+         <span class="n">b</span>    <span class="p">:</span> <span class="p">[</span><span class="n">c</span><span class="p">],</span>
+         <span class="n">c</span>    <span class="p">:</span> <span class="p">[</span><span class="n">end</span><span class="p">],</span>
+         <span class="n">end</span>  <span class="p">:</span> <span class="p">[]}</span>
+
+<span class="n">schedule</span> <span class="o">=</span> <span class="n">Pert</span><span class="p">(</span><span class="n">graph</span><span class="o">=</span><span class="n">graph</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">schedule</span><span class="o">.</span><span class="n">getProjectDuration</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">schedule</span><span class="o">.</span><span class="n">getCriticalPathSymbolic</span><span class="p">())</span>
+</pre></div>
+</div>
+<p>Example — construction from a JSON outage definition:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">LOGOS.src.CPM.pert</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pert</span>
+
+<span class="n">schedule</span> <span class="o">=</span> <span class="n">Pert</span><span class="o">.</span><span class="n">from_json_file</span><span class="p">(</span><span class="s2">"outage.json"</span><span class="p">,</span> <span class="s2">"outage_schema.json"</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">schedule</span><span class="o">.</span><span class="n">calculateScheduleWithResources</span><span class="p">(</span><span class="n">sgs</span><span class="o">=</span><span class="s1">'max_use_res_ranked'</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="modeled-constraints">
+<h2>Modeled constraints<a class="headerlink" href="#modeled-constraints" title="Link to this heading"></a></h2>
+<p>When constructed from an <code class="docutils literal notranslate"><span class="pre">OutageData</span></code> object, the <code class="docutils literal notranslate"><span class="pre">Pert</span></code> scheduler honors
+the following constraints (each is optional and activated by the corresponding
+fields in the JSON task definitions):</p>
+<ul class="simple">
+<li><p><strong>Precedence</strong> with optional finish-to-start <strong>lags</strong> between activities.</p></li>
+<li><p><strong>Renewable crews</strong> organized by skill type, with <strong>skill substitution</strong>
+(a shortfall in one skill can be covered by qualified alternative skills).</p></li>
+<li><p><strong>Equipment</strong> requirements, including <strong>zone-locked</strong> equipment that may
+only be used within a specific location.</p></li>
+<li><p><strong>Locations / zones</strong>, including multi-zone activities that must occupy
+several zones simultaneously.</p></li>
+<li><p><strong>Consumables</strong> that are permanently depleted when an activity starts, with
+optional mid-outage restock deliveries.</p></li>
+<li><p><strong>Plant system states</strong> (isolation locks): activities requiring conflicting
+states of the same system are serialized.</p></li>
+<li><p><strong>Radiation dose budgets</strong> tracked per worker-hour against a global limit.</p></li>
+<li><p><strong>Regulatory time windows</strong> (earliest start / latest finish) per activity.</p></li>
+<li><p><strong>Shift calendars</strong> restricting when work may be performed.</p></li>
+<li><p><strong>Mobilization lead times</strong> for activities that need advance preparation.</p></li>
+<li><p><strong>Hold points</strong> whose downstream (blocked) tasks cannot start until the
+hold point completes.</p></li>
+<li><p><strong>Multi-mode execution</strong> (MMRCPSP): alternative duration/resource profiles
+per activity, selectable through <code class="docutils literal notranslate"><span class="pre">set_modes</span></code>.</p></li>
+<li><p><strong>WBS priority roll-up</strong>, elevating every member of a work-breakdown package
+when any member becomes critical.</p></li>
+</ul>
+</section>
+<section id="cpm-timing-analysis">
+<h2>CPM timing analysis<a class="headerlink" href="#cpm-timing-analysis" title="Link to this heading"></a></h2>
+<p>These methods compute and expose the unconstrained CPM/PERT quantities:</p>
+<ul class="simple">
+<li><p><strong>generateInfo()</strong>: compute early start, early finish, late start, late
+finish, and slack for every activity.</p></li>
+<li><p><strong>getProjectDuration()</strong>: return the unconstrained project (critical-path)
+duration in hours.</p></li>
+<li><p><strong>getCriticalPath()</strong> / <strong>getCriticalPathSymbolic()</strong>: return the critical
+path(s) as <code class="docutils literal notranslate"><span class="pre">Activity</span></code> objects, or as activity-name strings.</p></li>
+<li><p><strong>getCriticalPathWithLength()</strong>: return the critical path as a dictionary
+including per-activity durations.</p></li>
+<li><p><strong>returnScheduleEndTime()</strong>: return the absolute end time of the schedule.</p></li>
+</ul>
+</section>
+<section id="resource-constrained-scheduling">
+<h2>Resource-constrained scheduling<a class="headerlink" href="#resource-constrained-scheduling" title="Link to this heading"></a></h2>
+<p>Once the resource, equipment, and location pools are populated, the schedule
+can be solved as an RCPSP:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">result</span> <span class="o">=</span> <span class="n">schedule</span><span class="o">.</span><span class="n">calculateScheduleWithResources</span><span class="p">(</span><span class="n">sgs</span><span class="o">=</span><span class="s1">'max_use_res_ranked'</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">calculateScheduleWithResources</span></code> method advances time only to the next
+meaningful event (activity completion, availability-period boundary, or the
+early-start time of a waiting activity) rather than stepping hour by hour. It
+accepts the following parameters:</p>
+<ul class="simple">
+<li><p><strong>sgs</strong> (string): the Schedule Generation Scheme used to select activities
+from the available candidates at each event (<strong>default</strong>:
+<code class="docutils literal notranslate"><span class="pre">max_use_res_ranked</span></code>).</p></li>
+<li><p><strong>max_time_hours</strong> (float, optional): safety cutoff, in hours from the start
+time. Defaults to a multiple of the CPM duration.</p></li>
+<li><p><strong>priority_rule</strong> (string, optional): priority rule used to order candidates
+when no external priorities are supplied.</p></li>
+</ul>
+<p>Allowed values for the <code class="docutils literal notranslate"><span class="pre">sgs</span></code> parameter are:</p>
+<ul class="simple">
+<li><p><strong>first</strong>: serial SGS — try candidates in priority order and start the
+single highest-priority activity that is resource-feasible.</p></li>
+<li><p><strong>max_use_res_ranked</strong>: rank candidates by float/value and start as many of
+the highest-ranked activities as the available resources allow.</p></li>
+<li><p><strong>max_use_res_shuffled</strong>: as above but with a randomly shuffled candidate
+order.</p></li>
+<li><p><strong>md_knapsack</strong>: select the set of activities through a multi-dimensional
+knapsack optimization over the currently available resources.</p></li>
+<li><p><strong>look_ahead</strong>: rank candidates by their immediate value plus a discounted
+estimate of the future opportunities they unlock within a finite horizon.</p></li>
+</ul>
+<p>The method returns a dictionary with the keys <code class="docutils literal notranslate"><span class="pre">scheduled_duration</span></code> (hours
+from start to the last activity end), <code class="docutils literal notranslate"><span class="pre">cpm_duration</span></code> (unconstrained CPM
+duration), <code class="docutils literal notranslate"><span class="pre">delay_hours</span></code> (total accumulated resource-wait delay),
+<code class="docutils literal notranslate"><span class="pre">n_activities</span></code>, <code class="docutils literal notranslate"><span class="pre">n_completed</span></code>, and <code class="docutils literal notranslate"><span class="pre">iterations</span></code> (number of event-loop
+steps). A companion method, <code class="docutils literal notranslate"><span class="pre">calculateSerialScheduleWithResources</span></code>, runs a
+strictly serial schedule-generation scheme.</p>
+</section>
+<section id="scenario-updates-multi-mode-and-replanning">
+<h2>Scenario updates, multi-mode, and replanning<a class="headerlink" href="#scenario-updates-multi-mode-and-replanning" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>set_durations(new_durations)</strong>: update activity durations (e.g. from a
+RAVEN sample) and recompute all CPM values.</p></li>
+<li><p><strong>set_modes(mode_assignments)</strong>: apply named execution modes to activities
+and recompute all CPM values.</p></li>
+<li><p><strong>set_priorities(priorities)</strong>: update the external priority map used to
+order candidates.</p></li>
+<li><p><strong>replan(…)</strong>: replan the remaining schedule from a mid-outage snapshot,
+freezing completed and in-progress work and rescheduling the rest.</p></li>
+<li><p><strong>clone_for_analysis()</strong>: return an independent copy of the <code class="docutils literal notranslate"><span class="pre">Pert</span></code> object
+suitable for what-if analysis without disturbing the original.</p></li>
+</ul>
+</section>
+<section id="critical-chain-ccpm-buffering">
+<h2>Critical Chain (CCPM) buffering<a class="headerlink" href="#critical-chain-ccpm-buffering" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>insert_project_buffer(…)</strong>: insert a CCPM project buffer at the end of
+the resource-constrained chain.</p></li>
+<li><p><strong>insert_feeding_buffers(…)</strong>: insert feeding buffers where non-critical
+paths merge into the constrained chain.</p></li>
+<li><p><strong>get_buffer_status()</strong>: report the consumption status of all buffer
+activities.</p></li>
+</ul>
+</section>
+<section id="validation-reporting-and-visualization">
+<h2>Validation, reporting, and visualization<a class="headerlink" href="#validation-reporting-and-visualization" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>validate_schedule()</strong>: run post-schedule feasibility checks and return a
+<code class="docutils literal notranslate"><span class="pre">ValidationResult</span></code> (precedence, resources, equipment, zones, consumables,
+dose, system states, time windows, shift calendar, and hold points).</p></li>
+<li><p><strong>check_dependency_violations()</strong>: check whether the computed schedule
+violates any job-precedence constraint.</p></li>
+<li><p><strong>explain_idle_on_chain()</strong> / <strong>explain_idle_on_chain_detailed()</strong>: for each
+activity on the constrained chain, explain why it waited.</p></li>
+<li><p><strong>get_schedule_dataframe()</strong>: return the schedule as a pandas <code class="docutils literal notranslate"><span class="pre">DataFrame</span></code>.</p></li>
+<li><p><strong>export_schedule_to_csv(…)</strong> / <strong>print_summary()</strong>: export or print the
+computed schedule.</p></li>
+<li><p><strong>plot_activity_dag(…)</strong>: render the activity network as a DAG with rich
+tooltips. The module-level function <code class="docutils literal notranslate"><span class="pre">plot_gantt_chart(pert,</span> <span class="pre">...)</span></code> renders
+an interactive Gantt chart, coloring activities by criticality, to an HTML
+file.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">Pert</span></code> class works both standalone and inside a RAVEN workflow
+(through the <code class="docutils literal notranslate"><span class="pre">BaseCPMmodel</span></code> external model). See <a class="reference internal" href="CPM.html#sec-cpm"><span class="std std-ref">Critical Path Model (CPM)</span></a> for the
+RAVEN input format; the exact mathematical formulation of the
+resource-constrained scheduling problem is given at the top of this page.</p>
 </div>
 </section>
 </section>
