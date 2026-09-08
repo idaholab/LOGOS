@@ -198,6 +198,151 @@ def _eq_demand(act) -> dict:
             for req in act.getRequiredEquipment()}
 
 
+# ---------------------------------------------------------------------------
+# Gap-1 decoupling (ORACLE_COMPLETENESS_2026-09-07.md §6.4)
+#
+# The oracle used to answer "how much crew / equipment / location capacity is
+# available over [start, end)?" and "what are this activity's time windows?"
+# by calling the *engine's own* primitives
+# (``crew_pool.get_availability_in_range``,
+# ``equipment_pool.get_availability_in_range``,
+# ``location_pool.get_capacity_in_range``, ``Pert._resolve_windows``).  That
+# made a bug *inside* one of those primitives invisible to the oracle: it asked
+# the engine the same question and got back the same wrong answer — a
+# correlated blind spot.  The helpers below reimplement the min-over-overlap
+# reduction and the window resolution directly from the raw declared data (the
+# availability objects' ``.periods`` and the activity's window fields).  The
+# scheduler never mutates those periods on any scheduled path
+# (``update_from_hour`` / ``snapshot`` / ``restore`` are replan-only APIs, never
+# called from pert.py), so the oracle still validates against exactly the
+# availability the engine used, but a buggy engine primitive can no longer hide
+# an infeasibility.  Each helper is an exact mirror of its engine counterpart
+# on correct/pristine data (see the referenced outage_data.py / pert.py lines),
+# so this change is behaviour-preserving on every feasible schedule.
+# ---------------------------------------------------------------------------
+
+def _min_avail_over(periods, count_key: str,
+                    start: datetime, end: datetime) -> int:
+    """
+    Minimum availability over the half-open range ``[start, end)``.
+
+    Independent reimplementation of the crew / equipment availability reduction
+    (``ResourceAvailability.get_availability_in_range`` and
+    ``EquipmentAvailability.get_availability_in_range`` in outage_data.py): the
+    minimum ``count_key`` value across every period that overlaps the range, or
+    ``0`` when no period overlaps (or ``periods`` is empty).
+
+    Parameters
+    ----------
+    periods : list of dict
+        Raw availability periods (``ResourceAvailability.get_all_periods()`` or
+        ``EquipmentAvailability.get_all_periods()``), each carrying
+        ``start_date``, ``end_date`` and the ``count_key`` count.
+    count_key : str
+        Period key holding the count — ``'available_count'`` for crew,
+        ``'quantity_available'`` for equipment.
+    start : datetime
+        Range start (inclusive).
+    end : datetime
+        Range end (exclusive).
+
+    Returns
+    -------
+    int
+        Minimum count over overlapping periods, else ``0``.
+    """
+    min_avail = float('inf')
+    for period in periods:
+        ps, pe = period['start_date'], period['end_date']
+        if ps < end and start < pe:   # half-open overlap: [ps, pe) ∩ [start, end)
+            min_avail = min(min_avail, period[count_key])
+    return min_avail if min_avail != float('inf') else 0
+
+
+def _min_location_cap_over(periods, start: datetime, end: datetime) -> dict:
+    """
+    Minimum location capacity over the half-open range ``[start, end)``.
+
+    Independent reimplementation of ``LocationAvailability.get_capacity_in_range``
+    (outage_data.py): the minimum ``max_concurrent_tasks`` and — where any
+    overlapping period declares one — ``max_concurrent_workers`` across every
+    overlapping period.  ``max_workers`` is ``None`` when no overlapping period
+    declares a worker limit (an unconstrained worker dimension), mirroring the
+    engine's ``seen_workers_limit`` logic exactly.
+
+    Parameters
+    ----------
+    periods : list of dict
+        Raw location periods (``LocationAvailability.get_all_periods()``), each
+        carrying ``start_date``, ``end_date``, ``max_concurrent_tasks`` and an
+        optional ``max_concurrent_workers`` (``None`` = no worker limit).
+    start : datetime
+        Range start (inclusive).
+    end : datetime
+        Range end (exclusive).
+
+    Returns
+    -------
+    dict
+        ``{'max_tasks': int, 'max_workers': int | None}`` — ``max_tasks`` is
+        ``0`` when no period overlaps; ``max_workers`` is ``None`` when no
+        overlapping period constrains workers.
+    """
+    min_tasks   = float('inf')
+    min_workers = float('inf')
+    seen_workers_limit = False
+    for period in periods:
+        ps, pe = period['start_date'], period['end_date']
+        if ps < end and start < pe:   # half-open overlap
+            min_tasks = min(min_tasks, period['max_concurrent_tasks'])
+            worker_limit = period.get('max_concurrent_workers')
+            if worker_limit is not None:
+                seen_workers_limit = True
+                min_workers = min(min_workers, worker_limit)
+    return {
+        'max_tasks': min_tasks if min_tasks != float('inf') else 0,
+        'max_workers': (min_workers
+                        if (min_workers != float('inf') and seen_workers_limit)
+                        else None),
+    }
+
+
+def _resolve_windows_indep(act) -> list:
+    """
+    Independent resolution of an activity's time windows.
+
+    Exact mirror of ``Pert._resolve_windows`` (pert.py): returns a list of
+    ``(earliest_h, latest_h)`` float tuples in project-hours.  Prefers the
+    multi-window ``act.time_windows`` list; otherwise falls back to the legacy
+    single-window scalar fields ``window_earliest_start_hours`` /
+    ``window_latest_finish_hours`` (defaulting an absent earliest to ``0.0`` and
+    an absent latest to ``inf``); returns ``[]`` when the activity declares no
+    window constraint.
+
+    Parameters
+    ----------
+    act : Activity
+        Activity whose window constraints are resolved.
+
+    Returns
+    -------
+    list of tuple of float
+        One ``(earliest_h, latest_h)`` tuple per window; empty when the activity
+        is unconstrained.
+    """
+    tw = getattr(act, 'time_windows', [])
+    if tw:
+        return [(float(w['earliest']), float(w['latest'])) for w in tw]
+    west = getattr(act, 'window_earliest_start_hours', None)
+    wlf  = getattr(act, 'window_latest_finish_hours',  None)
+    if west is not None or wlf is not None:
+        return [(
+            float(west) if west is not None else 0.0,
+            float(wlf)  if wlf  is not None else float('inf'),
+        )]
+    return []
+
+
 # ===========================================================================
 # Individual check functions
 # ===========================================================================
@@ -342,7 +487,9 @@ def _check_time_windows(pert: 'Pert',
         Accumulator for warning-level :class:`Violation` objects.
     """
     for act in pert.completed:
-        windows = pert._resolve_windows(act)
+        # Gap 1 / §6.4: resolve windows independently of the engine primitive so
+        # a bug in Pert._resolve_windows cannot hide a window violation.
+        windows = _resolve_windows_indep(act)
         if not windows:
             continue
         st, et = act.returnAbsTimes()
@@ -472,7 +619,14 @@ def _check_crew_feasibility(pert: 'Pert',
             # above the 1 ms tolerance, so it is still caught.
             if (nxt - t) <= _PREC_TOL or current_demand <= 0:
                 continue
-            avail = pert.crew_pool.get_availability_in_range(skill, t, nxt)
+            # Gap 1 / §6.4: recompute the minimum availability over [t, nxt)
+            # from the skill's raw periods instead of calling
+            # crew_pool.get_availability_in_range, so a bug in that reduction
+            # cannot mask a crew over-allocation from the oracle.  A missing
+            # skill has no availability (0), matching the pool method.
+            ra = pert.crew_pool.resources.get(skill)
+            avail = (_min_avail_over(ra.get_all_periods(), 'available_count', t, nxt)
+                     if ra else 0)
             if avail > 0 and current_demand > avail:
                 if t not in reported_times:
                     reported_times.add(t)
@@ -541,7 +695,12 @@ def _check_equipment_feasibility(pert: 'Pert',
             # above the 1 ms tolerance, so it is still caught.
             if (nxt - t) <= _PREC_TOL or current_demand <= 0:
                 continue
-            avail = pert.equipment_pool.get_availability_in_range(eq_id, t, nxt)
+            # Gap 1 / §6.4: recompute from the item's raw periods instead of
+            # equipment_pool.get_availability_in_range (see the crew check).
+            # A missing equipment id has no availability (0), matching the pool.
+            ea = pert.equipment_pool.equipment.get(eq_id)
+            avail = (_min_avail_over(ea.get_all_periods(), 'quantity_available', t, nxt)
+                     if ea else 0)
             if avail > 0 and current_demand > avail:
                 if t not in reported_times:
                     reported_times.add(t)
@@ -609,7 +768,15 @@ def _check_location_feasibility(pert: 'Pert',
             # breach spans far more than 1 ms.
             if (nxt - t) <= _PREC_TOL:
                 continue
-            cap = pert.location_pool.get_capacity_in_range(loc_id, t, nxt)
+            # Gap 1 / §6.4: recompute the minimum capacity over [t, nxt) from
+            # the location's raw periods instead of
+            # location_pool.get_capacity_in_range, so a bug in that reduction
+            # cannot mask a concurrency breach.  loc_id is enumerated from the
+            # pool above so it always exists; the fallback mirrors the pool's
+            # unknown-location return just in case.
+            la = pert.location_pool.locations.get(loc_id)
+            cap = (_min_location_cap_over(la.get_all_periods(), t, nxt)
+                   if la else {'max_tasks': 0, 'max_workers': None})
             max_tasks   = cap.get('max_tasks', cap.get('max_concurrent_tasks', 9999))
             max_workers = cap.get('max_workers')
 

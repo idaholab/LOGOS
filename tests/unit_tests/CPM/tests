@@ -82,6 +82,14 @@
     type  = 'RavenPython'
     input = 'run_cpm_pytests.py test_multimode.py'
   [../]
+  [./cpm_oracle_decoupling]
+    # Differential blind-spot + reduction-parity tests proving the oracle's
+    # availability/window checks are decoupled from the engine primitives
+    # (ORACLE_COMPLETENESS §6.4 / Gap 1).  Deterministic "ci" Hypothesis
+    # profile (see test_oracle_decoupling.py).
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_oracle_decoupling.py'
+  [../]
   [./cpm_oracle_mutation]
     # Fuzzed oracle-sensitivity tests: build feasible -> mutate -> assert the
     # matching Violation.type fires, one scenario per hard check.  Deterministic

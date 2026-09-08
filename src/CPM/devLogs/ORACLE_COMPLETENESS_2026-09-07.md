@@ -170,12 +170,47 @@ zero-coverage check (Gap 3).
 > `total_budget_mrem` → `dose` fires) and `test_within_budget_no_violation`
 > (happy-path negative). Gap 3's zero-coverage check is closed.
 
-### 6.4 Decouple the resource check from shared engine primitives
+### 6.4 Decouple the resource check from shared engine primitives — **DONE (core: availability + windows)**
 Recompute availability from the raw pool definition inside the oracle, rather
 than calling `get_availability_in_range` / `_resolve_windows`, so a bug in a
 shared primitive can no longer hide (closes Gap 1). Biggest effort; biggest
 blind-spot removal. Watch that the independent parse doesn't just reintroduce
 the same assumption.
+
+> **Status — DONE for touch-points 1–4 (crew / equipment / location availability
+> + time-windows).** `schedule_validator.py` now reduces the min-over-overlap
+> availability and resolves windows itself, reading the raw declared data:
+> three pure helpers — `_min_avail_over` (crew/equipment), `_min_location_cap_over`
+> (tasks + the `None`-when-unconstrained workers rule), `_resolve_windows_indep` —
+> each an exact mirror of its engine counterpart, wired into the four former call
+> sites (`crew_pool` / `equipment_pool` / `location_pool` query methods and
+> `pert._resolve_windows`). The oracle reads each availability object's
+> `.periods` via `get_all_periods()` — a pure accessor the scheduler never
+> mutates on any scheduled path (`update_from_hour`/`snapshot`/`restore` are
+> replan-only, never called from `pert.py`) — so it still validates against the
+> availability the engine used, but a buggy *reduction* can no longer hide an
+> infeasibility. Pool container/enumeration accessors (`.resources`/`.equipment`/
+> `.locations` dicts, `get_all_location_ids()`) are plain key-lookups, not the
+> blind spot, so they stay.
+>
+> **Proof:** `tests/unit_tests/CPM/test_oracle_decoupling.py` (new,
+> `[./cpm_oracle_decoupling]`). Five **differential blind-spot** tests build a
+> genuinely-infeasible schedule, monkeypatch the engine primitive to *lie*
+> (report `MASK` capacity / an empty window), assert the patched primitive really
+> returns the mask, and assert the oracle **still** fires the expected
+> `Violation.type` — which it can only do having stopped trusting the primitive.
+> Hypothesis **parity** tests pin each helper to a brute-force, midpoint-sampled
+> ground truth (independent of both engine and oracle), plus an equivalence check
+> (`helper == engine primitive` on random valid pools) documenting that no
+> behavior shipped on feasible data. The entire pre-existing oracle suite stays
+> green **without edits** (behavior-preserving); full CPM suite green cold.
+>
+> **Deferred (later PRs), still Gap 1:** touch-point 5 — `_crew_demand`'s
+> preference for the engine-populated `_actual_resources` (a bug there validates
+> against a too-low demand; needs independent substitution-legality resolution,
+> overlaps 6.6) — and touch-point 6 — `equipment_pool.get_zone_id` in the
+> equipment-zone check. Both are *demand*/*zone* questions, not availability or
+> windows, so they were out of this PR's approved scope.
 
 ### 6.5 Reconsider `_DUR_TOL`
 Justify 60 s against the engine's actual time precision, or tighten it. If a
@@ -199,11 +234,17 @@ would move the needle most for the least risk.
 **Update (breadth trio landed):** 6.1–6.3 are now done. Oracle *sensitivity* is
 fuzzed across **all 13 hard checks** (6.1), and the feasible *soundness* side is
 fuzzed for equipment/location/time-windows on top of the original crew slice
-(6.2); dose has fault-injection + happy-path coverage (6.3). What remains for
-completeness confidence is the structural item — **6.4, decoupling the oracle
-from the engine primitives it borrows (Gap 1)** — plus 6.5 (`_DUR_TOL`) and 6.6
-(constraint-type audit), and the two feasible-side fuzz gaps 6.2 left open
-(system-states, consumables). See §8.
+(6.2); dose has fault-injection + happy-path coverage (6.3).
+
+**Update (Gap 1, core):** **6.4 is now done for its core — touch-points 1–4
+(crew / equipment / location availability + time-windows).** The oracle no longer
+asks the engine "how much is available?" or "what are the windows?"; it recomputes
+both from the raw declared data, and differential tests prove it still catches an
+infeasibility a *lying* primitive would hide. The structural blind spot is
+therefore closed for availability and windows. What remains: the two demand/zone
+touch-points of Gap 1 (5 = `_actual_resources`, 6 = `get_zone_id`), 6.5
+(`_DUR_TOL`), 6.6 (constraint-type audit), and the two feasible-side fuzz gaps
+6.2 left open (system-states, consumables). See §8.
 
 ## 8. What landed (breadth trio, `mandd/res_opt`)
 
@@ -219,7 +260,22 @@ from the engine primitives it borrows (Gap 1)** — plus 6.5 (`_DUR_TOL`) and 6.
 
 All test-only, additive; **no engine or oracle behavior changed**, and no
 fuzz-and-freeze reds surfaced during bring-up (only test-construction fixes).
-Still open: **6.4** (decouple oracle from `get_availability_in_range` /
-`_resolve_windows` / `_actual_resources` — closes Gap 1, the deepest issue),
-**6.5** (`_DUR_TOL=60s` review), **6.6** (constraint-type audit), and the
+
+## 8b. What landed (Gap-1 core decoupling, `mandd/res_opt`)
+
+- **6.4 (core) — `src/CPM/schedule_validator.py`.** Three pure helpers
+  (`_min_avail_over`, `_min_location_cap_over`, `_resolve_windows_indep`) that
+  recompute crew/equipment/location availability and time-windows from the raw
+  declared data, replacing the four former engine-primitive call sites. The only
+  production change; **behavior-preserving on feasible data** (the whole existing
+  oracle suite stays green with no edits).
+- **6.4 (core) — `tests/unit_tests/CPM/test_oracle_decoupling.py` (new).**
+  Differential blind-spot tests (lying-primitive → oracle still fires) + Hypothesis
+  parity/equivalence tests. Registered `[./cpm_oracle_decoupling]`.
+
+This is the first production change in the program (a decoupling, not a behavior
+change) and it closes Gap 1 for **availability + windows**. Still open: the two
+demand/zone touch-points of Gap 1 — **touch-point 5** (`_actual_resources` /
+substitution demand, overlaps 6.6) and **touch-point 6** (`get_zone_id`) —
+plus **6.5** (`_DUR_TOL=60s` review), **6.6** (constraint-type audit), and the
 feasible-side fuzzing of system-states + consumables deferred from 6.2.
