@@ -48,6 +48,7 @@ from CPM.pert import Pert
 from CPM.outage_data import (
     ResourcePool, EquipmentPool, LocationPool,
     EquipmentAvailability, LocationAvailability,
+    ConsumablePool, SystemStatePool,
 )
 
 TOL = 1e-6
@@ -345,42 +346,62 @@ def test_resource_capacity_variants_valid(sgs, inst):
 # Phase 3 — multi-constraint feasible-side soundness (ORACLE_COMPLETENESS §6.2)
 # ---------------------------------------------------------------------------
 # Phases 1-2 fuzz only precedence, lags, and a single renewable crew skill, so
-# under randomized exploration only ~4 of the oracle's 13 hard checks were ever
+# under randomized exploration only ~4 of the oracle's hard checks were ever
 # stressed (ORACLE_COMPLETENESS_2026-09-07.md, Gap 2).  This phase adds the
-# *feasible* side of three more — equipment, location (tasks + workers), and
-# time-windows — over many random DAG shapes, so the oracle is exercised
-# (no-false-positive) on those checks at all.  The *infeasible* (sensitivity)
-# side of every check is test_oracle_mutation.py's job.
+# *feasible* side of five more — equipment, location (tasks + workers),
+# time-windows, consumables, and system-states — over many random DAG shapes, so
+# the oracle is exercised (no-false-positive) on those checks at all.  The
+# *infeasible* (sensitivity) side of every check is test_oracle_mutation.py's job.
 #
-# Feasible by construction: every capacity is set to the exact upper bound on
-# concurrent demand (equipment qty = #activities needing it; location task/worker
-# caps = counts/crew-sums of the activities placed there; crew cap = total crew
-# demand), and every window is wide enough to admit any placement.  So no check
-# can bind regardless of the drawn DAG, and any violation reported here is a real
-# oracle false-positive (or an engine bug) → fuzz-and-freeze.
+# Feasible by construction, dimension by dimension:
+#   * capacities = the exact upper bound on concurrent demand (equipment qty =
+#     #activities needing it; location task/worker caps = counts/crew-sums of the
+#     activities placed there; crew cap = total crew demand), and every window is
+#     wide enough to admit any placement — so those checks run but never bind.
+#   * consumables: initial stock = TOTAL demand across all activities.  Deduction
+#     is deduct-on-start and the oracle resets to items and replays in start order;
+#     since Σ(remaining demands) == remaining stock at every step, every ready
+#     activity always fits in ANY order — no depletion, no deadlock, independent of
+#     the drawn DAG/SGS.
+#   * system-states: every state-touching activity requires the SAME state on the
+#     SAME system (a compatible shared lock), so any overlap is legal regardless of
+#     topology.
+# So no check can bind regardless of the drawn DAG, and any violation reported here
+# is a real oracle false-positive (or an engine bug) → fuzz-and-freeze.
 
 HORIZON = timedelta(days=365)   # covers any makespan these instances can reach
 WIDE_WINDOW_H = 1.0e6           # window latest-finish far beyond any makespan
+CONSUMABLE_ID = 'CONS'          # single shared depletable item the phase fuzzes
+SYSTEM_ID = 'SYS_1'             # single shared system the phase fuzzes
+SYSTEM_STATE = 'ALIGNED'        # the one state every state-touching activity holds
 
 
 @st.composite
-def rcpsp_multi_constraint_instance(draw, max_activities=20, max_demand=3):
-    """A DAG plus, per activity, a crew demand and booleans for whether it also
-    needs the shared crane and whether it sits in the shared location."""
+def rcpsp_multi_constraint_instance(draw, max_activities=20, max_demand=3,
+                                    max_consumable=2):
+    """A DAG plus, per activity: a crew demand, booleans for whether it also needs
+    the shared crane and whether it sits in the shared location, a consumable
+    demand drawn from the shared item, and a boolean for whether it holds the
+    shared system state."""
     n, durations, edges, _ = draw(
         rcpsp_dag(max_activities=max_activities, with_lags=False))
     demands = draw(st.lists(st.integers(min_value=0, max_value=max_demand),
                             min_size=n, max_size=n))
     needs_equip = draw(st.lists(st.booleans(), min_size=n, max_size=n))
     in_location = draw(st.lists(st.booleans(), min_size=n, max_size=n))
-    return n, durations, edges, demands, needs_equip, in_location
+    cons_demands = draw(st.lists(st.integers(min_value=0, max_value=max_consumable),
+                                 min_size=n, max_size=n))
+    needs_state = draw(st.lists(st.booleans(), min_size=n, max_size=n))
+    return (n, durations, edges, demands, needs_equip, in_location,
+            cons_demands, needs_state)
 
 
 def build_multi_constraint_pert(n, durations, edges, demands, needs_equip,
-                                in_location):
-    """Build a Pert exercising crew + equipment + location + time-window checks,
-    feasible by construction (every capacity = the exact concurrent-demand
-    ceiling; every window wide open)."""
+                                in_location, cons_demands, needs_state):
+    """Build a Pert exercising crew + equipment + location + time-window +
+    consumable + system-state checks, feasible by construction (every capacity =
+    the exact concurrent-demand ceiling; every window wide open; consumable stock =
+    total demand; every state-touching activity holds the same compatible state)."""
     acts = [Activity(f"A{i}", float(durations[i])) for i in range(n)]
     for i in range(n):
         acts[i].required_resources = (
@@ -391,6 +412,13 @@ def build_multi_constraint_pert(n, durations, edges, demands, needs_equip,
                 {'equipment_id': 'CRANE', 'quantity_needed': 1}]
         if in_location[i]:
             acts[i].location_id = 'LOC_1'
+        if cons_demands[i] > 0:
+            acts[i].required_consumables = [
+                {'item_id': CONSUMABLE_ID,
+                 'quantity_needed': int(cons_demands[i])}]
+        if needs_state[i]:
+            acts[i].required_system_states = [
+                {'system_id': SYSTEM_ID, 'required_state': SYSTEM_STATE}]
         # A window every placement satisfies, so time_windows runs but never binds.
         acts[i].window_earliest_start_hours = 0.0
         acts[i].window_latest_finish_hours  = WIDE_WINDOW_H
@@ -431,8 +459,26 @@ def build_multi_constraint_pert(n, durations, edges, demands, needs_equip,
           'max_concurrent_tasks': int(loc_tasks),
           'max_concurrent_workers': int(loc_workers)}])
     p.location_pool = lp
-    p.consumable_pool   = None
-    p.system_state_pool = None
+    # Consumable stock = TOTAL demand → replay only depletes and Σ(remaining
+    # demands) == remaining stock at every step, so every ready activity always
+    # fits in any order (feasible regardless of DAG/SGS).  Must register the item;
+    # an unregistered id is skipped by both engine fits and oracle has_item.
+    total_cons = sum(cons_demands)
+    if total_cons > 0:
+        cp = ConsumablePool()
+        cp.items[CONSUMABLE_ID]           = float(total_cons)
+        cp.remaining[CONSUMABLE_ID]       = float(total_cons)
+        cp.description[CONSUMABLE_ID]     = 'shared consumable'
+        cp.restocks[CONSUMABLE_ID]        = []
+        cp._restock_cursor[CONSUMABLE_ID] = -1.0
+        p.consumable_pool = cp
+    else:
+        p.consumable_pool = None
+    # Every state-touching activity holds the SAME state on the SAME system (a
+    # compatible shared lock), so any overlap is legal (feasible regardless of
+    # topology).  An empty pool is enough for the oracle to run — it compares the
+    # declared states directly.
+    p.system_state_pool = SystemStatePool() if any(needs_state) else None
     p.startTime = T0
     p.generateInfo()
     return p
@@ -441,7 +487,8 @@ def build_multi_constraint_pert(n, durations, edges, demands, needs_equip,
 @pytest.mark.parametrize("sgs", ALL_SGS)
 @given(rcpsp_multi_constraint_instance())
 def test_multi_constraint_schedule_is_valid(sgs, inst):
-    """Feasible-by-construction multi-constraint instance: schedule validates,
+    """Feasible-by-construction multi-constraint instance (crew, equipment,
+    location, time-windows, consumables, system-states): schedule validates,
     every activity runs, and makespan >= CPM."""
     p = build_multi_constraint_pert(*inst)
     r = p.calculateScheduleWithResources(sgs=sgs)

@@ -13,9 +13,10 @@ is **DONE — Gap 1 fully closed** (touch-points 1–6: availability + windows +
 crew-substitution legality + equipment-zone; see §8b). §6.6 is **DONE** — the
 constraint-type audit found multimode/execution-mode the one genuine gap and
 closed it with `_check_mode_consistency` (type `mode`; the 15th hard check);
-safety-function and interaction constraints reduce to existing checks. Only §6.5
-(`_DUR_TOL`) and the two feasible-side fuzz gaps §6.2 left open remain for later
-PRs. Originally the honest answer to "have we
+safety-function and interaction constraints reduce to existing checks. §6.2 is
+now **fully DONE** — the feasible side of consumables and system-states is fuzzed
+too, closing the last soundness-side gap. Only §6.5 (`_DUR_TOL`) remains for a
+later PR. Originally the honest answer to "have we
 double-checked the checker is complete?" plus a prioritized plan to raise that
 confidence, all additive test work.
 **Companion:** extends the fuzz-and-freeze program documented in
@@ -166,21 +167,27 @@ instead of one per type. This is the single most valuable item.
 > skill is a *consumable* that depletes and whose budget the engine enforces at
 > placement, so the dose scenario is single-activity with a low dose-rate).
 
-### 6.2 Extend the property generator to emit the other constraint types — **DONE (partial)**
+### 6.2 Extend the property generator to emit the other constraint types — **DONE**
 Add equipment, location, time-windows, system-states, and consumables to the
 generator so checks 5–13 are fuzzed *at all* (closes Gap 2). Reuse the pool
 builders already in `test_invariants.py`.
 
-> **Status — DONE for equipment, location (tasks + workers), and time-windows.**
+> **Status — DONE for all five constraint types: equipment, location (tasks +
+> workers), time-windows, consumables, and system-states.**
 > `tests/unit_tests/CPM/test_property_based.py` Phase 3:
 > `rcpsp_multi_constraint_instance` + `build_multi_constraint_pert` +
 > `test_multi_constraint_schedule_is_valid` (over all 5 SGS). Every capacity is
 > set to the exact upper bound on concurrent demand and every window wide open,
 > so the instance is **feasible by construction** — this is the *no-false-positive*
-> (soundness) side; the infeasible/sensitivity side is 6.1's job. **Still open:**
-> system-states and consumables are awkward to fuzz feasibly by construction
-> (consumables deplete; states need a compatible assignment) — both are covered
-> on the sensitivity side by 6.1, but not yet on the fuzzed feasible side.
+> (soundness) side; the infeasible/sensitivity side is 6.1's job. The two
+> awkward dimensions are now handled by a per-item / per-system invariant that
+> holds regardless of DAG shape or SGS: **consumables** — initial stock = TOTAL
+> demand across all activities, so deduct-on-start replay (which resets to `items`)
+> can never go negative in any order; **system-states** — every state-touching
+> activity requires the SAME state on the SAME system (a compatible shared lock),
+> so any overlap is legal in any topology. No restocks and a single shared
+> state keep the guarantee topology-independent; the richer variants (restock
+> timing, forced-serial multi-state) are deferred (see §6.5 / out-of-scope notes).
 
 ### 6.3 Add the dose fault-injection test *(quick win)* — **DONE**
 Mirror the consumable pattern: build a schedule with a dose budget, exceed it
@@ -316,8 +323,9 @@ would move the needle most for the least risk.
 
 **Update (breadth trio landed):** 6.1–6.3 are now done. Oracle *sensitivity* is
 fuzzed across **all 13 hard checks** (6.1), and the feasible *soundness* side is
-fuzzed for equipment/location/time-windows on top of the original crew slice
-(6.2); dose has fault-injection + happy-path coverage (6.3).
+fuzzed for equipment, location, time-windows, consumables, and system-states on
+top of the original crew slice (6.2); dose has fault-injection + happy-path
+coverage (6.3).
 
 **Update (Gap 1, core):** **6.4 is now done for its core — touch-points 1–4
 (crew / equipment / location availability + time-windows).** The oracle no longer
@@ -340,8 +348,8 @@ uses). **Gap 1 is now fully closed:** the oracle routes no availability, window,
 demand, or zone judgement through an engine primitive — it reads declared data
 directly and independently certifies the one committed decision
 (`_actual_resources`) it cannot re-derive. Still open (none are Gap-1 primitive
-coupling): 6.5 (`_DUR_TOL`) and the two feasible-side fuzz gaps 6.2 left open
-(system-states, consumables). See §8/§8b.
+coupling): 6.5 (`_DUR_TOL`) alone — 6.2's feasible-side fuzz of system-states and
+consumables is now DONE. See §8/§8b.
 
 **Update (§6.6 constraint-type audit — DONE):** the audit closed the last
 constraint-type gap. Multimode/execution-mode consistency is the same shape of
@@ -362,7 +370,8 @@ reduces to `system_state` (no first-class engine pool) and interactions beyond
 - **6.2 — `tests/unit_tests/CPM/test_property_based.py` (Phase 3).**
   `rcpsp_multi_constraint_instance` / `build_multi_constraint_pert` /
   `test_multi_constraint_schedule_is_valid` — feasible-by-construction
-  equipment + location + time-window fuzzing over all 5 SGS.
+  equipment + location + time-window + consumable + system-state fuzzing over all
+  5 SGS (consumable stock = total demand; same-state shared lock).
 - **6.3 — `tests/unit_tests/CPM/test_schedule_validator.py`.** `TestDoseBudgets`
   (over-budget fault injection + happy-path negative).
 
@@ -455,5 +464,5 @@ With §6.6, the constraint-type coverage audit is complete: every engine-enforce
 constraint maps to an oracle check.
 
 Still open (none are Gap-1 primitive coupling, none constraint-type gaps): **6.5**
-(`_DUR_TOL=60s` review) and the feasible-side fuzzing of system-states +
-consumables deferred from 6.2.
+(`_DUR_TOL=60s` review) alone — 6.2's feasible-side fuzzing of system-states +
+consumables is now DONE (Phase 3 fuzzes all five constraint types over all 5 SGS).
