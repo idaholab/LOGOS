@@ -12,10 +12,16 @@
     <networkx source='pip'/>
     <plotly source='pip'/>
     <pandas source='pip'/>
-    <deap source='pip'/>
-    <pytest source="pip"/>
-    <hypothesis source='pip'/>
-    <alns source='pip'/>
+    <!-- Test / optional-algorithm deps. These are installed into the LOGOS env
+         (so the pytest suite runs in CI and the GA/ALNS backends are available),
+         but marked skip_check so RAVEN's startup library check does NOT fail when
+         a plugin consumer's environment (e.g. a plain `raven_framework` run in
+         the raven_libraries env) lacks them. They are never imported to run a
+         model, only by the test suite and the optional metaheuristics. -->
+    <deap source='pip' skip_check="True"/>
+    <pytest source="pip" skip_check="True"/>
+    <hypothesis source='pip' skip_check="True"/>
+    <alns source='pip' skip_check="True"/>
   </main>
 
   <alternate name="pip">

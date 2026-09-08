@@ -40,14 +40,16 @@ def _real_task_ids(n=2):
     return ids[:n]
 
 
-def _make_model(mapping, sgs="max_use_res_ranked", cptime="end_time"):
+def _make_model(mapping, sgs="max_use_res_ranked", cptime="end_time",
+                scheduled=None, example=EXAMPLE):
     """Build a BaseCPMmodel wired for run() without the RAVEN base __init__."""
     m = BaseCPMmodel.__new__(BaseCPMmodel)   # bypass ExternalModelPluginBase.__init__
-    m.pert = Pert.from_json_file(EXAMPLE, SCHEMA_PATH)
+    m.pert = Pert.from_json_file(example, SCHEMA_PATH)
     m.pert.generateInfo()                    # mirrors BaseCPMmodel.initialize()
     m.mapping = mapping
     m.sgs = sgs
     m.CPtime = cptime
+    m.scheduled_time = scheduled             # None => run() reports only <CPtime>
     return m
 
 
@@ -87,3 +89,29 @@ def test_run_missing_variable_raises_ioerror():
     m = _make_model({"R_missing": (id1, "duration")})
     with pytest.raises(IOError):
         m.run(_Container(), {"R_other": np.array([1.0])})
+
+
+def test_run_exposes_resource_constrained_scheduled_time():
+    """<scheduled_time> reports the resource-constrained makespan, which is
+    distinct from the CPM length in <CPtime>. On example_10 the CPM length is
+    71 h while the resource-constrained schedule is 85 h, so with resources
+    binding the two outputs must differ (sched > cpm)."""
+    example = str(EXAMPLES_DIR / "example_10.json")
+    m = _make_model({}, scheduled="sched_time", example=example)
+    c = _Container()
+    m.run(c, {})                       # no sampled vars: exercise the plain path
+    cpm   = float(c.__dict__["end_time"])
+    sched = float(c.__dict__["sched_time"])
+    assert np.isfinite(cpm) and np.isfinite(sched)
+    assert sched > cpm                 # resource contention stretches the makespan
+
+
+def test_run_omits_scheduled_time_when_not_declared():
+    """Without a <scheduled_time> node, run() writes only <CPtime> -- no extra
+    output leaks into the container (backward-compatible with existing decks)."""
+    id1, id2 = _real_task_ids(2)
+    m = _make_model({"R_1": (id1, "duration"), "R_2": (id2, "duration")})
+    c = _Container()
+    m.run(c, {"R_1": np.array([8.0]), "R_2": np.array([12.0])})
+    assert "end_time" in c.__dict__
+    assert "sched_time" not in c.__dict__

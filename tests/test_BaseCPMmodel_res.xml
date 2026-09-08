@@ -8,12 +8,11 @@
        This test checks the CPM model when the project schedule is loaded from a
        JSON file with resource pools and RAVEN samples the activity priorities.
        The sampled priorities order the candidate activities during
-       resource-constrained scheduling (sgs=max_use_res_ranked), and the
-       resulting project duration is returned to RAVEN as end_time.
-       CAVEAT: run() currently returns getProjectDuration() (the unconstrained
-       CPM length), which is invariant to priorities; this deck becomes
-       informative only once run() also exposes the resource-constrained
-       makespan (scheduled_duration). See src/CPM/devLogs.
+       resource-constrained scheduling (sgs=max_use_res_ranked). Two durations
+       are returned to RAVEN: end_time (the unconstrained CPM length, invariant
+       to priorities) and sched_time (the resource-constrained makespan, which
+       responds to the sampled priorities). sched_time is the informative output
+       for this priority study.
     </description>
   </TestInfo>
 
@@ -25,8 +24,9 @@
 
   <Models>
     <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
-      <variables>R_C101,R_C102,R_C103,R_C104,R_C105,R_C106,R_C107,R_C109,R_C110,R_C111,end_time</variables>
+      <variables>R_C101,R_C102,R_C103,R_C104,R_C105,R_C106,R_C107,R_C109,R_C110,R_C111,end_time,sched_time</variables>
       <CPtime>end_time</CPtime>
+      <scheduled_time>sched_time</scheduled_time>
       <schema>../../src/CPM/outage_schema.json</schema>
       <sgs>max_use_res_ranked</sgs>
       <project_file>example_10.json</project_file>
@@ -113,7 +113,7 @@
     </PointSet>
     <PointSet name="sim_PS_res">
       <Input>R_C101,R_C102,R_C103,R_C104,R_C105,R_C106,R_C107,R_C109,R_C110,R_C111</Input>
-      <Output>end_time</Output>
+      <Output>end_time,sched_time</Output>
     </PointSet>
   </DataObjects>
 

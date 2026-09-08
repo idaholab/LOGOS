@@ -71,4 +71,20 @@
   input = 'test_BaseCPMmodel_map.xml'
   UnorderedCsv = 'CPMmodel/Print_sim_PS_map.csv'
 [../]
+
+# Priority / mixed decks: these read <scheduled_time> (the resource-constrained
+# makespan), which -- unlike <CPtime> -- responds to the sampled priorities.
+# The GA deck (test_BaseCPMmodel_res_GA.xml) stays unregistered: it needs the
+# optional 'deap' dep and its optimizer trajectory is not a stable gold.
+[./CPMmodel_res]
+  type  = 'RavenFramework'
+  input = 'test_BaseCPMmodel_res.xml'
+  UnorderedCsv = 'CPMmodel/Print_sim_PS_res.csv'
+[../]
+
+[./CPMmodel_mixed]
+  type  = 'RavenFramework'
+  input = 'test_BaseCPMmodel_res_11.xml'
+  UnorderedCsv = 'CPMmodel/Print_sim_PS_mixed.csv'
+[../]
 []

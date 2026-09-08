@@ -39,6 +39,8 @@ class BaseCPMmodel(ExternalModelPluginBase):
     ExternalModelPluginBase.__init__(self)
 
     self.project_file = None
+    self.scheduled_time = None # optional RAVEN variable for the resource-constrained
+                               # makespan; when None only <CPtime> is reported
 
     self.analysis = None # type of analysis to be performed in raven:
                          # 1) activity_duration: RAVEN sample acitivty duration values
@@ -57,9 +59,9 @@ class BaseCPMmodel(ExternalModelPluginBase):
     """
       Read the portion of the XML input that belongs to the CPM model.
 
-      Parses the ``project_file``, ``CPtime``, ``sgs`` and ``schema`` tags and
-      each ``map`` element, which binds a RAVEN variable to an activity
-      duration or priority.
+      Parses the ``project_file``, ``CPtime``, ``scheduled_time``, ``sgs`` and
+      ``schema`` tags and each ``map`` element, which binds a RAVEN variable to
+      an activity duration or priority.
 
       Parameters
       ----------
@@ -83,6 +85,8 @@ class BaseCPMmodel(ExternalModelPluginBase):
         self.project_file = child.text.strip()
       elif child.tag == 'CPtime':
         self.CPtime = child.text.strip()
+      elif child.tag == 'scheduled_time':
+        self.scheduled_time = child.text.strip()
       elif child.tag == 'sgs':
         self.sgs = child.text.strip()
       elif child.tag == 'schema':
@@ -162,7 +166,10 @@ class BaseCPMmodel(ExternalModelPluginBase):
 
       Applies the RAVEN-sampled activity durations and priorities from
       ``inputDict``, computes the resource-constrained schedule, and stores the
-      resulting project duration into ``container`` under the ``CPtime`` name.
+      unconstrained CPM length into ``container`` under the ``CPtime`` name. When
+      the deck declares a ``scheduled_time`` node, the resource-constrained
+      makespan (which, unlike the CPM length, responds to sampled priorities) is
+      also stored under that name.
 
       Parameters
       ----------
@@ -199,9 +206,22 @@ class BaseCPMmodel(ExternalModelPluginBase):
     if priorities:
         self.pert.set_priorities(priorities, 'replace')
 
-    # ↓ _reset_scheduling_state() is called as the first thing inside here
-    self.pert.calculateScheduleWithResources(self.sgs)
+    # ↓ _reset_scheduling_state() is called as the first thing inside here.
+    # The returned dict carries both the resource-constrained makespan
+    # ('scheduled_duration') and the unconstrained CPM length ('cpm_duration').
+    results = self.pert.calculateScheduleWithResources(self.sgs)
 
+    # <CPtime>: the unconstrained CPM critical-path length. Responds to sampled
+    # durations but is invariant to sampled priorities. Kept as the primary
+    # output for backward compatibility (existing decks/gold read this).
     endTime = self.pert.getProjectDuration()
     container.__dict__[self.CPtime] = np.asarray(float(endTime))
+
+    # <scheduled_time> (optional): the resource-constrained makespan. Unlike the
+    # CPM length this DOES respond to sampled priorities, so it is the objective
+    # the priority / GA decks optimize. Only reported when the deck declares the
+    # node; getattr guards the __new__-constructed test models.
+    scheduledVar = getattr(self, 'scheduled_time', None)
+    if scheduledVar is not None:
+        container.__dict__[scheduledVar] = np.asarray(float(results['scheduled_duration']))
 

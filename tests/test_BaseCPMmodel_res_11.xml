@@ -8,8 +8,10 @@
        This test checks the CPM model in the mixed mode, where RAVEN samples
        both activity durations (uncertainty propagation) and activity priorities
        (scheduling order) in a single realization. Duration and priority maps are
-       combined on the same resource-constrained schedule; the resulting project
-       duration is returned to RAVEN as end_time.
+       combined on the same resource-constrained schedule. Two durations are
+       returned to RAVEN: end_time (the unconstrained CPM length) and sched_time
+       (the resource-constrained makespan, which responds to both the sampled
+       durations and priorities).
     </description>
   </TestInfo>
 
@@ -21,8 +23,9 @@
 
   <Models>
     <ExternalModel name="CPMmodel" subType="LOGOS.BaseCPMmodel">
-      <variables>R_C101,R_C102,R_C103,R_C104,R_C105,R_C106,R_C107,R_C109,R_C110,R_C111,end_time</variables>
+      <variables>R_C101,R_C102,R_C103,R_C104,R_C105,R_C106,R_C107,R_C109,R_C110,R_C111,end_time,sched_time</variables>
       <CPtime>end_time</CPtime>
+      <scheduled_time>sched_time</scheduled_time>
       <schema>../../src/CPM/outage_schema.json</schema>
       <sgs>max_use_res_ranked</sgs>
       <project_file>example_10.json</project_file>
@@ -115,7 +118,7 @@
     </PointSet>
     <PointSet name="sim_PS_mixed">
       <Input>R_C101,R_C102,R_C103,R_C104,R_C105,R_C106,R_C107,R_C109,R_C110,R_C111</Input>
-      <Output>end_time</Output>
+      <Output>end_time,sched_time</Output>
     </PointSet>
   </DataObjects>
 
