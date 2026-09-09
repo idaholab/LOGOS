@@ -4,19 +4,26 @@ PlanContent and both committed plan types are frozen AND hold tuples, so a basel
 cannot be mutated in place. Editing happens only via a PlanDraft (§2b) — the sole
 mutable plan type. Time in the typed view is float hour-offsets from a tz-aware
 project start; the authoritative ISO form lives in ``raw_snapshot``. Mirrors the
-skeleton and model-spec §2/§2b. Pure: stdlib only.
+skeleton and model-spec §2/§2b. Pure: stdlib + domain.issues only.
 
-Editing operations (open_draft / apply_patch / commit_draft / discard_draft) are
-DEFERRED to Phase 2 — the types are defined here so the Phase-2 contract tests
-collect, but the operations raise NotImplementedError until Phase 2.
+The pure editing operations live here: ``open_draft`` seeds a draft from a committed
+plan's raw payload, ``apply_patch`` stages a single structural edit (lightweight — no
+schema/referential validation), and ``discard_draft`` clears the working state. The
+FULL commit (``commit_draft``) is orchestrated in the application layer, not here: it
+must run the ValidationPort, which the domain cannot import without a cycle
+(ports/validation.py imports domain.issues). See application/services.commit_draft.
 """
 
 from __future__ import annotations
 
+import copy
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
+
+from prismGui.domain.issues import Issue, IssueCategory, IssueCode, Severity
 
 Hours = float
 Hash = str
@@ -239,7 +246,8 @@ class EffectivePlan:
 
 
 # -----------------------------------------------------------------------------
-# Editing lifecycle (Phase 2) — types importable now; operations deferred
+# Editing lifecycle (§2b) — the mutable draft, its patch ops, and the pure
+# open/apply/discard operations. The full commit is in application/services.
 # -----------------------------------------------------------------------------
 
 @dataclass
@@ -278,20 +286,156 @@ class CommitOutcome:
     plan: Optional[ReferencePlan] = None
 
 
-_PHASE2 = "editing (PlanDraft / commit) is deferred to Phase 2"
+# -----------------------------------------------------------------------------
+# JSON-Pointer patch engine (module-private, RFC-6901-style)
+# -----------------------------------------------------------------------------
 
+class _PointerError(Exception):
+    """A JSON Pointer does not resolve, or an op is mechanically invalid against
+    the working tree. Caught by apply_patch and turned into an INVALID_PATCH issue —
+    never propagated to callers."""
+
+
+def _split_pointer(path: str) -> list[str]:
+    """RFC-6901 pointer -> reference tokens. Leading '/' required (a non-empty path
+    that does not start with '/' is malformed); '~1' un-escapes to '/', '~0' to '~'
+    (in that order). The empty string is the whole-document pointer -> no tokens."""
+    if path == "":
+        return []
+    if not path.startswith("/"):
+        raise _PointerError(f"pointer must start with '/': {path!r}")
+    return [tok.replace("~1", "/").replace("~0", "~") for tok in path[1:].split("/")]
+
+
+def _descend(node: Any, token: str) -> Any:
+    """One step down: dict by key, list by integer index. Raises _PointerError on a
+    missing key, a non-integer / out-of-range list index, or a scalar dead-end."""
+    if isinstance(node, dict):
+        if token not in node:
+            raise _PointerError(f"key {token!r} not found")
+        return node[token]
+    if isinstance(node, list):
+        idx = _list_index(node, token, allow_end=False)
+        return node[idx]
+    raise _PointerError(f"cannot descend into scalar with token {token!r}")
+
+
+def _resolve(tree: JSONTree, tokens: list[str]) -> Any:
+    """Follow every token from the root; raise _PointerError on the first miss."""
+    node: Any = tree
+    for tok in tokens:
+        node = _descend(node, tok)
+    return node
+
+
+def _list_index(seq: list, token: str, *, allow_end: bool) -> int:
+    """Parse a list index token. With allow_end, '-' and len(seq) are the append
+    position; otherwise the index must address an existing element [0, len)."""
+    if allow_end and token == "-":
+        return len(seq)
+    try:
+        idx = int(token)
+    except (TypeError, ValueError):
+        raise _PointerError(f"invalid list index {token!r}")
+    upper = len(seq) if allow_end else len(seq) - 1
+    if idx < 0 or idx > upper:
+        raise _PointerError(f"list index {idx} out of range")
+    return idx
+
+
+def _apply(tree: JSONTree, action: "PatchAction", path: str, value: Any) -> None:
+    """Mutate ``tree`` in place per one PatchOp. Raises _PointerError on any
+    structural problem (bad path, index out of range, remove/replace of a missing
+    target) so the caller can reject the op without having touched the tree — the
+    parent is resolved first, and only the final assignment mutates."""
+    tokens = _split_pointer(path)
+    if not tokens:
+        raise _PointerError("empty path cannot be patched")
+    *parent_tokens, last = tokens
+    parent = _resolve(tree, parent_tokens)
+
+    if isinstance(parent, dict):
+        if action is PatchAction.ADD or action is PatchAction.REPLACE:
+            if action is PatchAction.REPLACE and last not in parent:
+                raise _PointerError(f"replace target {last!r} does not exist")
+            parent[last] = value
+        elif action is PatchAction.REMOVE:
+            if last not in parent:
+                raise _PointerError(f"remove target {last!r} does not exist")
+            del parent[last]
+    elif isinstance(parent, list):
+        if action is PatchAction.ADD:
+            parent.insert(_list_index(parent, last, allow_end=True), value)
+        elif action is PatchAction.REPLACE:
+            parent[_list_index(parent, last, allow_end=False)] = value
+        elif action is PatchAction.REMOVE:
+            del parent[_list_index(parent, last, allow_end=False)]
+    else:
+        raise _PointerError(f"cannot patch scalar parent at {path!r}")
+
+
+# -----------------------------------------------------------------------------
+# Pure editing operations
+# -----------------------------------------------------------------------------
 
 def open_draft(plan: ReferencePlan) -> PlanDraft:
-    raise NotImplementedError(_PHASE2)
+    """Seed a mutable draft from a committed plan's authoritative raw payload. The
+    working tree is a deep copy of the envelope's ``payload`` (the schema-shaped tree),
+    so edits never reach back into the immutable baseline; the audit log starts empty."""
+    payload = json.loads(plan.raw_snapshot)["payload"]
+    return PlanDraft(
+        base_plan_id=plan.plan_id,
+        raw_working_tree=copy.deepcopy(payload),
+        pending_patches=[],
+    )
 
 
 def apply_patch(draft: PlanDraft, patch: "PatchOp") -> PatchOutcome:
-    raise NotImplementedError(_PHASE2)
+    """Stage ONE structural edit. Lightweight by contract: it resolves the pointer and
+    checks the op is mechanically valid, then mutates ``raw_working_tree`` in place and
+    appends to ``pending_patches`` — it does NOT run schema or referential validation
+    (that is commit's job). A structurally-broken op (path does not resolve, or add/
+    replace with no value) returns ok=False with an INVALID_PATCH issue and mutates
+    nothing.
 
-
-def commit_draft(draft: PlanDraft, schema: JSONTree) -> CommitOutcome:
-    raise NotImplementedError(_PHASE2)
+    Documented limitation: a ``None`` value on add/replace is read as "no value
+    provided", so a literal JSON ``null`` cannot be set through this thin editor."""
+    if patch.action in (PatchAction.ADD, PatchAction.REPLACE) and patch.value is None:
+        return PatchOutcome(
+            ok=False,
+            issues=(_invalid_patch(patch, "add/replace requires a value"),),
+            draft=draft,
+        )
+    # Trial-apply on a copy first, so a mid-descent failure never leaves the working
+    # tree half-mutated; only commit the mutation to the live tree once it succeeds.
+    trial = copy.deepcopy(draft.raw_working_tree)
+    try:
+        _apply(trial, patch.action, patch.path, patch.value)
+    except _PointerError as exc:
+        return PatchOutcome(
+            ok=False,
+            issues=(_invalid_patch(patch, str(exc)),),
+            draft=draft,
+        )
+    draft.raw_working_tree = trial
+    draft.pending_patches.append(patch)
+    return PatchOutcome(ok=True, issues=(), draft=draft)
 
 
 def discard_draft(draft: PlanDraft) -> None:
-    raise NotImplementedError(_PHASE2)
+    """Abandon the draft: clear its working tree and audit log. The committed baseline
+    is never touched (the draft only ever held a copy), so nothing else is affected."""
+    draft.raw_working_tree = {}
+    draft.pending_patches = []
+    return None
+
+
+def _invalid_patch(patch: "PatchOp", detail: str) -> Issue:
+    """Build the ERROR/SCHEMA issue apply_patch emits for a structurally bad op."""
+    return Issue(
+        code=IssueCode.INVALID_PATCH,
+        severity=Severity.ERROR,
+        category=IssueCategory.SCHEMA,
+        message=f"invalid {patch.action.value} patch: {detail}",
+        field_path=patch.path,
+    )

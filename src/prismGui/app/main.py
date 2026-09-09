@@ -49,6 +49,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised only in a Streamlit-
     _HAS_STREAMLIT = False
 
 from prismGui.application import services
+from prismGui.domain.plan import PatchAction, PatchOp, apply_patch, discard_draft, open_draft
 from prismGui.domain.results import DispositionOverall, Freshness, RunResultStatus
 from prismGui.domain.run_config import PRIORITY_RULES, RunConfig, SGSVariant
 from prismGui.infrastructure.memory_repository import InMemoryRepository
@@ -134,23 +135,46 @@ class StreamlitSessionState:
     session-state keys. Constructed inside ``main()`` (touches ``st``)."""
 
     _BASELINE = "prism_baseline"
+    _DRAFT = "prism_draft"
     _SCENARIO = "prism_scenario"
     _RUN_CONFIG = "prism_run_config"
     _RESULTS = "prism_results"
     _SELECTED = "prism_selected_id"
+    _SOURCE_KEY = "prism_source_key"      # signature of the last file-reloaded source
 
     def __init__(self) -> None:
         st.session_state.setdefault(self._BASELINE, None)
+        st.session_state.setdefault(self._DRAFT, None)
         st.session_state.setdefault(self._SCENARIO, None)
         st.session_state.setdefault(self._RUN_CONFIG, None)
         st.session_state.setdefault(self._RESULTS, {})
         st.session_state.setdefault(self._SELECTED, None)
+        st.session_state.setdefault(self._SOURCE_KEY, None)
 
     def get_baseline(self):
         return st.session_state[self._BASELINE]
 
     def set_baseline(self, plan) -> None:
         st.session_state[self._BASELINE] = plan
+
+    def get_draft(self):
+        return st.session_state[self._DRAFT]
+
+    def set_draft(self, draft) -> None:
+        st.session_state[self._DRAFT] = draft
+
+    def clear_draft(self) -> None:
+        st.session_state[self._DRAFT] = None
+
+    # Streamlit-only: not part of the SessionState Protocol. Tracks which source the
+    # session baseline was last seeded from, so the top-of-main file reload overwrites
+    # the baseline only when the selection changes — letting a committed edit survive
+    # Streamlit's top-to-bottom rerun.
+    def get_source_key(self):
+        return st.session_state[self._SOURCE_KEY]
+
+    def set_source_key(self, key) -> None:
+        st.session_state[self._SOURCE_KEY] = key
 
     def get_scenario(self):
         return st.session_state[self._SCENARIO]
@@ -484,6 +508,103 @@ def _render_result(result, session, baseline, run_config) -> None:
         )
 
 
+def _patch_rows(patches) -> list[dict]:
+    """The pending patch log as streamlit-free ``{#, action, path, value}`` rows, in the
+    order they were staged (the audit trail apply_patch appends to)."""
+    return [
+        {
+            "#": n,
+            "action": p.action.value,
+            "path": p.path,
+            "value": "" if p.value is None else json.dumps(p.value),
+        }
+        for n, p in enumerate(patches, start=1)
+    ]
+
+
+def _render_editor(session, validator) -> None:
+    """The minimal editing lifecycle (§2b): open a draft from the current baseline, stage
+    add/replace/remove patches (lightweight structural check), then commit (full schema +
+    referential re-validation, minting a NEW immutable revision) or discard.
+
+    All state lives in the session draft, so this survives Streamlit reruns; a successful
+    commit swaps the session baseline to the new plan and clears the draft, which the
+    source-key guard in ``main`` then leaves in place across the rerun."""
+    st.subheader("Edit plan")
+    draft = session.get_draft()
+
+    if draft is None:
+        st.caption("Open a draft to stage edits against the current baseline.")
+        if st.button("Open draft"):
+            session.set_draft(open_draft(session.get_baseline()))
+            st.rerun()
+        return
+
+    st.caption(f"Editing a draft of `{draft.base_plan_id}` — "
+               f"{len(draft.pending_patches)} patch(es) staged.")
+
+    # --- stage one patch ---
+    col_a, col_p, col_v = st.columns([1, 2, 2])
+    action = col_a.selectbox("Action", [a.value for a in PatchAction], key="prism_patch_action")
+    path = col_p.text_input("Path (JSON Pointer)", key="prism_patch_path",
+                            placeholder="/tasks/0/duration")
+    is_remove = action == PatchAction.REMOVE.value
+    value_text = col_v.text_input("Value (JSON)", key="prism_patch_value",
+                                  placeholder='8  or  "text"  or  [1,2]',
+                                  disabled=is_remove)
+
+    if st.button("Apply patch"):
+        value = None
+        if not is_remove:
+            try:
+                value = json.loads(value_text)
+            except json.JSONDecodeError as exc:
+                st.error(f"Value is not valid JSON: {exc}")
+                value = _NO_VALUE
+        if value is not _NO_VALUE:
+            op = PatchOp(action=PatchAction(action), path=path, value=value)
+            outcome = apply_patch(draft, op)
+            session.set_draft(draft)
+            if outcome.ok:
+                st.success(f"Applied {action} {path}.")
+            else:
+                _render_issues(outcome.issues, empty_msg="No issues.")
+
+    if draft.pending_patches:
+        st.markdown("**Pending patches**")
+        st.dataframe(_patch_rows(draft.pending_patches),
+                     use_container_width=True, hide_index=True)
+
+    # --- commit / discard ---
+    col_commit, col_discard = st.columns(2)
+    if col_commit.button("Commit draft", type="primary", disabled=not draft.pending_patches):
+        commit = services.commit_draft(draft, validator)
+        if commit.ok:
+            session.set_baseline(commit.plan)
+            session.clear_draft()
+            st.success(f"Committed new revision — plan_hash `{commit.plan.plan_hash}`.")
+            _render_issues(commit.issues, empty_msg="Committed with no issues.")
+            st.rerun()
+        else:
+            st.error("Commit blocked — the edited plan does not validate.")
+            _render_issues(commit.issues)
+    if col_discard.button("Discard draft"):
+        discard_draft(draft)
+        session.clear_draft()
+        st.info("Draft discarded; baseline unchanged.")
+        st.rerun()
+
+
+def _source_key(reference_plan) -> str:
+    """A stable signature of the source a baseline was loaded from: its logical id plus
+    the canonical content hash. Reselecting the same file yields the same key (edits are
+    preserved); picking a different sample / uploading a new file changes it."""
+    return f"{reference_plan.plan_id}::{reference_plan.plan_hash}"
+
+
+_NO_VALUE = object()   # sentinel: a value box that failed to parse (distinct from JSON null)
+
+
 def _pick_source():
     """Sidebar sample-selectbox + uploader. Returns (raw_plan_dict | None, plan_id)."""
     st.sidebar.header("Plan source")
@@ -543,22 +664,36 @@ def main() -> None:
         st.info("Choose a sample project or upload a plan JSON to begin.")
         return
 
-    # --- validation panel ---
+    # --- validation panel (of the freshly-selected source file) ---
     st.subheader("Validation")
     load = services.load_and_validate(plan_id, raw, validator)
     _render_issues(load.issues, empty_msg="Plan is valid — no issues.")
     if not load.ok:
         st.error("Plan has blocking errors; fix them before running.")
         return
-    session.set_baseline(load.reference_plan)
+
+    # Source-signature guard: seed the session baseline from the file only when the selected
+    # source changes. A committed edit (which sets the baseline to the new revision) then
+    # survives Streamlit's top-to-bottom rerun instead of being overwritten by this reload.
+    source_key = _source_key(load.reference_plan)
+    if session.get_source_key() != source_key:
+        session.set_source_key(source_key)
+        session.set_baseline(load.reference_plan)
+        session.clear_draft()
+
+    # --- edit plan (may commit a new revision into the session baseline) ---
+    _render_editor(session, validator)
+    baseline = session.get_baseline()
 
     run_config = _pick_run_config(plan_id)
     session.set_run_config(run_config)
 
     if st.button("Run schedule", type="primary"):
+        # Run the CURRENT session baseline's payload — a committed edit is what runs.
+        payload = json.loads(baseline.raw_snapshot)["payload"]
         with st.spinner("Scheduling…"):
             outcome = run_pipeline(
-                raw, plan_id, run_config,
+                payload, baseline.plan_id, run_config,
                 validator=validator, store=store, executor=executor, repository=repository)
         if not outcome.ok:
             st.error(f"Cannot run — blocked at {outcome.stage}.")

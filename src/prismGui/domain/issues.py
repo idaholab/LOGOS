@@ -56,6 +56,12 @@ class IssueCode(str, Enum):
     EXECUTION_FAILURE = "EXECUTION_FAILURE"
     PROV_HASH_MISMATCH = "PROV_HASH_MISMATCH"
     SNAPSHOT_MISSING = "SNAPSHOT_MISSING"
+    # A PatchOp that is structurally malformed against the working tree: the
+    # JSON-Pointer path does not resolve, or an add/replace carries no value.
+    # Raised by domain.plan.apply_patch (the lightweight structural check), never
+    # by the schema validator — that is why it lives beside the SCHEMA codes but is
+    # emitted with category SCHEMA at ERROR severity.
+    INVALID_PATCH = "INVALID_PATCH"
 
 
 @dataclass(frozen=True)

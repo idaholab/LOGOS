@@ -39,7 +39,7 @@ from prismGui.domain.freshness import assess_freshness, explain_freshness
 from prismGui.domain.hashing import hash_run_config, hash_scenario, run_config_snapshot, scenario_snapshot
 from prismGui.domain.issues import Issue, Severity
 from prismGui.domain.materialize import materialize, validate_run_config
-from prismGui.domain.plan import EffectivePlan, ReferencePlan
+from prismGui.domain.plan import CommitOutcome, EffectivePlan, PlanDraft, ReferencePlan
 from prismGui.domain.results import Freshness, RunResult
 from prismGui.domain.run_config import RunConfig
 from prismGui.domain.scenario import Scenario
@@ -86,6 +86,41 @@ def load_and_validate(
         return LoadOutcome(ok=False, issues=issues, reference_plan=None)
     plan = ser.build_reference_plan(plan_id, raw_plan, schema_version=schema_version)
     return LoadOutcome(ok=True, issues=issues, reference_plan=plan)
+
+
+# =============================================================================
+# commit_draft — the FULL commit of the editing lifecycle (§2b)
+# =============================================================================
+
+def commit_draft(
+    draft: PlanDraft,
+    validator: ValidationPort,
+    *,
+    schema_version: str = SCHEMA_VERSION,
+    new_plan_id: Optional[str] = None,
+) -> CommitOutcome:
+    """Commit a draft's patched raw working tree into a NEW immutable ``ReferencePlan``.
+
+    This is the "full" half of the lightweight/full split: ``domain.apply_patch`` staged
+    each edit with only a structural check, and this runs the complete schema + referential
+    validation via the SAME ``ValidationPort`` the load/prepare paths use (the domain cannot
+    import that port without a cycle, so commit is orchestrated here — the ``prepare_run``
+    precedent). Only when nothing blocks does ``build_reference_plan`` rehydrate the typed
+    view from the raw tree and mint a new plan with a recomputed ``plan_hash``; the typed view
+    is never committed directly. ``plan_id`` defaults to the draft's base id — the same logical
+    plan, a new revision whose identity is the fresh hash.
+
+    Blocking (any ERROR issue) returns ``ok=False`` with the issues and ``plan=None``; the
+    draft is left untouched so the caller can fix a patch and retry."""
+    issues = tuple(validator.validate_plan(draft.raw_working_tree))
+    if _has_error(issues):
+        return CommitOutcome(ok=False, issues=issues, plan=None)
+    plan = ser.build_reference_plan(
+        new_plan_id or draft.base_plan_id,
+        draft.raw_working_tree,
+        schema_version=schema_version,
+    )
+    return CommitOutcome(ok=True, issues=issues, plan=plan)
 
 
 # =============================================================================
@@ -250,12 +285,16 @@ def current_freshness_detail(
 @runtime_checkable
 class SessionState(Protocol):
     """The session-state broker the UI reads through — the ONLY seam that knows how the
-    baseline / scenario / run-config / results / selection are stored. The Streamlit shell
-    implements this over ``st.session_state``; ``InMemorySessionState`` implements it over
-    plain dicts for headless use and tests. Draft/editing accessors are Phase 2."""
+    baseline / scenario / run-config / results / selection / draft are stored. The Streamlit
+    shell implements this over ``st.session_state``; ``InMemorySessionState`` implements it
+    over plain dicts for headless use and tests."""
 
     def get_baseline(self) -> Optional[ReferencePlan]: ...
     def set_baseline(self, plan: ReferencePlan) -> None: ...
+
+    def get_draft(self) -> Optional[PlanDraft]: ...
+    def set_draft(self, draft: PlanDraft) -> None: ...
+    def clear_draft(self) -> None: ...
 
     def get_scenario(self) -> Optional[Scenario]: ...
     def set_scenario(self, scenario: Optional[Scenario]) -> None: ...
@@ -278,6 +317,7 @@ class InMemorySessionState:
 
     def __init__(self) -> None:
         self._baseline: Optional[ReferencePlan] = None
+        self._draft: Optional[PlanDraft] = None
         self._scenario: Optional[Scenario] = None
         self._run_config: Optional[RunConfig] = None
         self._results: dict[str, RunResult] = {}
@@ -288,6 +328,15 @@ class InMemorySessionState:
 
     def set_baseline(self, plan: ReferencePlan) -> None:
         self._baseline = plan
+
+    def get_draft(self) -> Optional[PlanDraft]:
+        return self._draft
+
+    def set_draft(self, draft: PlanDraft) -> None:
+        self._draft = draft
+
+    def clear_draft(self) -> None:
+        self._draft = None
 
     def get_scenario(self) -> Optional[Scenario]:
         return self._scenario

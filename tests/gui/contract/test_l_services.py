@@ -28,6 +28,7 @@ from prismGui.application.services import InMemorySessionState
 from prismGui.domain.hashing import hash_run_config
 from prismGui.domain.issues import IssueCode, Severity
 from prismGui.domain.materialize import materialize
+from prismGui.domain.plan import open_draft
 from prismGui.domain.results import Freshness, RunResultStatus
 from prismGui.domain.run_config import RunConfig
 from prismGui.domain import serialization as ser
@@ -208,6 +209,14 @@ class TestSessionState:
         assert s.get_baseline() is baseline
         assert s.get_scenario() is scenario
         assert s.get_run_config() is run_config
+
+        # draft accessors: starts empty, round-trips the set draft, clears back to None
+        assert s.get_draft() is None
+        draft = open_draft(baseline)
+        s.set_draft(draft)
+        assert s.get_draft() is draft
+        s.clear_draft()
+        assert s.get_draft() is None
 
         s.add_run_result(run_result)
         assert s.list_run_results() == (run_result,)
