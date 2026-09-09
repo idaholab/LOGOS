@@ -231,10 +231,10 @@ choice explicitly left open (model-spec §Open questions).
   run on a plain skip of a required contract, and tolerates-but-reports strict-xfail required contracts
   as known gaps to close. **Done.**
 - **Sample project** for the guided-load path — **decided** (notes_3.md Phase-1 build list):
-  `tests/CPMmodel/example_10.json` primary (15 tasks, 2 resources → real contention),
-  `tests/CPMmodel/test_case_1.json` secondary (hold-point round-trip); both validate against
-  `outage_schema.json` today, with coverage gaps documented to motivate a purpose-built Phase-2 sample.
-  **Done.**
+  `doc/demos/rcpsp/examples/example_10.json` primary (15 tasks, 2 resources → real contention),
+  `doc/demos/rcpsp/examples/test_case_1.json` secondary (carries the `is_hold_point` field shape, but 0
+  of 8 tasks flagged — not an actual hold-point round-trip); both validate against `outage_schema.json`
+  today, with coverage gaps documented to motivate a purpose-built Phase-2 sample. **Done.**
 - `run_id` minting — **decided** (model-spec §7): the **executor mints `run_id` inside `submit()`**
   (identity of an execution *attempt*, not of the inputs; UUID4 hex; timestamp stamped at the same
   point). `RunRequest.request_id?` is a distinct caller-supplied correlation tag. **Done.**

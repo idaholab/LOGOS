@@ -22,6 +22,16 @@
     <pytest source="pip" skip_check="True"/>
     <hypothesis source='pip' skip_check="True"/>
     <alns source='pip' skip_check="True"/>
+    <!-- PRISM GUI (src/prismGui) deps. streamlit is the GUI front-end runtime;
+         altair is the charting library the render helpers draw the Gantt and
+         resource-utilization charts with (a hard dependency of streamlit, so it is
+         always present wherever the GUI runs); jsonschema backs the schema-validation
+         adapter that wraps src/CPM/validate_outage_data.py. GUI-only, never imported
+         to run a core model, so skip_check keeps RAVEN's startup library check from
+         failing in environments that only run the engine. -->
+    <jsonschema source='pip' skip_check="True"/>
+    <streamlit source='pip' skip_check="True"/>
+    <altair source='pip' skip_check="True"/>
   </main>
 
   <alternate name="pip">

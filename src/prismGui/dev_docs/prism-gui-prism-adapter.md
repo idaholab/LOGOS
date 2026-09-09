@@ -202,10 +202,10 @@ auto-invoked at the end of each run ([pert.py:3465](../../CPM/pert.py#L3465)).
 | `actual_resources?` | `activity._actual_resources` ([activity.py:176](../../CPM/activity.py#L176)) — `{skill: workers}` post-substitution |
 | `wbs_group?` | `activity.wbs_group` |
 
-`float_class` derivation (red/orange/blue in the UI):
-- `critical` — `activity.belongsToCP` is `True` (on the resource-constrained critical path).
-- `zero_float` — not on CP but `|tf_actual| ≤ 1 ms-equivalent` (≈ 0 float).
-- `positive_float` — `tf_actual > 0`.
+`float_class` derivation (red/orange/blue in the UI) — the single shared rule `classify_float(tf_actual_hours, on_constrained_chain)`:
+- `critical` — `on_constrained_chain` is `True`, i.e. `activity in pert.constrained_chain_set` (the row above). (The engine's `Activity.belongsToCP` flag is never populated — `setOnCP` has zero callers and `reset()` clears it to `False` — so it must NOT be used here.)
+- `zero_float` — not on the chain but `|tf_actual| ≤ TF_ZERO_TOL` (≈ 0 float; `None` is treated as 0).
+- `positive_float` — off the chain and `tf_actual > TF_ZERO_TOL`.
 
 `get_schedule_dataframe()` ([pert.py:5667](../../CPM/pert.py#L5667)) already assembles most of these
 columns (`activity_id, description, start_time, end_time, duration, delay,
@@ -301,11 +301,19 @@ six tri-state indicators from PRISM reads and hand them over:
 | `schedule_complete` | `result['n_completed'] == result['n_activities']` |
 | `hard_feasible` | `validate_schedule().is_feasible` **and** `check_dependency_violations()[1]` |
 | `has_unscheduled_tasks` | `len(pert.wait) > 0` ([pert.py:143](../../CPM/pert.py#L143)) — equivalently `n_completed < n_activities` |
-| `has_window_violations` | `result['window_violations'] > 0` (parallel) |
-| `audit_passed` | `validate_schedule().is_feasible` (no error-severity violations) |
+| `has_window_violations` | `len(result['window_violations']) > 0` — `window_violations` is a **list** ([pert.py:3478](../../CPM/pert.py#L3478)), not a count, so it must be measured with `len(...)`, matching `compute_fitness` ([pert.py:4841](../../CPM/pert.py#L4841)) |
+| `audit_passed` | no **error-severity** audit Issue (model-spec §6, line 338) — a soft `quality`/other WARNING must NOT flip it |
 
 Call `validate_schedule()` **once** and reuse the `ValidationResult` for both `hard_feasible` and
 `audit_passed` (and §6's Issues) — it is not cheap.
+
+**What the shipped adapter actually does:** rather than building these six indicators inline, it
+assembles a `ScheduleSummary(produced, n_unscheduled, audit_ran)` plus the run's `Issue` tuple and
+calls the single pure policy `compute_disposition` (`domain/disposition.py`, model-spec §6) — so the
+Ready / Ready-with-warnings / Blocked decision lives in exactly one tested place. The table above names
+the underlying PRISM signal each indicator reflects; `compute_disposition` derives `audit_passed` and
+`has_window_violations` from the Issues (error-severity audit Issue; `TIME_WINDOW`-category Issue),
+which is why the two rows are phrased issue-first.
 
 ---
 
@@ -376,7 +384,7 @@ tested via the A→B→A invariant (architecture: "two runs do not influence eac
 | `get_project_finish_actual()` | [pert.py:4721](../../CPM/pert.py#L4721) | absolute finish datetime |
 | `self.completed` / `self.wait` | [pert.py:143-146](../../CPM/pert.py#L143) | scheduled / unscheduled sets |
 | `Activity.returnAbsTimes()` | [activity.py:700](../../CPM/activity.py#L700) | (startTime, endTime) |
-| `Activity` output fields `startTime, endTime, delay, belongsToCP, status, _actual_resources, selected_mode_id` | [activity.py:57-194](../../CPM/activity.py#L57) | per-task DTO sources |
+| `Activity` output fields `startTime, endTime, delay, status, _actual_resources, selected_mode_id` | [activity.py:57-194](../../CPM/activity.py#L57) | per-task DTO sources (NB: `belongsToCP` is never populated — use `pert.constrained_chain_set` for the critical-chain flag) |
 | `ResourceAvailability(resource_type, dose_budget_per_worker_mrem)` | [outage_data.py:609](../../CPM/outage_data.py#L609) | confirms runtime-affecting pool fields |
 | `SystemStatePool.fits/acquire/release` | [outage_data.py:1950](../../CPM/outage_data.py#L1950) | Option-A mutual exclusion mechanism |
 

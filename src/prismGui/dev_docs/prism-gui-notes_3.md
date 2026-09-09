@@ -173,12 +173,18 @@ The core loop, demoable on its own — it does the job CPM tools can't. Provenan
 - Schedule status as a **disposition summary** (Ready / Ready with warnings / Blocked) backed by independent indicators — not a single green light.
 - **Provenance:** immutable input snapshot, run ID, recorded rule/SGS/seed/software version; stale-results detection after input change.
 - Sample project / guided load path. **Decided (2026-09-09):** ship
-  [`tests/CPMmodel/example_10.json`](../../../tests/CPMmodel/example_10.json) as the **primary** guided-load
-  sample and [`tests/CPMmodel/test_case_1.json`](../../../tests/CPMmodel/test_case_1.json) as a smaller
-  secondary. Both validate against `outage_schema.json` today. `example_10` (15 tasks, 2 resources, 1
-  equipment, 1 location, plain string successors, no hold points) is the cleaner "first run" — 2 resources
-  actually exercise resource contention, which is the point of RCPSP; `test_case_1` (8 tasks, 1 resource)
-  additionally carries hold-point fields, demonstrating the hold-point round-trip. **Coverage gaps to note
+  [`doc/demos/rcpsp/examples/example_10.json`](../../../doc/demos/rcpsp/examples/example_10.json) as the
+  **primary** guided-load sample and
+  [`doc/demos/rcpsp/examples/test_case_1.json`](../../../doc/demos/rcpsp/examples/test_case_1.json) as a
+  smaller secondary. (These are the canonical copies the CPM suite already reads; the byte-identical
+  `tests/CPMmodel/` copies are test scaffolding, not the shipping location — the GUI conftest resolves
+  samples to `doc/demos/rcpsp/examples/`.) Both validate against `outage_schema.json` today. `example_10`
+  (15 tasks, 2 resources, 1 equipment, 1 location, plain string successors, no hold points) is the cleaner
+  "first run" — 2 resources actually exercise resource contention, which is the point of RCPSP; `test_case_1`
+  (8 tasks, 1 resource) additionally carries the schema's `is_hold_point` *field* on its tasks, but **0 of
+  its 8 tasks are actually flagged** (`is_hold_point` is False throughout and no `hold_point` object is
+  present) — so it exercises the hold-point field *shape* on load, not an actual hold-point round-trip.
+  **Coverage gaps to note
   (motivate a richer purpose-built sample when the matching editors land):** neither file exercises
   `resource_type` (both leave it null → defaults to `renewable`), `systems` / `safety_functions`,
   `consumables`, multi-mode tasks, or object-form `successors` with `lag_hours`. Both also still carry the
