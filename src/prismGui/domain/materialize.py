@@ -16,9 +16,10 @@ Two PURE functions the application layer composes (model-spec §5):
 deliberately NOT here — it needs the SnapshotStore port, so it lives in the application
 layer (Step 6). Keeping materialize port-free keeps the domain pure.
 
-Scenario delta application is Phase-1-minimal: duration overrides, emergent tasks and
-dependencies (with referential checks). Resource/equipment availability *rewrites* and
-their chronological-collision checks arrive with the validation adapter (group J);
+Scenario delta application (Phase 2): duration overrides, resource-availability
+rewrites (clip-and-split of the baseline periods, with ghost-skill / duplicate-hour /
+out-of-range checks), and emergent tasks / dependencies (with referential checks).
+Equipment availability rewrites and hold-point release overrides are still deferred;
 the thin slice runs a plain baseline (scenario=None). Pure: stdlib only.
 """
 
@@ -34,7 +35,13 @@ from prismGui.domain.issues import Issue, IssueCategory, IssueCode, Severity
 from prismGui.domain.plan import EffectivePlan, ReferencePlan
 from prismGui.domain.run_config import PRIORITY_RULES, RunConfig
 from prismGui.domain.scenario import Scenario
-from prismGui.domain.serialization import build_effective_plan, load_plan_content
+from prismGui.domain.serialization import (
+    build_effective_plan,
+    hours_to_iso,
+    iso_to_hours,
+    load_plan_content,
+    parse_project_start,
+)
 
 JSONTree = dict
 
@@ -54,6 +61,118 @@ def _envelope(reference_plan: ReferencePlan) -> tuple[dict, str]:
 
 def _err(code: IssueCode, category: IssueCategory, message: str, **kw) -> Issue:
     return Issue(code=code, severity=Severity.ERROR, category=category, message=message, **kw)
+
+
+def _availability_period_dict(s: float, e: float, count: int, reason, start) -> dict:
+    """Rebuild a raw DATE-based availability period from hour-space bounds. ``reason`` is
+    kept only when present, so the schema's optional string field is never written null."""
+    period = {
+        "start_date": hours_to_iso(s, start),
+        "end_date": hours_to_iso(e, start),
+        "available_count": int(count),
+    }
+    if reason is not None:
+        period["reason"] = reason
+    return period
+
+
+def _apply_resource_changes(working: JSONTree, changes: tuple, skill_types: set) -> list[Issue]:
+    """Fold resource-availability what-ifs into the baseline's raw availability periods.
+
+    Each ``ResourceChange(skill_type, from_hour, new_count)`` sets a pool's available count
+    to ``new_count`` for every instant at or after ``from_hour``. The raw periods are
+    DATE-based (``{start_date, end_date, available_count, reason?}``) while ``from_hour`` is
+    in the loader's hour-space, so we bridge through ``parse_project_start`` +
+    ``iso_to_hours`` / ``hours_to_iso`` — a clean bijection anchored at the outage start.
+
+    Semantics (per pool, changes applied cumulatively in ascending ``from_hour``): for each
+    existing period ``(s, e, count)`` — ``e <= fh`` leaves it unchanged; ``s >= fh`` sets
+    ``count := new_count``; ``s < fh < e`` splits it into ``(s, fh, count)`` + ``(fh, e,
+    new_count)``. The split is on a strict interior instant, so no zero-length period is
+    emitted (``start_date < end_date`` always holds) and the periods stay contiguous /
+    non-overlapping; no horizon is invented. Only pools named by a change are rewritten —
+    untouched pools stay byte-identical.
+
+    Errors (all blocking): a ghost ``skill_type`` -> MATERIALIZE_CONFLICT; two changes
+    sharing a ``(skill_type, from_hour)`` or a ``from_hour`` outside ``[0, max end)`` for
+    that pool -> INVALID_AVAILABILITY_INTERVAL.
+    """
+    issues: list[Issue] = []
+    if not changes:
+        return issues
+
+    start = parse_project_start(working["outage"]["start_date"])
+    pools_by_skill = {r["skill_type"]: r for r in working.get("resources", [])}
+
+    # bucket by skill; reject ghost skills and duplicate (skill, from_hour) up front
+    by_skill: dict[str, list] = {}
+    seen: set[tuple[str, float]] = set()
+    for ch in changes:
+        if ch.skill_type not in skill_types:
+            issues.append(_err(
+                IssueCode.MATERIALIZE_CONFLICT, IssueCategory.REFERENTIAL_INTEGRITY,
+                f"resource change targets skill '{ch.skill_type}' not present in the "
+                "baseline resources",
+                entity_type="resource", entity_id=ch.skill_type,
+            ))
+            continue
+        key = (ch.skill_type, q(ch.from_hour))
+        if key in seen:
+            issues.append(_err(
+                IssueCode.INVALID_AVAILABILITY_INTERVAL, IssueCategory.REFERENTIAL_INTEGRITY,
+                f"two resource changes target skill '{ch.skill_type}' at the same hour "
+                f"{ch.from_hour:g} (a change must be at a distinct hour per skill)",
+                entity_type="resource", entity_id=ch.skill_type,
+            ))
+            continue
+        seen.add(key)
+        by_skill.setdefault(ch.skill_type, []).append(ch)
+
+    for skill, skill_changes in by_skill.items():
+        pool = pools_by_skill[skill]
+        periods = [
+            (iso_to_hours(p["start_date"], start), iso_to_hours(p["end_date"], start),
+             int(p["available_count"]), p.get("reason"))
+            for p in (pool.get("availability_periods") or [])
+        ]
+        max_end = max((e for _, e, _, _ in periods), default=None)
+
+        # range-check every change against the ORIGINAL envelope before mutating this pool
+        out_of_range = False
+        for ch in skill_changes:
+            fh = q(ch.from_hour)
+            if max_end is None or fh < 0 or fh >= max_end:
+                issues.append(_err(
+                    IssueCode.INVALID_AVAILABILITY_INTERVAL, IssueCategory.REFERENTIAL_INTEGRITY,
+                    f"resource change for skill '{skill}' at hour {ch.from_hour:g} is outside "
+                    f"the pool's availability [0, {max_end}) — it would change nothing",
+                    entity_type="resource", entity_id=skill,
+                ))
+                out_of_range = True
+        if out_of_range:
+            continue
+
+        # apply cumulatively in ascending from_hour (clip-and-split)
+        for ch in sorted(skill_changes, key=lambda c: q(c.from_hour)):
+            fh = q(ch.from_hour)
+            new_count = int(ch.new_count)
+            rebuilt: list[tuple] = []
+            for s, e, count, reason in periods:
+                if e <= fh:
+                    rebuilt.append((s, e, count, reason))
+                elif s >= fh:
+                    rebuilt.append((s, e, new_count, reason))
+                else:  # s < fh < e -> split at the interior instant
+                    rebuilt.append((s, fh, count, reason))
+                    rebuilt.append((fh, e, new_count, reason))
+            periods = rebuilt
+
+        pool["availability_periods"] = [
+            _availability_period_dict(s, e, count, reason, start)
+            for s, e, count, reason in periods
+        ]
+
+    return issues
 
 
 def materialize(reference_plan: ReferencePlan, scenario: Optional[Scenario]) -> MaterializeOutcome:
@@ -166,6 +285,9 @@ def materialize(reference_plan: ReferencePlan, scenario: Optional[Scenario]) -> 
         pred = tasks_by_id.get(dep.predecessor_id)
         if pred is not None and dep.successor_id not in pred.setdefault("successors", []):
             pred["successors"].append(dep.successor_id)
+
+    # --- resource-availability what-ifs: rewrite the baseline periods ---------
+    issues.extend(_apply_resource_changes(working, scenario.resource_changes or (), skill_types))
 
     if any(i.severity is Severity.ERROR for i in issues):
         return MaterializeOutcome(ok=False, issues=tuple(issues), effective_plan=None)

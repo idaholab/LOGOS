@@ -29,6 +29,7 @@ from prismGui.domain.results import (
     SkillUtilizationSeries,
     UtilizationInterval,
 )
+from prismGui.domain.scenario import DurationOverride, ResourceChange, Scenario
 
 
 class TestImportSeam:
@@ -997,3 +998,104 @@ class TestEditorFormBuilders:
         rem = app_main._remove_task_mode_equipment_patch(0, 0, 0)
         assert (rem.action, rem.path) == (
             PatchAction.REMOVE, "/tasks/0/modes/0/required_equipment/0")
+
+
+class TestScenarioPanelBuilders:
+    """The streamlit-free scenario-overlay helpers behind the Increment-8 run-panel what-if
+    section. Each folds a single what-if into a new frozen ``Scenario`` bound to the baseline
+    revision, with no ``st.*`` — the ``_render_scenario_panel`` wrapper is the only ``st.*``
+    site. Built off the `baseline` fixture (tasks A,B; one MECH pool). The domain (materialize)
+    is the arbiter of validity; these only shape and bind the delta."""
+
+    def test_intent_labels_and_whatif_routing(self):
+        """Two intents, what-if first (the default). ``_is_whatif`` recognizes only it — a
+        baseline correction is not a what-if (it routes to the editor, staging no overlay)."""
+        assert app_main._SCN_INTENTS == ("What-if (scenario)", "Baseline correction")
+        assert app_main._is_whatif(app_main._SCN_INTENTS[0]) is True
+        assert app_main._is_whatif(app_main._SCN_INTENTS[1]) is False
+
+    def test_scenario_is_empty(self, baseline):
+        """None, and a scenario touching nothing, are both empty (the run then uses the plain
+        baseline). A single override or resource change makes it non-empty."""
+        assert app_main._scenario_is_empty(None) is True
+        empty = app_main._new_scenario_for(baseline)
+        assert app_main._scenario_is_empty(empty) is True
+        with_dur = app_main._add_duration_override(None, baseline, "B", 9.0)
+        assert app_main._scenario_is_empty(with_dur) is False
+        with_res = app_main._add_resource_change(None, baseline, "MECH", 48.0, 1)
+        assert app_main._scenario_is_empty(with_res) is False
+
+    def test_add_duration_override_binds_to_baseline(self, baseline):
+        """From no scenario, adding a duration override builds a fresh Scenario bound to THIS
+        baseline (base_plan_id + base_plan_hash) carrying the one override."""
+        scn = app_main._add_duration_override(None, baseline, "B", 9.0)
+        assert scn.base_plan_id == baseline.plan_id
+        assert scn.base_plan_hash == baseline.plan_hash
+        assert scn.duration_overrides == (DurationOverride(task_id="B", duration_hours=9.0),)
+
+    def test_add_duration_override_is_last_write_wins_per_task(self, baseline):
+        """Re-authoring an override for the same task replaces it (never a duplicate) — so the
+        UI cannot stage two overrides for one task."""
+        scn = app_main._add_duration_override(None, baseline, "B", 9.0)
+        scn = app_main._add_duration_override(scn, baseline, "B", 12.0)
+        assert scn.duration_overrides == (DurationOverride(task_id="B", duration_hours=12.0),)
+        # a different task appends rather than replaces
+        scn = app_main._add_duration_override(scn, baseline, "A", 5.0)
+        assert {ov.task_id for ov in scn.duration_overrides} == {"A", "B"}
+
+    def test_remove_duration_override_empties_to_none(self, baseline):
+        """Removing the only override empties ``duration_overrides`` back to None (the
+        overlay-absent shape), so the scenario reads as empty again."""
+        scn = app_main._add_duration_override(None, baseline, "B", 9.0)
+        scn = app_main._remove_duration_override(scn, baseline, "B")
+        assert scn.duration_overrides is None
+        assert app_main._scenario_is_empty(scn) is True
+
+    def test_add_resource_change_binds_and_last_write_wins(self, baseline):
+        """A resource what-if binds to the baseline and is last-write-wins per
+        (skill_type, from_hour) — the UI can never author the duplicate-hour case
+        materialize would reject."""
+        scn = app_main._add_resource_change(None, baseline, "MECH", 48.0, 1)
+        assert scn.base_plan_hash == baseline.plan_hash
+        assert scn.resource_changes == (ResourceChange("MECH", 48.0, 1),)
+        # same (skill, from_hour) replaces the count
+        scn = app_main._add_resource_change(scn, baseline, "MECH", 48.0, 2)
+        assert scn.resource_changes == (ResourceChange("MECH", 48.0, 2),)
+        # a different hour appends
+        scn = app_main._add_resource_change(scn, baseline, "MECH", 72.0, 0)
+        assert len(scn.resource_changes) == 2
+
+    def test_remove_resource_change_by_index_empties_to_none(self, baseline):
+        """Removing a resource change by its row index drops it; removing the last empties
+        ``resource_changes`` back to None."""
+        scn = app_main._add_resource_change(None, baseline, "MECH", 48.0, 1)
+        scn = app_main._add_resource_change(scn, baseline, "MECH", 72.0, 0)
+        scn = app_main._remove_resource_change(scn, baseline, 0)
+        assert scn.resource_changes == (ResourceChange("MECH", 72.0, 0),)
+        scn = app_main._remove_resource_change(scn, baseline, 0)
+        assert scn.resource_changes is None
+
+    def test_scenario_rows_shape(self, baseline):
+        """The display/removal row shapers surface each override / change with its row index."""
+        scn = app_main._add_duration_override(None, baseline, "B", 9.0)
+        scn = app_main._add_resource_change(scn, baseline, "MECH", 48.0, 1)
+        assert app_main._scenario_duration_rows(scn) == [
+            {"index": 0, "task_id": "B", "duration_hours": 9.0}]
+        assert app_main._scenario_resource_rows(scn) == [
+            {"index": 0, "skill_type": "MECH", "from_hour": 48.0, "new_count": 1}]
+        # None reads as no rows (never crashes)
+        assert app_main._scenario_duration_rows(None) == []
+        assert app_main._scenario_resource_rows(None) == []
+
+    def test_scenario_bound_to_superseded_revision_is_rebuilt(self, baseline):
+        """A scenario bound to a different (superseded) baseline revision is rebuilt against
+        the current baseline when extended — its stale overrides never leak across the change,
+        and the new scenario carries the current base_plan_hash."""
+        stale = Scenario(
+            scenario_id="scn-old", base_plan_id="old", base_plan_hash="f" * 64,
+            duration_overrides=(DurationOverride(task_id="A", duration_hours=99.0),))
+        assert stale.base_plan_hash != baseline.plan_hash
+        rebuilt = app_main._add_duration_override(stale, baseline, "B", 9.0)
+        assert rebuilt.base_plan_hash == baseline.plan_hash
+        # the stale override for A is gone; only the freshly-authored one remains
+        assert rebuilt.duration_overrides == (DurationOverride(task_id="B", duration_hours=9.0),)

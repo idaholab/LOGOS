@@ -28,6 +28,20 @@ class TestFreshness:
         assert run_result.schedule is not None
         assert run_result.run_id == "run-1"
 
+    def test_scenario_change_marks_displayed_result_stale(self, run_result):
+        """The result was produced with no scenario (scenario_delta_hash is None). Authoring
+        a what-if introduces a scenario delta hash: the baseline still matches but the
+        scenario the result was computed against has changed -> STALE."""
+        prov = run_result.provenance
+        assert prov.scenario_delta_hash is None
+        freshness = assess_freshness(
+            run_result,
+            current_plan_hash=prov.baseline_snapshot_hash,
+            current_scenario_hash="a-new-scenario-delta-hash",
+            current_run_config_hash=prov.run_config_hash,
+        )
+        assert freshness is Freshness.STALE
+
     def test_selecting_different_rule_is_not_stale(self, run_result):
         """Lineage still matches but the currently-selected run config differs ->
         DIFFERENT_CONFIG, explicitly NOT STALE (a config selection cannot invalidate a
@@ -73,6 +87,18 @@ class TestExplainFreshness:
         reasons = explain_freshness(run_result, new_baseline_hash,
                                     current_scenario_hash=None)
         assert reasons == ("baseline_changed",)
+
+    def test_scenario_change_yields_scenario_changed(self, run_result):
+        """A newly-authored scenario (result had none) yields the ``scenario_changed`` reason —
+        the STALE 'why' the provenance panel renders when a what-if is in play."""
+        prov = run_result.provenance
+        reasons = explain_freshness(
+            run_result,
+            current_plan_hash=prov.baseline_snapshot_hash,
+            current_scenario_hash="a-new-scenario-delta-hash",
+            current_run_config_hash=prov.run_config_hash,
+        )
+        assert reasons == ("scenario_changed",)
 
     def test_config_only_change_yields_config_differs(self, run_result):
         prov = run_result.provenance

@@ -31,6 +31,7 @@ from prismGui.domain.materialize import materialize
 from prismGui.domain.plan import open_draft
 from prismGui.domain.results import Freshness, RunResultStatus
 from prismGui.domain.run_config import RunConfig
+from prismGui.domain.scenario import ResourceChange, Scenario
 from prismGui.domain import serialization as ser
 from prismGui.domain.versions import SCHEMA_VERSION
 
@@ -120,6 +121,50 @@ class TestPrepareRun:
         durations = {t["task_id"]: t["duration"] for t in spy.calls[0]["tasks"]}
         assert durations["B"] == 9.0                    # scenario stretched B 6h -> 9h
         assert outcome.run_request.provenance_inputs.scenario_delta_hash is not None
+
+    def test_resource_change_yields_a_different_effective_hash(self, baseline, run_config,
+                                                               snapshot_store, validator_adapter):
+        """A resource-availability what-if rewrites the baseline periods, so the effective
+        plan (and its hash) differs from the plain-baseline effective plan — the delta is
+        actually folded in, not silently dropped."""
+        plain_hash = materialize(baseline, None).effective_plan.effective_plan_hash
+        scenario = Scenario(
+            scenario_id="scn-res", base_plan_id=baseline.plan_id,
+            base_plan_hash=baseline.plan_hash,
+            resource_changes=(ResourceChange("MECH", 48.0, 1),))
+        outcome = services.prepare_run(baseline, scenario, run_config, snapshot_store,
+                                       validator=validator_adapter)
+        assert outcome.ok
+        assert outcome.effective_plan.effective_plan_hash != plain_hash
+        assert outcome.run_request.provenance_inputs.scenario_delta_hash is not None
+
+    def test_over_cut_warns_but_does_not_block(self, baseline, run_config, snapshot_store,
+                                               validator_adapter):
+        """Cutting MECH to a single crew (below task B's demand of 2) is a coarse shortfall:
+        the validator raises INSUFFICIENT_RESOURCE as a WARNING, which does NOT trip the
+        ERROR-only prepare gate. prepare.ok stays True and the warning rides along."""
+        scenario = Scenario(
+            scenario_id="scn-cut", base_plan_id=baseline.plan_id,
+            base_plan_hash=baseline.plan_hash,
+            resource_changes=(ResourceChange("MECH", 0.0, 1),))   # whole pool -> 1
+        outcome = services.prepare_run(baseline, scenario, run_config, snapshot_store,
+                                       validator=validator_adapter)
+        assert outcome.ok                                          # WARNING, not a block
+        assert outcome.run_request is not None
+        shortfalls = [i for i in outcome.issues if i.code is IssueCode.INSUFFICIENT_RESOURCE]
+        assert shortfalls and all(i.severity is Severity.WARNING for i in shortfalls)
+
+    def test_scenario_base_hash_mismatch_hard_blocks(self, baseline, scenario_with_stale_hash,
+                                                     run_config, snapshot_store, validator_adapter):
+        """A scenario built against a superseded revision (base_plan_hash != baseline) is a
+        hard PROV_HASH_MISMATCH block at prepare_run — no RunRequest, nothing persisted."""
+        outcome = services.prepare_run(baseline, scenario_with_stale_hash, run_config,
+                                       snapshot_store, validator=validator_adapter)
+        assert not outcome.ok
+        assert outcome.run_request is None
+        assert any(i.code is IssueCode.PROV_HASH_MISMATCH and i.severity is Severity.ERROR
+                   for i in outcome.issues)
+        assert not snapshot_store.contains(baseline.plan_hash)
 
 
 class TestRun:

@@ -28,7 +28,7 @@ import csv
 import io
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 from typing import Any, Optional
@@ -61,6 +61,7 @@ from prismGui.domain.plan import (
 )
 from prismGui.domain.results import DispositionOverall, Freshness, RunResultStatus
 from prismGui.domain.run_config import PRIORITY_RULES, RunConfig, SGSVariant
+from prismGui.domain.scenario import DurationOverride, ResourceChange, Scenario
 from prismGui.infrastructure.memory_repository import InMemoryRepository
 from prismGui.infrastructure.memory_snapshot_store import InMemorySnapshotStore
 from prismGui.infrastructure.validation_adapter import OutageValidatorAdapter
@@ -105,15 +106,18 @@ def run_pipeline(
     store: InMemorySnapshotStore,
     executor,
     repository: Optional[InMemoryRepository] = None,
+    scenario: Optional[Scenario] = None,
 ) -> PipelineResult:
     """The exact sequence the Run button triggers, factored out so it can be driven
-    headlessly: load+validate → prepare_run → run. Blocking is reported per stage; a
-    non-ok pipeline never fabricates a result."""
+    headlessly: load+validate → prepare_run → run. When a ``scenario`` is supplied it is
+    materialized into the effective plan (baseline + delta) before the run; ``None`` runs
+    the plain baseline. Blocking is reported per stage; a non-ok pipeline never fabricates
+    a result."""
     load = services.load_and_validate(plan_id, raw_plan, validator)
     if not load.ok:
         return PipelineResult(ok=False, stage="load", issues=load.issues)
 
-    prep = services.prepare_run(load.reference_plan, None, run_config, store, validator=validator)
+    prep = services.prepare_run(load.reference_plan, scenario, run_config, store, validator=validator)
     if not prep.ok:
         return PipelineResult(ok=False, stage="prepare", issues=prep.issues,
                               reference_plan=load.reference_plan)
@@ -133,6 +137,107 @@ def _make_executor(store: InMemorySnapshotStore):
     the composition root's run path)."""
     from prismGui.infrastructure.prism_adapter import InProcessPrismExecutor
     return InProcessPrismExecutor(store)
+
+
+# =============================================================================
+# scenario authoring (streamlit-free): build/extend a Scenario overlay
+# =============================================================================
+# A Scenario is an immutable OVERLAY delta bound to a baseline revision by
+# ``base_plan_hash``. These helpers fold a single what-if (a task duration override or a
+# resource-availability change) into a new frozen Scenario, so the render panel stays a
+# thin ``st.*`` shell over pure, unit-testable transforms — the same discipline the editor
+# builders follow. The domain (materialize) is the arbiter of validity; these only shape
+# the delta. An EMPTY scenario (no overrides, no changes) is treated as "no scenario".
+
+# The resource-change intent radio: a resource-availability edit is canonically ambiguous,
+# so the user tags it. A what-if becomes a Scenario overlay; a baseline correction is
+# redirected to the editor (a baseline edit), never authored here.
+_SCN_INTENTS = ("What-if (scenario)", "Baseline correction")
+
+
+def _is_whatif(intent: str) -> bool:
+    return intent == _SCN_INTENTS[0]
+
+
+def _scenario_is_empty(scenario: Optional[Scenario]) -> bool:
+    """True when the scenario touches nothing (no duration overrides, no resource changes),
+    so the run should use the plain baseline (materialize's scenario=None mirror path)."""
+    return scenario is None or (not scenario.duration_overrides and not scenario.resource_changes)
+
+
+def _new_scenario_for(baseline) -> Scenario:
+    """A fresh empty Scenario bound to the given baseline revision (by plan_hash)."""
+    return Scenario(
+        scenario_id=f"scn-{baseline.plan_id}",
+        base_plan_id=baseline.plan_id,
+        base_plan_hash=baseline.plan_hash,
+        name="session what-if",
+    )
+
+
+def _scenario_base(scenario: Optional[Scenario], baseline) -> Scenario:
+    """The Scenario to extend: the session's when it targets THIS baseline, else a fresh
+    one — a scenario bound to a superseded revision is rebuilt so its overrides never leak
+    across a baseline change (the session's resolve_for_new_baseline normally clears such a
+    scenario first; this is the belt-and-suspenders guard)."""
+    if scenario is None or scenario.base_plan_hash != baseline.plan_hash:
+        return _new_scenario_for(baseline)
+    return scenario
+
+
+def _scenario_duration_rows(scenario: Optional[Scenario]) -> list[dict]:
+    """Duration overrides as display/removal rows ``{index, task_id, duration_hours}``."""
+    if scenario is None:
+        return []
+    return [{"index": i, "task_id": ov.task_id, "duration_hours": ov.duration_hours}
+            for i, ov in enumerate(scenario.duration_overrides or ())]
+
+
+def _scenario_resource_rows(scenario: Optional[Scenario]) -> list[dict]:
+    """Resource changes as rows ``{index, skill_type, from_hour, new_count}``."""
+    if scenario is None:
+        return []
+    return [{"index": i, "skill_type": rc.skill_type, "from_hour": rc.from_hour,
+             "new_count": rc.new_count}
+            for i, rc in enumerate(scenario.resource_changes or ())]
+
+
+def _add_duration_override(scenario: Optional[Scenario], baseline, task_id: str,
+                           duration_hours: float) -> Scenario:
+    """New Scenario with a duration override for ``task_id`` (last-write-wins per task: an
+    existing override for the same task is replaced, never duplicated)."""
+    base = _scenario_base(scenario, baseline)
+    kept = tuple(ov for ov in (base.duration_overrides or ()) if ov.task_id != task_id)
+    return replace(base, duration_overrides=kept + (
+        DurationOverride(task_id=task_id, duration_hours=float(duration_hours)),))
+
+
+def _remove_duration_override(scenario: Optional[Scenario], baseline, task_id: str) -> Scenario:
+    """New Scenario with the override for ``task_id`` dropped (empties to None)."""
+    base = _scenario_base(scenario, baseline)
+    kept = tuple(ov for ov in (base.duration_overrides or ()) if ov.task_id != task_id)
+    return replace(base, duration_overrides=kept or None)
+
+
+def _add_resource_change(scenario: Optional[Scenario], baseline, skill_type: str,
+                         from_hour: float, new_count: int) -> Scenario:
+    """New Scenario with a resource change (last-write-wins per (skill_type, from_hour), so
+    the UI can never author the duplicate-hour case materialize would reject)."""
+    base = _scenario_base(scenario, baseline)
+    fh = float(from_hour)
+    kept = tuple(rc for rc in (base.resource_changes or ())
+                 if not (rc.skill_type == skill_type and rc.from_hour == fh))
+    return replace(base, resource_changes=kept + (
+        ResourceChange(skill_type=skill_type, from_hour=fh, new_count=int(new_count)),))
+
+
+def _remove_resource_change(scenario: Optional[Scenario], baseline, index: int) -> Scenario:
+    """New Scenario with the resource change at ``index`` dropped (empties to None)."""
+    base = _scenario_base(scenario, baseline)
+    changes = list(base.resource_changes or ())
+    if 0 <= index < len(changes):
+        del changes[index]
+    return replace(base, resource_changes=tuple(changes) or None)
 
 
 # =============================================================================
@@ -492,7 +597,7 @@ def _render_result(result, session, baseline, run_config) -> None:
     _render_disposition_panel(result.disposition)
 
     freshness, reasons = services.current_freshness_detail(
-        result, baseline=baseline, run_config=run_config)
+        result, baseline=baseline, scenario=session.get_scenario(), run_config=run_config)
     _render_provenance_freshness(result, freshness, reasons)
 
     _render_gantt(s)
@@ -2801,6 +2906,119 @@ def _pick_source():
     return None, ""
 
 
+def _apply_scenario(session, new_scenario: Optional[Scenario], *, success_msg: str) -> None:
+    """Store the scenario overlay on the session — or clear it when the edit left it empty.
+    A scenario is NOT a baseline edit: no draft, no commit, no validator pass here (the
+    domain re-validates the EFFECTIVE plan at Run time). Emptiness maps to set_scenario(None)
+    so the plain-baseline mirror path runs and provenance stamps no delta."""
+    if _scenario_is_empty(new_scenario):
+        session.set_scenario(None)
+        st.info("Scenario is empty — the run will use the plain baseline.")
+    else:
+        session.set_scenario(new_scenario)
+        st.success(success_msg)
+
+
+def _render_scenario_panel(session, baseline) -> None:
+    """Author a what-if scenario over the CURRENT session baseline: task duration overrides
+    and resource-availability changes. A resource edit's intent is tagged — a *what-if*
+    becomes a Scenario overlay (materialized into the effective plan at Run time and tracked
+    by provenance freshness); a *baseline correction* is redirected to the editor's Resources
+    tab, never authored here (the domain never guesses intent). Empty scenario == plain
+    baseline."""
+    with st.expander("What-if scenario (optional)", expanded=False):
+        scenario = session.get_scenario()
+        raw_tree = json.loads(baseline.raw_snapshot)["payload"]
+
+        if not _scenario_is_empty(scenario) and scenario.base_plan_hash == baseline.plan_hash:
+            st.caption(
+                f"Active scenario: {len(scenario.duration_overrides or ())} duration "
+                f"override(s), {len(scenario.resource_changes or ())} resource change(s).")
+        else:
+            st.caption("No scenario — the run uses the baseline as-is.")
+
+        # --- task duration overrides ------------------------------------------
+        st.markdown("**Task duration override**")
+        tasks = _task_options(raw_tree)
+        if not tasks:
+            st.caption("No tasks to override.")
+        else:
+            t_labels = [f"{t['task_id']} (current {t['duration']}h)" for t in tasks]
+            t_pick = st.selectbox("Task", range(len(tasks)), format_func=lambda k: t_labels[k],
+                                  key="prism_scn_dur_task")
+            chosen_t = tasks[t_pick]
+            dur = st.number_input("Override duration (hours)", min_value=0.0,
+                                  value=float(_as_float(chosen_t["duration"], 1.0)),
+                                  step=1.0, key="prism_scn_dur_hours")
+            if st.button("Add duration override", key="prism_scn_dur_add"):
+                _apply_scenario(
+                    session, _add_duration_override(scenario, baseline, chosen_t["task_id"], dur),
+                    success_msg=f"Scenario: {chosen_t['task_id']} duration → {dur:g}h.")
+                scenario = session.get_scenario()
+
+        for row in _scenario_duration_rows(scenario):
+            c1, c2 = st.columns([4, 1])
+            c1.caption(f"• {row['task_id']} → {row['duration_hours']:g}h")
+            if c2.button("Remove", key=f"prism_scn_dur_rm_{row['task_id']}"):
+                _apply_scenario(
+                    session, _remove_duration_override(scenario, baseline, row["task_id"]),
+                    success_msg=f"Removed duration override for {row['task_id']}.")
+                scenario = session.get_scenario()
+
+        # --- resource-availability change (intent-tagged) ---------------------
+        st.markdown("**Resource availability change**")
+        intent = st.radio("This change is a…", _SCN_INTENTS, index=0, horizontal=True,
+                          key="prism_scn_res_intent")
+        pools = _resource_options(raw_tree)
+        if not pools:
+            st.caption("No resource pools in this plan.")
+        else:
+            r_labels = [f"{p['skill_type']} ({p['n_periods']} period(s))" for p in pools]
+            r_pick = st.selectbox("Skill pool", range(len(pools)),
+                                  format_func=lambda k: r_labels[k], key="prism_scn_res_pool")
+            chosen_r = pools[r_pick]
+            existing = _availability_options(raw_tree, chosen_r["index"])
+            if existing:
+                st.caption("Current availability: " + "; ".join(
+                    f"[{p['start_date']} … {p['end_date']}) × {p['available_count']}"
+                    for p in existing))
+            c1, c2 = st.columns([1, 1])
+            from_hour = c1.number_input("From hour", min_value=0.0, value=0.0, step=1.0,
+                                        key="prism_scn_res_from")
+            new_count = c2.number_input("New available count", min_value=0, value=0, step=1,
+                                        key="prism_scn_res_count")
+            if _is_whatif(intent):
+                if st.button("Add resource what-if", key="prism_scn_res_add"):
+                    _apply_scenario(
+                        session,
+                        _add_resource_change(scenario, baseline, chosen_r["skill_type"],
+                                             from_hour, new_count),
+                        success_msg=(f"Scenario: {chosen_r['skill_type']} → {int(new_count)} "
+                                     f"from hour {from_hour:g}."))
+                    scenario = session.get_scenario()
+            else:
+                st.info(
+                    "A roster **correction** is a baseline change, not a what-if. Make it in the "
+                    "**Resources & availability** tab of the plan editor above (open a draft → "
+                    "change the pool's available count → commit). That keeps the correction in "
+                    "your baseline, where scheduling and provenance expect it.")
+
+        for row in _scenario_resource_rows(scenario):
+            c1, c2 = st.columns([4, 1])
+            c1.caption(f"• {row['skill_type']} → {row['new_count']} from hour {row['from_hour']:g}")
+            if c2.button("Remove", key=f"prism_scn_res_rm_{row['index']}"):
+                _apply_scenario(
+                    session, _remove_resource_change(scenario, baseline, row["index"]),
+                    success_msg=f"Removed resource change for {row['skill_type']}.")
+                scenario = session.get_scenario()
+
+        # --- clear ------------------------------------------------------------
+        if not _scenario_is_empty(scenario):
+            if st.button("Clear scenario", key="prism_scn_clear"):
+                session.set_scenario(None)
+                st.success("Scenario cleared — the run will use the plain baseline.")
+
+
 def _pick_run_config(plan_id: str) -> RunConfig:
     """Sidebar SGS + priority-rule + seed selectors -> a RunConfig. The rule list is the
     engine's own 22-key library, so an unknown key is impossible."""
@@ -2862,16 +3080,21 @@ def main() -> None:
     _render_editor(session, validator)
     baseline = session.get_baseline()
 
+    # --- author an optional what-if scenario over the current baseline ---
+    _render_scenario_panel(session, baseline)
+
     run_config = _pick_run_config(plan_id)
     session.set_run_config(run_config)
 
     if st.button("Run schedule", type="primary"):
-        # Run the CURRENT session baseline's payload — a committed edit is what runs.
+        # Run the CURRENT session baseline's payload — a committed edit is what runs — with
+        # the session scenario (if any) materialized into the effective plan by prepare_run.
         payload = json.loads(baseline.raw_snapshot)["payload"]
         with st.spinner("Scheduling…"):
             outcome = run_pipeline(
                 payload, baseline.plan_id, run_config,
-                validator=validator, store=store, executor=executor, repository=repository)
+                validator=validator, store=store, executor=executor, repository=repository,
+                scenario=session.get_scenario())
         if not outcome.ok:
             st.error(f"Cannot run — blocked at {outcome.stage}.")
             _render_issues(outcome.issues)
