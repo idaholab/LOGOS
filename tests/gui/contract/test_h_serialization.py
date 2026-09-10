@@ -179,6 +179,57 @@ class TestSerializationRoundTrip:
         assert "consumables" not in exported
         assert "plant_systems" not in exported and "systems" not in exported
 
+    def test_task_requirements_load_to_typed_values(self, raw_plan):
+        """Loader coverage for the five requirement dimensions the Increment-6 task-requirements
+        form wires: a task's ``location_id``, a ``required_equipment`` entry, a
+        ``required_consumables`` entry, a ``required_system_states`` entry, and a
+        ``required_resources`` entry carrying an ``alternative_skill_types`` — the shapes that form
+        emits through the commit path — load via ``load_plan_content`` to the expected typed values.
+        As with consumables/systems, assert **load only**: the lossy typed export DROPS
+        ``required_consumables`` / ``required_system_states`` / ``alternative_skill_types`` BY DESIGN
+        (``dump_task`` emits only location_id / required_resources[skill_type,crew_count] /
+        required_equipment) — they ride the authoritative raw snapshot the commit rides, not this
+        path. The by-design omission is asserted below so it reads as intentional, not a miss."""
+        plan = copy.deepcopy(raw_plan)
+        plan["tasks"][0].update({
+            "location_id": "ZONE-1",
+            "required_resources": [{"skill_type": "MECH", "crew_count": 2,
+                                    "alternative_skill_types": ["ELEC", "HVAC"]}],
+            "required_equipment": [{"equipment_id": "CRANE-1", "quantity_needed": 3}],
+            "required_consumables": [{"item_id": "N2-CYL", "quantity_needed": 2.5}],
+            "required_system_states": [{"system_id": "RCS", "required_state": "ISOLATED"}],
+        })
+
+        content = ser.load_plan_content(plan)            # must NOT crash on any requirement shape
+        task = next(t for t in content.tasks if t.task_id == "A")
+        assert task.location_id == "ZONE-1"
+        assert len(task.required_resources) == 1
+        assert task.required_resources[0].skill_type == "MECH"
+        assert task.required_resources[0].crew_count == 2
+        assert len(task.required_equipment) == 1
+        assert task.required_equipment[0].equipment_id == "CRANE-1"
+        assert task.required_equipment[0].quantity_needed == 3
+        assert len(task.consumable_demands) == 1
+        assert task.consumable_demands[0].material_id == "N2-CYL"
+        assert task.consumable_demands[0].quantity == 2.5
+        assert len(task.required_states) == 1
+        assert task.required_states[0].system_id == "RCS"
+        assert task.required_states[0].state == "ISOLATED"
+        assert task.alternative_skill_types == ("ELEC", "HVAC")
+
+        # By design the lossy typed export keeps location_id / required_resources (skill_type +
+        # crew_count) / required_equipment, but DROPS required_consumables, required_system_states
+        # and alternative_skill_types (they ride the raw snapshot the commit uses, not this path).
+        exported = ser.serialize_plan_content(content)
+        exported_task = next(t for t in exported["tasks"] if t["task_id"] == "A")
+        assert exported_task["location_id"] == "ZONE-1"
+        assert exported_task["required_equipment"] == [
+            {"equipment_id": "CRANE-1", "quantity_needed": 3}]
+        assert exported_task["required_resources"] == [{"skill_type": "MECH", "crew_count": 2}]
+        assert "alternative_skill_types" not in exported_task["required_resources"][0]
+        assert "required_consumables" not in exported_task
+        assert "required_system_states" not in exported_task
+
     def test_equivalent_iso_offsets_canonicalize_consistently(self, raw_plan_with_iso_dates):
         """Two ISO timestamps denoting the same instant with different offsets normalize
         to the same UTC form -> identical canonical bytes -> identical hash."""

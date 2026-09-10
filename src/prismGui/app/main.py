@@ -1268,6 +1268,228 @@ def _remove_system_state_patch(sys_index: int, state_index: int) -> PatchOp:
 
 
 # -----------------------------------------------------------------------------
+# Increment 6: task requirement wiring. Point a task at the entities the other
+# tabs author -- its location_id, required_equipment, required_consumables,
+# required_system_states, and required_resources beyond the one seeded at add.
+# Same discipline: pure data -> PatchOp builders over the /tasks/{i}/... loader
+# paths, fed through domain.apply_patch, blocked (never crashed) at commit on a
+# bad edit. THE REF_MISSING ASYMMETRY (validate_outage_data.py): the CPM validator
+# checks only three of the five references -- location_id,
+# required_equipment[].equipment_id and required_resources[].skill_type must
+# resolve to a defined pool (else REF_MISSING at commit); required_consumables
+# [].item_id, required_system_states[].system_id and alternative_skill_types are
+# NOT validated, so a task may name a ghost of those without blocking. Builders do
+# NOT re-check refs up-front (the wrappers' pickers offer only existing entities);
+# the commit validator is the single arbiter, so a bad ref -- reached by removing
+# a wired entity, or via the raw editor -- is what exercises the REF_MISSING
+# binding for tasks. location_id is nullable, but apply_patch rejects a None value,
+# so CLEARING it is a REMOVE (present-only), not a set-to-null; SETTING it is an
+# ADD (set-or-create). The optional sub-arrays (required_consumables /
+# required_system_states / alternative_skill_types) start absent, so adds go
+# through the Inc-5 _array_add_op create-or-append helper.
+# -----------------------------------------------------------------------------
+
+def _task_at(raw_tree, task_index: int) -> Optional[dict]:
+    """The task dict at ``task_index`` in the raw ``tasks`` list, or None if out of range -- the
+    shared bounds guard the per-task requirement readers use (read-only; never mutated here)."""
+    tasks = raw_tree.get("tasks") or []
+    if task_index < 0 or task_index >= len(tasks):
+        return None
+    return tasks[task_index]
+
+
+def _task_location(raw_tree, task_index: int) -> Optional[str]:
+    """The current ``location_id`` of task #task_index (None if absent/null or out of range)."""
+    task = _task_at(raw_tree, task_index)
+    return task.get("location_id") if task else None
+
+
+def _task_equipment_reqs(raw_tree, task_index: int) -> list[dict]:
+    """``required_equipment`` rows ``{index, equipment_id, quantity_needed}`` for one task
+    (empty if out of range)."""
+    reqs = (_task_at(raw_tree, task_index) or {}).get("required_equipment") or []
+    return [
+        {"index": j, "equipment_id": e.get("equipment_id", ""),
+         "quantity_needed": e.get("quantity_needed")}
+        for j, e in enumerate(reqs)
+    ]
+
+
+def _task_consumable_reqs(raw_tree, task_index: int) -> list[dict]:
+    """``required_consumables`` rows ``{index, item_id, quantity_needed}`` for one task
+    (empty if out of range)."""
+    reqs = (_task_at(raw_tree, task_index) or {}).get("required_consumables") or []
+    return [
+        {"index": j, "item_id": c.get("item_id", ""), "quantity_needed": c.get("quantity_needed")}
+        for j, c in enumerate(reqs)
+    ]
+
+
+def _task_system_state_reqs(raw_tree, task_index: int) -> list[dict]:
+    """``required_system_states`` rows ``{index, system_id, required_state}`` for one task
+    (empty if out of range)."""
+    reqs = (_task_at(raw_tree, task_index) or {}).get("required_system_states") or []
+    return [
+        {"index": j, "system_id": s.get("system_id", ""),
+         "required_state": s.get("required_state", "")}
+        for j, s in enumerate(reqs)
+    ]
+
+
+def _task_resource_reqs(raw_tree, task_index: int) -> list[dict]:
+    """``required_resources`` rows ``{index, skill_type, crew_count, alternatives}`` for one task
+    (empty if out of range). ``alternatives`` is the entry's ``alternative_skill_types`` list."""
+    reqs = (_task_at(raw_tree, task_index) or {}).get("required_resources") or []
+    return [
+        {"index": j, "skill_type": r.get("skill_type", ""), "crew_count": r.get("crew_count"),
+         "alternatives": list(r.get("alternative_skill_types") or [])}
+        for j, r in enumerate(reqs)
+    ]
+
+
+# --- location_id (a nullable single value, not a list) ---
+
+def _task_location_patch(task_index: int, location_id: str) -> PatchOp:
+    """ADD (set-or-create) ``/tasks/{i}/location_id`` to a zone id. ADD, not REPLACE: the field is
+    optional and a task may not carry it yet. REF_MISSING-bound -- if the zone is not a defined
+    location, commit BLOCKS (REF_MISSING); the picker offers only existing zones, so a bad ref
+    arises only by removing the zone later (or via the raw editor)."""
+    return PatchOp(action=PatchAction.ADD, path=f"/tasks/{task_index}/location_id",
+                   value=str(location_id))
+
+
+def _task_location_clear_patch(task_index: int) -> PatchOp:
+    """REMOVE ``/tasks/{i}/location_id`` -- the ONLY way to clear it, since ``location_id`` is
+    nullable but ``apply_patch`` rejects a None value (a set-to-null is impossible). Valid only when
+    the key is present (the wrapper gates on a current location)."""
+    return PatchOp(action=PatchAction.REMOVE, path=f"/tasks/{task_index}/location_id")
+
+
+# --- required_equipment (REF_MISSING-bound) ---
+
+def _add_task_equipment_patch(raw_tree, task_index: int, equipment_id: str,
+                              quantity_needed: int) -> PatchOp:
+    """Create-or-append a ``{equipment_id, quantity_needed}`` requirement to task #task_index's
+    ``required_equipment`` (always present -- seeded ``[]`` by _add_task_patch -- but guarded via
+    _array_add_op for a raw-edited draft). REF_MISSING-bound: a ghost equipment_id BLOCKS at commit."""
+    present = isinstance((_task_at(raw_tree, task_index) or {}).get("required_equipment"), list)
+    return _array_add_op(f"/tasks/{task_index}/required_equipment", present,
+                         {"equipment_id": str(equipment_id),
+                          "quantity_needed": int(quantity_needed)})
+
+
+def _remove_task_equipment_patch(task_index: int, req_index: int) -> PatchOp:
+    """REMOVE one ``required_equipment`` entry (by index) from task #task_index."""
+    return PatchOp(action=PatchAction.REMOVE,
+                   path=f"/tasks/{task_index}/required_equipment/{req_index}")
+
+
+# --- required_consumables (NOT referentially validated -- the asymmetry) ---
+
+def _add_task_consumable_patch(raw_tree, task_index: int, item_id: str,
+                               quantity_needed: float) -> PatchOp:
+    """Create-or-append an ``{item_id, quantity_needed}`` requirement to task #task_index's
+    ``required_consumables`` (optional; starts absent). NOT referentially validated -- a ghost
+    item_id COMMITS cleanly (unlike equipment). A ``quantity_needed <= 0`` (schema exclusiveMinimum
+    0) BLOCKS at commit (SCHEMA_RANGE_ERROR)."""
+    present = isinstance((_task_at(raw_tree, task_index) or {}).get("required_consumables"), list)
+    return _array_add_op(f"/tasks/{task_index}/required_consumables", present,
+                         {"item_id": str(item_id), "quantity_needed": float(quantity_needed)})
+
+
+def _remove_task_consumable_patch(task_index: int, req_index: int) -> PatchOp:
+    """REMOVE one ``required_consumables`` entry (by index) from task #task_index."""
+    return PatchOp(action=PatchAction.REMOVE,
+                   path=f"/tasks/{task_index}/required_consumables/{req_index}")
+
+
+# --- required_system_states (NOT referentially validated -- the asymmetry) ---
+
+def _add_task_system_state_patch(raw_tree, task_index: int, system_id: str,
+                                 required_state: str) -> PatchOp:
+    """Create-or-append a ``{system_id, required_state}`` requirement to task #task_index's
+    ``required_system_states`` (optional; starts absent). NOT referentially validated -- a ghost
+    system_id COMMITS cleanly. The wrapper picks required_state from the system's declared
+    valid_states, so a blank required_state does not arise through the UI (a blank would otherwise
+    hit the schema's minLength 1 at commit)."""
+    present = isinstance((_task_at(raw_tree, task_index) or {}).get("required_system_states"), list)
+    return _array_add_op(f"/tasks/{task_index}/required_system_states", present,
+                         {"system_id": str(system_id), "required_state": str(required_state)})
+
+
+def _remove_task_system_state_patch(task_index: int, req_index: int) -> PatchOp:
+    """REMOVE one ``required_system_states`` entry (by index) from task #task_index."""
+    return PatchOp(action=PatchAction.REMOVE,
+                   path=f"/tasks/{task_index}/required_system_states/{req_index}")
+
+
+# --- required_resources (edit beyond the initial add) ---
+
+def _add_task_resource_patch(raw_tree, task_index: int, skill_type: str,
+                             crew_count: int) -> PatchOp:
+    """Create-or-append a ``{skill_type, crew_count}`` resource requirement to task #task_index's
+    ``required_resources`` (always present -- guarded via _array_add_op for a raw-edited draft).
+    ``skill_type`` is REF_MISSING-bound: a ghost skill BLOCKS at commit."""
+    present = isinstance((_task_at(raw_tree, task_index) or {}).get("required_resources"), list)
+    return _array_add_op(f"/tasks/{task_index}/required_resources", present,
+                         {"skill_type": str(skill_type), "crew_count": int(crew_count)})
+
+
+def _remove_task_resource_patch(task_index: int, req_index: int) -> PatchOp:
+    """REMOVE one ``required_resources`` entry (by index) from task #task_index. A task with no
+    resources is schema-valid (the array may be empty) but unschedulable -- a modeling choice, not
+    a commit block."""
+    return PatchOp(action=PatchAction.REMOVE,
+                   path=f"/tasks/{task_index}/required_resources/{req_index}")
+
+
+def _task_resource_crew_patch(task_index: int, req_index: int, crew_count: int) -> PatchOp:
+    """REPLACE the always-present ``crew_count`` of one resource requirement (a value < 1 BLOCKS at
+    commit -- schema minimum 1)."""
+    return PatchOp(action=PatchAction.REPLACE,
+                   path=f"/tasks/{task_index}/required_resources/{req_index}/crew_count",
+                   value=int(crew_count))
+
+
+def _task_resource_skill_patch(task_index: int, req_index: int, skill_type: str) -> PatchOp:
+    """REPLACE the always-present ``skill_type`` of one resource requirement. REF_MISSING-bound: a
+    ghost skill BLOCKS at commit."""
+    return PatchOp(action=PatchAction.REPLACE,
+                   path=f"/tasks/{task_index}/required_resources/{req_index}/skill_type",
+                   value=str(skill_type))
+
+
+def _add_task_alt_skill_patch(raw_tree, task_index: int, req_index: int,
+                              skill_type: str) -> tuple[Optional[PatchOp], list[Issue]]:
+    """Create-or-append one ``alternative_skill_types`` string to a resource requirement
+    (``alternative_skill_types`` is optional and starts absent). Rejects a blank or duplicate value
+    up-front (DUP_ID-coded, matching _add_system_state_patch) so it never reaches the schema's
+    uniqueItems / minLength check. NOT referentially validated -- the validator checks only the
+    primary skill_type, so a ghost alternative COMMITS cleanly."""
+    alt = (skill_type or "").strip()
+    if not alt:
+        return None, [_dup_id("resource", alt, "an alternative skill must be a non-empty string")]
+    reqs = (_task_at(raw_tree, task_index) or {}).get("required_resources") or []
+    present = False
+    if 0 <= req_index < len(reqs):
+        existing = set(reqs[req_index].get("alternative_skill_types") or [])
+        if alt in existing:
+            return None, [_dup_id("resource", alt, f"alternative skill '{alt}' is already listed")]
+        present = isinstance(reqs[req_index].get("alternative_skill_types"), list)
+    return _array_add_op(
+        f"/tasks/{task_index}/required_resources/{req_index}/alternative_skill_types",
+        present, alt), []
+
+
+def _remove_task_alt_skill_patch(task_index: int, req_index: int, alt_index: int) -> PatchOp:
+    """REMOVE one ``alternative_skill_types`` string (by index) from a resource requirement."""
+    return PatchOp(
+        action=PatchAction.REMOVE,
+        path=f"/tasks/{task_index}/required_resources/{req_index}"
+             f"/alternative_skill_types/{alt_index}")
+
+
+# -----------------------------------------------------------------------------
 # structured editor form wrappers (the only st.* sites for editing) + the
 # lifecycle composition. Each wrapper gathers widget inputs, calls a builder, and
 # routes the result through the shared _apply_ops tail.
@@ -1781,6 +2003,198 @@ def _render_system_form(session, draft) -> None:
                    success_msg=f"Staged new state for {chosen['system_id']}.")
 
 
+def _render_task_requirements_form(session, draft) -> None:
+    """Task requirements tab: point a task at the entities the other tabs author — its
+    ``location_id`` (a single nullable zone), ``required_equipment``, ``required_consumables``,
+    ``required_system_states``, and any ``required_resources`` beyond the one seeded at add
+    (including each resource's ``alternative_skill_types``). Every picker offers only entities that
+    already exist, so the commit validator is the single arbiter of referential integrity: wiring a
+    task to a defined pool commits, and the REF_MISSING binding is reached through the removal story
+    (wire CRANE-1, then remove equipment CRANE-1 -> commit blocks). NOTE the validator's ASYMMETRY --
+    only ``location_id``, ``required_equipment[].equipment_id`` and ``required_resources[].skill_type``
+    are referentially validated; ``required_consumables[].item_id``, ``required_system_states[]
+    .system_id`` and ``alternative_skill_types`` are not, so a ghost of those commits cleanly."""
+    tasks = _task_options(draft.raw_working_tree)
+    if not tasks:
+        st.caption("No tasks yet — add one on the Task & duration tab first.")
+        return
+    t_labels = [f"{t['task_id']} (dur {t['duration']})" for t in tasks]
+    t_pick = st.selectbox("Task", range(len(tasks)), format_func=lambda k: t_labels[k],
+                          key="prism_req_task_pick")
+    task_index = tasks[t_pick]["index"]
+    task_id = tasks[t_pick]["task_id"]
+    _NONE = "— none —"
+
+    # --- Location (a single nullable zone; SET is ADD, CLEAR is REMOVE — null can't be patched) ---
+    st.markdown("**Location**")
+    zone_ids = [o["location_id"] for o in _location_options(draft.raw_working_tree)]
+    current_loc = _task_location(draft.raw_working_tree, task_index)
+    st.caption(f"Current location: {current_loc if current_loc else _NONE}")
+    loc_opts = [_NONE, *zone_ids]
+    loc_default = loc_opts.index(current_loc) if current_loc in zone_ids else 0
+    loc_choice = st.selectbox("Set location", loc_opts, index=loc_default, key="prism_req_loc")
+    if st.button("Apply location", key="prism_req_loc_apply"):
+        if loc_choice != _NONE:
+            _apply_ops(session, draft, [_task_location_patch(task_index, loc_choice)], [],
+                       success_msg=f"Staged location {loc_choice} for task {task_id}.")
+        elif current_loc is not None:
+            _apply_ops(session, draft, [_task_location_clear_patch(task_index)], [],
+                       success_msg=f"Staged clearing the location of task {task_id}.")
+        else:
+            st.info("No location set — nothing to clear.")
+
+    # --- Resource requirements (skill_type + crew_count, plus nested alternative_skill_types) ---
+    st.markdown("**Resource requirements**")
+    skills = sorted({r["skill_type"] for r in _resource_options(draft.raw_working_tree)})
+    if skills:
+        ra1, ra2 = st.columns([2, 1])
+        add_skill = ra1.selectbox("Skill", skills, key="prism_req_res_add_skill")
+        add_crew = ra2.number_input("Crew count", min_value=1, value=1, step=1,
+                                    key="prism_req_res_add_crew")
+        if st.button("Add resource requirement", key="prism_req_res_add"):
+            op = _add_task_resource_patch(draft.raw_working_tree, task_index, add_skill, add_crew)
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged resource {add_skill} ×{add_crew} for task {task_id}.")
+    else:
+        st.caption("No resource pools yet — add one on the Resources tab first.")
+
+    resources = _task_resource_reqs(draft.raw_working_tree, task_index)
+    if resources:
+        r_labels = [f"{r['skill_type']} ×{r['crew_count']}"
+                    + (f" (alt: {', '.join(r['alternatives'])})" if r["alternatives"] else "")
+                    for r in resources]
+        r_pick = st.selectbox("Resource requirement", range(len(resources)),
+                              format_func=lambda k: r_labels[k], key="prism_req_res_pick")
+        chosen_r = resources[r_pick]
+        e1, e2 = st.columns([1, 2])
+        edit_crew = e1.number_input("Crew count", min_value=1,
+                                    value=int(_as_float(chosen_r["crew_count"], 1.0)), step=1,
+                                    key="prism_req_res_crew")
+        skill_opts = skills or [chosen_r["skill_type"]]
+        skill_idx = (skill_opts.index(chosen_r["skill_type"])
+                     if chosen_r["skill_type"] in skill_opts else 0)
+        edit_skill = e2.selectbox("Skill", skill_opts, index=skill_idx, key="prism_req_res_skill")
+        ecol, rcol = st.columns([1, 1])
+        if ecol.button("Apply resource edit", key="prism_req_res_apply"):
+            ops = [_task_resource_crew_patch(task_index, chosen_r["index"], edit_crew)]
+            if edit_skill != chosen_r["skill_type"]:
+                ops.append(_task_resource_skill_patch(task_index, chosen_r["index"], edit_skill))
+            _apply_ops(session, draft, ops, [],
+                       success_msg=f"Staged edit to resource #{chosen_r['index']} of task {task_id}.")
+        if rcol.button("Remove resource requirement", key="prism_req_res_remove"):
+            op = _remove_task_resource_patch(task_index, chosen_r["index"])
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged removal of a resource from task {task_id}.")
+
+        # nested alternative_skill_types on the selected resource (NOT ref-validated).
+        # The remove list is read here, BEFORE the add button below, so a just-added alternative
+        # appears only on the next rerun (the benign one-run lag a live user never notices).
+        st.markdown("**Alternative skills** (for the selected resource)")
+        alts = chosen_r["alternatives"]
+        if alts:
+            alt_pick = st.selectbox("Alternative skill", range(len(alts)),
+                                    format_func=lambda k: alts[k], key="prism_req_alt_pick")
+            if st.button("Remove alternative skill", key="prism_req_alt_remove"):
+                op = _remove_task_alt_skill_patch(task_index, chosen_r["index"], alt_pick)
+                _apply_ops(session, draft, [op], [],
+                           success_msg=f"Staged removal of alternative skill '{alts[alt_pick]}'.")
+        if skills:
+            alt_add = st.selectbox("Add alternative skill", skills, key="prism_req_alt_add")
+            if st.button("Add alternative skill", key="prism_req_alt_add_btn"):
+                op, issues = _add_task_alt_skill_patch(
+                    draft.raw_working_tree, task_index, chosen_r["index"], alt_add)
+                _apply_ops(session, draft, [op] if op else [], issues,
+                           success_msg=f"Staged alternative skill '{alt_add}'.")
+
+    # --- Equipment requirements (REF_MISSING-bound) ---
+    st.markdown("**Equipment requirements**")
+    equipment = _equipment_options(draft.raw_working_tree)
+    if equipment:
+        eq_labels = [e["equipment_id"] for e in equipment]
+        ea1, ea2 = st.columns([2, 1])
+        eq_add_pick = ea1.selectbox("Equipment", range(len(equipment)),
+                                    format_func=lambda k: eq_labels[k],
+                                    key="prism_req_equip_add_pick")
+        eq_add_qty = ea2.number_input("Quantity needed", min_value=1, value=1, step=1,
+                                      key="prism_req_equip_add_qty")
+        if st.button("Add equipment requirement", key="prism_req_equip_add"):
+            eid = equipment[eq_add_pick]["equipment_id"]
+            op = _add_task_equipment_patch(draft.raw_working_tree, task_index, eid, eq_add_qty)
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged equipment {eid} for task {task_id}.")
+    else:
+        st.caption("No equipment yet — add some on the Equipment tab first.")
+
+    eq_reqs = _task_equipment_reqs(draft.raw_working_tree, task_index)
+    if eq_reqs:
+        er_labels = [f"{e['equipment_id']} ×{e['quantity_needed']}" for e in eq_reqs]
+        er_pick = st.selectbox("Equipment requirement", range(len(eq_reqs)),
+                               format_func=lambda k: er_labels[k], key="prism_req_equip_pick")
+        if st.button("Remove equipment requirement", key="prism_req_equip_remove"):
+            op = _remove_task_equipment_patch(task_index, eq_reqs[er_pick]["index"])
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged removal of equipment {eq_reqs[er_pick]['equipment_id']}.")
+
+    # --- Consumable requirements (NOT ref-validated; quantity_needed <= 0 blocks at commit) ---
+    st.markdown("**Consumable requirements**")
+    consumables = _consumable_options(draft.raw_working_tree)
+    if consumables:
+        c_labels = [c["item_id"] for c in consumables]
+        ca1, ca2 = st.columns([2, 1])
+        cons_add_pick = ca1.selectbox("Consumable", range(len(consumables)),
+                                      format_func=lambda k: c_labels[k],
+                                      key="prism_req_cons_add_pick")
+        cons_add_qty = ca2.number_input("Quantity needed", min_value=0.0, value=1.0, step=1.0,
+                                        key="prism_req_cons_add_qty")
+        if st.button("Add consumable requirement", key="prism_req_cons_add"):
+            iid = consumables[cons_add_pick]["item_id"]
+            op = _add_task_consumable_patch(draft.raw_working_tree, task_index, iid, cons_add_qty)
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged consumable {iid} for task {task_id}.")
+    else:
+        st.caption("No consumables yet — add some on the Consumables tab first.")
+
+    cons_reqs = _task_consumable_reqs(draft.raw_working_tree, task_index)
+    if cons_reqs:
+        cr_labels = [f"{c['item_id']} ×{c['quantity_needed']}" for c in cons_reqs]
+        cr_pick = st.selectbox("Consumable requirement", range(len(cons_reqs)),
+                               format_func=lambda k: cr_labels[k], key="prism_req_cons_pick")
+        if st.button("Remove consumable requirement", key="prism_req_cons_remove"):
+            op = _remove_task_consumable_patch(task_index, cons_reqs[cr_pick]["index"])
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged removal of consumable {cons_reqs[cr_pick]['item_id']}.")
+
+    # --- System-state requirements (NOT ref-validated; required_state from declared valid_states) ---
+    st.markdown("**System-state requirements**")
+    systems = [s for s in _system_options(draft.raw_working_tree) if s["n_states"] > 0]
+    if systems:
+        sy_labels = [s["system_id"] for s in systems]
+        sy_add_pick = st.selectbox("Plant system", range(len(systems)),
+                                   format_func=lambda k: sy_labels[k], key="prism_req_sys_add_pick")
+        chosen_sys = systems[sy_add_pick]
+        state_opts = [row["state"] for row
+                      in _system_state_options(draft.raw_working_tree, chosen_sys["index"])]
+        sy_add_state = st.selectbox("Required state", state_opts, key="prism_req_sys_add_state")
+        if st.button("Add system-state requirement", key="prism_req_sys_add"):
+            op = _add_task_system_state_patch(
+                draft.raw_working_tree, task_index, chosen_sys["system_id"], sy_add_state)
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged system state {chosen_sys['system_id']}={sy_add_state} "
+                                   f"for task {task_id}.")
+    else:
+        st.caption("No plant systems with valid states yet — define states on the Systems tab first.")
+
+    sys_reqs = _task_system_state_reqs(draft.raw_working_tree, task_index)
+    if sys_reqs:
+        sr_labels = [f"{s['system_id']} = {s['required_state']}" for s in sys_reqs]
+        sr_pick = st.selectbox("System-state requirement", range(len(sys_reqs)),
+                               format_func=lambda k: sr_labels[k], key="prism_req_sys_pick")
+        if st.button("Remove system-state requirement", key="prism_req_sys_remove"):
+            op = _remove_task_system_state_patch(task_index, sys_reqs[sr_pick]["index"])
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged removal of system state {sys_reqs[sr_pick]['system_id']}.")
+
+
 def _render_raw_patch_form(session, draft) -> None:
     """The Increment-1 raw JSON-Pointer editor, kept for power edits (and to keep the
     headless smoke valid). Same widget keys (``prism_patch_*``) and the same "Apply patch"
@@ -1814,9 +2228,9 @@ def _render_raw_patch_form(session, draft) -> None:
 
 def _render_editor(session, validator) -> None:
     """The editing lifecycle (§2b): open a draft from the current baseline, stage edits through
-    structured forms (task/duration, dependencies/lags, resources/availability, equipment,
-    locations, consumables, systems) or the raw JSON-Pointer editor (Advanced), then commit (full
-    schema + referential re-validation, minting a NEW immutable revision) or discard.
+    structured forms (task/duration, task requirements, dependencies/lags, resources/availability,
+    equipment, locations, consumables, systems) or the raw JSON-Pointer editor (Advanced), then
+    commit (full schema + referential re-validation, minting a NEW immutable revision) or discard.
 
     Every form builds PatchOps and feeds them through the SAME ``domain.apply_patch``; the
     pending-patch log and the Commit / Discard controls are shared below the tabs. All state
@@ -1836,11 +2250,13 @@ def _render_editor(session, validator) -> None:
     st.caption(f"Editing a draft of `{draft.base_plan_id}` — "
                f"{len(draft.pending_patches)} patch(es) staged.")
 
-    tab_task, tab_dep, tab_res, tab_equip, tab_loc, tab_cons, tab_sys = st.tabs(
-        ["Task & duration", "Dependencies & lags", "Resources & availability",
-         "Equipment", "Locations", "Consumables", "Systems"])
+    tab_task, tab_req, tab_dep, tab_res, tab_equip, tab_loc, tab_cons, tab_sys = st.tabs(
+        ["Task & duration", "Task requirements", "Dependencies & lags",
+         "Resources & availability", "Equipment", "Locations", "Consumables", "Systems"])
     with tab_task:
         _render_task_form(session, draft)
+    with tab_req:
+        _render_task_requirements_form(session, draft)
     with tab_dep:
         _render_dependency_form(session, draft)
     with tab_res:

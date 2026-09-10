@@ -649,3 +649,154 @@ class TestEditorFormBuilders:
         rem_state = app_main._remove_system_state_patch(0, 1)
         assert (rem_state.action, rem_state.path) == (
             PatchAction.REMOVE, "/plant_systems/0/valid_states/1")
+
+    # -------------------------------------------------------------------------
+    # Increment 6: task requirement wiring. Point a task at the entities the
+    # other tabs author — location_id / required_equipment / required_consumables /
+    # required_system_states / required_resources (incl. alternative_skill_types).
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _tree_with_wired_task() -> dict:
+        """A tiny raw tree with one FULLY WIRED task (task index 0): a location, a resource
+        requirement carrying an alternative skill, an equipment requirement, a consumable
+        requirement and a system-state requirement — plus a bare task (index 1) whose optional
+        requirement sub-arrays are ABSENT, for the create-vs-append branch. Inline like the
+        consumable/system helper; the pools are present so the readers have data to return."""
+        return {
+            "tasks": [
+                {"task_id": "A", "description": "task a", "duration": 4, "successors": [],
+                 "location_id": "ZONE-1",
+                 "required_resources": [{"skill_type": "MECH", "crew_count": 2,
+                                         "alternative_skill_types": ["ELEC"]}],
+                 "required_equipment": [{"equipment_id": "CRANE-1", "quantity_needed": 1}],
+                 "required_consumables": [{"item_id": "N2-CYL", "quantity_needed": 2.0}],
+                 "required_system_states": [{"system_id": "RCS", "required_state": "ISOLATED"}]},
+                {"task_id": "B", "description": "task b", "duration": 2, "successors": [],
+                 "required_resources": [{"skill_type": "MECH", "crew_count": 1}],
+                 "required_equipment": []},
+            ],
+            "resources": [], "equipment": [], "locations": [], "consumables": [],
+            "plant_systems": [],
+        }
+
+    # per-task requirement readers
+
+    def test_task_requirement_readers_shape(self):
+        tree = self._tree_with_wired_task()
+        assert app_main._task_location(tree, 0) == "ZONE-1"
+        assert app_main._task_location(tree, 1) is None      # key absent -> None
+        assert app_main._task_at(tree, 9) is None            # out of range -> None
+        assert app_main._task_equipment_reqs(tree, 0) == [
+            {"index": 0, "equipment_id": "CRANE-1", "quantity_needed": 1}]
+        assert app_main._task_consumable_reqs(tree, 0) == [
+            {"index": 0, "item_id": "N2-CYL", "quantity_needed": 2.0}]
+        assert app_main._task_system_state_reqs(tree, 0) == [
+            {"index": 0, "system_id": "RCS", "required_state": "ISOLATED"}]
+        assert app_main._task_resource_reqs(tree, 0) == [
+            {"index": 0, "skill_type": "MECH", "crew_count": 2, "alternatives": ["ELEC"]}]
+        # a task whose optional sub-arrays are absent reads as empty (never crashes)
+        assert app_main._task_consumable_reqs(tree, 1) == []
+        assert app_main._task_system_state_reqs(tree, 1) == []
+        assert app_main._task_resource_reqs(tree, 1) == [
+            {"index": 0, "skill_type": "MECH", "crew_count": 1, "alternatives": []}]
+        assert app_main._task_equipment_reqs(tree, 9) == []  # out of range -> empty
+
+    # location_id — SET is ADD (set-or-create), CLEAR is REMOVE (null can't be patched)
+
+    def test_task_location_set_and_clear_patches(self):
+        set_op = app_main._task_location_patch(0, "ZONE-9")
+        assert (set_op.action, set_op.path, set_op.value) == (
+            PatchAction.ADD, "/tasks/0/location_id", "ZONE-9")
+        clear_op = app_main._task_location_clear_patch(0)
+        assert (clear_op.action, clear_op.path) == (PatchAction.REMOVE, "/tasks/0/location_id")
+
+    # required_equipment (REF_MISSING-bound) — always present, so append; guard covers a raw draft
+
+    def test_add_task_equipment_appends_and_removes(self):
+        tree = self._tree_with_wired_task()
+        op = app_main._add_task_equipment_patch(tree, 0, "FORKLIFT", 3)
+        assert (op.action, op.path, op.value) == (
+            PatchAction.ADD, "/tasks/0/required_equipment/-",
+            {"equipment_id": "FORKLIFT", "quantity_needed": 3})
+        rem = app_main._remove_task_equipment_patch(0, 0)
+        assert (rem.action, rem.path) == (PatchAction.REMOVE, "/tasks/0/required_equipment/0")
+
+    # required_consumables (NOT ref-validated) — optional, so create-vs-append
+
+    def test_add_task_consumable_creates_when_absent_appends_when_present(self):
+        tree = self._tree_with_wired_task()
+        # task 1 has no required_consumables key -> the first add CREATES the array
+        created = app_main._add_task_consumable_patch(tree, 1, "SEAL", 1.5)
+        assert (created.action, created.path, created.value) == (
+            PatchAction.ADD, "/tasks/1/required_consumables",
+            [{"item_id": "SEAL", "quantity_needed": 1.5}])
+        # task 0 already carries one -> APPEND via /-
+        appended = app_main._add_task_consumable_patch(tree, 0, "SEAL", 4)
+        assert (appended.action, appended.path, appended.value) == (
+            PatchAction.ADD, "/tasks/0/required_consumables/-",
+            {"item_id": "SEAL", "quantity_needed": 4.0})
+        rem = app_main._remove_task_consumable_patch(0, 0)
+        assert (rem.action, rem.path) == (PatchAction.REMOVE, "/tasks/0/required_consumables/0")
+
+    # required_system_states (NOT ref-validated) — optional, so create-vs-append
+
+    def test_add_task_system_state_creates_when_absent_appends_when_present(self):
+        tree = self._tree_with_wired_task()
+        created = app_main._add_task_system_state_patch(tree, 1, "CVCS", "RUNNING")
+        assert (created.action, created.path, created.value) == (
+            PatchAction.ADD, "/tasks/1/required_system_states",
+            [{"system_id": "CVCS", "required_state": "RUNNING"}])
+        appended = app_main._add_task_system_state_patch(tree, 0, "CVCS", "RUNNING")
+        assert (appended.action, appended.path, appended.value) == (
+            PatchAction.ADD, "/tasks/0/required_system_states/-",
+            {"system_id": "CVCS", "required_state": "RUNNING"})
+        rem = app_main._remove_task_system_state_patch(0, 0)
+        assert (rem.action, rem.path) == (PatchAction.REMOVE, "/tasks/0/required_system_states/0")
+
+    # required_resources — add/remove/edit beyond the initial add
+
+    def test_add_and_remove_task_resource_patches(self):
+        tree = self._tree_with_wired_task()
+        op = app_main._add_task_resource_patch(tree, 0, "ELEC", 3)
+        assert (op.action, op.path, op.value) == (
+            PatchAction.ADD, "/tasks/0/required_resources/-",
+            {"skill_type": "ELEC", "crew_count": 3})
+        rem = app_main._remove_task_resource_patch(0, 1)
+        assert (rem.action, rem.path) == (PatchAction.REMOVE, "/tasks/0/required_resources/1")
+
+    def test_task_resource_crew_and_skill_replace_patches(self):
+        crew = app_main._task_resource_crew_patch(0, 0, 5)
+        assert (crew.action, crew.path, crew.value) == (
+            PatchAction.REPLACE, "/tasks/0/required_resources/0/crew_count", 5)
+        skill = app_main._task_resource_skill_patch(0, 0, "ELEC")
+        assert (skill.action, skill.path, skill.value) == (
+            PatchAction.REPLACE, "/tasks/0/required_resources/0/skill_type", "ELEC")
+
+    # alternative_skill_types (NOT ref-validated) — create-vs-append, blank/dup rejected up-front
+
+    def test_add_task_alt_skill_creates_when_absent_appends_when_present(self):
+        tree = self._tree_with_wired_task()
+        # task 1 resource 0 has no alternative_skill_types key -> the first alt CREATES the list
+        created, issues = app_main._add_task_alt_skill_patch(tree, 1, 0, "HVAC")
+        assert issues == []
+        assert (created.action, created.path, created.value) == (
+            PatchAction.ADD, "/tasks/1/required_resources/0/alternative_skill_types", ["HVAC"])
+        # task 0 resource 0 already carries ["ELEC"] -> APPEND via /-
+        appended, issues = app_main._add_task_alt_skill_patch(tree, 0, 0, "HVAC")
+        assert issues == []
+        assert (appended.action, appended.path, appended.value) == (
+            PatchAction.ADD, "/tasks/0/required_resources/0/alternative_skill_types/-", "HVAC")
+
+    def test_add_task_alt_skill_rejects_blank_or_duplicate(self):
+        tree = self._tree_with_wired_task()
+        blank_op, issues = app_main._add_task_alt_skill_patch(tree, 0, 0, "   ")
+        assert blank_op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+        # "ELEC" is already an alternative on task 0 resource 0 -> duplicate, rejected up-front
+        dup_op, issues = app_main._add_task_alt_skill_patch(tree, 0, 0, "ELEC")
+        assert dup_op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+
+    def test_remove_task_alt_skill_patch(self):
+        rem = app_main._remove_task_alt_skill_patch(0, 0, 0)
+        assert (rem.action, rem.path) == (
+            PatchAction.REMOVE, "/tasks/0/required_resources/0/alternative_skill_types/0")
