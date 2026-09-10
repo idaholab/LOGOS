@@ -242,3 +242,97 @@ class TestEditorFormBuilders:
         assert set(rows[0]) == {"index", "start_date", "end_date", "available_count"}
         assert rows[0]["available_count"] == 3
         assert app_main._availability_options(raw_plan, 9) == []   # out-of-range -> empty
+
+    # --- Increment 3: structural CRUD + availability-window date builders ---
+
+    def test_add_task_patch_builds_schema_complete_task(self, raw_plan):
+        """A new task appends to /tasks/- with every schema-required key present and the
+        collections empty by default — so the committed rehydrate never trips on a missing key.
+        ``is_hold_point`` is emitted False so the schema's ``if is_hold_point==true then require
+        hold_point_type`` conditional (whose ``if`` omits ``required:[is_hold_point]``, matching
+        vacuously on an absent flag) does not fire at commit and force a hold-point type."""
+        op, issues = app_main._add_task_patch(raw_plan, "C", 5, "task c")
+        assert issues == []
+        assert op.action is PatchAction.ADD and op.path == "/tasks/-"
+        assert set(op.value) == {"task_id", "description", "duration", "successors",
+                                 "required_resources", "required_equipment", "is_hold_point"}
+        assert op.value["task_id"] == "C" and op.value["duration"] == 5.0
+        assert op.value["description"] == "task c"
+        assert op.value["successors"] == [] and op.value["required_resources"] == []
+        assert op.value["required_equipment"] == []
+        assert op.value["is_hold_point"] is False
+
+    def test_add_task_patch_seeds_a_crew_entry_when_a_skill_is_given(self, raw_plan):
+        """Passing a skill makes the task schedulable: one {skill_type, crew_count} entry."""
+        op, issues = app_main._add_task_patch(raw_plan, "C", 5, "task c",
+                                              skill_type="MECH", crew_count=2)
+        assert issues == []
+        assert op.value["required_resources"] == [{"skill_type": "MECH", "crew_count": 2}]
+
+    def test_add_task_patch_rejects_duplicate_or_blank_id(self, raw_plan):
+        """Reusing an existing id (A) or a blank id fails fast with DUP_ID — never staged."""
+        op, issues = app_main._add_task_patch(raw_plan, "A", 5, "dup")
+        assert op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+        op, issues = app_main._add_task_patch(raw_plan, "   ", 5, "blank")
+        assert op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+
+    def test_remove_task_patch_by_index_and_unknown(self, raw_plan):
+        op, issues = app_main._remove_task_patch(raw_plan, "B")
+        assert issues == []
+        assert (op.action, op.path) == (PatchAction.REMOVE, "/tasks/1")
+        op, issues = app_main._remove_task_patch(raw_plan, "ZZZ")
+        assert op is None and [i.code for i in issues] == [IssueCode.REF_MISSING]
+
+    def test_add_resource_pool_patch_builds_pool_with_initial_period(self, raw_plan):
+        op, issues = app_main._add_resource_pool_patch(
+            raw_plan, "ELEC", "renewable", "2025-01-01T00:00:00", "2025-01-05T00:00:00", 2)
+        assert issues == []
+        assert op.action is PatchAction.ADD and op.path == "/resources/-"
+        assert op.value["skill_type"] == "ELEC" and op.value["resource_type"] == "renewable"
+        assert op.value["availability_periods"] == [
+            {"start_date": "2025-01-01T00:00:00", "end_date": "2025-01-05T00:00:00",
+             "available_count": 2}]
+
+    def test_add_resource_pool_patch_rejects_duplicate_or_blank_skill(self, raw_plan):
+        op, issues = app_main._add_resource_pool_patch(
+            raw_plan, "MECH", "renewable", "2025-01-01T00:00:00", "2025-01-05T00:00:00", 1)
+        assert op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+        op, issues = app_main._add_resource_pool_patch(
+            raw_plan, "", "renewable", "2025-01-01T00:00:00", "2025-01-05T00:00:00", 1)
+        assert op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+
+    def test_remove_resource_pool_patch_by_index(self):
+        op = app_main._remove_resource_pool_patch(0)
+        assert (op.action, op.path) == (PatchAction.REMOVE, "/resources/0")
+
+    def test_add_and_remove_availability_period_patch(self):
+        op = app_main._add_availability_period_patch(
+            0, "2025-02-01T00:00:00", "2025-02-03T00:00:00", 4)
+        assert op.action is PatchAction.ADD
+        assert op.path == "/resources/0/availability_periods/-"
+        assert op.value == {"start_date": "2025-02-01T00:00:00",
+                            "end_date": "2025-02-03T00:00:00", "available_count": 4}
+        rem = app_main._remove_availability_period_patch(0, 1)
+        assert (rem.action, rem.path) == (
+            PatchAction.REMOVE, "/resources/0/availability_periods/1")
+
+    def test_availability_window_patch_replaces_both_dates(self):
+        ops = app_main._availability_window_patch(
+            0, 0, "2025-03-01T00:00:00", "2025-03-10T00:00:00")
+        assert [(o.action, o.path, o.value) for o in ops] == [
+            (PatchAction.REPLACE, "/resources/0/availability_periods/0/start_date",
+             "2025-03-01T00:00:00"),
+            (PatchAction.REPLACE, "/resources/0/availability_periods/0/end_date",
+             "2025-03-10T00:00:00")]
+
+    def test_iso_date_value_and_as_date_helpers(self):
+        import datetime as _dt
+        assert app_main._iso_date_value(_dt.date(2025, 1, 7)) == "2025-01-07T00:00:00"
+        # _as_date parses the date part of a stored ISO string ...
+        assert app_main._as_date("2025-01-07T00:00:00", _dt.date(2000, 1, 1)) == _dt.date(2025, 1, 7)
+        assert app_main._as_date("2025-01-07T00:00:00.000Z", _dt.date(2000, 1, 1)) == _dt.date(2025, 1, 7)
+        # ... and falls back on a bad / empty / non-string mid-draft value.
+        fallback = _dt.date(2000, 1, 1)
+        assert app_main._as_date("not-a-date", fallback) == fallback
+        assert app_main._as_date("", fallback) == fallback
+        assert app_main._as_date(None, fallback) == fallback

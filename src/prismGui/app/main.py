@@ -29,6 +29,7 @@ import io
 import json
 import sys
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any, Optional
 
@@ -714,6 +715,156 @@ def _resource_type_patch(resource_index: int, resource_type) -> PatchOp:
 
 
 # -----------------------------------------------------------------------------
+# Increment 3: structural CRUD (add/remove whole tasks & resource pools, add/
+# remove availability periods) + availability-window date editing. Same discipline:
+# pure data -> PatchOp builders, feeding domain.apply_patch. Every op targets the
+# tasks[...] / resources[...] loader paths Increment 2 already proves, so the commit
+# rehydrate (build_reference_plan -> load_plan_content) stays safe; a nonsensical-but-
+# well-formed edit stages here and is blocked by commit_draft with an already-tested
+# code (DUP_ID / REF_MISSING / INVALID_AVAILABILITY_INTERVAL / a schema error). Dates
+# come from st.date_input (always a real date), so every emitted start/end is a
+# well-formed ISO string — the schema has NO format checker, so a malformed date would
+# otherwise pass validation and crash iso_to_hours on the rehydrate.
+# -----------------------------------------------------------------------------
+
+def _dup_id(entity_type: str, entity_id: str, message: str) -> Issue:
+    """A DUP_ID referential-integrity error for a new task/pool id that already exists (or
+    is blank) — the lightweight editor's fail-fast analogue of the validator's dup check,
+    so a doomed add is never staged."""
+    return Issue(code=IssueCode.DUP_ID, severity=Severity.ERROR,
+                 category=IssueCategory.REFERENTIAL_INTEGRITY, message=message,
+                 entity_type=entity_type, entity_id=entity_id)
+
+
+def _iso_date_value(d: date) -> str:
+    """A date -> the ISO string shape the loader round-trips (midnight, no tz suffix), the
+    value an availability start_date/end_date patch carries. Sourcing it from a real date
+    keeps it well-formed by construction."""
+    return d.strftime("%Y-%m-%dT00:00:00")
+
+
+def _as_date(value, default: date) -> date:
+    """A date-widget-safe view of a stored ISO string: parse its date part, falling back to
+    ``default`` if a non-date value was staged (e.g. via the raw editor) — the date analogue
+    of ``_as_float`` / ``_as_str``, so a form re-render never crashes on a mid-draft value."""
+    if isinstance(value, str) and value.strip():
+        try:
+            return date.fromisoformat(value.strip()[:10])
+        except ValueError:
+            return default
+    return default
+
+
+def _add_task_patch(raw_tree, task_id: str, duration: float, description: str, *,
+                    skill_type: Optional[str] = None,
+                    crew_count: int = 1) -> tuple[Optional[PatchOp], list[Issue]]:
+    """Build the ADD op appending a schema-complete task to ``tasks``. The value carries every
+    required key (``task_id``, ``description``, ``duration``, ``successors``, ``required_resources``,
+    ``required_equipment``); ``successors``/``required_equipment`` start empty and
+    ``required_resources`` carries one ``{skill_type, crew_count}`` entry when a skill is given
+    (so the task is schedulable) else empty. Returns ``(None, [issue])`` with a DUP_ID when the
+    id is blank or already a task in the plan — the sole nonsensical-up-front case (an empty
+    description or a non-positive duration is left to the widget bounds + commit's schema check).
+
+    ``is_hold_point`` is set explicitly to ``False``. The task schema carries a conditional
+    (``if is_hold_point == true then require hold_point_type``) whose ``if`` clause omits
+    ``required: ["is_hold_point"]`` — so an *absent* ``is_hold_point`` satisfies it vacuously and
+    ``hold_point_type`` would become required at commit. Emitting ``is_hold_point: False`` (as the
+    shipping samples and the ``raw_plan`` fixture do) makes the conditional not fire, so a plain
+    task commits without a hold-point type — matching the escape every existing task relies on."""
+    tid = (task_id or "").strip()
+    if not tid:
+        return None, [_dup_id("task", tid, "a new task needs a non-empty task_id")]
+    if _find_task_index(raw_tree, tid) is not None:
+        return None, [_dup_id("task", tid, f"task id '{tid}' already exists in the plan")]
+    reqs: list = []
+    if skill_type:
+        reqs.append({"skill_type": skill_type, "crew_count": int(crew_count)})
+    task = {
+        "task_id": tid,
+        "description": description,
+        "duration": float(duration),
+        "successors": [],
+        "required_resources": reqs,
+        "required_equipment": [],
+        "is_hold_point": False,
+    }
+    return PatchOp(action=PatchAction.ADD, path="/tasks/-", value=task), []
+
+
+def _remove_task_patch(raw_tree, task_id: str) -> tuple[Optional[PatchOp], list[Issue]]:
+    """Build the REMOVE op deleting the task with ``task_id`` by its index in ``tasks``.
+    Returns ``(None, [issue])`` (REF_MISSING) when the id is not a task in the plan. Inbound
+    edges are NOT scrubbed here: a task still named as a successor elsewhere makes commit fail
+    closed with REF_MISSING — a clean block, resolved by removing those edges first."""
+    index = _find_task_index(raw_tree, task_id)
+    if index is None:
+        return None, [_ref_missing(task_id, f"task '{task_id}' is not in the plan to remove")]
+    return PatchOp(action=PatchAction.REMOVE, path=f"/tasks/{index}"), []
+
+
+def _add_resource_pool_patch(raw_tree, skill_type: str, resource_type, start_iso: str,
+                             end_iso: str, count: int) -> tuple[Optional[PatchOp], list[Issue]]:
+    """Build the ADD op appending a resource pool to ``resources`` with its schema-required
+    ``skill_type`` and ``availability_periods`` (seeded with one initial ``{start_date, end_date,
+    available_count}`` window). Returns ``(None, [issue])`` (DUP_ID) when the skill is blank or
+    already a pool. A start >= end window stages and is blocked by commit
+    (INVALID_AVAILABILITY_INTERVAL)."""
+    skill = (skill_type or "").strip()
+    if not skill:
+        return None, [_dup_id("resource", skill, "a new resource pool needs a non-empty skill_type")]
+    existing = {r.get("skill_type") for r in (raw_tree.get("resources") or [])}
+    if skill in existing:
+        return None, [_dup_id("resource", skill, f"a resource pool for '{skill}' already exists")]
+    rtype = resource_type.value if isinstance(resource_type, ResourceType) else str(resource_type)
+    pool = {
+        "skill_type": skill,
+        "resource_type": rtype,
+        "availability_periods": [
+            {"start_date": start_iso, "end_date": end_iso, "available_count": int(count)},
+        ],
+    }
+    return PatchOp(action=PatchAction.ADD, path="/resources/-", value=pool), []
+
+
+def _remove_resource_pool_patch(resource_index: int) -> PatchOp:
+    """REMOVE the resource pool at ``resource_index`` (a valid index from the selector). A task
+    still requiring that skill only WARNS (INSUFFICIENT_RESOURCE) at commit — it never blocks."""
+    return PatchOp(action=PatchAction.REMOVE, path=f"/resources/{resource_index}")
+
+
+def _add_availability_period_patch(resource_index: int, start_iso: str, end_iso: str,
+                                   count: int) -> PatchOp:
+    """ADD (append) a ``{start_date, end_date, available_count}`` availability period to the pool
+    at ``resource_index``. A start >= end window is blocked by commit (INVALID_AVAILABILITY_INTERVAL)."""
+    return PatchOp(
+        action=PatchAction.ADD,
+        path=f"/resources/{resource_index}/availability_periods/-",
+        value={"start_date": start_iso, "end_date": end_iso, "available_count": int(count)},
+    )
+
+
+def _remove_availability_period_patch(resource_index: int, period_index: int) -> PatchOp:
+    """REMOVE one availability period (by index) from the pool at ``resource_index``."""
+    return PatchOp(
+        action=PatchAction.REMOVE,
+        path=f"/resources/{resource_index}/availability_periods/{period_index}",
+    )
+
+
+def _availability_window_patch(resource_index: int, period_index: int, start_iso: str,
+                               end_iso: str) -> list[PatchOp]:
+    """REPLACE the always-present ``start_date`` and ``end_date`` of one availability period —
+    moving/resizing the window by date. Two ops (one per key); a start >= end result is blocked
+    by commit (INVALID_AVAILABILITY_INTERVAL)."""
+    base = f"/resources/{resource_index}/availability_periods/{period_index}"
+    return [
+        PatchOp(action=PatchAction.REPLACE, path=f"{base}/start_date", value=start_iso),
+        PatchOp(action=PatchAction.REPLACE, path=f"{base}/end_date", value=end_iso),
+    ]
+
+
+# -----------------------------------------------------------------------------
 # structured editor form wrappers (the only st.* sites for editing) + the
 # lifecycle composition. Each wrapper gathers widget inputs, calls a builder, and
 # routes the result through the shared _apply_ops tail.
@@ -741,26 +892,58 @@ def _apply_ops(session, draft, ops, issues, *, success_msg: str) -> None:
 
 
 def _render_task_form(session, draft) -> None:
-    """Task & duration tab: pick a task, edit its duration (and description), stage the edit."""
+    """Task & duration tab: edit an existing task's duration/description, add a whole new task,
+    or remove one. Add/remove reshape the ``tasks`` list; the edit controls change fields in place."""
     options = _task_options(draft.raw_working_tree)
-    if not options:
-        st.caption("No tasks to edit.")
-        return
-    labels = [f"{o['task_id']} (dur {o['duration']})" for o in options]
-    pick = st.selectbox("Task", range(len(options)), format_func=lambda k: labels[k],
-                        key="prism_task_pick")
-    chosen = options[pick]
-    new_dur = st.number_input("Duration (hours)", min_value=0.0,
-                              value=_as_float(chosen["duration"], 0.0), step=1.0,
-                              key="prism_task_duration")
-    new_desc = st.text_input("Description", value=_as_str(chosen["description"]),
-                             key="prism_task_description")
-    if st.button("Apply task edit", key="prism_task_apply"):
-        ops = [_duration_patch(chosen["index"], new_dur)]
-        if new_desc != _as_str(chosen["description"]):
-            ops.append(_description_patch(chosen["index"], new_desc))
-        _apply_ops(session, draft, ops, [],
-                   success_msg=f"Staged edit to task {chosen['task_id']}.")
+    if options:
+        labels = [f"{o['task_id']} (dur {o['duration']})" for o in options]
+        pick = st.selectbox("Task", range(len(options)), format_func=lambda k: labels[k],
+                            key="prism_task_pick")
+        chosen = options[pick]
+        new_dur = st.number_input("Duration (hours)", min_value=0.0,
+                                  value=_as_float(chosen["duration"], 0.0), step=1.0,
+                                  key="prism_task_duration")
+        new_desc = st.text_input("Description", value=_as_str(chosen["description"]),
+                                 key="prism_task_description")
+        if st.button("Apply task edit", key="prism_task_apply"):
+            ops = [_duration_patch(chosen["index"], new_dur)]
+            if new_desc != _as_str(chosen["description"]):
+                ops.append(_description_patch(chosen["index"], new_desc))
+            _apply_ops(session, draft, ops, [],
+                       success_msg=f"Staged edit to task {chosen['task_id']}.")
+    else:
+        st.caption("No tasks yet — add one below.")
+
+    st.markdown("**Add a task**")
+    c1, c2 = st.columns([1, 1])
+    add_id = c1.text_input("New task id", key="prism_task_add_id", placeholder="C")
+    add_dur = c2.number_input("Duration (hours)", min_value=0.01, value=1.0, step=1.0,
+                              key="prism_task_add_duration")
+    add_desc = st.text_input("Description", key="prism_task_add_description",
+                             placeholder="what this task does")
+    skills = sorted({r["skill_type"] for r in _resource_options(draft.raw_working_tree)})
+    _NONE = "— none —"
+    s1, s2 = st.columns([2, 1])
+    add_skill = s1.selectbox("Crew skill (optional)", [_NONE, *skills], key="prism_task_add_skill")
+    add_crew = s2.number_input("Crew count", min_value=1, value=1, step=1,
+                               key="prism_task_add_crew")
+    if st.button("Add task", key="prism_task_add"):
+        op, issues = _add_task_patch(
+            draft.raw_working_tree, add_id, add_dur, add_desc,
+            skill_type=None if add_skill == _NONE else add_skill, crew_count=add_crew)
+        _apply_ops(session, draft, [op] if op else [], issues,
+                   success_msg=f"Staged new task {add_id.strip()}.")
+
+    if options:
+        st.markdown("**Remove a task**")
+        st.caption("Remove any dependency naming this task first — a dangling reference blocks the commit.")
+        ids = [o["task_id"] for o in options]
+        rem_pick = st.selectbox("Task to remove", range(len(ids)),
+                                format_func=lambda k: ids[k], key="prism_task_remove_pick")
+        if st.button("Remove task", key="prism_task_remove"):
+            op, issues = _remove_task_patch(draft.raw_working_tree, ids[rem_pick])
+            _apply_ops(session, draft, [op] if op else [], issues,
+                       success_msg=f"Staged removal of task {ids[rem_pick]}.")
 
 
 def _render_dependency_form(session, draft) -> None:
@@ -796,11 +979,29 @@ def _render_dependency_form(session, draft) -> None:
 
 
 def _render_resource_form(session, draft) -> None:
-    """Resources & availability tab: change a pool's resource_type, or a period's
-    available_count."""
+    """Resources & availability tab: change a pool's resource_type or a period's available_count,
+    move/resize a window by date, add/remove availability periods, and add/remove whole pools."""
+    _DEFAULT_DAY = date(2025, 1, 1)
+    type_values = [t.value for t in ResourceType]
+
+    st.markdown("**Add a resource pool**")
+    a1, a2 = st.columns([2, 1])
+    add_skill = a1.text_input("Skill type", key="prism_res_add_skill", placeholder="ELEC")
+    add_type = a2.selectbox("Resource type", type_values, key="prism_res_add_type")
+    w1, w2, w3 = st.columns([2, 2, 1])
+    add_start = w1.date_input("Available from", value=_DEFAULT_DAY, key="prism_res_add_start")
+    add_end = w2.date_input("Available to", value=date(2025, 1, 5), key="prism_res_add_end")
+    add_count = w3.number_input("Count", min_value=0, value=1, step=1, key="prism_res_add_count")
+    if st.button("Add pool", key="prism_res_add"):
+        op, issues = _add_resource_pool_patch(
+            draft.raw_working_tree, add_skill, add_type,
+            _iso_date_value(add_start), _iso_date_value(add_end), add_count)
+        _apply_ops(session, draft, [op] if op else [], issues,
+                   success_msg=f"Staged new resource pool {add_skill.strip()}.")
+
     resources = _resource_options(draft.raw_working_tree)
     if not resources:
-        st.caption("No resources to edit.")
+        st.caption("No resource pools yet — add one above.")
         return
     r_labels = [f"{r['skill_type']} ({r['resource_type']}, {r['n_periods']} period(s))"
                 for r in resources]
@@ -808,15 +1009,19 @@ def _render_resource_form(session, draft) -> None:
                           format_func=lambda k: r_labels[k], key="prism_res_pick")
     chosen = resources[r_pick]
 
-    type_values = [t.value for t in ResourceType]
     type_index = type_values.index(chosen["resource_type"]) \
         if chosen["resource_type"] in type_values else 0
     type_choice = st.selectbox("Resource type", type_values, index=type_index,
                                key="prism_res_type")
-    if st.button("Apply resource type", key="prism_res_type_apply"):
+    tcol, rcol = st.columns([1, 1])
+    if tcol.button("Apply resource type", key="prism_res_type_apply"):
         op = _resource_type_patch(chosen["index"], type_choice)
         _apply_ops(session, draft, [op], [],
                    success_msg=f"Staged resource_type={type_choice} for {chosen['skill_type']}.")
+    if rcol.button("Remove pool", key="prism_res_remove"):
+        op = _remove_resource_pool_patch(chosen["index"])
+        _apply_ops(session, draft, [op], [],
+                   success_msg=f"Staged removal of resource pool {chosen['skill_type']}.")
 
     periods = _availability_options(draft.raw_working_tree, chosen["index"])
     if periods:
@@ -833,6 +1038,34 @@ def _render_resource_form(session, draft) -> None:
             op = _available_count_patch(chosen["index"], chosen_p["index"], new_count)
             _apply_ops(session, draft, [op], [],
                        success_msg=f"Staged available_count={new_count} for {chosen['skill_type']}.")
+
+        d1, d2 = st.columns([1, 1])
+        win_start = d1.date_input("Window start", value=_as_date(chosen_p["start_date"], _DEFAULT_DAY),
+                                  key="prism_avail_start")
+        win_end = d2.date_input("Window end", value=_as_date(chosen_p["end_date"], _DEFAULT_DAY),
+                                key="prism_avail_end")
+        wcol, xcol = st.columns([1, 1])
+        if wcol.button("Apply window dates", key="prism_avail_window"):
+            ops = _availability_window_patch(
+                chosen["index"], chosen_p["index"],
+                _iso_date_value(win_start), _iso_date_value(win_end))
+            _apply_ops(session, draft, ops, [],
+                       success_msg=f"Staged window [{win_start} … {win_end}) for {chosen['skill_type']}.")
+        if xcol.button("Remove period", key="prism_avail_remove"):
+            op = _remove_availability_period_patch(chosen["index"], chosen_p["index"])
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged removal of a period from {chosen['skill_type']}.")
+
+    st.markdown("**Add an availability period**")
+    n1, n2, n3 = st.columns([2, 2, 1])
+    per_start = n1.date_input("From", value=_DEFAULT_DAY, key="prism_avail_add_start")
+    per_end = n2.date_input("To", value=date(2025, 1, 5), key="prism_avail_add_end")
+    per_count = n3.number_input("Count", min_value=0, value=1, step=1, key="prism_avail_add_count")
+    if st.button("Add period", key="prism_avail_add"):
+        op = _add_availability_period_patch(
+            chosen["index"], _iso_date_value(per_start), _iso_date_value(per_end), per_count)
+        _apply_ops(session, draft, [op], [],
+                   success_msg=f"Staged new availability period for {chosen['skill_type']}.")
 
 
 def _render_raw_patch_form(session, draft) -> None:
