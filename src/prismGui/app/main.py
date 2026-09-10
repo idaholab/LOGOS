@@ -1093,6 +1093,180 @@ def _location_window_patch(loc_index: int, period_index: int, start_iso: str,
         f"/locations/{loc_index}/availability_periods/{period_index}", start_iso, end_iso)
 
 
+def _array_add_op(list_pointer: str, present: bool, item) -> PatchOp:
+    """ADD an item to a JSON-Pointer-addressed list that MAY NOT EXIST YET. When the list is
+    already present (even if empty) append with the trailing ``-``; otherwise create it with a
+    one-element list. This is the create-or-append the not-root-required ``consumables`` /
+    ``plant_systems`` arrays (and their optional ``restocks`` / ``valid_states`` sub-arrays) need —
+    every shipping sample omits them, so an "add first item" cannot assume ``{pointer}/-`` resolves.
+    Callers pass ``present = isinstance(<container>.get(<key>), list)``."""
+    if present:
+        return PatchOp(action=PatchAction.ADD, path=f"{list_pointer}/-", value=item)
+    return PatchOp(action=PatchAction.ADD, path=list_pointer, value=[item])
+
+
+def _consumable_options(raw_tree) -> list[dict]:
+    """Per-consumable selector rows ``{index, item_id, description, total_quantity, n_restocks}``."""
+    return [
+        {
+            "index": i,
+            "item_id": c.get("item_id", ""),
+            "description": c.get("description", ""),
+            "total_quantity": c.get("total_quantity"),
+            "n_restocks": len(c.get("restocks") or []),
+        }
+        for i, c in enumerate(raw_tree.get("consumables") or [])
+    ]
+
+
+def _restock_options(raw_tree, cons_index: int) -> list[dict]:
+    """Restock-delivery rows ``{index, delivery_hour, quantity}`` for one consumable (empty if the
+    index is out of range). ``delivery_hour`` is hours from outage start, not a date."""
+    consumables = raw_tree.get("consumables") or []
+    if cons_index < 0 or cons_index >= len(consumables):
+        return []
+    restocks = consumables[cons_index].get("restocks") or []
+    return [
+        {"index": j, "delivery_hour": d.get("delivery_hour"), "quantity": d.get("quantity")}
+        for j, d in enumerate(restocks)
+    ]
+
+
+def _add_consumable_patch(raw_tree, item_id: str, description: str,
+                          total_quantity: float) -> tuple[Optional[PatchOp], list[Issue]]:
+    """Build the ADD op for a schema-complete consumable with its required ``item_id`` /
+    ``description`` / ``total_quantity`` (no restocks initially). ``consumables`` is not
+    root-required and every sample omits it, so create-or-append via ``_array_add_op``. Returns
+    ``(None, [issue])`` (DUP_ID) when the id is blank or already an item. A ``total_quantity <= 0``
+    stages and is blocked by commit (SCHEMA_RANGE_ERROR — the schema's ``exclusiveMinimum: 0``)."""
+    iid = (item_id or "").strip()
+    if not iid:
+        return None, [_dup_id("consumable", iid, "a new consumable needs a non-empty item_id")]
+    existing = {c.get("item_id") for c in (raw_tree.get("consumables") or [])}
+    if iid in existing:
+        return None, [_dup_id("consumable", iid, f"a consumable '{iid}' already exists")]
+    item = {"item_id": iid, "description": description, "total_quantity": float(total_quantity)}
+    present = isinstance(raw_tree.get("consumables"), list)
+    return _array_add_op("/consumables", present, item), []
+
+
+def _remove_consumable_patch(cons_index: int) -> PatchOp:
+    """REMOVE the consumable at ``cons_index``. Unlike a resource pool / equipment / location, a
+    task's ``required_consumables`` is NOT referentially validated by the CPM validator, so this
+    never blocks with REF_MISSING even if a task still names the removed item."""
+    return PatchOp(action=PatchAction.REMOVE, path=f"/consumables/{cons_index}")
+
+
+def _consumable_total_patch(cons_index: int, total_quantity: float) -> PatchOp:
+    """REPLACE the always-present ``total_quantity`` of one consumable. A value <= 0 is blocked by
+    commit (SCHEMA_RANGE_ERROR)."""
+    return PatchOp(action=PatchAction.REPLACE, path=f"/consumables/{cons_index}/total_quantity",
+                   value=float(total_quantity))
+
+
+def _add_restock_patch(raw_tree, cons_index: int, delivery_hour: float,
+                       quantity: float) -> PatchOp:
+    """ADD a ``{delivery_hour, quantity}`` restock delivery to the consumable at ``cons_index``.
+    ``restocks`` is optional and often absent, so create-or-append via ``_array_add_op``. A
+    ``quantity <= 0`` (or ``delivery_hour < 0``) is blocked by commit (SCHEMA_RANGE_ERROR)."""
+    consumables = raw_tree.get("consumables") or []
+    present = (0 <= cons_index < len(consumables)
+               and isinstance(consumables[cons_index].get("restocks"), list))
+    return _array_add_op(f"/consumables/{cons_index}/restocks", present,
+                         {"delivery_hour": float(delivery_hour), "quantity": float(quantity)})
+
+
+def _remove_restock_patch(cons_index: int, restock_index: int) -> PatchOp:
+    """REMOVE one restock delivery (by index) from the consumable at ``cons_index``."""
+    return PatchOp(action=PatchAction.REMOVE,
+                   path=f"/consumables/{cons_index}/restocks/{restock_index}")
+
+
+def _restock_edit_patch(cons_index: int, restock_index: int, delivery_hour: float,
+                        quantity: float) -> list[PatchOp]:
+    """Edit one restock delivery: REPLACE its required ``delivery_hour`` and ``quantity`` (both are
+    restock-required, so present -> REPLACE). A ``quantity <= 0`` / ``delivery_hour < 0`` is blocked
+    by commit (SCHEMA_RANGE_ERROR)."""
+    base = f"/consumables/{cons_index}/restocks/{restock_index}"
+    return [
+        PatchOp(action=PatchAction.REPLACE, path=f"{base}/delivery_hour",
+                value=float(delivery_hour)),
+        PatchOp(action=PatchAction.REPLACE, path=f"{base}/quantity", value=float(quantity)),
+    ]
+
+
+def _system_options(raw_tree) -> list[dict]:
+    """Per-plant-system selector rows ``{index, system_id, description, n_states}``."""
+    return [
+        {
+            "index": i,
+            "system_id": s.get("system_id", ""),
+            "description": s.get("description", ""),
+            "n_states": len(s.get("valid_states") or []),
+        }
+        for i, s in enumerate(raw_tree.get("plant_systems") or [])
+    ]
+
+
+def _system_state_options(raw_tree, sys_index: int) -> list[dict]:
+    """Valid-state rows ``{index, state}`` for one plant system (empty if the index is out of
+    range)."""
+    systems = raw_tree.get("plant_systems") or []
+    if sys_index < 0 or sys_index >= len(systems):
+        return []
+    states = systems[sys_index].get("valid_states") or []
+    return [{"index": j, "state": s} for j, s in enumerate(states)]
+
+
+def _add_system_patch(raw_tree, system_id: str,
+                      description: str) -> tuple[Optional[PatchOp], list[Issue]]:
+    """Build the ADD op for a schema-complete plant system with its required ``system_id`` /
+    ``description`` (no valid_states initially). ``plant_systems`` is not root-required and every
+    sample omits it, so create-or-append via ``_array_add_op``. Returns ``(None, [issue])`` (DUP_ID)
+    when the id is blank or already a system."""
+    sid = (system_id or "").strip()
+    if not sid:
+        return None, [_dup_id("system", sid, "a new plant system needs a non-empty system_id")]
+    existing = {s.get("system_id") for s in (raw_tree.get("plant_systems") or [])}
+    if sid in existing:
+        return None, [_dup_id("system", sid, f"a plant system '{sid}' already exists")]
+    item = {"system_id": sid, "description": description}
+    present = isinstance(raw_tree.get("plant_systems"), list)
+    return _array_add_op("/plant_systems", present, item), []
+
+
+def _remove_system_patch(sys_index: int) -> PatchOp:
+    """REMOVE the plant system at ``sys_index``. Like consumables, a task's
+    ``required_system_states`` is NOT referentially validated, so this never blocks with
+    REF_MISSING even if a task still names the removed system."""
+    return PatchOp(action=PatchAction.REMOVE, path=f"/plant_systems/{sys_index}")
+
+
+def _add_system_state_patch(raw_tree, sys_index: int,
+                            state: str) -> tuple[Optional[PatchOp], list[Issue]]:
+    """ADD one ``valid_states`` string to the plant system at ``sys_index``. ``valid_states`` is
+    optional and may be absent, so create-or-append via ``_array_add_op``. Rejects a blank or
+    duplicate state up-front (DUP_ID-coded, matching the blank-id precedent) so it never reaches
+    the schema's ``uniqueItems`` / ``minLength`` check."""
+    sval = (state or "").strip()
+    systems = raw_tree.get("plant_systems") or []
+    if not sval:
+        return None, [_dup_id("system", sval, "a valid state must be a non-empty string")]
+    if 0 <= sys_index < len(systems):
+        existing = set(systems[sys_index].get("valid_states") or [])
+        if sval in existing:
+            return None, [_dup_id("system", sval, f"state '{sval}' is already listed")]
+    present = (0 <= sys_index < len(systems)
+               and isinstance(systems[sys_index].get("valid_states"), list))
+    return _array_add_op(f"/plant_systems/{sys_index}/valid_states", present, sval), []
+
+
+def _remove_system_state_patch(sys_index: int, state_index: int) -> PatchOp:
+    """REMOVE one valid-state (by index) from the plant system at ``sys_index``."""
+    return PatchOp(action=PatchAction.REMOVE,
+                   path=f"/plant_systems/{sys_index}/valid_states/{state_index}")
+
+
 # -----------------------------------------------------------------------------
 # structured editor form wrappers (the only st.* sites for editing) + the
 # lifecycle composition. Each wrapper gathers widget inputs, calls a builder, and
@@ -1480,6 +1654,133 @@ def _render_location_form(session, draft) -> None:
                    success_msg=f"Staged new availability period for {chosen['location_id']}.")
 
 
+def _render_consumable_form(session, draft) -> None:
+    """Consumables tab: add/remove whole consumable items, edit the required ``total_quantity``,
+    and add/remove/edit restock deliveries (``{delivery_hour, quantity}`` — plain hours from outage
+    start, NOT date windows, so no window/interval concept). A consumable requires ``item_id`` /
+    ``description`` / ``total_quantity`` (> 0, else a SCHEMA_RANGE_ERROR block); ``restocks`` is
+    optional and starts absent (first add creates the list). Removing a consumable a task references
+    does NOT block — ``required_consumables`` is not referentially validated."""
+    st.markdown("**Add a consumable**")
+    a1, a2, a3 = st.columns([1, 2, 1])
+    add_id = a1.text_input("Item id", key="prism_cons_add_id", placeholder="N2-CYL")
+    add_desc = a2.text_input("Description", key="prism_cons_add_desc",
+                             placeholder="what this material is")
+    add_total = a3.number_input("Total quantity", min_value=0.0, value=1.0, step=1.0,
+                                key="prism_cons_add_total")
+    if st.button("Add consumable", key="prism_cons_add"):
+        op, issues = _add_consumable_patch(draft.raw_working_tree, add_id, add_desc, add_total)
+        _apply_ops(session, draft, [op] if op else [], issues,
+                   success_msg=f"Staged new consumable {add_id.strip()}.")
+
+    items = _consumable_options(draft.raw_working_tree)
+    if not items:
+        st.caption("No consumables yet — add one above.")
+        return
+    c_labels = [f"{c['item_id']} (total {c['total_quantity']}, {c['n_restocks']} restock(s))"
+                for c in items]
+    c_pick = st.selectbox("Consumable", range(len(items)),
+                          format_func=lambda k: c_labels[k], key="prism_cons_pick")
+    chosen = items[c_pick]
+    new_total = st.number_input("Total quantity", min_value=0.0,
+                                value=_as_float(chosen["total_quantity"], 1.0), step=1.0,
+                                key="prism_cons_total")
+    tcol, xcol = st.columns([1, 1])
+    if tcol.button("Apply total", key="prism_cons_total_apply"):
+        op = _consumable_total_patch(chosen["index"], new_total)
+        _apply_ops(session, draft, [op], [],
+                   success_msg=f"Staged total_quantity={new_total:g} for {chosen['item_id']}.")
+    if xcol.button("Remove consumable", key="prism_cons_remove"):
+        op = _remove_consumable_patch(chosen["index"])
+        _apply_ops(session, draft, [op], [],
+                   success_msg=f"Staged removal of consumable {chosen['item_id']}.")
+
+    restocks = _restock_options(draft.raw_working_tree, chosen["index"])
+    if restocks:
+        st.markdown("**Restock delivery**")
+        r_labels = [f"hour {r['delivery_hour']} → qty {r['quantity']}" for r in restocks]
+        r_pick = st.selectbox("Restock", range(len(restocks)), format_func=lambda k: r_labels[k],
+                              key="prism_cons_restock_pick")
+        chosen_r = restocks[r_pick]
+        e1, e2 = st.columns([1, 1])
+        edit_hour = e1.number_input("Delivery hour", min_value=0.0,
+                                    value=_as_float(chosen_r["delivery_hour"], 0.0), step=1.0,
+                                    key="prism_cons_restock_hour")
+        edit_qty = e2.number_input("Quantity", min_value=0.0,
+                                   value=_as_float(chosen_r["quantity"], 1.0), step=1.0,
+                                   key="prism_cons_restock_qty")
+        ecol, rcol = st.columns([1, 1])
+        if ecol.button("Apply restock edit", key="prism_cons_restock_apply"):
+            ops = _restock_edit_patch(chosen["index"], chosen_r["index"], edit_hour, edit_qty)
+            _apply_ops(session, draft, ops, [],
+                       success_msg=f"Staged restock edit for {chosen['item_id']}.")
+        if rcol.button("Remove restock", key="prism_cons_restock_remove"):
+            op = _remove_restock_patch(chosen["index"], chosen_r["index"])
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged removal of a restock from {chosen['item_id']}.")
+
+    st.markdown("**Add a restock delivery**")
+    n1, n2 = st.columns([1, 1])
+    add_hour = n1.number_input("Delivery hour", min_value=0.0, value=24.0, step=1.0,
+                               key="prism_cons_restock_add_hour")
+    add_qty = n2.number_input("Quantity", min_value=0.0, value=1.0, step=1.0,
+                              key="prism_cons_restock_add_qty")
+    if st.button("Add restock", key="prism_cons_restock_add"):
+        op = _add_restock_patch(draft.raw_working_tree, chosen["index"], add_hour, add_qty)
+        _apply_ops(session, draft, [op], [],
+                   success_msg=f"Staged new restock for {chosen['item_id']}.")
+
+
+def _render_system_form(session, draft) -> None:
+    """Systems tab: add/remove whole plant systems and add/remove their ``valid_states`` (a list of
+    unique non-empty strings governing concurrent-activity compatibility). A system requires
+    ``system_id`` / ``description``; ``valid_states`` is optional and starts absent (first add
+    creates the list). A blank or duplicate state is rejected up-front (DUP_ID-coded). Removing a
+    system a task references does NOT block — ``required_system_states`` is not referentially
+    validated."""
+    st.markdown("**Add a plant system**")
+    a1, a2 = st.columns([1, 2])
+    add_id = a1.text_input("System id", key="prism_sys_add_id", placeholder="RCS")
+    add_desc = a2.text_input("Description", key="prism_sys_add_desc",
+                             placeholder="what this system is")
+    if st.button("Add system", key="prism_sys_add"):
+        op, issues = _add_system_patch(draft.raw_working_tree, add_id, add_desc)
+        _apply_ops(session, draft, [op] if op else [], issues,
+                   success_msg=f"Staged new plant system {add_id.strip()}.")
+
+    systems = _system_options(draft.raw_working_tree)
+    if not systems:
+        st.caption("No plant systems yet — add one above.")
+        return
+    s_labels = [f"{s['system_id']} ({s['n_states']} state(s))" for s in systems]
+    s_pick = st.selectbox("Plant system", range(len(systems)),
+                          format_func=lambda k: s_labels[k], key="prism_sys_pick")
+    chosen = systems[s_pick]
+    if st.button("Remove system", key="prism_sys_remove"):
+        op = _remove_system_patch(chosen["index"])
+        _apply_ops(session, draft, [op], [],
+                   success_msg=f"Staged removal of plant system {chosen['system_id']}.")
+
+    states = _system_state_options(draft.raw_working_tree, chosen["index"])
+    if states:
+        st.markdown("**Valid states**")
+        st_labels = [s["state"] for s in states]
+        st_pick = st.selectbox("State", range(len(states)), format_func=lambda k: st_labels[k],
+                               key="prism_sys_state_pick")
+        if st.button("Remove state", key="prism_sys_state_remove"):
+            op = _remove_system_state_patch(chosen["index"], states[st_pick]["index"])
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged removal of state '{states[st_pick]['state']}' "
+                                   f"from {chosen['system_id']}.")
+
+    st.markdown("**Add a valid state**")
+    add_state = st.text_input("State", key="prism_sys_state_add", placeholder="ISOLATED")
+    if st.button("Add state", key="prism_sys_state_add_btn"):
+        op, issues = _add_system_state_patch(draft.raw_working_tree, chosen["index"], add_state)
+        _apply_ops(session, draft, [op] if op else [], issues,
+                   success_msg=f"Staged new state for {chosen['system_id']}.")
+
+
 def _render_raw_patch_form(session, draft) -> None:
     """The Increment-1 raw JSON-Pointer editor, kept for power edits (and to keep the
     headless smoke valid). Same widget keys (``prism_patch_*``) and the same "Apply patch"
@@ -1514,8 +1815,8 @@ def _render_raw_patch_form(session, draft) -> None:
 def _render_editor(session, validator) -> None:
     """The editing lifecycle (§2b): open a draft from the current baseline, stage edits through
     structured forms (task/duration, dependencies/lags, resources/availability, equipment,
-    locations) or the raw JSON-Pointer editor (Advanced), then commit (full schema + referential
-    re-validation, minting a NEW immutable revision) or discard.
+    locations, consumables, systems) or the raw JSON-Pointer editor (Advanced), then commit (full
+    schema + referential re-validation, minting a NEW immutable revision) or discard.
 
     Every form builds PatchOps and feeds them through the SAME ``domain.apply_patch``; the
     pending-patch log and the Commit / Discard controls are shared below the tabs. All state
@@ -1535,9 +1836,9 @@ def _render_editor(session, validator) -> None:
     st.caption(f"Editing a draft of `{draft.base_plan_id}` — "
                f"{len(draft.pending_patches)} patch(es) staged.")
 
-    tab_task, tab_dep, tab_res, tab_equip, tab_loc = st.tabs(
+    tab_task, tab_dep, tab_res, tab_equip, tab_loc, tab_cons, tab_sys = st.tabs(
         ["Task & duration", "Dependencies & lags", "Resources & availability",
-         "Equipment", "Locations"])
+         "Equipment", "Locations", "Consumables", "Systems"])
     with tab_task:
         _render_task_form(session, draft)
     with tab_dep:
@@ -1548,6 +1849,10 @@ def _render_editor(session, validator) -> None:
         _render_equipment_form(session, draft)
     with tab_loc:
         _render_location_form(session, draft)
+    with tab_cons:
+        _render_consumable_form(session, draft)
+    with tab_sys:
+        _render_system_form(session, draft)
 
     with st.expander("Advanced — raw JSON-Pointer patch", expanded=False):
         _render_raw_patch_form(session, draft)

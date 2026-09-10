@@ -497,3 +497,155 @@ class TestEditorFormBuilders:
         assert [(o.action, o.path) for o in win] == [
             (PatchAction.REPLACE, "/locations/0/availability_periods/0/start_date"),
             (PatchAction.REPLACE, "/locations/0/availability_periods/0/end_date")]
+
+    # --- Increment 5: consumable & plant-system entity CRUD builders ---
+
+    @staticmethod
+    def _tree_with_consumable_and_system() -> dict:
+        """A tiny raw tree with one consumable (carrying one restock) and one plant system
+        (carrying one valid state) for the options / remove / edit builders that read existing
+        entities. Inline like the equipment/location helper; both keys are PRESENT here — the
+        create-vs-append branch is exercised separately against a tree (``raw_plan``) that OMITS
+        them, the shape every shipping sample has."""
+        return {
+            "tasks": [], "resources": [], "equipment": [], "locations": [],
+            "consumables": [{
+                "item_id": "N2-CYL", "description": "nitrogen cylinder", "total_quantity": 10.0,
+                "restocks": [{"delivery_hour": 24.0, "quantity": 5.0}],
+            }],
+            "plant_systems": [{
+                "system_id": "RCS", "description": "reactor coolant system",
+                "valid_states": ["ISOLATED"],
+            }],
+        }
+
+    # _array_add_op — the create-or-append primitive
+
+    def test_array_add_op_creates_when_absent_appends_when_present(self):
+        """Absent list -> ADD {pointer} with a one-element list (dict-parent ADD creates it);
+        present list (even empty) -> ADD {pointer}/- (list-parent trailing-``-`` appends). This is
+        the primitive the not-root-required consumables/plant_systems arrays need."""
+        created = app_main._array_add_op("/consumables", False, {"item_id": "X"})
+        assert (created.action, created.path, created.value) == (
+            PatchAction.ADD, "/consumables", [{"item_id": "X"}])
+        appended = app_main._array_add_op("/consumables", True, {"item_id": "X"})
+        assert (appended.action, appended.path, appended.value) == (
+            PatchAction.ADD, "/consumables/-", {"item_id": "X"})
+
+    # consumables
+
+    def test_add_consumable_patch_creates_array_when_absent(self, raw_plan):
+        """raw_plan carries no ``consumables`` key (every sample's shape), so the first add CREATES
+        the array: ADD /consumables with a one-element list holding the schema-required
+        {item_id, description, total_quantity} (no restocks)."""
+        assert "consumables" not in raw_plan
+        op, issues = app_main._add_consumable_patch(raw_plan, "N2-CYL", "nitrogen", 10)
+        assert issues == []
+        assert op.action is PatchAction.ADD and op.path == "/consumables"
+        assert op.value == [{"item_id": "N2-CYL", "description": "nitrogen",
+                             "total_quantity": 10.0}]
+
+    def test_add_consumable_patch_appends_when_present(self):
+        """With the key present, the add APPENDS via /consumables/-."""
+        tree = self._tree_with_consumable_and_system()
+        op, issues = app_main._add_consumable_patch(tree, "SEAL", "one-use seal", 4)
+        assert issues == []
+        assert op.action is PatchAction.ADD and op.path == "/consumables/-"
+        assert op.value == {"item_id": "SEAL", "description": "one-use seal",
+                            "total_quantity": 4.0}
+
+    def test_add_consumable_patch_rejects_duplicate_or_blank_id(self):
+        tree = self._tree_with_consumable_and_system()
+        op, issues = app_main._add_consumable_patch(tree, "N2-CYL", "dup", 1)
+        assert op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+        op, issues = app_main._add_consumable_patch(tree, "  ", "blank", 1)
+        assert op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+
+    def test_consumable_options_and_restock_options(self):
+        tree = self._tree_with_consumable_and_system()
+        assert app_main._consumable_options(tree) == [
+            {"index": 0, "item_id": "N2-CYL", "description": "nitrogen cylinder",
+             "total_quantity": 10.0, "n_restocks": 1}]
+        rows = app_main._restock_options(tree, 0)
+        assert rows == [{"index": 0, "delivery_hour": 24.0, "quantity": 5.0}]
+        assert app_main._restock_options(tree, 9) == []   # out-of-range -> empty
+
+    def test_consumable_total_and_remove_patches(self):
+        total = app_main._consumable_total_patch(0, 12)
+        assert (total.action, total.path, total.value) == (
+            PatchAction.REPLACE, "/consumables/0/total_quantity", 12.0)
+        rem = app_main._remove_consumable_patch(0)
+        assert (rem.action, rem.path) == (PatchAction.REMOVE, "/consumables/0")
+
+    def test_restock_add_creates_or_appends_remove_and_edit(self):
+        tree = self._tree_with_consumable_and_system()
+        # present restocks -> append via /restocks/-
+        add = app_main._add_restock_patch(tree, 0, 48, 3)
+        assert (add.action, add.path) == (PatchAction.ADD, "/consumables/0/restocks/-")
+        assert add.value == {"delivery_hour": 48.0, "quantity": 3.0}
+        # a consumable with NO restocks key -> the first restock CREATES the list
+        tree["consumables"].append(
+            {"item_id": "SEAL", "description": "seal", "total_quantity": 2.0})
+        add_first = app_main._add_restock_patch(tree, 1, 12, 1)
+        assert (add_first.action, add_first.path) == (PatchAction.ADD, "/consumables/1/restocks")
+        assert add_first.value == [{"delivery_hour": 12.0, "quantity": 1.0}]
+        rem = app_main._remove_restock_patch(0, 0)
+        assert (rem.action, rem.path) == (PatchAction.REMOVE, "/consumables/0/restocks/0")
+        edit = app_main._restock_edit_patch(0, 0, 30, 7)
+        assert [(o.action, o.path, o.value) for o in edit] == [
+            (PatchAction.REPLACE, "/consumables/0/restocks/0/delivery_hour", 30.0),
+            (PatchAction.REPLACE, "/consumables/0/restocks/0/quantity", 7.0)]
+
+    # plant systems
+
+    def test_add_system_patch_creates_array_when_absent(self, raw_plan):
+        assert "plant_systems" not in raw_plan
+        op, issues = app_main._add_system_patch(raw_plan, "RCS", "reactor coolant system")
+        assert issues == []
+        assert op.action is PatchAction.ADD and op.path == "/plant_systems"
+        assert op.value == [{"system_id": "RCS", "description": "reactor coolant system"}]
+
+    def test_add_system_patch_appends_when_present_and_rejects_dup_or_blank(self):
+        tree = self._tree_with_consumable_and_system()
+        op, issues = app_main._add_system_patch(tree, "CVCS", "chemical volume control")
+        assert issues == []
+        assert op.action is PatchAction.ADD and op.path == "/plant_systems/-"
+        assert op.value == {"system_id": "CVCS", "description": "chemical volume control"}
+        op, issues = app_main._add_system_patch(tree, "RCS", "dup")
+        assert op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+        op, issues = app_main._add_system_patch(tree, " ", "blank")
+        assert op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+
+    def test_system_options_and_state_options(self):
+        tree = self._tree_with_consumable_and_system()
+        assert app_main._system_options(tree) == [
+            {"index": 0, "system_id": "RCS", "description": "reactor coolant system",
+             "n_states": 1}]
+        assert app_main._system_state_options(tree, 0) == [{"index": 0, "state": "ISOLATED"}]
+        assert app_main._system_state_options(tree, 9) == []   # out-of-range -> empty
+
+    def test_add_system_state_creates_or_appends_and_rejects_blank_or_dup(self):
+        tree = self._tree_with_consumable_and_system()
+        # present valid_states -> append the new state string via /valid_states/-
+        op, issues = app_main._add_system_state_patch(tree, 0, "DRAINED")
+        assert issues == []
+        assert (op.action, op.path, op.value) == (
+            PatchAction.ADD, "/plant_systems/0/valid_states/-", "DRAINED")
+        # a system with NO valid_states key -> the first state CREATES the list
+        tree["plant_systems"].append({"system_id": "CVCS", "description": "cvcs"})
+        op_first, issues = app_main._add_system_state_patch(tree, 1, "RUNNING")
+        assert issues == []
+        assert (op_first.action, op_first.path, op_first.value) == (
+            PatchAction.ADD, "/plant_systems/1/valid_states", ["RUNNING"])
+        # blank and duplicate states are rejected up-front (DUP_ID-coded), never staged
+        op_blank, issues = app_main._add_system_state_patch(tree, 0, "  ")
+        assert op_blank is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+        op_dup, issues = app_main._add_system_state_patch(tree, 0, "ISOLATED")
+        assert op_dup is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+
+    def test_remove_system_and_state_patches(self):
+        rem_sys = app_main._remove_system_patch(0)
+        assert (rem_sys.action, rem_sys.path) == (PatchAction.REMOVE, "/plant_systems/0")
+        rem_state = app_main._remove_system_state_patch(0, 1)
+        assert (rem_state.action, rem_state.path) == (
+            PatchAction.REMOVE, "/plant_systems/0/valid_states/1")

@@ -141,6 +141,44 @@ class TestSerializationRoundTrip:
         assert reloaded.locations[0].availability_periods[0].max_concurrent_workers is None
         assert reloaded.locations[0].availability_periods[2].max_concurrent_workers == 3
 
+    def test_consumables_and_systems_load_to_typed_values(self, raw_plan):
+        """Loader coverage for the two entity types the Increment-5 consumables/systems forms
+        author. A plan with one consumable (incl. a restock) and one plant system (incl.
+        ``valid_states``) loads via ``load_plan_content`` to the expected typed values — the shapes
+        those forms emit through the commit path (create-or-append into keys every shipping sample
+        omits, so nothing else exercises these loaders). Assert **load only**:
+        ``serialize_plan_content`` intentionally does NOT emit consumables/systems — losslessness is
+        *semantic*, so they live on the authoritative raw snapshot the commit rides, not the lossy
+        typed export. A round-trip through export drops them BY DESIGN, not by a miss (asserted
+        below so the omission reads as intentional)."""
+        plan = copy.deepcopy(raw_plan)
+        plan["consumables"] = [{
+            "item_id": "N2-CYL", "description": "nitrogen cylinder", "total_quantity": 10.0,
+            "restocks": [{"delivery_hour": 24.0, "quantity": 5.0}],
+        }]
+        plan["plant_systems"] = [{
+            "system_id": "RCS", "description": "reactor coolant system",
+            "valid_states": ["ISOLATED", "DRAINED"],
+        }]
+
+        content = ser.load_plan_content(plan)             # must NOT crash on either key
+        assert len(content.consumables) == 1
+        cons = content.consumables[0]
+        assert cons.material_id == "N2-CYL"
+        assert cons.initial_stock == 10.0
+        assert len(cons.restock_deliveries) == 1
+        assert cons.restock_deliveries[0].hour == 24.0    # delivery_hour is already an hour offset
+        assert cons.restock_deliveries[0].quantity == 5.0
+        assert len(content.systems) == 1
+        assert content.systems[0].system_id == "RCS"
+        assert content.systems[0].valid_states == ("ISOLATED", "DRAINED")
+
+        # By design the lossy typed export drops both (they ride the raw snapshot the commit uses,
+        # not this path) — a deliberate omission, not a gap.
+        exported = ser.serialize_plan_content(content)
+        assert "consumables" not in exported
+        assert "plant_systems" not in exported and "systems" not in exported
+
     def test_equivalent_iso_offsets_canonicalize_consistently(self, raw_plan_with_iso_dates):
         """Two ISO timestamps denoting the same instant with different offsets normalize
         to the same UTC form -> identical canonical bytes -> identical hash."""
