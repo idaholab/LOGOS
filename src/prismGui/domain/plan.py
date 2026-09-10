@@ -138,7 +138,10 @@ class LocationAvailability:
     start: Hours
     end: Hours
     max_concurrent_tasks: int
-    max_concurrent_workers: int
+    # Optional/nullable in the schema (type ["integer","null"], not required): a location
+    # with no worker cap omits it. The CPM engine reads it via .get() and treats None as
+    # "no worker limit", so None round-trips cleanly.
+    max_concurrent_workers: Optional[int] = None
     reason: Optional[str] = None
 
 

@@ -828,8 +828,10 @@ def _add_resource_pool_patch(raw_tree, skill_type: str, resource_type, start_iso
 
 
 def _remove_resource_pool_patch(resource_index: int) -> PatchOp:
-    """REMOVE the resource pool at ``resource_index`` (a valid index from the selector). A task
-    still requiring that skill only WARNS (INSUFFICIENT_RESOURCE) at commit — it never blocks."""
+    """REMOVE the resource pool at ``resource_index`` (a valid index from the selector). If a task
+    still requires that skill, commit BLOCKS with REF_MISSING (the skill is now undefined) — a
+    clean block, resolved by dropping that requirement first. (A still-defined-but-undersupplied
+    skill is the softer INSUFFICIENT_RESOURCE case; removing the pool entirely is the hard one.)"""
     return PatchOp(action=PatchAction.REMOVE, path=f"/resources/{resource_index}")
 
 
@@ -852,16 +854,243 @@ def _remove_availability_period_patch(resource_index: int, period_index: int) ->
     )
 
 
+def _window_replace_ops(base_path: str, start_iso: str, end_iso: str) -> list[PatchOp]:
+    """The two REPLACE ops that move/resize an availability window by date: the always-present
+    ``start_date`` and ``end_date`` under ``base_path`` (a ``…/availability_periods/{j}`` pointer).
+    Shared by the resource / equipment / location window builders — a start >= end result stages
+    and is blocked by commit (INVALID_AVAILABILITY_INTERVAL)."""
+    return [
+        PatchOp(action=PatchAction.REPLACE, path=f"{base_path}/start_date", value=start_iso),
+        PatchOp(action=PatchAction.REPLACE, path=f"{base_path}/end_date", value=end_iso),
+    ]
+
+
 def _availability_window_patch(resource_index: int, period_index: int, start_iso: str,
                                end_iso: str) -> list[PatchOp]:
-    """REPLACE the always-present ``start_date`` and ``end_date`` of one availability period —
-    moving/resizing the window by date. Two ops (one per key); a start >= end result is blocked
-    by commit (INVALID_AVAILABILITY_INTERVAL)."""
-    base = f"/resources/{resource_index}/availability_periods/{period_index}"
+    """REPLACE the always-present ``start_date`` and ``end_date`` of one resource-pool availability
+    period — moving/resizing the window by date. Two ops (one per key); a start >= end result is
+    blocked by commit (INVALID_AVAILABILITY_INTERVAL)."""
+    return _window_replace_ops(
+        f"/resources/{resource_index}/availability_periods/{period_index}", start_iso, end_iso)
+
+
+# -----------------------------------------------------------------------------
+# Increment 4: equipment & location entity CRUD. Same discipline as Increment 3 —
+# pure data -> PatchOp builders over the /equipment/- and /locations/- loader paths,
+# fed through domain.apply_patch, blocked (never crashed) at commit on a bad edit.
+# Equipment mirrors resource pools (per-period quantity_available; a required
+# description); locations add an optional/nullable max_concurrent_workers, which a
+# zone with no worker cap OMITS — the exact shape the _load_locations fix tolerates.
+# -----------------------------------------------------------------------------
+
+def _equipment_options(raw_tree) -> list[dict]:
+    """Per-item selector rows ``{index, equipment_id, description, n_periods}``."""
     return [
-        PatchOp(action=PatchAction.REPLACE, path=f"{base}/start_date", value=start_iso),
-        PatchOp(action=PatchAction.REPLACE, path=f"{base}/end_date", value=end_iso),
+        {
+            "index": i,
+            "equipment_id": e.get("equipment_id", ""),
+            "description": e.get("description", ""),
+            "n_periods": len(e.get("availability_periods") or []),
+        }
+        for i, e in enumerate(raw_tree.get("equipment") or [])
     ]
+
+
+def _equipment_availability_options(raw_tree, equip_index: int) -> list[dict]:
+    """Availability rows ``{index, start_date, end_date, quantity_available}`` for one equipment
+    item (empty if the index is out of range)."""
+    equipment = raw_tree.get("equipment") or []
+    if equip_index < 0 or equip_index >= len(equipment):
+        return []
+    periods = equipment[equip_index].get("availability_periods") or []
+    return [
+        {
+            "index": j,
+            "start_date": p.get("start_date"),
+            "end_date": p.get("end_date"),
+            "quantity_available": p.get("quantity_available"),
+        }
+        for j, p in enumerate(periods)
+    ]
+
+
+def _add_equipment_patch(raw_tree, equipment_id: str, description: str, start_iso: str,
+                         end_iso: str, quantity: int) -> tuple[Optional[PatchOp], list[Issue]]:
+    """Build the ADD op appending a schema-complete equipment item to ``equipment`` with its
+    required ``equipment_id`` / ``description`` and one seeded ``{start_date, end_date,
+    quantity_available}`` availability period. Returns ``(None, [issue])`` (DUP_ID) when the id is
+    blank or already an item. A start >= end window stages and is blocked by commit
+    (INVALID_AVAILABILITY_INTERVAL)."""
+    eid = (equipment_id or "").strip()
+    if not eid:
+        return None, [_dup_id("equipment", eid, "a new equipment item needs a non-empty equipment_id")]
+    existing = {e.get("equipment_id") for e in (raw_tree.get("equipment") or [])}
+    if eid in existing:
+        return None, [_dup_id("equipment", eid, f"an equipment item '{eid}' already exists")]
+    item = {
+        "equipment_id": eid,
+        "description": description,
+        "availability_periods": [
+            {"start_date": start_iso, "end_date": end_iso, "quantity_available": int(quantity)},
+        ],
+    }
+    return PatchOp(action=PatchAction.ADD, path="/equipment/-", value=item), []
+
+
+def _remove_equipment_patch(equip_index: int) -> PatchOp:
+    """REMOVE the equipment item at ``equip_index`` (a valid index from the selector). If a task
+    still requires it, commit BLOCKS (REF_MISSING) — a clean block, resolved by dropping that
+    requirement first."""
+    return PatchOp(action=PatchAction.REMOVE, path=f"/equipment/{equip_index}")
+
+
+def _add_equipment_availability_patch(equip_index: int, start_iso: str, end_iso: str,
+                                      quantity: int) -> PatchOp:
+    """ADD (append) a ``{start_date, end_date, quantity_available}`` period to the equipment item
+    at ``equip_index``. A start >= end window is blocked by commit (INVALID_AVAILABILITY_INTERVAL)."""
+    return PatchOp(
+        action=PatchAction.ADD,
+        path=f"/equipment/{equip_index}/availability_periods/-",
+        value={"start_date": start_iso, "end_date": end_iso, "quantity_available": int(quantity)},
+    )
+
+
+def _remove_equipment_availability_patch(equip_index: int, period_index: int) -> PatchOp:
+    """REMOVE one availability period (by index) from the equipment item at ``equip_index``."""
+    return PatchOp(
+        action=PatchAction.REMOVE,
+        path=f"/equipment/{equip_index}/availability_periods/{period_index}",
+    )
+
+
+def _equipment_quantity_patch(equip_index: int, period_index: int, quantity: int) -> PatchOp:
+    """REPLACE the always-present ``quantity_available`` of one equipment availability period."""
+    return PatchOp(
+        action=PatchAction.REPLACE,
+        path=f"/equipment/{equip_index}/availability_periods/{period_index}/quantity_available",
+        value=int(quantity),
+    )
+
+
+def _equipment_window_patch(equip_index: int, period_index: int, start_iso: str,
+                            end_iso: str) -> list[PatchOp]:
+    """Move/resize one equipment availability window by date (two REPLACE ops)."""
+    return _window_replace_ops(
+        f"/equipment/{equip_index}/availability_periods/{period_index}", start_iso, end_iso)
+
+
+def _location_options(raw_tree) -> list[dict]:
+    """Per-zone selector rows ``{index, location_id, description, n_periods}``."""
+    return [
+        {
+            "index": i,
+            "location_id": loc.get("location_id", ""),
+            "description": loc.get("description", ""),
+            "n_periods": len(loc.get("availability_periods") or []),
+        }
+        for i, loc in enumerate(raw_tree.get("locations") or [])
+    ]
+
+
+def _location_availability_options(raw_tree, loc_index: int) -> list[dict]:
+    """Availability rows ``{index, start_date, end_date, max_concurrent_tasks,
+    max_concurrent_workers}`` for one location (empty if the index is out of range).
+    ``max_concurrent_workers`` is optional/nullable, so it is reported as-is (may be None)."""
+    locations = raw_tree.get("locations") or []
+    if loc_index < 0 or loc_index >= len(locations):
+        return []
+    periods = locations[loc_index].get("availability_periods") or []
+    return [
+        {
+            "index": j,
+            "start_date": p.get("start_date"),
+            "end_date": p.get("end_date"),
+            "max_concurrent_tasks": p.get("max_concurrent_tasks"),
+            "max_concurrent_workers": p.get("max_concurrent_workers"),
+        }
+        for j, p in enumerate(periods)
+    ]
+
+
+def _location_period_value(start_iso: str, end_iso: str, max_tasks: int,
+                           max_workers: Optional[int]) -> dict:
+    """One location availability-period dict. ``max_concurrent_workers`` is included ONLY when
+    ``max_workers`` is not None — a zone with no worker cap omits the optional/nullable key
+    (int(None) would otherwise crash the commit rehydrate; the _load_locations fix tolerates it)."""
+    period = {"start_date": start_iso, "end_date": end_iso,
+              "max_concurrent_tasks": int(max_tasks)}
+    if max_workers is not None:
+        period["max_concurrent_workers"] = int(max_workers)
+    return period
+
+
+def _add_location_patch(raw_tree, location_id: str, description: str, start_iso: str,
+                        end_iso: str, max_tasks: int,
+                        max_workers: Optional[int] = None) -> tuple[Optional[PatchOp], list[Issue]]:
+    """Build the ADD op appending a schema-complete location zone to ``locations`` with its
+    required ``location_id`` / ``description`` and one seeded period. The period carries
+    ``max_concurrent_workers`` only when ``max_workers`` is given (no worker cap omits it).
+    Returns ``(None, [issue])`` (DUP_ID) when the id is blank or already a zone. A start >= end
+    window stages and is blocked by commit (INVALID_AVAILABILITY_INTERVAL)."""
+    lid = (location_id or "").strip()
+    if not lid:
+        return None, [_dup_id("location", lid, "a new location needs a non-empty location_id")]
+    existing = {loc.get("location_id") for loc in (raw_tree.get("locations") or [])}
+    if lid in existing:
+        return None, [_dup_id("location", lid, f"a location '{lid}' already exists")]
+    zone = {
+        "location_id": lid,
+        "description": description,
+        "availability_periods": [_location_period_value(start_iso, end_iso, max_tasks, max_workers)],
+    }
+    return PatchOp(action=PatchAction.ADD, path="/locations/-", value=zone), []
+
+
+def _remove_location_patch(loc_index: int) -> PatchOp:
+    """REMOVE the location zone at ``loc_index`` (a valid index from the selector). If a task still
+    names it, commit BLOCKS (REF_MISSING) — a clean block, resolved by dropping that reference."""
+    return PatchOp(action=PatchAction.REMOVE, path=f"/locations/{loc_index}")
+
+
+def _add_location_availability_patch(loc_index: int, start_iso: str, end_iso: str, max_tasks: int,
+                                     max_workers: Optional[int] = None) -> PatchOp:
+    """ADD (append) an availability period to the location at ``loc_index`` (the worker cap is
+    omitted when ``max_workers`` is None). A start >= end window is blocked by commit."""
+    return PatchOp(
+        action=PatchAction.ADD,
+        path=f"/locations/{loc_index}/availability_periods/-",
+        value=_location_period_value(start_iso, end_iso, max_tasks, max_workers),
+    )
+
+
+def _remove_location_availability_patch(loc_index: int, period_index: int) -> PatchOp:
+    """REMOVE one availability period (by index) from the location at ``loc_index``."""
+    return PatchOp(
+        action=PatchAction.REMOVE,
+        path=f"/locations/{loc_index}/availability_periods/{period_index}",
+    )
+
+
+def _location_capacity_patch(loc_index: int, period_index: int, max_tasks: int,
+                             max_workers: Optional[int] = None) -> list[PatchOp]:
+    """Edit one location period's capacity. Always REPLACE the required ``max_concurrent_tasks``;
+    when ``max_workers`` is given, ADD (set-or-create) the optional/nullable ``max_concurrent_workers``
+    (ADD not REPLACE — the key may be absent, per the ``_resource_type_patch`` precedent). A None
+    ``max_workers`` leaves the worker cap untouched (only the tasks REPLACE is emitted)."""
+    base = f"/locations/{loc_index}/availability_periods/{period_index}"
+    ops = [PatchOp(action=PatchAction.REPLACE, path=f"{base}/max_concurrent_tasks",
+                   value=int(max_tasks))]
+    if max_workers is not None:
+        ops.append(PatchOp(action=PatchAction.ADD, path=f"{base}/max_concurrent_workers",
+                           value=int(max_workers)))
+    return ops
+
+
+def _location_window_patch(loc_index: int, period_index: int, start_iso: str,
+                           end_iso: str) -> list[PatchOp]:
+    """Move/resize one location availability window by date (two REPLACE ops)."""
+    return _window_replace_ops(
+        f"/locations/{loc_index}/availability_periods/{period_index}", start_iso, end_iso)
 
 
 # -----------------------------------------------------------------------------
@@ -1068,6 +1297,189 @@ def _render_resource_form(session, draft) -> None:
                    success_msg=f"Staged new availability period for {chosen['skill_type']}.")
 
 
+def _render_equipment_form(session, draft) -> None:
+    """Equipment tab: add/remove whole equipment items, edit a period's quantity_available,
+    move/resize a window by date, and add/remove availability periods — the equipment analogue
+    of the resource form (a required description; per-period quantity_available)."""
+    _DEFAULT_DAY = date(2025, 1, 1)
+
+    st.markdown("**Add equipment**")
+    a1, a2 = st.columns([1, 2])
+    add_id = a1.text_input("Equipment id", key="prism_equip_add_id", placeholder="CRANE-1")
+    add_desc = a2.text_input("Description", key="prism_equip_add_desc",
+                             placeholder="what this equipment is")
+    w1, w2, w3 = st.columns([2, 2, 1])
+    add_start = w1.date_input("Available from", value=_DEFAULT_DAY, key="prism_equip_add_start")
+    add_end = w2.date_input("Available to", value=date(2025, 1, 5), key="prism_equip_add_end")
+    add_qty = w3.number_input("Quantity", min_value=0, value=1, step=1, key="prism_equip_add_qty")
+    if st.button("Add equipment", key="prism_equip_add"):
+        op, issues = _add_equipment_patch(
+            draft.raw_working_tree, add_id, add_desc,
+            _iso_date_value(add_start), _iso_date_value(add_end), add_qty)
+        _apply_ops(session, draft, [op] if op else [], issues,
+                   success_msg=f"Staged new equipment {add_id.strip()}.")
+
+    items = _equipment_options(draft.raw_working_tree)
+    if not items:
+        st.caption("No equipment yet — add one above.")
+        return
+    e_labels = [f"{e['equipment_id']} ({e['n_periods']} period(s))" for e in items]
+    e_pick = st.selectbox("Equipment item", range(len(items)),
+                          format_func=lambda k: e_labels[k], key="prism_equip_pick")
+    chosen = items[e_pick]
+    if st.button("Remove equipment", key="prism_equip_remove"):
+        op = _remove_equipment_patch(chosen["index"])
+        _apply_ops(session, draft, [op], [],
+                   success_msg=f"Staged removal of equipment {chosen['equipment_id']}.")
+
+    periods = _equipment_availability_options(draft.raw_working_tree, chosen["index"])
+    if periods:
+        st.markdown("**Availability period**")
+        p_labels = [f"[{p['start_date']} … {p['end_date']}) qty {p['quantity_available']}"
+                    for p in periods]
+        p_pick = st.selectbox("Period", range(len(periods)), format_func=lambda k: p_labels[k],
+                              key="prism_equip_avail_pick")
+        chosen_p = periods[p_pick]
+        new_qty = st.number_input("Quantity available", min_value=0,
+                                  value=int(_as_float(chosen_p["quantity_available"], 0.0)),
+                                  step=1, key="prism_equip_qty")
+        if st.button("Apply quantity", key="prism_equip_qty_apply"):
+            op = _equipment_quantity_patch(chosen["index"], chosen_p["index"], new_qty)
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged quantity_available={new_qty} for {chosen['equipment_id']}.")
+
+        d1, d2 = st.columns([1, 1])
+        win_start = d1.date_input("Window start", value=_as_date(chosen_p["start_date"], _DEFAULT_DAY),
+                                  key="prism_equip_start")
+        win_end = d2.date_input("Window end", value=_as_date(chosen_p["end_date"], _DEFAULT_DAY),
+                                key="prism_equip_end")
+        wcol, xcol = st.columns([1, 1])
+        if wcol.button("Apply window dates", key="prism_equip_window"):
+            ops = _equipment_window_patch(
+                chosen["index"], chosen_p["index"],
+                _iso_date_value(win_start), _iso_date_value(win_end))
+            _apply_ops(session, draft, ops, [],
+                       success_msg=f"Staged window [{win_start} … {win_end}) for {chosen['equipment_id']}.")
+        if xcol.button("Remove period", key="prism_equip_avail_remove"):
+            op = _remove_equipment_availability_patch(chosen["index"], chosen_p["index"])
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged removal of a period from {chosen['equipment_id']}.")
+
+    st.markdown("**Add an availability period**")
+    n1, n2, n3 = st.columns([2, 2, 1])
+    per_start = n1.date_input("From", value=_DEFAULT_DAY, key="prism_equip_add_p_start")
+    per_end = n2.date_input("To", value=date(2025, 1, 5), key="prism_equip_add_p_end")
+    per_qty = n3.number_input("Quantity", min_value=0, value=1, step=1, key="prism_equip_add_p_qty")
+    if st.button("Add period", key="prism_equip_avail_add"):
+        op = _add_equipment_availability_patch(
+            chosen["index"], _iso_date_value(per_start), _iso_date_value(per_end), per_qty)
+        _apply_ops(session, draft, [op], [],
+                   success_msg=f"Staged new availability period for {chosen['equipment_id']}.")
+
+
+def _render_location_form(session, draft) -> None:
+    """Locations tab: add/remove whole location zones, edit a period's capacity
+    (``max_concurrent_tasks``, plus an OPTIONAL ``max_concurrent_workers`` gated by a checkbox —
+    unchecked means no worker cap), move/resize a window by date, and add/remove availability
+    periods. Leaving the worker cap off omits the key, exercising the loader's null-tolerance."""
+    _DEFAULT_DAY = date(2025, 1, 1)
+
+    st.markdown("**Add a location**")
+    a1, a2 = st.columns([1, 2])
+    add_id = a1.text_input("Location id", key="prism_loc_add_id", placeholder="ZONE-A")
+    add_desc = a2.text_input("Description", key="prism_loc_add_desc",
+                             placeholder="what this location is")
+    w1, w2, w3 = st.columns([2, 2, 1])
+    add_start = w1.date_input("Available from", value=_DEFAULT_DAY, key="prism_loc_add_start")
+    add_end = w2.date_input("Available to", value=date(2025, 1, 5), key="prism_loc_add_end")
+    add_tasks = w3.number_input("Max tasks", min_value=0, value=1, step=1, key="prism_loc_add_tasks")
+    cap1, cap2 = st.columns([1, 1])
+    add_cap = cap1.checkbox("Cap concurrent workers", value=False, key="prism_loc_add_cap")
+    add_workers = cap2.number_input("Max workers", min_value=0, value=1, step=1,
+                                    key="prism_loc_add_workers", disabled=not add_cap)
+    if st.button("Add location", key="prism_loc_add"):
+        op, issues = _add_location_patch(
+            draft.raw_working_tree, add_id, add_desc,
+            _iso_date_value(add_start), _iso_date_value(add_end), add_tasks,
+            max_workers=add_workers if add_cap else None)
+        _apply_ops(session, draft, [op] if op else [], issues,
+                   success_msg=f"Staged new location {add_id.strip()}.")
+
+    zones = _location_options(draft.raw_working_tree)
+    if not zones:
+        st.caption("No locations yet — add one above.")
+        return
+    l_labels = [f"{z['location_id']} ({z['n_periods']} period(s))" for z in zones]
+    l_pick = st.selectbox("Location", range(len(zones)),
+                          format_func=lambda k: l_labels[k], key="prism_loc_pick")
+    chosen = zones[l_pick]
+    if st.button("Remove location", key="prism_loc_remove"):
+        op = _remove_location_patch(chosen["index"])
+        _apply_ops(session, draft, [op], [],
+                   success_msg=f"Staged removal of location {chosen['location_id']}.")
+
+    periods = _location_availability_options(draft.raw_working_tree, chosen["index"])
+    if periods:
+        st.markdown("**Availability period**")
+        p_labels = [
+            f"[{p['start_date']} … {p['end_date']}) tasks {p['max_concurrent_tasks']}, "
+            f"workers {p['max_concurrent_workers'] if p['max_concurrent_workers'] is not None else '—'}"
+            for p in periods]
+        p_pick = st.selectbox("Period", range(len(periods)), format_func=lambda k: p_labels[k],
+                              key="prism_loc_avail_pick")
+        chosen_p = periods[p_pick]
+        cc1, cc2, cc3 = st.columns([1, 1, 1])
+        new_tasks = cc1.number_input("Max tasks", min_value=0,
+                                     value=int(_as_float(chosen_p["max_concurrent_tasks"], 0.0)),
+                                     step=1, key="prism_loc_tasks")
+        cap_workers = cc2.checkbox("Cap workers",
+                                   value=chosen_p["max_concurrent_workers"] is not None,
+                                   key="prism_loc_cap")
+        new_workers = cc3.number_input(
+            "Max workers", min_value=0,
+            value=int(_as_float(chosen_p["max_concurrent_workers"], 0.0)),
+            step=1, key="prism_loc_workers", disabled=not cap_workers)
+        if st.button("Apply capacity", key="prism_loc_capacity_apply"):
+            ops = _location_capacity_patch(
+                chosen["index"], chosen_p["index"], new_tasks,
+                max_workers=new_workers if cap_workers else None)
+            _apply_ops(session, draft, ops, [],
+                       success_msg=f"Staged capacity for {chosen['location_id']}.")
+
+        d1, d2 = st.columns([1, 1])
+        win_start = d1.date_input("Window start", value=_as_date(chosen_p["start_date"], _DEFAULT_DAY),
+                                  key="prism_loc_start")
+        win_end = d2.date_input("Window end", value=_as_date(chosen_p["end_date"], _DEFAULT_DAY),
+                                key="prism_loc_end")
+        wcol, xcol = st.columns([1, 1])
+        if wcol.button("Apply window dates", key="prism_loc_window"):
+            ops = _location_window_patch(
+                chosen["index"], chosen_p["index"],
+                _iso_date_value(win_start), _iso_date_value(win_end))
+            _apply_ops(session, draft, ops, [],
+                       success_msg=f"Staged window [{win_start} … {win_end}) for {chosen['location_id']}.")
+        if xcol.button("Remove period", key="prism_loc_avail_remove"):
+            op = _remove_location_availability_patch(chosen["index"], chosen_p["index"])
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged removal of a period from {chosen['location_id']}.")
+
+    st.markdown("**Add an availability period**")
+    n1, n2, n3 = st.columns([2, 2, 1])
+    per_start = n1.date_input("From", value=_DEFAULT_DAY, key="prism_loc_add_p_start")
+    per_end = n2.date_input("To", value=date(2025, 1, 5), key="prism_loc_add_p_end")
+    per_tasks = n3.number_input("Max tasks", min_value=0, value=1, step=1, key="prism_loc_add_p_tasks")
+    pc1, pc2 = st.columns([1, 1])
+    per_cap = pc1.checkbox("Cap concurrent workers", value=False, key="prism_loc_add_p_cap")
+    per_workers = pc2.number_input("Max workers", min_value=0, value=1, step=1,
+                                   key="prism_loc_add_p_workers", disabled=not per_cap)
+    if st.button("Add period", key="prism_loc_avail_add"):
+        op = _add_location_availability_patch(
+            chosen["index"], _iso_date_value(per_start), _iso_date_value(per_end), per_tasks,
+            max_workers=per_workers if per_cap else None)
+        _apply_ops(session, draft, [op], [],
+                   success_msg=f"Staged new availability period for {chosen['location_id']}.")
+
+
 def _render_raw_patch_form(session, draft) -> None:
     """The Increment-1 raw JSON-Pointer editor, kept for power edits (and to keep the
     headless smoke valid). Same widget keys (``prism_patch_*``) and the same "Apply patch"
@@ -1101,9 +1513,9 @@ def _render_raw_patch_form(session, draft) -> None:
 
 def _render_editor(session, validator) -> None:
     """The editing lifecycle (§2b): open a draft from the current baseline, stage edits through
-    structured forms (task/duration, dependencies/lags, resources/availability) or the raw
-    JSON-Pointer editor (Advanced), then commit (full schema + referential re-validation,
-    minting a NEW immutable revision) or discard.
+    structured forms (task/duration, dependencies/lags, resources/availability, equipment,
+    locations) or the raw JSON-Pointer editor (Advanced), then commit (full schema + referential
+    re-validation, minting a NEW immutable revision) or discard.
 
     Every form builds PatchOps and feeds them through the SAME ``domain.apply_patch``; the
     pending-patch log and the Commit / Discard controls are shared below the tabs. All state
@@ -1123,14 +1535,19 @@ def _render_editor(session, validator) -> None:
     st.caption(f"Editing a draft of `{draft.base_plan_id}` — "
                f"{len(draft.pending_patches)} patch(es) staged.")
 
-    tab_task, tab_dep, tab_res = st.tabs(
-        ["Task & duration", "Dependencies & lags", "Resources & availability"])
+    tab_task, tab_dep, tab_res, tab_equip, tab_loc = st.tabs(
+        ["Task & duration", "Dependencies & lags", "Resources & availability",
+         "Equipment", "Locations"])
     with tab_task:
         _render_task_form(session, draft)
     with tab_dep:
         _render_dependency_form(session, draft)
     with tab_res:
         _render_resource_form(session, draft)
+    with tab_equip:
+        _render_equipment_form(session, draft)
+    with tab_loc:
+        _render_location_form(session, draft)
 
     with st.expander("Advanced — raw JSON-Pointer patch", expanded=False):
         _render_raw_patch_form(session, draft)

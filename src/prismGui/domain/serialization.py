@@ -264,7 +264,9 @@ def _load_locations(raw: Optional[list], start: datetime) -> tuple[LocationZone,
                     start=iso_to_hours(p["start_date"], start),
                     end=iso_to_hours(p["end_date"], start),
                     max_concurrent_tasks=int(p["max_concurrent_tasks"]),
-                    max_concurrent_workers=int(p["max_concurrent_workers"]),
+                    # optional/nullable: absent or null -> no worker cap (None), never int(None)
+                    max_concurrent_workers=(
+                        int(mcw) if (mcw := p.get("max_concurrent_workers")) is not None else None),
                     reason=p.get("reason"),
                 )
                 for p in (loc.get("availability_periods") or [])

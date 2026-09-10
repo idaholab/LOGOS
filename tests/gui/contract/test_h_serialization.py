@@ -93,6 +93,54 @@ class TestSerializationRoundTrip:
         plain_by_id = {t["task_id"]: t for t in exported_plain["tasks"]}
         assert plain_by_id["A"]["successors"] == ["B"]
 
+    def test_location_worker_cap_optional_roundtrips(self, raw_plan, schema_path):
+        """A location's ``max_concurrent_workers`` is optional/nullable in the schema
+        (``type: ["integer","null"]``, not required), so a zone with no worker cap OMITS the key —
+        exactly what a locations form emits. The loader must tolerate an absent OR null value
+        without an ``int(None)`` crash (this is the fix that lets a no-worker-cap location commit),
+        loading each as ``None`` while still reading a present integer, and round-trip through the
+        schema-valid typed export. Nothing exercises this today — the fixtures have empty
+        locations — so this test locks the loader fix."""
+        plan = copy.deepcopy(raw_plan)
+        plan["locations"] = [{
+            "location_id": "ZONE-A",
+            "description": "reactor bay",
+            # is_confined_space / reason are populated only to keep the whole-document schema
+            # validation focused: they are non-nullable in the schema, and serialize_plan_content
+            # emits None for any absent optional — a separate, pre-existing gap. Leaving them set
+            # isolates max_concurrent_workers as the sole nullable-by-design field under test.
+            "is_confined_space": False,
+            "availability_periods": [
+                # (0) key omitted entirely -> no worker cap
+                {"start_date": "2025-01-01T00:00:00", "end_date": "2025-01-05T00:00:00",
+                 "max_concurrent_tasks": 2, "reason": "day shift"},
+                # (1) explicit null -> no worker cap
+                {"start_date": "2025-01-01T00:00:00", "end_date": "2025-01-05T00:00:00",
+                 "max_concurrent_tasks": 2, "max_concurrent_workers": None, "reason": "night"},
+                # (2) a present integer still loads as that int
+                {"start_date": "2025-01-01T00:00:00", "end_date": "2025-01-05T00:00:00",
+                 "max_concurrent_tasks": 2, "max_concurrent_workers": 3, "reason": "peak"},
+            ],
+        }]
+
+        content = ser.load_plan_content(plan)           # must NOT crash on absent/null
+        periods = content.locations[0].availability_periods
+        assert periods[0].max_concurrent_workers is None       # omitted
+        assert periods[1].max_concurrent_workers is None       # explicit null
+        assert periods[2].max_concurrent_workers == 3          # present int survives
+
+        # The typed export emits null for the uncapped periods (schema-valid) and reloads to None.
+        exported = ser.serialize_plan_content(content)
+        exported_periods = exported["locations"][0]["availability_periods"]
+        assert exported_periods[0]["max_concurrent_workers"] is None
+        assert exported_periods[2]["max_concurrent_workers"] == 3
+        with open(schema_path) as fh:
+            schema = json.load(fh)
+        jsonschema.validate(exported, schema)                  # raises on invalid
+        reloaded = ser.load_plan_content(exported)
+        assert reloaded.locations[0].availability_periods[0].max_concurrent_workers is None
+        assert reloaded.locations[0].availability_periods[2].max_concurrent_workers == 3
+
     def test_equivalent_iso_offsets_canonicalize_consistently(self, raw_plan_with_iso_dates):
         """Two ISO timestamps denoting the same instant with different offsets normalize
         to the same UTC form -> identical canonical bytes -> identical hash."""

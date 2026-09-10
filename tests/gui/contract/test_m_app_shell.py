@@ -336,3 +336,164 @@ class TestEditorFormBuilders:
         assert app_main._as_date("not-a-date", fallback) == fallback
         assert app_main._as_date("", fallback) == fallback
         assert app_main._as_date(None, fallback) == fallback
+
+    # --- Increment 4: equipment & location entity CRUD builders ---
+
+    @staticmethod
+    def _tree_with_equipment_and_location() -> dict:
+        """A tiny raw tree with one equipment item and one location (each with one availability
+        period) for the options / remove / period / window / capacity builders that read existing
+        entities. Inline (like the lag test) so no conftest fixture change is needed. The location
+        period omits ``max_concurrent_workers`` — the no-worker-cap shape the loader tolerates."""
+        return {
+            "tasks": [], "resources": [],
+            "equipment": [{
+                "equipment_id": "CRANE-1", "description": "mobile crane",
+                "availability_periods": [
+                    {"start_date": "2025-01-01T00:00:00", "end_date": "2025-01-05T00:00:00",
+                     "quantity_available": 2}],
+            }],
+            "locations": [{
+                "location_id": "ZONE-A", "description": "reactor bay",
+                "availability_periods": [
+                    {"start_date": "2025-01-01T00:00:00", "end_date": "2025-01-05T00:00:00",
+                     "max_concurrent_tasks": 3}],
+            }],
+        }
+
+    def test_window_replace_ops_two_replaces(self):
+        """The shared window helper emits the two date REPLACEs under any base path (here the
+        equipment path) — the refactored spine under the resource/equipment/location builders."""
+        ops = app_main._window_replace_ops(
+            "/equipment/0/availability_periods/0", "2025-03-01T00:00:00", "2025-03-10T00:00:00")
+        assert [(o.action, o.path, o.value) for o in ops] == [
+            (PatchAction.REPLACE, "/equipment/0/availability_periods/0/start_date",
+             "2025-03-01T00:00:00"),
+            (PatchAction.REPLACE, "/equipment/0/availability_periods/0/end_date",
+             "2025-03-10T00:00:00")]
+
+    # equipment
+
+    def test_add_equipment_patch_builds_item_with_initial_period(self, raw_plan):
+        """A new equipment item appends to /equipment/- with the schema-required equipment_id /
+        description and one seeded {start_date, end_date, quantity_available} period."""
+        op, issues = app_main._add_equipment_patch(
+            raw_plan, "CRANE-1", "mobile crane",
+            "2025-01-01T00:00:00", "2025-01-05T00:00:00", 2)
+        assert issues == []
+        assert op.action is PatchAction.ADD and op.path == "/equipment/-"
+        assert op.value["equipment_id"] == "CRANE-1"
+        assert op.value["description"] == "mobile crane"
+        assert op.value["availability_periods"] == [
+            {"start_date": "2025-01-01T00:00:00", "end_date": "2025-01-05T00:00:00",
+             "quantity_available": 2}]
+
+    def test_add_equipment_patch_rejects_duplicate_or_blank_id(self):
+        tree = self._tree_with_equipment_and_location()
+        op, issues = app_main._add_equipment_patch(
+            tree, "CRANE-1", "dup", "2025-01-01T00:00:00", "2025-01-05T00:00:00", 1)
+        assert op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+        op, issues = app_main._add_equipment_patch(
+            tree, "  ", "blank", "2025-01-01T00:00:00", "2025-01-05T00:00:00", 1)
+        assert op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+
+    def test_equipment_options_and_availability_options(self):
+        tree = self._tree_with_equipment_and_location()
+        assert app_main._equipment_options(tree) == [
+            {"index": 0, "equipment_id": "CRANE-1", "description": "mobile crane", "n_periods": 1}]
+        rows = app_main._equipment_availability_options(tree, 0)
+        assert len(rows) == 1
+        assert set(rows[0]) == {"index", "start_date", "end_date", "quantity_available"}
+        assert rows[0]["quantity_available"] == 2
+        assert app_main._equipment_availability_options(tree, 9) == []   # out-of-range -> empty
+
+    def test_equipment_remove_period_quantity_and_window_patches(self):
+        rem_item = app_main._remove_equipment_patch(0)
+        assert (rem_item.action, rem_item.path) == (PatchAction.REMOVE, "/equipment/0")
+        add = app_main._add_equipment_availability_patch(
+            0, "2025-02-01T00:00:00", "2025-02-03T00:00:00", 4)
+        assert (add.action, add.path) == (PatchAction.ADD, "/equipment/0/availability_periods/-")
+        assert add.value == {"start_date": "2025-02-01T00:00:00",
+                             "end_date": "2025-02-03T00:00:00", "quantity_available": 4}
+        rem = app_main._remove_equipment_availability_patch(0, 1)
+        assert (rem.action, rem.path) == (
+            PatchAction.REMOVE, "/equipment/0/availability_periods/1")
+        qty = app_main._equipment_quantity_patch(0, 0, 5)
+        assert (qty.action, qty.path, qty.value) == (
+            PatchAction.REPLACE, "/equipment/0/availability_periods/0/quantity_available", 5)
+        win = app_main._equipment_window_patch(0, 0, "2025-03-01T00:00:00", "2025-03-10T00:00:00")
+        assert [(o.action, o.path) for o in win] == [
+            (PatchAction.REPLACE, "/equipment/0/availability_periods/0/start_date"),
+            (PatchAction.REPLACE, "/equipment/0/availability_periods/0/end_date")]
+
+    # locations
+
+    def test_add_location_patch_omits_worker_cap_when_none(self, raw_plan):
+        """No worker cap (the default) OMITS ``max_concurrent_workers`` from the seeded period —
+        the null-tolerant shape the _load_locations fix lets commit."""
+        op, issues = app_main._add_location_patch(
+            raw_plan, "ZONE-A", "reactor bay", "2025-01-01T00:00:00", "2025-01-05T00:00:00", 3)
+        assert issues == []
+        assert op.action is PatchAction.ADD and op.path == "/locations/-"
+        assert op.value["location_id"] == "ZONE-A" and op.value["description"] == "reactor bay"
+        period = op.value["availability_periods"][0]
+        assert period["max_concurrent_tasks"] == 3
+        assert "max_concurrent_workers" not in period
+
+    def test_add_location_patch_includes_worker_cap_when_given(self, raw_plan):
+        op, issues = app_main._add_location_patch(
+            raw_plan, "ZONE-A", "reactor bay",
+            "2025-01-01T00:00:00", "2025-01-05T00:00:00", 3, max_workers=6)
+        assert issues == []
+        assert op.value["availability_periods"][0]["max_concurrent_workers"] == 6
+
+    def test_add_location_patch_rejects_duplicate_or_blank_id(self):
+        tree = self._tree_with_equipment_and_location()
+        op, issues = app_main._add_location_patch(
+            tree, "ZONE-A", "dup", "2025-01-01T00:00:00", "2025-01-05T00:00:00", 1)
+        assert op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+        op, issues = app_main._add_location_patch(
+            tree, "", "blank", "2025-01-01T00:00:00", "2025-01-05T00:00:00", 1)
+        assert op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+
+    def test_location_options_and_availability_options_read_optional_workers(self):
+        tree = self._tree_with_equipment_and_location()
+        assert app_main._location_options(tree) == [
+            {"index": 0, "location_id": "ZONE-A", "description": "reactor bay", "n_periods": 1}]
+        rows = app_main._location_availability_options(tree, 0)
+        assert len(rows) == 1
+        assert set(rows[0]) == {"index", "start_date", "end_date",
+                                "max_concurrent_tasks", "max_concurrent_workers"}
+        assert rows[0]["max_concurrent_tasks"] == 3
+        assert rows[0]["max_concurrent_workers"] is None   # optional, absent -> None
+        assert app_main._location_availability_options(tree, 9) == []   # out-of-range -> empty
+
+    def test_location_capacity_patch_replaces_tasks_and_adds_optional_workers(self):
+        # no worker cap -> only the required-tasks REPLACE
+        assert [(o.action, o.path, o.value)
+                for o in app_main._location_capacity_patch(0, 0, 4)] == [
+            (PatchAction.REPLACE, "/locations/0/availability_periods/0/max_concurrent_tasks", 4)]
+        # a given cap -> REPLACE tasks + ADD (set-or-create) the optional workers key
+        assert [(o.action, o.path, o.value)
+                for o in app_main._location_capacity_patch(0, 0, 4, max_workers=6)] == [
+            (PatchAction.REPLACE, "/locations/0/availability_periods/0/max_concurrent_tasks", 4),
+            (PatchAction.ADD, "/locations/0/availability_periods/0/max_concurrent_workers", 6)]
+
+    def test_location_remove_period_and_window_patches(self):
+        rem_zone = app_main._remove_location_patch(0)
+        assert (rem_zone.action, rem_zone.path) == (PatchAction.REMOVE, "/locations/0")
+        add = app_main._add_location_availability_patch(
+            0, "2025-02-01T00:00:00", "2025-02-03T00:00:00", 2)
+        assert (add.action, add.path) == (PatchAction.ADD, "/locations/0/availability_periods/-")
+        assert add.value["max_concurrent_tasks"] == 2
+        assert "max_concurrent_workers" not in add.value          # cap omitted by default
+        add_capped = app_main._add_location_availability_patch(
+            0, "2025-02-01T00:00:00", "2025-02-03T00:00:00", 2, max_workers=5)
+        assert add_capped.value["max_concurrent_workers"] == 5
+        rem = app_main._remove_location_availability_patch(0, 1)
+        assert (rem.action, rem.path) == (
+            PatchAction.REMOVE, "/locations/0/availability_periods/1")
+        win = app_main._location_window_patch(0, 0, "2025-03-01T00:00:00", "2025-03-10T00:00:00")
+        assert [(o.action, o.path) for o in win] == [
+            (PatchAction.REPLACE, "/locations/0/availability_periods/0/start_date"),
+            (PatchAction.REPLACE, "/locations/0/availability_periods/0/end_date")]
