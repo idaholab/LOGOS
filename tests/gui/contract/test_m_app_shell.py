@@ -800,3 +800,200 @@ class TestEditorFormBuilders:
         rem = app_main._remove_task_alt_skill_patch(0, 0, 0)
         assert (rem.action, rem.path) == (
             PatchAction.REMOVE, "/tasks/0/required_resources/0/alternative_skill_types/0")
+
+    # -------------------------------------------------------------------------
+    # Increment 7: task scheduling attributes. Author a task's hold point
+    # (is_hold_point + hold_point_type, managed as a pair so no misuse state is
+    # ever emitted), its time_windows[], and its execution modes[] (mode CRUD +
+    # per-mode nested required_resources/required_equipment + optional per-mode
+    # dose_rate_mrem_per_hour / mobilization_lead_hours overrides).
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _tree_with_task_scheduling() -> dict:
+        """A tiny raw tree for the scheduling attributes: task 0 ("A") carries a hold point (with a
+        blocks_tasks list), one time window, and two modes -- mode 0 ("FAST") fully populated
+        (nested crew + equipment, dose + mobilization overrides), mode 1 ("SLOW") with the nested
+        arrays ABSENT (the create-vs-append branch and the tolerant-reader case). Task 1 ("B") is
+        bare: no is_hold_point / time_windows / modes keys at all (the vacuous-False + create
+        branches). Pools are present so the mode sub-editors have skills/equipment to offer."""
+        return {
+            "tasks": [
+                {"task_id": "A", "description": "task a", "duration": 4, "successors": [],
+                 "is_hold_point": True, "hold_point_type": "NRC", "blocks_tasks": ["B"],
+                 "time_windows": [{"earliest": 0.0, "latest": 48.0}],
+                 "modes": [
+                     {"mode_id": "FAST", "duration": 4.0,
+                      "required_resources": [{"skill_type": "MECH", "crew_count": 2}],
+                      "required_equipment": [{"equipment_id": "CRANE-1", "quantity_needed": 1}],
+                      "dose_rate_mrem_per_hour": 5.0, "mobilization_lead_hours": 2.0},
+                     {"mode_id": "SLOW", "duration": 8.0},
+                 ]},
+                {"task_id": "B", "description": "task b", "duration": 2, "successors": []},
+            ],
+            "resources": [], "equipment": [], "locations": [], "consumables": [],
+            "plant_systems": [],
+        }
+
+    # per-task scheduling readers
+
+    def test_task_scheduling_readers_shape(self):
+        tree = self._tree_with_task_scheduling()
+        # hold point: present on task 0, vacuous-False (key absent) on the bare task 1 / out of range
+        assert app_main._task_hold_point(tree, 0) == {
+            "is_hold_point": True, "hold_point_type": "NRC"}
+        assert app_main._task_hold_point(tree, 1) == {
+            "is_hold_point": False, "hold_point_type": None}
+        assert app_main._task_hold_point(tree, 9) == {
+            "is_hold_point": False, "hold_point_type": None}
+        # time windows: one row on task 0, empty on the bare task 1 / out of range
+        assert app_main._task_time_windows(tree, 0) == [
+            {"index": 0, "earliest": 0.0, "latest": 48.0}]
+        assert app_main._task_time_windows(tree, 1) == []
+        assert app_main._task_time_windows(tree, 9) == []
+        # modes: FAST fully populated (nested crew + equipment, dose + mob); SLOW read tolerantly
+        # (nested arrays absent -> empty, overrides absent -> None)
+        modes = app_main._task_modes(tree, 0)
+        assert modes[0] == {
+            "index": 0, "mode_id": "FAST", "duration": 4.0,
+            "dose_rate": 5.0, "mobilization_lead_hours": 2.0,
+            "resources": [{"index": 0, "skill_type": "MECH", "crew_count": 2}],
+            "equipment": [{"index": 0, "equipment_id": "CRANE-1", "quantity_needed": 1}]}
+        assert modes[1] == {
+            "index": 1, "mode_id": "SLOW", "duration": 8.0,
+            "dose_rate": None, "mobilization_lead_hours": None,
+            "resources": [], "equipment": []}
+        assert app_main._task_modes(tree, 1) == []       # bare task -> no modes
+        assert app_main._task_modes(tree, 9) == []       # out of range -> empty
+
+    # hold point — the paired conditional: SET is two ADDs, CLEAR is flag-False + guarded REMOVEs
+
+    def test_task_hold_point_set_and_clear_patches(self):
+        tree = self._tree_with_task_scheduling()
+        # SET: ADD (set-or-create) both keys, never REPLACE -- works whether or not they preexist
+        set_ops = app_main._task_hold_point_set_patch(0, "QA")
+        assert [(o.action, o.path, o.value) for o in set_ops] == [
+            (PatchAction.ADD, "/tasks/0/is_hold_point", True),
+            (PatchAction.ADD, "/tasks/0/hold_point_type", "QA")]
+        # CLEAR on task 0 (hold_point_type AND blocks_tasks present) -> flag False + both REMOVEs,
+        # so the GUI never leaves the false+type HOLD_POINT_MISUSE state (nor a dangling block list)
+        clear_full = app_main._task_hold_point_clear_patch(tree, 0)
+        assert [(o.action, o.path, o.value) for o in clear_full] == [
+            (PatchAction.ADD, "/tasks/0/is_hold_point", False),
+            (PatchAction.REMOVE, "/tasks/0/hold_point_type", None),
+            (PatchAction.REMOVE, "/tasks/0/blocks_tasks", None)]
+        # CLEAR on the bare task 1 (neither key present) -> only the flag ADD; the REMOVEs are
+        # guarded on presence (a REMOVE of an absent key would fail at commit)
+        clear_bare = app_main._task_hold_point_clear_patch(tree, 1)
+        assert [(o.action, o.path, o.value) for o in clear_bare] == [
+            (PatchAction.ADD, "/tasks/1/is_hold_point", False)]
+
+    # time_windows (NOT ref-validated) — create-vs-append, edit both bounds, remove
+
+    def test_add_task_time_window_creates_when_absent_appends_when_present(self):
+        tree = self._tree_with_task_scheduling()
+        # task 1 has no time_windows key -> the first add CREATES the array
+        created = app_main._add_task_time_window_patch(tree, 1, 6, 12)
+        assert (created.action, created.path, created.value) == (
+            PatchAction.ADD, "/tasks/1/time_windows", [{"earliest": 6.0, "latest": 12.0}])
+        # task 0 already carries one -> APPEND via /- (bounds coerced to float)
+        appended = app_main._add_task_time_window_patch(tree, 0, 24, 72)
+        assert (appended.action, appended.path, appended.value) == (
+            PatchAction.ADD, "/tasks/0/time_windows/-", {"earliest": 24.0, "latest": 72.0})
+
+    def test_task_time_window_edit_and_remove_patches(self):
+        edit = app_main._task_time_window_edit_patch(0, 0, 3, 30)
+        assert [(o.action, o.path, o.value) for o in edit] == [
+            (PatchAction.REPLACE, "/tasks/0/time_windows/0/earliest", 3.0),
+            (PatchAction.REPLACE, "/tasks/0/time_windows/0/latest", 30.0)]
+        rem = app_main._remove_task_time_window_patch(0, 0)
+        assert (rem.action, rem.path) == (PatchAction.REMOVE, "/tasks/0/time_windows/0")
+
+    # execution modes — create-vs-append (all four keys, empty nested arrays), remove, blank/dup
+
+    def test_add_task_mode_creates_when_absent_appends_when_present(self):
+        tree = self._tree_with_task_scheduling()
+        # task 1 has no modes key -> CREATE the array with a schema-complete mode: all four
+        # required keys, the two nested arrays seeded []
+        created, issues = app_main._add_task_mode_patch(tree, 1, "SOLO", 5)
+        assert issues == []
+        assert (created.action, created.path, created.value) == (
+            PatchAction.ADD, "/tasks/1/modes",
+            [{"mode_id": "SOLO", "duration": 5.0,
+              "required_resources": [], "required_equipment": []}])
+        # task 0 already carries modes -> APPEND via /- (duration coerced to float)
+        appended, issues = app_main._add_task_mode_patch(tree, 0, "MEDIUM", 6)
+        assert issues == []
+        assert (appended.action, appended.path, appended.value) == (
+            PatchAction.ADD, "/tasks/0/modes/-",
+            {"mode_id": "MEDIUM", "duration": 6.0,
+             "required_resources": [], "required_equipment": []})
+
+    def test_add_task_mode_rejects_blank_or_duplicate(self):
+        tree = self._tree_with_task_scheduling()
+        blank_op, issues = app_main._add_task_mode_patch(tree, 0, "  ", 4)
+        assert blank_op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+        # "FAST" already exists on task 0 -> duplicate mode_id, rejected up-front (uniqueItems)
+        dup_op, issues = app_main._add_task_mode_patch(tree, 0, "FAST", 4)
+        assert dup_op is None and [i.code for i in issues] == [IssueCode.DUP_ID]
+
+    def test_remove_task_mode_patch(self):
+        rem = app_main._remove_task_mode_patch(0, 1)
+        assert (rem.action, rem.path) == (PatchAction.REMOVE, "/tasks/0/modes/1")
+
+    # per-mode duration REPLACE + the optional dose / mobilization overrides (ADD set-or-create,
+    # REMOVE to clear back to the task-level value)
+
+    def test_task_mode_duration_dose_and_mob_patches(self):
+        dur = app_main._task_mode_duration_patch(0, 0, 9)
+        assert (dur.action, dur.path, dur.value) == (
+            PatchAction.REPLACE, "/tasks/0/modes/0/duration", 9.0)
+
+        dose = app_main._task_mode_dose_patch(0, 0, 7.5)
+        assert (dose.action, dose.path, dose.value) == (
+            PatchAction.ADD, "/tasks/0/modes/0/dose_rate_mrem_per_hour", 7.5)
+        dose_clear = app_main._task_mode_dose_clear_patch(0, 0)
+        assert (dose_clear.action, dose_clear.path) == (
+            PatchAction.REMOVE, "/tasks/0/modes/0/dose_rate_mrem_per_hour")
+
+        mob = app_main._task_mode_mob_patch(0, 0, 3)
+        assert (mob.action, mob.path, mob.value) == (
+            PatchAction.ADD, "/tasks/0/modes/0/mobilization_lead_hours", 3.0)
+        mob_clear = app_main._task_mode_mob_clear_patch(0, 0)
+        assert (mob_clear.action, mob_clear.path) == (
+            PatchAction.REMOVE, "/tasks/0/modes/0/mobilization_lead_hours")
+
+    # per-mode required_resources / required_equipment (NOT ref-validated -- the asymmetry):
+    # create-vs-append + remove pointers, one level shallower than the task-level editor
+
+    def test_add_and_remove_task_mode_resource_patches(self):
+        tree = self._tree_with_task_scheduling()
+        # mode 1 ("SLOW") has no required_resources key -> the first add CREATES the array
+        created = app_main._add_task_mode_resource_patch(tree, 0, 1, "ELEC", 2)
+        assert (created.action, created.path, created.value) == (
+            PatchAction.ADD, "/tasks/0/modes/1/required_resources",
+            [{"skill_type": "ELEC", "crew_count": 2}])
+        # mode 0 ("FAST") already carries one -> APPEND via /-
+        appended = app_main._add_task_mode_resource_patch(tree, 0, 0, "ELEC", 3)
+        assert (appended.action, appended.path, appended.value) == (
+            PatchAction.ADD, "/tasks/0/modes/0/required_resources/-",
+            {"skill_type": "ELEC", "crew_count": 3})
+        rem = app_main._remove_task_mode_resource_patch(0, 0, 0)
+        assert (rem.action, rem.path) == (
+            PatchAction.REMOVE, "/tasks/0/modes/0/required_resources/0")
+
+    def test_add_and_remove_task_mode_equipment_patches(self):
+        tree = self._tree_with_task_scheduling()
+        # mode 1 ("SLOW") has no required_equipment key -> the first add CREATES the array
+        created = app_main._add_task_mode_equipment_patch(tree, 0, 1, "FORKLIFT", 1)
+        assert (created.action, created.path, created.value) == (
+            PatchAction.ADD, "/tasks/0/modes/1/required_equipment",
+            [{"equipment_id": "FORKLIFT", "quantity_needed": 1}])
+        # mode 0 ("FAST") already carries one -> APPEND via /-
+        appended = app_main._add_task_mode_equipment_patch(tree, 0, 0, "FORKLIFT", 2)
+        assert (appended.action, appended.path, appended.value) == (
+            PatchAction.ADD, "/tasks/0/modes/0/required_equipment/-",
+            {"equipment_id": "FORKLIFT", "quantity_needed": 2})
+        rem = app_main._remove_task_mode_equipment_patch(0, 0, 0)
+        assert (rem.action, rem.path) == (
+            PatchAction.REMOVE, "/tasks/0/modes/0/required_equipment/0")

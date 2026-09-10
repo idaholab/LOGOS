@@ -1490,6 +1490,257 @@ def _remove_task_alt_skill_patch(task_index: int, req_index: int, alt_index: int
 
 
 # -----------------------------------------------------------------------------
+# Increment 7 -- per-task SCHEDULING attributes: hold points, time windows, and
+# execution modes (incl. each mode's nested required_resources / required_equipment
+# and its optional dose_rate / mobilization_lead overrides). These three schema
+# sub-structures were previously reachable only through the raw JSON-Pointer editor.
+#
+# The hold-point PAIR is managed together so the GUI never emits either state the
+# schema/runtime reject: is_hold_point==true + a null type -> a WARNING; is_hold_point
+# ==false + a type present -> a HOLD_POINT_MISUSE ERROR. A single selectbox drives it
+# -- a real type SETS the pair, "none" CLEARS it (removing the type and any blocks_tasks).
+#
+# The emitted keys are the JSON schema names, NOT the domain names the loader bridges
+# to: execution modes live under `modes` (Task.execution_modes) and a mode's id is
+# `mode_id` (ExecutionMode.mode_name). A mode item is additionalProperties:false with
+# required [mode_id, duration, required_resources, required_equipment], so an added mode
+# MUST carry all four -- the two nested arrays seeded []. Both loaders are required-indexed
+# (`float(w["earliest"])`, `m["mode_id"]`/`float(m["duration"])`), so a partial/blank row
+# would crash the commit rehydrate; the atomic add forms collect every required field at
+# once (number_inputs default to valid numbers), so no partial row is ever staged.
+#
+# ASYMMETRY (as with Inc-6 consumables/system-states): the CPM validator's referential
+# checks do NOT descend into modes[].required_resources / required_equipment, so a ghost
+# skill_type / equipment_id inside a mode COMMITS cleanly -- the pickers (offering only
+# existing pools) are the only guard. time_windows and hold-point fields reference no ids.
+# -----------------------------------------------------------------------------
+
+_HOLD_POINT_TYPES = ("NRC", "QA", "Engineering", "Operations")   # the schema enum (minus null)
+
+
+def _task_hold_point(raw_tree, task_index: int) -> dict:
+    """The hold-point pair of task #task_index as ``{is_hold_point, hold_point_type}``
+    (``{False, None}`` when absent or out of range). ``is_hold_point`` is coerced to a bool so
+    an absent key reads False (the vacuous-conditional escape every plain task relies on);
+    ``hold_point_type`` is the raw enum value or None."""
+    task = _task_at(raw_tree, task_index) or {}
+    return {"is_hold_point": bool(task.get("is_hold_point")),
+            "hold_point_type": task.get("hold_point_type")}
+
+
+def _task_time_windows(raw_tree, task_index: int) -> list[dict]:
+    """``time_windows`` rows ``{index, earliest, latest}`` for one task (empty if out of range).
+    Both bounds are hours from outage start, NOT dates."""
+    windows = (_task_at(raw_tree, task_index) or {}).get("time_windows") or []
+    return [
+        {"index": j, "earliest": w.get("earliest"), "latest": w.get("latest")}
+        for j, w in enumerate(windows)
+    ]
+
+
+def _task_modes(raw_tree, task_index: int) -> list[dict]:
+    """``modes`` rows for one task (empty if out of range), each ``{index, mode_id, duration,
+    dose_rate, mobilization_lead_hours, resources, equipment}`` where ``resources`` is
+    ``[{index, skill_type, crew_count}]`` and ``equipment`` is ``[{index, equipment_id,
+    quantity_needed}]``. The nested lists are read HERE (before the per-mode add buttons in the
+    wrapper), so a just-added per-mode resource/equipment appears only on the next rerun -- the
+    same benign one-run lag as the Inc-6 alt-skills sub-editor."""
+    modes = (_task_at(raw_tree, task_index) or {}).get("modes") or []
+    return [
+        {
+            "index": j,
+            "mode_id": m.get("mode_id", ""),
+            "duration": m.get("duration"),
+            "dose_rate": m.get("dose_rate_mrem_per_hour"),
+            "mobilization_lead_hours": m.get("mobilization_lead_hours"),
+            "resources": [
+                {"index": k, "skill_type": r.get("skill_type", ""),
+                 "crew_count": r.get("crew_count")}
+                for k, r in enumerate(m.get("required_resources") or [])
+            ],
+            "equipment": [
+                {"index": k, "equipment_id": e.get("equipment_id", ""),
+                 "quantity_needed": e.get("quantity_needed")}
+                for k, e in enumerate(m.get("required_equipment") or [])
+            ],
+        }
+        for j, m in enumerate(modes)
+    ]
+
+
+# --- hold points (the paired conditional -- managed together, never a misuse state) ---
+
+def _task_hold_point_set_patch(task_index: int, hold_point_type: str) -> list[PatchOp]:
+    """Make task #task_index a hold point of ``hold_point_type``: ADD (set-or-create)
+    ``is_hold_point`` True AND ``hold_point_type``. ADD (not REPLACE) so it works whether or not
+    the keys preexist (a sample task may omit ``is_hold_point``). A type outside the schema enum
+    BLOCKS at commit (SCHEMA_TYPE_ERROR); the selectbox offers only enum members, so that arises
+    only via the raw editor."""
+    return [
+        PatchOp(action=PatchAction.ADD, path=f"/tasks/{task_index}/is_hold_point", value=True),
+        PatchOp(action=PatchAction.ADD, path=f"/tasks/{task_index}/hold_point_type",
+                value=str(hold_point_type)),
+    ]
+
+
+def _task_hold_point_clear_patch(raw_tree, task_index: int) -> list[PatchOp]:
+    """Clear task #task_index's hold point: ADD (set-or-create) ``is_hold_point`` False and
+    REMOVE ``hold_point_type`` / ``blocks_tasks`` when present. Leaving the flag False while a
+    type lingered would be a HOLD_POINT_MISUSE error, so the type (and any blocked-task list) is
+    always removed with it -- the GUI never leaves the false+type misuse state. The REMOVEs are
+    guarded on key presence (a REMOVE of an absent key would fail)."""
+    task = _task_at(raw_tree, task_index) or {}
+    ops = [PatchOp(action=PatchAction.ADD, path=f"/tasks/{task_index}/is_hold_point", value=False)]
+    if "hold_point_type" in task:
+        ops.append(PatchOp(action=PatchAction.REMOVE,
+                           path=f"/tasks/{task_index}/hold_point_type"))
+    if "blocks_tasks" in task:
+        ops.append(PatchOp(action=PatchAction.REMOVE, path=f"/tasks/{task_index}/blocks_tasks"))
+    return ops
+
+
+# --- time windows (hour-offset execution windows; NOT referentially validated) ---
+
+def _add_task_time_window_patch(raw_tree, task_index: int, earliest: float,
+                                latest: float) -> PatchOp:
+    """Create-or-append an ``{earliest, latest}`` execution window (hours from outage start) to
+    task #task_index's ``time_windows`` (optional; starts absent). Both bounds are schema
+    ``minimum: 0``; a negative bound BLOCKS at commit (SCHEMA_RANGE_ERROR), though the
+    ``number_input``'s ``min_value=0`` keeps it non-negative through the UI. ``earliest <= latest``
+    is enforced by neither schema nor validator (the scheduler's concern)."""
+    present = isinstance((_task_at(raw_tree, task_index) or {}).get("time_windows"), list)
+    return _array_add_op(f"/tasks/{task_index}/time_windows", present,
+                         {"earliest": float(earliest), "latest": float(latest)})
+
+
+def _remove_task_time_window_patch(task_index: int, win_index: int) -> PatchOp:
+    """REMOVE one ``time_windows`` entry (by index) from task #task_index."""
+    return PatchOp(action=PatchAction.REMOVE,
+                   path=f"/tasks/{task_index}/time_windows/{win_index}")
+
+
+def _task_time_window_edit_patch(task_index: int, win_index: int, earliest: float,
+                                 latest: float) -> list[PatchOp]:
+    """Edit one window: REPLACE its required ``earliest`` and ``latest`` (both are
+    window-required, so present -> REPLACE). A negative bound BLOCKS at commit
+    (SCHEMA_RANGE_ERROR)."""
+    base = f"/tasks/{task_index}/time_windows/{win_index}"
+    return [
+        PatchOp(action=PatchAction.REPLACE, path=f"{base}/earliest", value=float(earliest)),
+        PatchOp(action=PatchAction.REPLACE, path=f"{base}/latest", value=float(latest)),
+    ]
+
+
+# --- execution modes (mode CRUD + nested crew/equipment + optional overrides) ---
+
+def _add_task_mode_patch(raw_tree, task_index: int, mode_id: str,
+                         duration: float) -> tuple[Optional[PatchOp], list[Issue]]:
+    """Create-or-append a schema-complete execution mode to task #task_index's ``modes``
+    (optional; starts absent). The mode carries all four required keys -- ``mode_id``,
+    ``duration``, and the two nested arrays seeded ``[]`` (per-mode crew/equipment are added by
+    their own sub-editors). Rejects a blank or duplicate ``mode_id`` up-front (DUP_ID, the
+    ``uniqueItems`` analogue) so it never reaches the schema. A ``duration <= 0`` (exclusiveMinimum
+    0) stages and BLOCKS at commit (SCHEMA_RANGE_ERROR)."""
+    mid = (mode_id or "").strip()
+    if not mid:
+        return None, [_dup_id("mode", mid, "a new mode needs a non-empty mode_id")]
+    existing = {m.get("mode_id")
+                for m in ((_task_at(raw_tree, task_index) or {}).get("modes") or [])}
+    if mid in existing:
+        return None, [_dup_id("mode", mid, f"a mode '{mid}' already exists on this task")]
+    item = {"mode_id": mid, "duration": float(duration),
+            "required_resources": [], "required_equipment": []}
+    present = isinstance((_task_at(raw_tree, task_index) or {}).get("modes"), list)
+    return _array_add_op(f"/tasks/{task_index}/modes", present, item), []
+
+
+def _remove_task_mode_patch(task_index: int, mode_index: int) -> PatchOp:
+    """REMOVE one execution mode (by index) from task #task_index."""
+    return PatchOp(action=PatchAction.REMOVE, path=f"/tasks/{task_index}/modes/{mode_index}")
+
+
+def _task_mode_duration_patch(task_index: int, mode_index: int, duration: float) -> PatchOp:
+    """REPLACE the always-present ``duration`` of one mode. A value <= 0 BLOCKS at commit
+    (SCHEMA_RANGE_ERROR -- exclusiveMinimum 0)."""
+    return PatchOp(action=PatchAction.REPLACE,
+                   path=f"/tasks/{task_index}/modes/{mode_index}/duration", value=float(duration))
+
+
+def _task_mode_dose_patch(task_index: int, mode_index: int, dose_rate: float) -> PatchOp:
+    """ADD (set-or-create) a mode's optional ``dose_rate_mrem_per_hour`` override. A negative
+    value BLOCKS at commit (SCHEMA_RANGE_ERROR -- minimum 0)."""
+    return PatchOp(action=PatchAction.ADD,
+                   path=f"/tasks/{task_index}/modes/{mode_index}/dose_rate_mrem_per_hour",
+                   value=float(dose_rate))
+
+
+def _task_mode_dose_clear_patch(task_index: int, mode_index: int) -> PatchOp:
+    """REMOVE a mode's ``dose_rate_mrem_per_hour`` override (so it inherits the task-level
+    value). Valid only when the key is present (the wrapper gates on the current override)."""
+    return PatchOp(action=PatchAction.REMOVE,
+                   path=f"/tasks/{task_index}/modes/{mode_index}/dose_rate_mrem_per_hour")
+
+
+def _task_mode_mob_patch(task_index: int, mode_index: int, lead_hours: float) -> PatchOp:
+    """ADD (set-or-create) a mode's optional ``mobilization_lead_hours`` override. A negative
+    value BLOCKS at commit (SCHEMA_RANGE_ERROR -- minimum 0)."""
+    return PatchOp(action=PatchAction.ADD,
+                   path=f"/tasks/{task_index}/modes/{mode_index}/mobilization_lead_hours",
+                   value=float(lead_hours))
+
+
+def _task_mode_mob_clear_patch(task_index: int, mode_index: int) -> PatchOp:
+    """REMOVE a mode's ``mobilization_lead_hours`` override (so it inherits the task-level
+    value). Valid only when the key is present."""
+    return PatchOp(action=PatchAction.REMOVE,
+                   path=f"/tasks/{task_index}/modes/{mode_index}/mobilization_lead_hours")
+
+
+def _add_task_mode_resource_patch(raw_tree, task_index: int, mode_index: int, skill_type: str,
+                                  crew_count: int) -> PatchOp:
+    """Create-or-append a ``{skill_type, crew_count}`` requirement to mode #mode_index's
+    ``required_resources`` (always present -- seeded ``[]`` by _add_task_mode_patch -- but guarded
+    via _array_add_op for a raw-edited draft). NOT referentially validated: the CPM validator
+    checks only task-level required_resources, so a ghost skill_type inside a mode COMMITS cleanly
+    (the asymmetry). A ``crew_count < 1`` BLOCKS at commit (schema minimum 1)."""
+    modes = (_task_at(raw_tree, task_index) or {}).get("modes") or []
+    present = (0 <= mode_index < len(modes)
+               and isinstance(modes[mode_index].get("required_resources"), list))
+    return _array_add_op(f"/tasks/{task_index}/modes/{mode_index}/required_resources", present,
+                         {"skill_type": str(skill_type), "crew_count": int(crew_count)})
+
+
+def _remove_task_mode_resource_patch(task_index: int, mode_index: int,
+                                     req_index: int) -> PatchOp:
+    """REMOVE one ``required_resources`` entry (by index) from mode #mode_index of task
+    #task_index."""
+    return PatchOp(action=PatchAction.REMOVE,
+                   path=f"/tasks/{task_index}/modes/{mode_index}/required_resources/{req_index}")
+
+
+def _add_task_mode_equipment_patch(raw_tree, task_index: int, mode_index: int, equipment_id: str,
+                                   quantity_needed: int) -> PatchOp:
+    """Create-or-append an ``{equipment_id, quantity_needed}`` requirement to mode #mode_index's
+    ``required_equipment`` (seeded ``[]``; guarded via _array_add_op). NOT referentially validated
+    -- a ghost equipment_id inside a mode COMMITS cleanly (the asymmetry). A ``quantity_needed < 1``
+    BLOCKS at commit (schema minimum 1)."""
+    modes = (_task_at(raw_tree, task_index) or {}).get("modes") or []
+    present = (0 <= mode_index < len(modes)
+               and isinstance(modes[mode_index].get("required_equipment"), list))
+    return _array_add_op(f"/tasks/{task_index}/modes/{mode_index}/required_equipment", present,
+                         {"equipment_id": str(equipment_id),
+                          "quantity_needed": int(quantity_needed)})
+
+
+def _remove_task_mode_equipment_patch(task_index: int, mode_index: int,
+                                      req_index: int) -> PatchOp:
+    """REMOVE one ``required_equipment`` entry (by index) from mode #mode_index of task
+    #task_index."""
+    return PatchOp(action=PatchAction.REMOVE,
+                   path=f"/tasks/{task_index}/modes/{mode_index}/required_equipment/{req_index}")
+
+
+# -----------------------------------------------------------------------------
 # structured editor form wrappers (the only st.* sites for editing) + the
 # lifecycle composition. Each wrapper gathers widget inputs, calls a builder, and
 # routes the result through the shared _apply_ops tail.
@@ -2195,6 +2446,223 @@ def _render_task_requirements_form(session, draft) -> None:
                        success_msg=f"Staged removal of system state {sys_reqs[sr_pick]['system_id']}.")
 
 
+def _render_modes_scheduling_form(session, draft) -> None:
+    """Modes & scheduling tab: author a task's three remaining schedule attributes — its hold
+    point (``is_hold_point`` + ``hold_point_type``, managed as one pair so the misuse states the
+    validator rejects are never emitted), its ``time_windows`` (hour-offset execution windows), and
+    its execution ``modes`` (alternative crew/duration profiles, each with its own
+    ``required_resources`` / ``required_equipment`` and optional ``dose_rate`` / ``mobilization_lead``
+    overrides). As with the Task-requirements tab, pickers offer only existing pools, so the commit
+    validator is the single arbiter of referential integrity — and NOTE the asymmetry: a mode's
+    nested ``required_resources`` / ``required_equipment`` are NOT referentially validated, so a
+    ghost skill / equipment inside a mode commits cleanly (only task-level refs block)."""
+    tasks = _task_options(draft.raw_working_tree)
+    if not tasks:
+        st.caption("No tasks yet — add one on the Task & duration tab first.")
+        return
+    t_labels = [f"{t['task_id']} (dur {t['duration']})" for t in tasks]
+    t_pick = st.selectbox("Task", range(len(tasks)), format_func=lambda k: t_labels[k],
+                          key="prism_ms_task_pick")
+    task_index = tasks[t_pick]["index"]
+    task_id = tasks[t_pick]["task_id"]
+    _NONE = "— none —"
+
+    # --- Hold point (the is_hold_point / hold_point_type pair, driven by ONE selectbox) ---
+    st.markdown("**Hold point**")
+    hp = _task_hold_point(draft.raw_working_tree, task_index)
+    current_type = hp["hold_point_type"] if hp["is_hold_point"] else None
+    if hp["is_hold_point"]:
+        st.caption(f"Current: hold point ({current_type or 'type not set'})")
+    else:
+        st.caption(f"Current: {_NONE} (not a hold point)")
+    hp_opts = [_NONE, *_HOLD_POINT_TYPES]
+    hp_default = hp_opts.index(current_type) if current_type in _HOLD_POINT_TYPES else 0
+    hp_choice = st.selectbox("Hold point type", hp_opts, index=hp_default, key="prism_ms_hp_type")
+    if st.button("Apply hold point", key="prism_ms_hp_apply"):
+        if hp_choice != _NONE:
+            _apply_ops(session, draft, _task_hold_point_set_patch(task_index, hp_choice), [],
+                       success_msg=f"Staged hold point ({hp_choice}) for task {task_id}.")
+        elif hp["is_hold_point"]:
+            _apply_ops(session, draft,
+                       _task_hold_point_clear_patch(draft.raw_working_tree, task_index), [],
+                       success_msg=f"Staged clearing the hold point of task {task_id}.")
+        else:
+            st.info("Not a hold point — nothing to clear.")
+
+    # --- Time windows (hour offsets from outage start; add / edit / remove) ---
+    st.markdown("**Time windows** (hours from outage start)")
+    wa1, wa2 = st.columns(2)
+    tw_add_earliest = wa1.number_input("Earliest start (h)", min_value=0.0, value=0.0, step=1.0,
+                                       key="prism_ms_tw_add_earliest")
+    tw_add_latest = wa2.number_input("Latest finish (h)", min_value=0.0, value=0.0, step=1.0,
+                                     key="prism_ms_tw_add_latest")
+    if st.button("Add time window", key="prism_ms_tw_add"):
+        op = _add_task_time_window_patch(draft.raw_working_tree, task_index,
+                                         tw_add_earliest, tw_add_latest)
+        _apply_ops(session, draft, [op], [],
+                   success_msg=f"Staged time window [{tw_add_earliest}, {tw_add_latest}] h "
+                               f"for task {task_id}.")
+
+    windows = _task_time_windows(draft.raw_working_tree, task_index)
+    if windows:
+        w_labels = [f"[{w['earliest']}, {w['latest']}] h" for w in windows]
+        w_pick = st.selectbox("Time window", range(len(windows)),
+                              format_func=lambda k: w_labels[k], key="prism_ms_tw_pick")
+        chosen_w = windows[w_pick]
+        we1, we2 = st.columns(2)
+        edit_earliest = we1.number_input("Earliest start (h)", min_value=0.0,
+                                         value=_as_float(chosen_w["earliest"]), step=1.0,
+                                         key="prism_ms_tw_earliest")
+        edit_latest = we2.number_input("Latest finish (h)", min_value=0.0,
+                                       value=_as_float(chosen_w["latest"]), step=1.0,
+                                       key="prism_ms_tw_latest")
+        wecol, wrcol = st.columns(2)
+        if wecol.button("Apply time-window edit", key="prism_ms_tw_apply"):
+            ops = _task_time_window_edit_patch(task_index, chosen_w["index"],
+                                               edit_earliest, edit_latest)
+            _apply_ops(session, draft, ops, [],
+                       success_msg=f"Staged edit to time window #{chosen_w['index']} "
+                                   f"of task {task_id}.")
+        if wrcol.button("Remove time window", key="prism_ms_tw_remove"):
+            op = _remove_task_time_window_patch(task_index, chosen_w["index"])
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged removal of a time window from task {task_id}.")
+
+    # --- Execution modes (add / edit-duration / optional overrides / remove + nested crew/equip).
+    # `modes` is read AFTER the add button, so a just-added mode's edit widgets appear same-run;
+    # but each mode's nested resource/equipment REMOVE lists come from that read (before their own
+    # add buttons), so a just-added per-mode resource/equipment appears only on the next rerun. ---
+    st.markdown("**Execution modes**")
+    ma1, ma2 = st.columns([2, 1])
+    mode_add_id = ma1.text_input("Mode id", key="prism_ms_mode_add_id",
+                                 placeholder="normal / crash / reduced_crew")
+    mode_add_dur = ma2.number_input("Duration (h)", min_value=0.0, value=1.0, step=1.0,
+                                    key="prism_ms_mode_add_dur")
+    if st.button("Add mode", key="prism_ms_mode_add"):
+        op, issues = _add_task_mode_patch(draft.raw_working_tree, task_index,
+                                          mode_add_id, mode_add_dur)
+        _apply_ops(session, draft, [op] if op else [], issues,
+                   success_msg=f"Staged mode '{mode_add_id.strip()}' for task {task_id}.")
+
+    modes = _task_modes(draft.raw_working_tree, task_index)
+    if modes:
+        m_labels = [f"{m['mode_id']} (dur {m['duration']})" for m in modes]
+        m_pick = st.selectbox("Mode", range(len(modes)),
+                              format_func=lambda k: m_labels[k], key="prism_ms_mode_pick")
+        chosen_m = modes[m_pick]
+        mode_index = chosen_m["index"]
+
+        edit_dur = st.number_input("Duration (h)", min_value=0.0,
+                                   value=_as_float(chosen_m["duration"], 1.0), step=1.0,
+                                   key="prism_ms_mode_dur")
+        mdcol, mrcol = st.columns(2)
+        if mdcol.button("Apply duration", key="prism_ms_mode_dur_apply"):
+            _apply_ops(session, draft,
+                       [_task_mode_duration_patch(task_index, mode_index, edit_dur)], [],
+                       success_msg=f"Staged duration for mode '{chosen_m['mode_id']}'.")
+        if mrcol.button("Remove mode", key="prism_ms_mode_remove"):
+            _apply_ops(session, draft, [_remove_task_mode_patch(task_index, mode_index)], [],
+                       success_msg=f"Staged removal of mode '{chosen_m['mode_id']}'.")
+
+        # optional per-mode overrides -- a checkbox reveals a number_input (ADD) or, when a value
+        # is already stored, a clear button (REMOVE, so the mode re-inherits the task-level value).
+        dose_present = chosen_m["dose_rate"] is not None
+        if st.checkbox("Override dose rate (mRem/h)", value=dose_present,
+                       key="prism_ms_mode_dose_on"):
+            dose_val = st.number_input("Dose rate (mRem/h)", min_value=0.0,
+                                       value=_as_float(chosen_m["dose_rate"]), step=1.0,
+                                       key="prism_ms_mode_dose_val")
+            if st.button("Apply dose rate", key="prism_ms_mode_dose_apply"):
+                _apply_ops(session, draft,
+                           [_task_mode_dose_patch(task_index, mode_index, dose_val)], [],
+                           success_msg=f"Staged dose-rate override for mode '{chosen_m['mode_id']}'.")
+        elif dose_present and st.button("Clear dose-rate override", key="prism_ms_mode_dose_clear"):
+            _apply_ops(session, draft, [_task_mode_dose_clear_patch(task_index, mode_index)], [],
+                       success_msg=f"Staged clearing the dose-rate override of mode "
+                                   f"'{chosen_m['mode_id']}'.")
+
+        mob_present = chosen_m["mobilization_lead_hours"] is not None
+        if st.checkbox("Override mobilization lead (h)", value=mob_present,
+                       key="prism_ms_mode_mob_on"):
+            mob_val = st.number_input("Mobilization lead (h)", min_value=0.0,
+                                      value=_as_float(chosen_m["mobilization_lead_hours"]),
+                                      step=1.0, key="prism_ms_mode_mob_val")
+            if st.button("Apply mobilization lead", key="prism_ms_mode_mob_apply"):
+                _apply_ops(session, draft,
+                           [_task_mode_mob_patch(task_index, mode_index, mob_val)], [],
+                           success_msg=f"Staged mobilization-lead override for mode "
+                                       f"'{chosen_m['mode_id']}'.")
+        elif mob_present and st.button("Clear mobilization-lead override",
+                                       key="prism_ms_mode_mob_clear"):
+            _apply_ops(session, draft, [_task_mode_mob_clear_patch(task_index, mode_index)], [],
+                       success_msg=f"Staged clearing the mobilization-lead override of mode "
+                                   f"'{chosen_m['mode_id']}'.")
+
+        # nested per-mode resource requirements (NOT ref-validated -- the asymmetry). The remove
+        # list is `chosen_m["resources"]`, read above (before this add button), so a just-added
+        # per-mode resource appears only on the next rerun (the benign one-run lag).
+        st.markdown("**Mode resources** (for the selected mode)")
+        skills = sorted({r["skill_type"] for r in _resource_options(draft.raw_working_tree)})
+        if skills:
+            mr1, mr2 = st.columns([2, 1])
+            mr_add_skill = mr1.selectbox("Skill", skills, key="prism_ms_mode_res_add_skill")
+            mr_add_crew = mr2.number_input("Crew count", min_value=1, value=1, step=1,
+                                           key="prism_ms_mode_res_add_crew")
+            if st.button("Add mode resource", key="prism_ms_mode_res_add"):
+                op = _add_task_mode_resource_patch(draft.raw_working_tree, task_index, mode_index,
+                                                   mr_add_skill, mr_add_crew)
+                _apply_ops(session, draft, [op], [],
+                           success_msg=f"Staged resource {mr_add_skill} ×{mr_add_crew} for mode "
+                                       f"'{chosen_m['mode_id']}'.")
+        else:
+            st.caption("No resource pools yet — add one on the Resources tab first.")
+
+        mode_res = chosen_m["resources"]
+        if mode_res:
+            mr_labels = [f"{r['skill_type']} ×{r['crew_count']}" for r in mode_res]
+            mr_pick = st.selectbox("Mode resource", range(len(mode_res)),
+                                   format_func=lambda k: mr_labels[k], key="prism_ms_mode_res_pick")
+            if st.button("Remove mode resource", key="prism_ms_mode_res_remove"):
+                op = _remove_task_mode_resource_patch(task_index, mode_index,
+                                                      mode_res[mr_pick]["index"])
+                _apply_ops(session, draft, [op], [],
+                           success_msg=f"Staged removal of a resource from mode "
+                                       f"'{chosen_m['mode_id']}'.")
+
+        # nested per-mode equipment requirements (NOT ref-validated -- the asymmetry).
+        st.markdown("**Mode equipment** (for the selected mode)")
+        equipment = _equipment_options(draft.raw_working_tree)
+        if equipment:
+            eq_labels = [e["equipment_id"] for e in equipment]
+            me1, me2 = st.columns([2, 1])
+            me_add_pick = me1.selectbox("Equipment", range(len(equipment)),
+                                        format_func=lambda k: eq_labels[k],
+                                        key="prism_ms_mode_equip_add_pick")
+            me_add_qty = me2.number_input("Quantity needed", min_value=1, value=1, step=1,
+                                          key="prism_ms_mode_equip_add_qty")
+            if st.button("Add mode equipment", key="prism_ms_mode_equip_add"):
+                eid = equipment[me_add_pick]["equipment_id"]
+                op = _add_task_mode_equipment_patch(draft.raw_working_tree, task_index, mode_index,
+                                                    eid, me_add_qty)
+                _apply_ops(session, draft, [op], [],
+                           success_msg=f"Staged equipment {eid} for mode '{chosen_m['mode_id']}'.")
+        else:
+            st.caption("No equipment yet — add some on the Equipment tab first.")
+
+        mode_eq = chosen_m["equipment"]
+        if mode_eq:
+            meq_labels = [f"{e['equipment_id']} ×{e['quantity_needed']}" for e in mode_eq]
+            meq_pick = st.selectbox("Mode equipment", range(len(mode_eq)),
+                                    format_func=lambda k: meq_labels[k],
+                                    key="prism_ms_mode_equip_pick")
+            if st.button("Remove mode equipment", key="prism_ms_mode_equip_remove"):
+                op = _remove_task_mode_equipment_patch(task_index, mode_index,
+                                                       mode_eq[meq_pick]["index"])
+                _apply_ops(session, draft, [op], [],
+                           success_msg=f"Staged removal of equipment from mode "
+                                       f"'{chosen_m['mode_id']}'.")
+
+
 def _render_raw_patch_form(session, draft) -> None:
     """The Increment-1 raw JSON-Pointer editor, kept for power edits (and to keep the
     headless smoke valid). Same widget keys (``prism_patch_*``) and the same "Apply patch"
@@ -2228,9 +2696,10 @@ def _render_raw_patch_form(session, draft) -> None:
 
 def _render_editor(session, validator) -> None:
     """The editing lifecycle (§2b): open a draft from the current baseline, stage edits through
-    structured forms (task/duration, task requirements, dependencies/lags, resources/availability,
-    equipment, locations, consumables, systems) or the raw JSON-Pointer editor (Advanced), then
-    commit (full schema + referential re-validation, minting a NEW immutable revision) or discard.
+    structured forms (task/duration, task requirements, modes & scheduling, dependencies/lags,
+    resources/availability, equipment, locations, consumables, systems) or the raw JSON-Pointer
+    editor (Advanced), then commit (full schema + referential re-validation, minting a NEW
+    immutable revision) or discard.
 
     Every form builds PatchOps and feeds them through the SAME ``domain.apply_patch``; the
     pending-patch log and the Commit / Discard controls are shared below the tabs. All state
@@ -2250,13 +2719,16 @@ def _render_editor(session, validator) -> None:
     st.caption(f"Editing a draft of `{draft.base_plan_id}` — "
                f"{len(draft.pending_patches)} patch(es) staged.")
 
-    tab_task, tab_req, tab_dep, tab_res, tab_equip, tab_loc, tab_cons, tab_sys = st.tabs(
-        ["Task & duration", "Task requirements", "Dependencies & lags",
+    (tab_task, tab_req, tab_sched, tab_dep, tab_res, tab_equip, tab_loc, tab_cons,
+     tab_sys) = st.tabs(
+        ["Task & duration", "Task requirements", "Modes & scheduling", "Dependencies & lags",
          "Resources & availability", "Equipment", "Locations", "Consumables", "Systems"])
     with tab_task:
         _render_task_form(session, draft)
     with tab_req:
         _render_task_requirements_form(session, draft)
+    with tab_sched:
+        _render_modes_scheduling_form(session, draft)
     with tab_dep:
         _render_dependency_form(session, draft)
     with tab_res:

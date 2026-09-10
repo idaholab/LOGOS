@@ -230,6 +230,78 @@ class TestSerializationRoundTrip:
         assert "required_consumables" not in exported_task
         assert "required_system_states" not in exported_task
 
+    def test_task_scheduling_load_to_typed_values(self, raw_plan):
+        """Loader coverage for the three scheduling attributes the Increment-7 modes/scheduling form
+        authors: a task's hold point (``is_hold_point`` + ``hold_point_type`` + ``blocks_tasks``), a
+        ``time_windows`` entry (``earliest``/``latest`` hour offsets), and a ``modes`` entry carrying
+        nested ``required_resources``/``required_equipment`` and the optional per-mode
+        ``dose_rate_mrem_per_hour``/``mobilization_lead_hours`` overrides — the shapes that form
+        emits through the commit path (create-or-append into keys every shipping sample omits) —
+        load via ``load_plan_content`` to the expected typed values. Note the schema-key bridges the
+        loader crosses: ``modes`` -> ``execution_modes``, ``mode_id`` -> ``mode_name``,
+        ``earliest``/``latest`` -> ``w_min``/``w_max``.
+
+        Then assert the by-design export SPLIT: ``serialize_plan_content`` EMITS ``is_hold_point``
+        (always) and ``hold_point_type``/``blocks_tasks`` (when set), but DROPS ``time_windows`` and
+        ``modes`` entirely — they ride the authoritative raw snapshot the commit uses, not this lossy
+        typed path (asserted so the omission reads as intentional, not a miss)."""
+        plan = copy.deepcopy(raw_plan)
+        plan["tasks"][0].update({
+            "is_hold_point": True,
+            "hold_point_type": "NRC",
+            "blocks_tasks": ["B"],
+            "time_windows": [{"earliest": 0.0, "latest": 48.0}],
+            "modes": [{
+                "mode_id": "FAST", "duration": 4.0,
+                "required_resources": [{"skill_type": "MECH", "crew_count": 2}],
+                "required_equipment": [{"equipment_id": "CRANE-1", "quantity_needed": 1}],
+                "dose_rate_mrem_per_hour": 5.0, "mobilization_lead_hours": 2.0,
+            }],
+        })
+
+        content = ser.load_plan_content(plan)          # must NOT crash on any scheduling shape
+        task = next(t for t in content.tasks if t.task_id == "A")
+
+        # hold point: is_hold_point is carried by hold_point being non-None (no redundant flag)
+        assert task.hold_point is not None
+        assert task.hold_point.hold_point_type == "NRC"
+        assert task.hold_point.blocks_tasks == ("B",)
+
+        # time_windows: earliest/latest bridge to w_min/w_max hour offsets
+        assert len(task.time_windows) == 1
+        assert task.time_windows[0].w_min == 0.0
+        assert task.time_windows[0].w_max == 48.0
+
+        # execution_modes: modes -> execution_modes, mode_id -> mode_name, nested crew/equipment
+        assert len(task.execution_modes) == 1
+        mode = task.execution_modes[0]
+        assert mode.mode_name == "FAST"
+        assert mode.duration == 4.0
+        assert len(mode.crew) == 1
+        assert mode.crew[0].skill_type == "MECH"
+        assert mode.crew[0].crew_count == 2
+        assert len(mode.equipment) == 1
+        assert mode.equipment[0].equipment_id == "CRANE-1"
+        assert mode.equipment[0].quantity_needed == 1
+        assert mode.dose_rate == 5.0
+        assert mode.mobilization_lead_hours == 2.0
+
+        # By design the lossy typed export EMITS the hold point (is_hold_point + hold_point_type +
+        # blocks_tasks) but DROPS time_windows and modes (they ride the raw snapshot, not this path).
+        exported = ser.serialize_plan_content(content)
+        exported_task = next(t for t in exported["tasks"] if t["task_id"] == "A")
+        assert exported_task["is_hold_point"] is True
+        assert exported_task["hold_point_type"] == "NRC"
+        assert exported_task["blocks_tasks"] == ["B"]
+        assert "time_windows" not in exported_task
+        assert "modes" not in exported_task
+        # A plain task with no hold point still emits is_hold_point:False (the vacuous-conditional
+        # escape) and neither hold_point_type nor blocks_tasks.
+        plain_task = next(t for t in exported["tasks"] if t["task_id"] == "B")
+        assert plain_task["is_hold_point"] is False
+        assert "hold_point_type" not in plain_task
+        assert "blocks_tasks" not in plain_task
+
     def test_equivalent_iso_offsets_canonicalize_consistently(self, raw_plan_with_iso_dates):
         """Two ISO timestamps denoting the same instant with different offsets normalize
         to the same UTC form -> identical canonical bytes -> identical hash."""
