@@ -364,3 +364,42 @@ class InMemorySessionState:
 
     def set_selected_result_id(self, run_id: Optional[str]) -> None:
         self._selected_id = run_id
+
+
+# =============================================================================
+# session lifecycle — resolving a scenario / draft against a newly-loaded baseline
+# =============================================================================
+
+@dataclass(frozen=True)
+class BaselineResolution:
+    """What survived a baseline switch: whether the prior scenario / draft were kept
+    (still bound to the new revision) or cleared (bound to a different one)."""
+    scenario_kept: bool
+    draft_kept: bool
+
+
+def resolve_for_new_baseline(
+    session: SessionState, new_baseline: ReferencePlan
+) -> BaselineResolution:
+    """Point the session at ``new_baseline`` and resolve a now-incompatible scenario / draft.
+
+    A scenario or draft is bound (by ``base_plan_hash``) to the revision it was built against.
+    When the baseline changes, anything bound to a DIFFERENT revision is cleared — a delta or
+    an edit built against another revision is never silently carried onto the new baseline
+    (that would apply a mismatched change). Anything already bound to the new revision is kept.
+    Returns which of the two survived. This is the pure core of the app shell's source-key
+    guard, so the "loading a new baseline resolves an incompatible scenario/draft" contract is
+    testable without Streamlit."""
+    session.set_baseline(new_baseline)
+
+    scenario = session.get_scenario()
+    scenario_kept = scenario is not None and scenario.base_plan_hash == new_baseline.plan_hash
+    if scenario is not None and not scenario_kept:
+        session.set_scenario(None)
+
+    draft = session.get_draft()
+    draft_kept = draft is not None and draft.base_plan_hash == new_baseline.plan_hash
+    if draft is not None and not draft_kept:
+        session.clear_draft()
+
+    return BaselineResolution(scenario_kept=scenario_kept, draft_kept=draft_kept)

@@ -104,6 +104,16 @@ def materialize(reference_plan: ReferencePlan, scenario: Optional[Scenario]) -> 
 
     # --- emergent tasks: valid alone, but must reference existing entities ----
     for et in (scenario.emergent_tasks or ()):
+        if et.task_id in tasks_by_id:
+            # A new task may not reuse an existing task id: overwriting the baseline task
+            # (or appending a silent duplicate) would corrupt the schedule. Reject and skip.
+            issues.append(_err(
+                IssueCode.EMERGENT_ID_COLLISION, IssueCategory.REFERENTIAL_INTEGRITY,
+                f"emergent task '{et.task_id}' collides with an existing baseline task id "
+                "(an emergent task id must be new; the baseline task is never overwritten)",
+                entity_type="task", entity_id=et.task_id,
+            ))
+            continue
         for rr in et.required_resources:
             if rr.skill_type not in skill_types:
                 issues.append(_err(

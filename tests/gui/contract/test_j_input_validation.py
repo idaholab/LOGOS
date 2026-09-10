@@ -21,16 +21,27 @@ does not require them):
     tolerance the canonicalization/adapter specs record).
   * ``test_canonical_numeric_edge_cases_defined`` — canonical numeric normalization
     (NaN/inf/-0) is a hashing/domain invariant (group C / hashing), not input validation.
-  * ``test_emergent_task_id_collision_rejected`` /
-    ``test_loading_new_baseline_resolves_incompatible_scenario_and_draft`` — @phase2 in the
-    spec (editing / session lifecycle), deferred to Phase 2.
+
+The two editing/session-lifecycle contracts formerly deferred here —
+``test_emergent_task_id_collision_rejected`` and
+``test_loading_new_baseline_resolves_incompatible_scenario_and_draft`` — landed with Phase 2,
+Increment 2 (below): the first drives ``domain.materialize``'s emergent-id collision check,
+the second the pure ``services.resolve_for_new_baseline``. Both run in this contract job
+(pure domain/application, no PRISM), so the negative-inference gate now enforces them.
 """
 
 from __future__ import annotations
 
 import copy
 
+from prismGui.application import services
+from prismGui.application.services import InMemorySessionState
+from prismGui.domain import serialization as ser
 from prismGui.domain.issues import IssueCategory, IssueCode, Severity, has_blocking
+from prismGui.domain.materialize import materialize
+from prismGui.domain.plan import ResourceReq, Task, open_draft
+from prismGui.domain.scenario import Scenario
+from prismGui.domain.versions import SCHEMA_VERSION
 
 
 def _codes(issues):
@@ -119,3 +130,66 @@ class TestInputValidation:
         assert all(i.severity is Severity.WARNING and i.category is IssueCategory.FEASIBILITY
                    for i in shortfalls)
         assert has_blocking(issues) is False             # a warning alone never blocks
+
+    # --- Phase 2, Increment 2: editing / session-lifecycle contracts (now real) ---
+
+    def test_emergent_task_id_collision_rejected(self, baseline):
+        """An emergent task reusing an existing baseline task id is rejected by materialize
+        (EMERGENT_ID_COLLISION, referential_integrity) — never appended or overwritten. The
+        emergent task is valid in every other respect (MECH exists in the baseline), so the
+        id collision is the sole error, and the combination fails closed
+        (``ok is False``, ``effective_plan is None``)."""
+        scenario = Scenario(
+            scenario_id="scn-collision",
+            base_plan_id=baseline.plan_id,
+            base_plan_hash=baseline.plan_hash,
+            name="reuse id A",
+            emergent_tasks=(
+                Task(task_id="A", duration=3.0, description="collides with baseline A",
+                     required_resources=(ResourceReq(skill_type="MECH", crew_count=1),)),
+            ),
+        )
+        outcome = materialize(baseline, scenario)
+        assert outcome.ok is False
+        assert outcome.effective_plan is None
+        assert IssueCode.EMERGENT_ID_COLLISION in _codes(outcome.issues)
+
+    def test_loading_new_baseline_resolves_incompatible_scenario_and_draft(self, baseline, raw_plan):
+        """Loading a NEW baseline resolves anything bound to a prior revision: a scenario or
+        draft built against a different plan_hash is cleared (never carried onto the new
+        baseline as a mismatched delta), while one bound to the new revision is kept. Drives
+        the pure ``services.resolve_for_new_baseline`` the app-shell source guard calls."""
+        session = InMemorySessionState()
+        session.set_baseline(baseline)
+        # A scenario + a draft, both bound to the ORIGINAL baseline revision.
+        session.set_scenario(Scenario(
+            scenario_id="scn-old", base_plan_id=baseline.plan_id,
+            base_plan_hash=baseline.plan_hash, name="bound to old"))
+        session.set_draft(open_draft(baseline))
+
+        # A different revision of the same logical plan (edit a duration -> new plan_hash).
+        mutated = copy.deepcopy(raw_plan)
+        mutated["tasks"][0]["duration"] = 99
+        new_baseline = ser.build_reference_plan(
+            "baseline-1", mutated, schema_version=SCHEMA_VERSION)
+        assert new_baseline.plan_hash != baseline.plan_hash
+
+        resolution = services.resolve_for_new_baseline(session, new_baseline)
+        assert session.get_baseline() is new_baseline
+        assert resolution.scenario_kept is False and resolution.draft_kept is False
+        assert session.get_scenario() is None          # incompatible scenario cleared
+        assert session.get_draft() is None             # incompatible draft cleared
+
+        # Now bind a scenario + draft to the NEW revision and resolve against it again:
+        # both are compatible, so both are RETAINED (clear the incompatible, keep the rest).
+        kept_scenario = Scenario(
+            scenario_id="scn-new", base_plan_id=new_baseline.plan_id,
+            base_plan_hash=new_baseline.plan_hash, name="bound to new")
+        kept_draft = open_draft(new_baseline)
+        session.set_scenario(kept_scenario)
+        session.set_draft(kept_draft)
+
+        resolution = services.resolve_for_new_baseline(session, new_baseline)
+        assert resolution.scenario_kept is True and resolution.draft_kept is True
+        assert session.get_scenario() is kept_scenario
+        assert session.get_draft() is kept_draft

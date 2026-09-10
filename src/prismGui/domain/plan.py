@@ -252,9 +252,14 @@ class EffectivePlan:
 
 @dataclass
 class PlanDraft:
-    """Mutable editing workspace — the ONLY mutable plan type (§2b)."""
+    """Mutable editing workspace — the ONLY mutable plan type (§2b). ``base_plan_hash``
+    records the committed revision the draft was opened from, so a session can tell whether
+    the draft still targets the current baseline (see services.resolve_for_new_baseline).
+    The default ``""`` never equals a real hash, so a hand-built draft reads as incompatible
+    with any baseline until opened via ``open_draft``."""
     base_plan_id: str
     raw_working_tree: JSONTree
+    base_plan_hash: Hash = ""
     pending_patches: list["PatchOp"] = field(default_factory=list)
 
 
@@ -386,6 +391,7 @@ def open_draft(plan: ReferencePlan) -> PlanDraft:
     return PlanDraft(
         base_plan_id=plan.plan_id,
         raw_working_tree=copy.deepcopy(payload),
+        base_plan_hash=plan.plan_hash,
         pending_patches=[],
     )
 

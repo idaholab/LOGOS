@@ -68,6 +68,31 @@ class TestSerializationRoundTrip:
         reloaded = ser.load_plan_content(exported)
         assert {(d.predecessor_id, d.successor_id) for d in reloaded.dependencies} == edges
 
+    def test_dependency_lag_roundtrips(self, raw_plan):
+        """A successor in the schema's object form ``{"task_id", "lag_hours"}`` loads to a
+        Dependency carrying that lag and serializes back to the same object form, while a
+        lag-0 edge stays a bare task-id string (the shape lag-free plans use). This is the
+        loader support the dependencies/lags editor form needs — without it an object-form
+        successor makes ``(pred, {dict})`` unhashable and crashes the commit rehydrate."""
+        lagged = copy.deepcopy(raw_plan)
+        lagged["tasks"][0]["successors"] = [{"task_id": "B", "lag_hours": 5}]
+
+        content = ser.load_plan_content(lagged)
+        edge = next(d for d in content.dependencies
+                    if (d.predecessor_id, d.successor_id) == ("A", "B"))
+        assert edge.lag_hours == 5.0
+
+        exported = ser.serialize_plan_content(content)
+        by_id = {t["task_id"]: t for t in exported["tasks"]}
+        assert by_id["A"]["successors"] == [{"task_id": "B", "lag_hours": 5.0}]
+        assert by_id["B"]["successors"] == []       # lag-0 (empty) stays bare
+
+        # A lag-0 edge still serializes to a bare string (not an object).
+        plain = ser.load_plan_content(raw_plan)
+        exported_plain = ser.serialize_plan_content(plain)
+        plain_by_id = {t["task_id"]: t for t in exported_plain["tasks"]}
+        assert plain_by_id["A"]["successors"] == ["B"]
+
     def test_equivalent_iso_offsets_canonicalize_consistently(self, raw_plan_with_iso_dates):
         """Two ISO timestamps denoting the same instant with different offsets normalize
         to the same UTC form -> identical canonical bytes -> identical hash."""

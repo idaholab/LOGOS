@@ -21,6 +21,8 @@ import csv
 import io
 
 from prismGui.app import main as app_main
+from prismGui.domain.issues import IssueCode
+from prismGui.domain.plan import PatchAction
 from prismGui.domain.results import (
     ResourceUtilizationDTO,
     RunResultStatus,
@@ -150,3 +152,93 @@ class TestShapingHelpers:
         assert row["task_id"] == "A"
         assert row["actual_resources"] == "MECH:1"        # skill:crew, ';'-joined
         assert row["description"] == "task a"
+
+
+class TestEditorFormBuilders:
+    """The streamlit-free builders behind the structured editor forms. Each maps raw-tree
+    data to a PatchOp (or `(op_or_None, issues)`) with no ``st.*`` — the ``_render_*`` wrappers
+    that call them are the only ``st.*`` sites. Built off the `raw_plan` fixture (tasks A,B;
+    one MECH pool with a single availability period). PatchOps target the schema-shaped raw
+    keys, so each feeds straight through ``domain.apply_patch``."""
+
+    def test_task_options_shape(self, raw_plan):
+        options = app_main._task_options(raw_plan)
+        assert [o["task_id"] for o in options] == ["A", "B"]
+        assert set(options[0]) == {"index", "task_id", "duration", "description"}
+        assert options[0]["index"] == 0 and options[0]["duration"] == 4
+        assert options[0]["description"] == "task a"
+
+    def test_duration_patch_replaces_by_index(self):
+        op = app_main._duration_patch(0, 8.0)
+        assert (op.action, op.path, op.value) == (PatchAction.REPLACE, "/tasks/0/duration", 8.0)
+
+    def test_available_count_patch_replaces_nested_period(self):
+        op = app_main._available_count_patch(0, 0, 5)
+        assert op.action is PatchAction.REPLACE
+        assert op.path == "/resources/0/availability_periods/0/available_count"
+        assert op.value == 5
+
+    def test_resource_type_patch_adds_optional_key(self):
+        """resource_type is an optional pool key the samples omit, so the builder ADDs it
+        (set-or-create) rather than REPLACE-ing a key that may be absent."""
+        op = app_main._resource_type_patch(0, "consumable")
+        assert (op.action, op.path, op.value) == (
+            PatchAction.ADD, "/resources/0/resource_type", "consumable")
+
+    def test_add_dependency_bare_string_at_lag_zero(self, raw_plan):
+        """A lag-0 edge appends a bare task-id string to the predecessor's successors —
+        the shape lag-free plans already use (B is task index 1, its successors empty)."""
+        op, issues = app_main._add_dependency_patch(raw_plan, "B", "A", 0)
+        assert issues == []
+        assert (op.action, op.path, op.value) == (
+            PatchAction.ADD, "/tasks/1/successors/-", "A")
+
+    def test_add_dependency_object_at_positive_lag(self, raw_plan):
+        op, issues = app_main._add_dependency_patch(raw_plan, "B", "A", 5)
+        assert issues == []
+        assert op.action is PatchAction.ADD and op.path == "/tasks/1/successors/-"
+        assert op.value == {"task_id": "A", "lag_hours": 5.0}
+
+    def test_add_dependency_unknown_endpoint_is_rejected(self, raw_plan):
+        op, issues = app_main._add_dependency_patch(raw_plan, "A", "Z", 0)
+        assert op is None
+        assert [i.code for i in issues] == [IssueCode.REF_MISSING]
+
+    def test_remove_dependency_finds_the_edge_index(self, raw_plan):
+        """A (existing) edge A->B removes by its index within A's successors list (index 0)."""
+        op, issues = app_main._remove_dependency_patch(raw_plan, "A", "B")
+        assert issues == []
+        assert (op.action, op.path) == (PatchAction.REMOVE, "/tasks/0/successors/0")
+
+    def test_remove_dependency_absent_edge_is_rejected(self, raw_plan):
+        op, issues = app_main._remove_dependency_patch(raw_plan, "B", "A")
+        assert op is None
+        assert [i.code for i in issues] == [IssueCode.REF_MISSING]
+
+    def test_dependency_options_read_both_successor_forms(self, raw_plan):
+        """The edge scanner reads a bare-string successor (lag 0) and, when present, the
+        object form's lag."""
+        import copy
+        rows = app_main._dependency_options(raw_plan)
+        assert rows == [{"predecessor": "A", "successor": "B", "lag_hours": 0.0, "pred_index": 0}]
+        lagged = copy.deepcopy(raw_plan)
+        lagged["tasks"][0]["successors"] = [{"task_id": "B", "lag_hours": 5}]
+        rows = app_main._dependency_options(lagged)
+        assert rows[0]["successor"] == "B" and rows[0]["lag_hours"] == 5.0
+
+    def test_resource_options_defaults_type_to_renewable(self, raw_plan):
+        """A pool with no resource_type key reports the renewable default (the schema
+        default) — never a missing key that would break the type selector."""
+        rows = app_main._resource_options(raw_plan)
+        assert len(rows) == 1
+        assert set(rows[0]) == {"index", "skill_type", "resource_type", "n_periods"}
+        assert rows[0]["skill_type"] == "MECH"
+        assert rows[0]["resource_type"] == "renewable"
+        assert rows[0]["n_periods"] == 1
+
+    def test_availability_options_shape(self, raw_plan):
+        rows = app_main._availability_options(raw_plan, 0)
+        assert len(rows) == 1
+        assert set(rows[0]) == {"index", "start_date", "end_date", "available_count"}
+        assert rows[0]["available_count"] == 3
+        assert app_main._availability_options(raw_plan, 9) == []   # out-of-range -> empty

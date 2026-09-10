@@ -190,16 +190,25 @@ def _load_task(t: JSONTree) -> Task:
 
 def _dependencies_from_tasks(tasks: list[JSONTree]) -> tuple[Dependency, ...]:
     """Per-task ``successors`` -> normalized top-level edges (predecessor -> successor),
-    de-duplicated while preserving first-seen order (contract group H / J)."""
+    de-duplicated while preserving first-seen order (contract group H / J). A successor
+    entry is either a bare task-id string or the schema's object form
+    ``{"task_id", "lag_hours"}`` (outage_schema.json ``successors.items`` oneOf); the
+    object form carries a finish-to-start lag, a plain string means lag 0."""
     edges: list[Dependency] = []
     seen: set[tuple[str, str]] = set()
     for t in tasks:
         pred = t["task_id"]
         for succ in (t.get("successors") or []):
-            key = (pred, succ)
+            if isinstance(succ, dict):
+                succ_id = succ["task_id"]
+                lag = float(succ.get("lag_hours", 0.0))
+            else:
+                succ_id = succ
+                lag = 0.0
+            key = (pred, succ_id)
             if key not in seen:
                 seen.add(key)
-                edges.append(Dependency(predecessor_id=pred, successor_id=succ, lag_hours=0.0))
+                edges.append(Dependency(predecessor_id=pred, successor_id=succ_id, lag_hours=lag))
     return tuple(edges)
 
 
@@ -323,10 +332,15 @@ def _dump_equipment_reqs(reqs: tuple[EquipmentReq, ...]) -> list:
     return [{"equipment_id": e.equipment_id, "quantity_needed": e.quantity_needed} for e in reqs]
 
 
-def _successors_by_task(deps: tuple[Dependency, ...]) -> dict[str, list[str]]:
-    out: dict[str, list[str]] = {}
+def _successors_by_task(deps: tuple[Dependency, ...]) -> dict[str, list]:
+    """Normalized edges -> the schema's per-task ``successors`` lists. A lag-0 edge emits a
+    bare task-id string (so lag-free plans round-trip to the same shape the samples use); an
+    edge with a non-zero lag emits the object form ``{"task_id", "lag_hours"}``."""
+    out: dict[str, list] = {}
     for d in deps:
-        out.setdefault(d.predecessor_id, []).append(d.successor_id)
+        succ = (d.successor_id if d.lag_hours == 0
+                else {"task_id": d.successor_id, "lag_hours": d.lag_hours})
+        out.setdefault(d.predecessor_id, []).append(succ)
     return out
 
 
