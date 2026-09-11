@@ -88,6 +88,23 @@ class TestPrismAdapterEndToEnd:
         assert all(a.float_class is not None for a in s.activities)
         assert "START" in s.constrained_chain and "END" in s.constrained_chain
 
+        # --- CPM per-activity timing (project-start axis) rides the DTO ---
+        work = [a for a in s.activities if a.task_id not in ("START", "END")]
+        assert work and all(a.es_hours is not None and a.ls_hours is not None
+                            and a.cpm_slack_hours is not None for a in work)
+        for a in work:
+            assert isinstance(a.es_hours, float) and isinstance(a.ls_hours, float)
+            # slack = lf - ef = ls - es (CPM identity), within quantization tolerance
+            assert abs(a.cpm_slack_hours - (a.ls_hours - a.es_hours)) <= TF_ZERO_TOL
+
+        # --- resource-contention arcs: a deterministic sorted tuple of task-id pairs,
+        #     disjoint from precedence (added arcs only) ---
+        ce = s.contention_edges
+        ids = {a.task_id for a in s.activities}
+        assert isinstance(ce, tuple) and list(ce) == sorted(ce)
+        assert all(isinstance(e, tuple) and len(e) == 2
+                   and e[0] in ids and e[1] in ids for e in ce)
+
         # --- provenance echoes the request; the real engine version is stamped ---
         assert r.provenance.effective_plan_hash == request.effective_plan_hash
         assert r.provenance.run_config_hash == request.run_config_hash

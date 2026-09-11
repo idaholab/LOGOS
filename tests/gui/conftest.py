@@ -259,16 +259,19 @@ def run_result(baseline, effective_plan, run_config):
             task_id="A", start_hour=0.0, end_hour=4.0, duration=4.0, delay_hours=0.0,
             on_constrained_chain=True, float_class=classify_float(0.0, True),
             description="task a", tf_actual_hours=0.0,
-            actual_resources=(ActualResource(skill_type="MECH", crew_count=1),)),
+            actual_resources=(ActualResource(skill_type="MECH", crew_count=1),),
+            es_hours=0.0, ls_hours=0.0, cpm_slack_hours=0.0),
         ScheduledActivityDTO(
             task_id="B", start_hour=4.0, end_hour=10.0, duration=6.0, delay_hours=0.0,
             on_constrained_chain=True, float_class=classify_float(0.0, True),
             description="task b", tf_actual_hours=0.0,
-            actual_resources=(ActualResource(skill_type="MECH", crew_count=2),)),
+            actual_resources=(ActualResource(skill_type="MECH", crew_count=2),),
+            es_hours=4.0, ls_hours=4.0, cpm_slack_hours=0.0),
     )
     schedule = ScheduleDTO(
         makespan_hours=10.0, cpm_lower_bound_hours=10.0, optimism_gap_hours=0.0,
-        activities=activities, constrained_chain=("A", "B"), cpm_critical_path=("A", "B"))
+        activities=activities, constrained_chain=("A", "B"), cpm_critical_path=("A", "B"),
+        contention_edges=(("A", "B"),))
     prov = Provenance(
         baseline_snapshot_hash=baseline.plan_hash,
         effective_plan_hash=effective_plan.effective_plan_hash,

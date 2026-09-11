@@ -26,10 +26,12 @@ intersections below happened incidentally and had not been written down until no
 |---|---|---|
 | **Phase 1** — MVP spine + provenance | commit `53236e9` | committed |
 | **Phase 2, Increment 1** — in-GUI editing lifecycle | commit `d7353f1` | committed |
-| **Stage A** — top-level tabs / aligned plots / results header / horizon knob / validation badge | working tree | **uncommitted** |
-| **Stage B** — multi-scenario storage + selector + edit-target-follows-selection + relation graph + activity graph + mode picker | working tree | **uncommitted** (implemented & verified 2026-09-10) |
+| **Stage A** — top-level tabs / aligned plots / results header / horizon knob / validation badge | commit `cf99139` | committed |
+| **Stage B** — multi-scenario storage + selector + edit-target-follows-selection + relation graph + activity graph + mode picker | commit `cf99139` | committed (implemented & verified 2026-09-10) |
+| **Phase 3 / Tier 2** — run-aware activity DAG: float-class node color, CPM ES/LS/topo layout control, resource-contention overlay, rich per-node tooltip | working tree | **committed 2026-09-11** (implemented & verified) |
 
-Stage A and Stage B are unstaged/uncommitted at the time of writing — the user performs all commits.
+Stage A and Stage B were committed in `cf99139`; Tier 2 is committed on top (this change). The user
+performs all commits — nothing is committed without fresh explicit authorization.
 
 ---
 
@@ -62,8 +64,8 @@ the storage/navigation a capability needs exists, but the capability itself does
 | Capability | Status | Where / caveat |
 |---|---|---|
 | Resource utilization charts | ✅ | Stage A **Plots**, `make_subplots(shared_xaxes=True)` + range slider → aligned x-axes + horizontal scroll (this was a notes_4 layout goal that *is* a Phase-3 item) |
-| DAG view **with options** | 🟡 | **Two complementary views — corrected 2026-09-10.** (a) Stage B **Graphs** ships an *input-side* activity/dependency DAG (pure-Python layered layout, Plotly pan/zoom/hover) — available before any run, no chain/contention coloring. (b) The options-rich DAG notes_3 meant **already exists in the engine**: `Pert.plot_activity_dag()` (`src/CPM/pert.py:7141`) with backend (`library`), chain-highlight (`highlight` = cpm/constrained/both), layout (`layer_by` = es/ls/topo), and contention arcs (`include_augmented_edges`). It is an **OUTPUT** view (reads post-schedule analytics: `getCriticalPathSymbolic`, `constrained_chain_list`, `actual_zero_tf_set`) and is **not yet surfaced in the GUI**. Remaining work is *wiring, not building*: call it via the adapter after a run, pass `library='plotly'` (pyvis is **not** installed in this env), take the returned Figure, place it on the output/Plots side. Demoed in `doc/demos/rcpsp/outage_demo/npp_outage_demo.ipynb` (Figure 17) and `.../examples/test_pert_res_full.ipynb`. |
-| Per-task drill-down / inspector ("why isn't this starting sooner?") | ⬜ | activity-graph hover shows id / duration / depth only |
+| DAG view **with options** | ✅ | **Delivered 2026-09-11 as Tier 2 (Graphs tab).** The Stage B input-side DAG now enriches into the run-aware view notes_3 meant: nodes colored by float class (red constrained-chain / orange zero-float / green positive), a **Layer by** control (dependency depth / CPM ES / CPM LS), a dashed-red **resource-contention overlay** (the arcs the schedule adds beyond plan precedence), and a rich per-node tooltip (CPM ES/LS/slack labeled "(CPM)", wall-clock start/end, float class + actual TF, CPM-critical / Constrained flags). **Achieved by parity-by-wiring, NOT by calling engine plotting**: the engine's analytics reach the GUI as pure output-DTO fields (`ScheduledActivityDTO.es/ls/cpm_slack_hours`, `ScheduleDTO.contention_edges`) and the existing pure builder (`_activity_graph_enriched`) + lazy-Plotly render helper draw the graph the GUI already owns — so no engine drawing code enters the architecture and the pure path stays stdlib-only. Corrections baked in: the engine's `highlight` param is dead code and the "purple overlap" was fictional; the real `_node_color` rule (constrained-chain → red / actual-TF ≈ 0 → orange / else) is reproduced via the single `classify_float`/`FloatClass` source. Enrichment is gated on the selected run being COMPLETED and lineage-`CURRENT` for the shown schedule; otherwise the structural pre-run graph is drawn with a fallback caption. |
+| Per-task drill-down / inspector ("why isn't this starting sooner?") | 🟡 | **partial (2026-09-11):** the enriched DAG tooltip now answers much of "why" per node — CPM ES/LS/slack, actual TF, float class, and CPM-critical / Constrained flags. A dedicated inspector panel (predecessor/successor slack attribution, binding resource) is still ⬜. |
 | Fitness score with components + **configurable weights** | 🟡 | composite + makespan_ratio shown read-only (`main.py:746-749`); **no** configurable α/β/γ/δ, no advanced "schedule evaluation" section, no non-optimization caveat |
 | CPM-only baseline view (logical critical path) | ⬜ | only the CPM lower-bound *number* is shown, not the `getCriticalPath()` path view |
 | Dependency-violation check as a distinct output | ⬜ | not surfaced (the disposition indicators from Phase 1 give a coarse feasibility flag, not the `check_dependency_violations()` structured output) |
@@ -99,13 +101,17 @@ the cheaper baseline→scenarios star, see the reconciliation note at the top.)
 
 Stage A/B delivered the **readable-output shell** of several Phase-3/4 capabilities (utilization
 charts, the activity DAG, a fitness readout, multi-scenario navigation) **without** their analytical
-substance (DAG options, per-task "why", dependency-violation output, CPM-only path, and any actual
-scenario/run comparison). Do **not** read "the graph/plot exists" as "the phase is done." Concretely,
-when Phase 3/4 is picked up next, the remaining work is the diagnostics, not the rendering:
+substance. Tier 2 (2026-09-11) has since closed the **DAG-options** gap — the activity DAG is now
+run-aware (float-class color, CPM ES/LS/topo layout, resource-contention overlay, CPM-timing tooltip),
+delivered by wiring the engine's analytics through output DTOs rather than rendering an engine figure.
+The substance still missing: the full per-task "why" inspector, dependency-violation output, CPM-only
+path, configurable fitness weights, and any actual scenario/run comparison. Do **not** read "the
+graph/plot exists" as "the phase is done" — for the remaining rows the work is the diagnostics, not
+the rendering:
 
-- **Phase 3 gaps:** per-task inspector, configurable fitness weights, CPM-only path view,
-  dependency-violation output. (The options-rich DAG is **not** a gap to build — it exists as
-  `Pert.plot_activity_dag()`; it needs output-side *wiring* only, plotly-only in this env.)
+- **Phase 3 gaps:** configurable fitness weights, CPM-only path view, dependency-violation output,
+  and the full per-task inspector (the Tier 2 DAG tooltip now covers per-node "why" — CPM slack, TF,
+  flags — but not predecessor/successor attribution). The options-rich DAG itself is **done** (Tier 2).
 - **Phase 4 gaps:** everything analytical — the storage exists (Stage B), the comparison does not.
 - **Phase 5:** untouched; overlay fields exist but no replan loop.
 
@@ -115,6 +121,7 @@ when Phase 3/4 is picked up next, the remaining work is the diagnostics, not the
 
 The cheapest high-value follow-on that builds directly on Stage B's substrate is **Phase-4
 scenario/run comparison** (side-by-side makespan/disposition across the scenarios we can now store),
-optionally paired with **surfacing the engine's `plot_activity_dag()`** on the output side (chain /
-contention coloring — wiring, not building) and **dependency-violation output**, to close the
-"display without diagnostics" gap. This is a suggestion only — no work is authorized past Stage B.
+optionally paired with **dependency-violation output** (the `check_dependency_violations()` structured
+result, which already rides `DiagnosticsDTO.dependency_violations` but is not yet surfaced), to keep
+closing the "display without diagnostics" gap. The run-aware DAG follow-on suggested here previously is
+now **done** (Tier 2, 2026-09-11). This is a suggestion only — no work is authorized past Tier 2.

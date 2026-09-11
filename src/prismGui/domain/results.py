@@ -72,6 +72,11 @@ class ScheduledActivityDTO:
     tf_actual_hours: Optional[Hours] = None      # may be negative (expected)
     actual_resources: tuple[ActualResource, ...] = ()
     wbs_group: Optional[str] = None
+    # CPM timing (project start = 0; NOT wall-clock offsets like start_hour). Feed the
+    # es/ls DAG layout modes and the node tooltip. None when the CPM pass emits no entry.
+    es_hours: Optional[Hours] = None
+    ls_hours: Optional[Hours] = None
+    cpm_slack_hours: Optional[Hours] = None
 
 
 @dataclass(frozen=True)
@@ -82,6 +87,9 @@ class ScheduleDTO:
     activities: tuple[ScheduledActivityDTO, ...]
     constrained_chain: tuple[str, ...]            # ordered task_ids
     cpm_critical_path: tuple[str, ...] = ()
+    # Resource-flow arcs the constrained schedule ADDED beyond plan precedence (augmented
+    # graph minus precedence); the DAG's contention overlay. Sorted so A->B->A is byte-stable.
+    contention_edges: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)

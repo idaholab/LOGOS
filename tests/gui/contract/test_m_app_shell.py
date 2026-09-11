@@ -25,10 +25,14 @@ from prismGui.app import main as app_main
 from prismGui.domain.issues import IssueCode
 from prismGui.domain.plan import PatchAction
 from prismGui.domain.results import (
+    FloatClass,
     ResourceUtilizationDTO,
     RunResultStatus,
+    ScheduledActivityDTO,
+    ScheduleDTO,
     SkillUtilizationSeries,
     UtilizationInterval,
+    classify_float,
 )
 from prismGui.domain.scenario import DurationOverride, ResourceChange, Scenario
 
@@ -1247,6 +1251,108 @@ class TestActivityGraphData:
         assert data["has_cycle"] is True
         assert {n["id"] for n in data["nodes"]} == {"A", "B"}
         assert set(data["edges"]) == {("A", "B"), ("B", "A")}
+
+
+class TestActivityGraphEnriched:
+    """The streamlit-free builder behind the RUN-AWARE activity DAG: it overlays a selected run's
+    analytics (chain coloring, CPM ES/LS/slack, CPM-critical / constrained flags, resource-
+    contention arcs) onto the same structural nodes/edges as ``_activity_graph_data``, keyed by
+    task_id. Built off the `baseline` A→B chain with a hand-built ScheduleDTO."""
+
+    @staticmethod
+    def _schedule():
+        # A on the constrained chain (critical/red); B off-chain with positive float (green).
+        a = ScheduledActivityDTO(
+            task_id="A", start_hour=0.0, end_hour=4.0, duration=4.0, delay_hours=0.0,
+            on_constrained_chain=True, float_class=classify_float(0.0, True),
+            es_hours=0.0, ls_hours=0.0, cpm_slack_hours=0.0)
+        b = ScheduledActivityDTO(
+            task_id="B", start_hour=4.0, end_hour=10.0, duration=6.0, delay_hours=0.0,
+            on_constrained_chain=False, float_class=classify_float(5.0, False),
+            es_hours=4.0, ls_hours=6.0, cpm_slack_hours=2.0)
+        return ScheduleDTO(
+            makespan_hours=10.0, cpm_lower_bound_hours=10.0, optimism_gap_hours=0.0,
+            activities=(a, b), constrained_chain=("A",), cpm_critical_path=("A",),
+            contention_edges=(("A", "B"), ("B", "GHOST")))
+
+    def test_color_by_float_class(self):
+        """``_dag_node_color`` maps each float class to the Gantt's shared color; None → grey."""
+        assert app_main._dag_node_color(FloatClass.CRITICAL) == "#e74c3c"
+        assert app_main._dag_node_color(FloatClass.ZERO_FLOAT) == "#f39c12"
+        assert app_main._dag_node_color(FloatClass.POSITIVE_FLOAT) == "#2ecc71"
+        assert app_main._dag_node_color(None) == "#7f8c8d"
+
+    def test_enriched_nodes_carry_color_cpm_and_flags(self, baseline):
+        """Each node gains the run overlay keyed by task_id: chain color, cpm_critical membership
+        (from ``cpm_critical_path``), the constrained flag, and the CPM ES/LS/slack passthrough."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        data = app_main._activity_graph_enriched(raw, self._schedule(), layer_by="topo")
+        assert data["enriched"] is True and data["layer_by"] == "topo"
+        by_id = {n["id"]: n for n in data["nodes"]}
+        assert by_id["A"]["color"] == "#e74c3c" and by_id["A"]["cpm_critical"] is True
+        assert by_id["A"]["on_constrained_chain"] is True and by_id["A"]["scheduled"] is True
+        assert by_id["B"]["color"] == "#2ecc71" and by_id["B"]["cpm_critical"] is False
+        assert by_id["B"]["es_hours"] == 4.0 and by_id["B"]["ls_hours"] == 6.0
+        assert by_id["B"]["cpm_slack_hours"] == 2.0
+
+    def test_layer_by_es_and_ls_set_x_from_cpm(self, baseline):
+        """``layer_by`` moves the x axis onto the CPM time values; ``topo`` keeps longest-path depth."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        by_es = {n["id"]: n for n in
+                 app_main._activity_graph_enriched(raw, self._schedule(), layer_by="es")["nodes"]}
+        assert by_es["A"]["x"] == 0.0 and by_es["B"]["x"] == 4.0        # x = ES
+        by_ls = {n["id"]: n for n in
+                 app_main._activity_graph_enriched(raw, self._schedule(), layer_by="ls")["nodes"]}
+        assert by_ls["A"]["x"] == 0.0 and by_ls["B"]["x"] == 6.0        # x = LS
+        by_topo = {n["id"]: n for n in
+                   app_main._activity_graph_enriched(raw, self._schedule(), layer_by="topo")["nodes"]}
+        assert by_topo["B"]["x"] == by_topo["B"]["depth"]              # x = longest-path depth
+
+    def test_contention_edges_filtered_to_known_endpoints(self, baseline):
+        """Resource-contention arcs are drawn only when both endpoints are nodes (the ``GHOST``
+        arc is dropped, exactly like a dangling precedence edge)."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        data = app_main._activity_graph_enriched(raw, self._schedule(), layer_by="topo")
+        assert data["contention_edges"] == [("A", "B")]
+
+    def test_unscheduled_task_stays_structural(self, baseline):
+        """A node with no matching DTO keeps structural defaults (grey, ``scheduled=False``) rather
+        than raising — the DTO's synthetic START/END and un-timed tasks never crash the merge; an
+        es/ls layout falls back to that node's topo depth."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        a = ScheduledActivityDTO(
+            task_id="A", start_hour=0.0, end_hour=4.0, duration=4.0, delay_hours=0.0,
+            on_constrained_chain=True, float_class=classify_float(0.0, True),
+            es_hours=0.0, ls_hours=0.0, cpm_slack_hours=0.0)
+        sched = ScheduleDTO(makespan_hours=4.0, cpm_lower_bound_hours=4.0, optimism_gap_hours=0.0,
+                            activities=(a,), constrained_chain=("A",), cpm_critical_path=("A",))
+        data = app_main._activity_graph_enriched(raw, sched, layer_by="es")
+        by_id = {n["id"]: n for n in data["nodes"]}
+        assert by_id["B"]["scheduled"] is False and by_id["B"]["color"] == "#7f8c8d"
+        assert by_id["B"]["x"] == by_id["B"]["depth"]      # no ES → es-layout falls back to depth
+
+    def test_hover_scheduled_node_labels_cpm_and_flags(self, baseline):
+        """A scheduled node's tooltip carries the CPM timing (labeled '(CPM)' to separate it from
+        the wall-clock start/end), the float class + actual TF, and the CPM/Constrained flags."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        data = app_main._activity_graph_enriched(raw, self._schedule(), layer_by="topo")
+        by_id = {n["id"]: n for n in data["nodes"]}
+        hov = app_main._dag_hover(by_id["A"])
+        assert "ES (CPM)" in hov and "LS (CPM)" in hov and "slack" in hov
+        assert "wall-clock" in hov                     # start/end line, distinct from CPM
+        assert "critical" in hov                       # float_class value
+        assert "CPM-critical" in hov and "Constrained" in hov   # A is both
+        # B is off-chain and not CPM-critical → neither flag appears.
+        assert "Constrained" not in app_main._dag_hover(by_id["B"])
+
+    def test_hover_structural_node_falls_back_to_duration_depth(self, baseline):
+        """A pre-run / unscheduled node (no DTO) keeps the plain duration/depth tooltip — no CPM
+        line, no float — so the structural graph reads exactly as it did before enrichment."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        structural = app_main._activity_graph_data(raw)["nodes"][0]
+        hov = app_main._dag_hover(structural)
+        assert "duration:" in hov and "depth:" in hov
+        assert "CPM" not in hov and "float:" not in hov
 
 
 class TestModeOptions:

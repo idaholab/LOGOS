@@ -248,6 +248,7 @@ class InProcessPrismExecutor:
             activities=self._build_activities(pert),
             constrained_chain=tuple(a.returnName() for a in pert.constrained_chain_list),
             cpm_critical_path=tuple(a.returnName() for a in pert.getCriticalPath()),
+            contention_edges=self._contention_edges(pert),
         )
 
     def _build_activities(self, pert: Pert) -> tuple[ScheduledActivityDTO, ...]:
@@ -264,6 +265,7 @@ class InProcessPrismExecutor:
                 continue
             on_chain = act in constrained_set
             tf_actual = tf_map.get(act)
+            info = pert.infoDict.get(act, {})   # CPM es/ls/slack (project start = 0)
             records.append(ScheduledActivityDTO(
                 task_id=act.returnName(),
                 start_hour=q((st - start_time).total_seconds() / 3600.0),
@@ -276,9 +278,29 @@ class InProcessPrismExecutor:
                 tf_actual_hours=(None if tf_actual is None else q(float(tf_actual))),
                 actual_resources=self._actual_resources(act),
                 wbs_group=getattr(act, "wbs_group", None),
+                es_hours=(None if info.get("es") is None else q(float(info["es"]))),
+                ls_hours=(None if info.get("ls") is None else q(float(info["ls"]))),
+                cpm_slack_hours=(None if info.get("slack") is None else q(float(info["slack"]))),
             ))
         records.sort(key=lambda r: (r.start_hour, r.task_id))
         return tuple(records)
+
+    @staticmethod
+    def _contention_edges(pert) -> tuple[tuple[str, str], ...]:
+        """Resource-flow arcs the constrained schedule ADDED beyond the plan's precedence
+        (augmented graph minus precedence) — the DAG's contention overlay. Set-diffed then
+        ``sorted`` so two identical runs emit an identical tuple (the A->B->A invariant).
+        Post-run only: ``_build_augmented_graph`` needs the scheduled abs times."""
+        precedence = {
+            (p.returnName(), s.returnName())
+            for p, succs in pert.forwardDict.items() for s in (succs or [])
+        }
+        augmented = pert._build_augmented_graph()
+        arcs = {
+            (a.returnName(), s.returnName())
+            for a, succs in augmented.items() for s in (succs or [])
+        }
+        return tuple(sorted(arcs - precedence))
 
     @staticmethod
     def _actual_resources(act) -> tuple[ActualResource, ...]:

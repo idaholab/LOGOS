@@ -1066,6 +1066,94 @@ def _activity_graph_data(raw_tree) -> dict:
     return {"nodes": nodes, "edges": edges, "has_cycle": has_cycle}
 
 
+def _dag_node_color(float_class) -> str:
+    """DAG node fill for a float class — the SAME mapping the Gantt uses (``_FLOAT_CLASS_COLORS``,
+    keyed by ``FloatClass.value``), so both views agree: red = constrained-chain critical, orange
+    = zero-float, green = positive-float. This reproduces the engine ``_node_color`` RULE via the
+    shared ``classify_float`` bucket (not a re-derived tolerance); unknown/None falls back to grey."""
+    key = float_class.value if float_class is not None else ""
+    return _FLOAT_CLASS_COLORS.get(key, _FLOAT_CLASS_COLORS[""])
+
+
+def _dag_hover(n: dict) -> str:
+    """Hover tooltip for one activity-DAG node. A scheduled (enriched) node gets the run overlay:
+    CPM ES/LS/slack — labeled "(CPM)" so they read as project-start-axis values, never confused
+    with the wall-clock start/end also shown — plus the float class + actual total float, and the
+    CPM-critical / constrained flags. A structural node (pre-run, or an un-timed/unscheduled task
+    with no DTO) falls back to the duration/depth line. Pure — string formatting only."""
+    label = n.get("label", n["id"])
+    if not n.get("scheduled"):
+        return f"{label}<br>duration: {n.get('duration')}h<br>depth: {n.get('depth')}"
+
+    def _h(v) -> str:
+        return "—" if v is None else f"{v:g}h"
+
+    lines = [f"<b>{label}</b>"]
+    if n.get("description"):
+        lines.append(str(n["description"]))
+    lines.append(f"ES (CPM): {_h(n.get('es_hours'))} · LS (CPM): {_h(n.get('ls_hours'))} · "
+                 f"slack: {_h(n.get('cpm_slack_hours'))}")
+    lines.append(f"start: {_h(n.get('start_hour'))} · end: {_h(n.get('end_hour'))} (wall-clock)")
+    lines.append(f"float: {n.get('float_class') or '—'} · "
+                 f"TF actual: {_h(n.get('tf_actual_hours'))}")
+    flags = [f for f, on in (("CPM-critical", n.get("cpm_critical")),
+                             ("Constrained", n.get("on_constrained_chain"))) if on]
+    if flags:
+        lines.append(" · ".join(flags))
+    return "<br>".join(lines)
+
+
+def _activity_graph_enriched(raw_tree, schedule, layer_by: str = "topo") -> dict:
+    """The activity DAG ENRICHED with a selected run's analytics: the same structural nodes/edges
+    as ``_activity_graph_data`` (built from the current INPUT schedule), overlaid — keyed by
+    task_id — with the run's chain-coloring, CPM ES/LS/slack, CPM-critical / constrained flags,
+    and the resource-contention arcs. ``layer_by`` chooses the x axis: ``topo`` (longest-path
+    depth, the base layout), ``es`` or ``ls`` (CPM time, project start = 0), each falling back to
+    depth for a node with no CPM value. Two asymmetries are tolerated without raising: the DTO
+    carries synthetic START/END the input topology omits (ignored — no node), and an un-timed task
+    has no DTO (stays structural/grey, ``scheduled=False``). Contention arcs are filtered to pairs
+    whose endpoints are both nodes (same guard as ``_activity_graph_data``). Pure — stdlib only."""
+    base = _activity_graph_data(raw_tree)
+    by_task = {a.task_id: a for a in schedule.activities}
+    cpm = set(schedule.cpm_critical_path)
+    id_set = {n["id"] for n in base["nodes"]}
+
+    nodes: list[dict] = []
+    for n in base["nodes"]:
+        node = dict(n)                       # copy structural fields (id/label/duration/depth/x/y)
+        a = by_task.get(n["id"])
+        if a is not None:
+            node.update(
+                scheduled=True,
+                color=_dag_node_color(a.float_class),
+                float_class=a.float_class.value,
+                es_hours=a.es_hours, ls_hours=a.ls_hours, cpm_slack_hours=a.cpm_slack_hours,
+                cpm_critical=n["id"] in cpm,
+                on_constrained_chain=a.on_constrained_chain,
+                tf_actual_hours=a.tf_actual_hours,
+                start_hour=a.start_hour, end_hour=a.end_hour,
+                description=a.description,
+            )
+            if layer_by == "es" and a.es_hours is not None:
+                node["x"] = float(a.es_hours)
+            elif layer_by == "ls" and a.ls_hours is not None:
+                node["x"] = float(a.ls_hours)
+            # else: keep the base longest-path depth as x
+        else:
+            node.update(
+                scheduled=False, color=_FLOAT_CLASS_COLORS[""], float_class=None,
+                es_hours=None, ls_hours=None, cpm_slack_hours=None, cpm_critical=False,
+                on_constrained_chain=False, tf_actual_hours=None,
+                start_hour=None, end_hour=None, description=None,
+            )
+        nodes.append(node)
+
+    contention = [(p, s) for p, s in schedule.contention_edges
+                  if p in id_set and s in id_set]
+    return {"nodes": nodes, "edges": base["edges"], "contention_edges": contention,
+            "has_cycle": base["has_cycle"], "enriched": True, "layer_by": layer_by}
+
+
 def _mode_options(raw_tree) -> list[dict]:
     """Per-task execution-mode rows for the run-time mode picker — only tasks that define MORE
     THAN ONE mode (a task with zero or one mode offers no choice, so it is omitted). Each row is
@@ -3419,10 +3507,13 @@ def _graph_layout(fig, height: int) -> None:
     fig.update_yaxes(**axis)
 
 
-def _render_activity_graph(session, baseline) -> None:
-    """The current schedule's activity/dependency DAG (Plotly network scatter): tasks as nodes
-    laid out left→right by depth, precedence links as edges. Fed by the MATERIALIZED current
-    schedule, so a scenario's duration override / emergent task is reflected here. Labels are
+def _render_activity_graph(session, baseline, result=None) -> None:
+    """The current schedule's activity/dependency DAG (Plotly network scatter): tasks as nodes,
+    precedence links as edges, fed by the MATERIALIZED current schedule (a scenario's duration
+    override / emergent task is reflected). When ``result`` is a COMPLETED run whose schedule
+    matches the CURRENT lineage, the graph is ENRICHED — nodes colored by float class, a "Layer
+    by" control lays them out by dependency depth or CPM ES/LS, and the run's contention arcs
+    ride the tooltip/overlay; otherwise it degrades to the structural pre-run graph. Labels are
     dropped on large plans (kept hover-only) so the picture stays legible."""
     import plotly.graph_objects as go
 
@@ -3430,7 +3521,32 @@ def _render_activity_graph(session, baseline) -> None:
     payload, warning = _current_schedule_payload(baseline, scenario)
     if warning:
         st.warning(warning)
-    data = _activity_graph_data(payload)
+
+    # Enrich only when a COMPLETED run's schedule matches the CURRENT lineage. run_config is
+    # omitted from the compare (lineage only), so a config-only difference still enriches; only
+    # a baseline/scenario change (STALE) suppresses. ``not warning`` covers the materialization
+    # fallback, where the shown topology is the baseline rather than the run's scenario.
+    enrich = (
+        result is not None
+        and result.status is RunResultStatus.COMPLETED
+        and result.schedule is not None
+        and not warning
+        and services.current_freshness(
+            result, baseline=baseline, scenario=scenario) is Freshness.CURRENT
+    )
+
+    layer_by = "topo"
+    if enrich:
+        layer_by = st.selectbox(
+            "Layer by", ["topo", "es", "ls"], key="prism_dag_layer_by",
+            format_func=lambda m: {"topo": "Dependency depth", "es": "Earliest start (CPM)",
+                                   "ls": "Latest start (CPM)"}[m])
+        data = _activity_graph_enriched(payload, result.schedule, layer_by=layer_by)
+    else:
+        data = _activity_graph_data(payload)
+        st.caption("Structural (pre-run) graph — no completed run selected for the current "
+                   "schedule (or the selected run is stale).")
+
     nodes = data["nodes"]
     if not nodes:
         st.info("This plan has no activities to graph.")
@@ -3447,17 +3563,31 @@ def _render_activity_graph(session, baseline) -> None:
     if ex:
         fig.add_trace(go.Scatter(x=ex, y=ey, mode="lines", line=dict(color="#b0b7c3", width=1),
                                  hoverinfo="skip"))
+    # Resource-contention overlay: the arcs the constrained schedule ADDED beyond plan precedence,
+    # drawn dashed-red beneath the nodes (endpoints already filtered to known ids by the builder).
+    cx: list = []
+    cy: list = []
+    for src, dst in data.get("contention_edges", []):
+        cx += [by_id[src]["x"], by_id[dst]["x"], None]
+        cy += [by_id[src]["y"], by_id[dst]["y"], None]
+    if cx:
+        fig.add_trace(go.Scatter(x=cx, y=cy, mode="lines", hoverinfo="skip",
+                                 line=dict(color="#d62728", width=1, dash="dash")))
     show_labels = len(nodes) <= 60          # cap labels; hover always carries the detail
+    enriched = data.get("enriched", False)
+    marker_color = [n["color"] for n in nodes] if enriched else "#1f77b4"
     fig.add_trace(go.Scatter(
         x=[n["x"] for n in nodes], y=[n["y"] for n in nodes],
         mode="markers+text" if show_labels else "markers",
         text=[n["label"] for n in nodes] if show_labels else None,
         textposition="top center",
-        marker=dict(size=18, color="#1f77b4", line=dict(color="#0d3b66", width=1)),
-        hovertext=[f"{n['label']}<br>duration: {n['duration']}h<br>depth: {n['depth']}"
-                   for n in nodes],
+        marker=dict(size=18, color=marker_color, line=dict(color="#0d3b66", width=1)),
+        hovertext=[_dag_hover(n) for n in nodes],
         hoverinfo="text"))
     _graph_layout(fig, height=460)
+    if enriched and cx:
+        st.caption("Dashed red arcs are resource-contention links the schedule added beyond plan "
+                   "precedence. Node color = float class (red critical / orange zero / green positive).")
     if data["has_cycle"]:
         st.warning("The dependency graph contains a cycle — the layout is approximate.")
     st.plotly_chart(fig, use_container_width=True)
@@ -3505,14 +3635,15 @@ def _render_relation_graph(session, baseline) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _render_graphs(session, baseline) -> None:
+def _render_graphs(session, baseline, result=None) -> None:
     """Graphs tab: the current schedule's activity/dependency DAG (top) and the baseline →
-    scenarios relation graph (bottom). Both are input/lineage-derived, so available before any
-    run."""
+    scenarios relation graph (bottom). The relation graph is lineage-derived (available before
+    any run); the activity DAG is enriched with ``result``'s analytics (chain color, CPM timing,
+    contention arcs) when that run matches the current schedule, else drawn structural."""
     st.subheader("Activity / dependency graph")
-    st.caption(f"**{_schedule_label(session, baseline)}** — tasks and precedence links, laid "
-               "out left→right by depth. Hover a node for its duration.")
-    _render_activity_graph(session, baseline)
+    st.caption(f"**{_schedule_label(session, baseline)}** — tasks and precedence links. Hover a "
+               "node for its detail; a selected run for the current schedule colors it by float.")
+    _render_activity_graph(session, baseline, result)
 
     st.divider()
     st.subheader("Baseline → scenarios")
@@ -3702,7 +3833,7 @@ def main() -> None:
         else:
             st.info("Run a schedule (sidebar) to see the Gantt and resource plots.")
     with tab_graphs:
-        _render_graphs(session, baseline)
+        _render_graphs(session, baseline, result)
     with tab_edit:
         # Edit target follows the current-schedule selection (D1): Baseline -> the full
         # structural editor (add/remove tasks, constraints); a scenario -> the thin-overlay
