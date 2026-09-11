@@ -3635,24 +3635,6 @@ def _render_relation_graph(session, baseline) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _render_graphs(session, baseline, result=None) -> None:
-    """Graphs tab: the current schedule's activity/dependency DAG (top) and the baseline →
-    scenarios relation graph (bottom). The relation graph is lineage-derived (available before
-    any run); the activity DAG is enriched with ``result``'s analytics (chain color, CPM timing,
-    contention arcs) when that run matches the current schedule, else drawn structural."""
-    st.subheader("Activity / dependency graph")
-    st.caption(f"**{_schedule_label(session, baseline)}** — tasks and precedence links. Hover a "
-               "node for its detail; a selected run for the current schedule colors it by float.")
-    _render_activity_graph(session, baseline, result)
-
-    st.divider()
-    st.subheader("Baseline → scenarios")
-    scenarios = session.list_scenarios()
-    st.caption(f"{len(scenarios)} scenario(s) hang off this baseline as overlays; the current "
-               "schedule is highlighted in red.")
-    _render_relation_graph(session, baseline)
-
-
 _SCHEDULE_PICK_WIDGET = "prism_current_schedule_pick"   # keyed selectbox
 _SCHEDULE_PENDING = "prism_schedule_pending"            # a programmatic selection to apply next run
 
@@ -3734,6 +3716,69 @@ def _pick_run_config(plan_id: str) -> RunConfig:
                      scheduling_horizon_hours=(horizon if horizon > 0 else None))
 
 
+# --- workflow pages -------------------------------------------------------------------------
+# One render wrapper per navigation page (Plan / Results / Replan / Scenarios). Each takes the
+# prologue locals as ordinary arguments and delegates to the existing single-purpose renderers;
+# main()'s zero-arg st.Page closures are the only callers. Keeping them as plain module-level
+# functions (not test-referenced) is the seam Phase 2 will cut along when lifting pages into
+# their own modules under app/.
+
+def _render_plan_page(session, baseline, validator) -> None:
+    """Plan page: the baseline plan itself. A light segmented switch chooses the read-only data
+    *Overview* or the full structural *Edit plan* editor (tasks, constraints, resources, …).
+    Editing here always targets the baseline; scenario what-ifs live on the Replan page."""
+    view = st.segmented_control(
+        "View", ["Overview", "Edit plan"], default="Overview", key="prism_plan_view")
+    if view == "Edit plan":
+        _render_editor(session, validator)
+    else:
+        _render_data_viewer(session, baseline)
+
+
+def _render_results_page(session, baseline, result, run_config) -> None:
+    """Results page: the selected run's summary header (or a prompt to run), then a segmented
+    switch between the Gantt / resource *Plots* and the run-aware *Activity DAG*. The DAG
+    degrades to the structural pre-run graph when no completed, current run is selected."""
+    if result is not None:
+        _render_results_header(result, session, baseline, run_config)
+    else:
+        st.info("Run a schedule (sidebar) to see results for the current schedule.")
+    view = st.segmented_control(
+        "View", ["Plots", "Activity DAG"], default="Plots", key="prism_results_view")
+    if view == "Activity DAG":
+        _render_activity_graph(session, baseline, result)
+    elif result is not None and result.status is RunResultStatus.COMPLETED:
+        _render_plots(result)
+    elif result is not None:
+        st.info("The selected run did not complete — see the failure above.")
+    else:
+        st.info("Run a schedule (sidebar) to see the Gantt and resource plots.")
+
+
+def _render_replan(session, baseline) -> None:
+    """Replan page: author the SELECTED scenario's overlay (task-duration overrides + resource
+    what-ifs) and its execution modes, then re-run from the sidebar. Empty-state when the
+    baseline is the current schedule — a scenario must be picked or created first."""
+    if session.get_current_scenario_id() is None:
+        st.info("Select a scenario in the sidebar, or create one on the **Scenarios** page, to "
+                "replan. (The baseline itself is edited on the **Plan** page.)")
+        return
+    _render_scenario_panel(session, baseline)
+    _render_mode_picker(session, baseline)
+
+
+def _render_scenarios(session, baseline) -> None:
+    """Scenarios page: the scenario library (create / rename / delete) and the baseline →
+    scenarios relation graph. Side-by-side comparison of scenario runs is future Phase-4 work."""
+    _render_scenario_manager(session, baseline, allow_edit=True)
+    st.divider()
+    st.subheader("Baseline → scenarios")
+    scenarios = session.list_scenarios()
+    st.caption(f"{len(scenarios)} scenario(s) hang off this baseline as overlays; the current "
+               "schedule is highlighted in red.")
+    _render_relation_graph(session, baseline)
+
+
 def main() -> None:
     if not _HAS_STREAMLIT:  # pragma: no cover - guarded entry
         raise SystemExit(
@@ -3744,9 +3789,9 @@ def main() -> None:
 
     st.set_page_config(page_title="PRISM Scheduler", layout="wide")
     st.title("PRISM — Outage Schedule")
-    st.caption("Load a plan and configure the run in the sidebar, then explore the selected "
-               "schedule in the tabs: data, plots (Gantt + resource utilization), and "
-               "what-if editing.")
+    st.caption("Load a plan and configure the run in the sidebar, then work through the pages: "
+               "Plan (view / edit the baseline), Results (plots + activity DAG), Replan "
+               "(scenario what-ifs), and Scenarios (library + relation graph).")
 
     session = StreamlitSessionState()
     validator = build_validator()
@@ -3784,11 +3829,11 @@ def main() -> None:
     baseline = session.get_baseline()
 
     # Current-schedule selector (baseline or a scenario) — read the pointer within this same
-    # rerun so every tab below and the Run button operate on the selected schedule.
+    # rerun so every page below and the Run button operate on the selected schedule.
     _render_schedule_selector(session, baseline)
 
     run_config = _pick_run_config(plan_id)
-    # Fold in the execution-mode picks (What-if / Edit tab) — kept on the RunConfig, so they ride
+    # Fold in the execution-mode picks (Replan page) — kept on the RunConfig, so they ride
     # the run-config hash / freshness. The picker persists them to the session on each render, so
     # this reads the latest picks. Empty (the shipping-sample case) leaves the default ().
     run_config = replace(run_config, mode_selections=session.get_mode_selections())
@@ -3812,44 +3857,35 @@ def main() -> None:
             session.add_run_result(outcome.result)
             session.set_selected_result_id(outcome.result.run_id)
 
-    # --- persistent results header (only when a run is selected) ---
+    # --- resolve the selected run result; its header + views now live on the Results page ---
     result = None
     selected_id = session.get_selected_result_id()
     if selected_id:
         result = session.get_run_result(selected_id)
-        if result is not None:
-            _render_results_header(result, session, baseline, session.get_run_config())
 
-    # --- the views of the current schedule (baseline or the selected scenario) ---
-    tab_data, tab_plots, tab_graphs, tab_edit = st.tabs(
-        ["Data viewer", "Plots", "Graphs", "What-if / Edit"])
-    with tab_data:
-        _render_data_viewer(session, baseline)
-    with tab_plots:
-        if result is not None and result.status is RunResultStatus.COMPLETED:
-            _render_plots(result)
-        elif result is not None:
-            st.info("The selected run did not complete — see the failure above.")
-        else:
-            st.info("Run a schedule (sidebar) to see the Gantt and resource plots.")
-    with tab_graphs:
-        _render_graphs(session, baseline, result)
-    with tab_edit:
-        # Edit target follows the current-schedule selection (D1): Baseline -> the full
-        # structural editor (add/remove tasks, constraints); a scenario -> the thin-overlay
-        # what-if panel, with structural edits routed back to the Baseline.
-        if session.get_current_scenario_id() is None:
-            _render_editor(session, validator)
-            _render_scenario_manager(session, baseline, allow_edit=False)
-        else:
-            st.info("A scenario is a thin overlay (task durations + resource what-ifs). To "
-                    "add/remove tasks or edit constraints, select **Baseline** in the sidebar "
-                    "and edit the baseline itself.")
-            _render_scenario_panel(session, baseline)
-            _render_scenario_manager(session, baseline, allow_edit=True)
-        # Execution-mode picks apply to whatever schedule runs (a run-config concern), so the
-        # picker sits below both edit targets.
-        _render_mode_picker(session, baseline)
+    # --- navigation: workflow pages over the shared prologue. Each st.Page callable is zero-arg
+    #     (Streamlit's contract) and closes over the prologue locals resolved above; only the
+    #     selected page's body runs on a rerun, so the load-bearing prologue must stay ABOVE
+    #     pg.run() — every page still sees a fresh source load, schedule pick, and run-config. ---
+    def _page_plan() -> None:
+        _render_plan_page(session, baseline, validator)
+
+    def _page_results() -> None:
+        _render_results_page(session, baseline, result, run_config)
+
+    def _page_replan() -> None:
+        _render_replan(session, baseline)
+
+    def _page_scenarios() -> None:
+        _render_scenarios(session, baseline)
+
+    pg = st.navigation([
+        st.Page(_page_plan,      title="Plan",      default=True),
+        st.Page(_page_results,   title="Results"),
+        st.Page(_page_replan,    title="Replan"),
+        st.Page(_page_scenarios, title="Scenarios"),
+    ])
+    pg.run()
 
 
 if __name__ == "__main__":
