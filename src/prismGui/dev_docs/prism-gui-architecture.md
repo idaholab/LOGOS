@@ -33,6 +33,8 @@ Infrastructure adapters  → implement Ports
 
 Key correction from the earlier draft: **the PRISM adapter is infrastructure, not domain.** Putting it in the domain would make the "independent, testable, portable" model depend on the existing PRISM implementation. The domain never imports PRISM; it defines the types and policies, and an adapter translates them into a PRISM runtime and translates PRISM output back into neutral result objects.
 
+**Where Streamlit lives (post-Restructure Phase 2).** The UI layer is the `app` package, and the load-bearing invariant is that **Streamlit is confined to `app`** — domain, application, ports, and infrastructure never import it (contract test `test_domain_imports_neither_streamlit_nor_prism`). Restructure Phase 2 split the former ~3,900-line `app/main.py` into cohesive submodules, so Streamlit is now imported by *several* modules *inside* `app` (the view modules), not by `main.py` alone — read "the only layer that imports Streamlit" as the `app` **package**, not a single file. The guarded `import streamlit as st` lives once in `app/_streamlit.py`; every view module (`sidebar`, `components`, `session`, `pages/*`) imports `st` from there, so the whole package still imports cleanly headless (`st` is `None`, `_HAS_STREAMLIT` is `False`) and all `st.*` use stays inside function bodies. The pure builders (`app/pipeline`, `edit_model`, `scenario_model`, `view_data`) import no Streamlit at all; `app/main.py` is the composition root (sys.path bootstrap → prologue → `st.navigation` → the four workflow pages) and re-exports the pure builders so `prismGui.app.main.<name>` stays the stable surface the GUI test suite imports.
+
 ---
 
 ## Domain layer — pure model & policies

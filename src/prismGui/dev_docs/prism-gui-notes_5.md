@@ -29,6 +29,8 @@ intersections below happened incidentally and had not been written down until no
 | **Stage A** — top-level tabs / aligned plots / results header / horizon knob / validation badge | commit `cf99139` | committed |
 | **Stage B** — multi-scenario storage + selector + edit-target-follows-selection + relation graph + activity graph + mode picker | commit `cf99139` | committed (implemented & verified 2026-09-10) |
 | **Phase 3 / Tier 2** — run-aware activity DAG: float-class node color, CPM ES/LS/topo layout control, resource-contention overlay, rich per-node tooltip | working tree | **committed 2026-09-11** (implemented & verified) |
+| **Restructure Phase 1** — workflow multipage nav (`st.navigation` + 4 pages: Plan/Results/Replan/Scenarios) | commit `392fe14` | committed (layout-only; 232 tests green) |
+| **Restructure Phase 2** — code split: `app/main.py` (~3,892 L) → cohesive `app` submodules (`_streamlit`, `pipeline`, `edit_model`, `scenario_model`, `view_data`, `session`, `sidebar`, `components`, `pages/{plan,results,replan,scenarios}`) + thin 246-L composition-root `main.py` that re-exports the pure surface | working tree | **implemented & verified 2026-09-11** (verbatim lift-and-shift: 187/187 nodes AST-identical, orphan `_render_disposition_panel` dropped; 232 tests green; **not yet committed**) |
 
 Stage A and Stage B were committed in `cf99139`; Tier 2 is committed on top (this change). The user
 performs all commits — nothing is committed without fresh explicit authorization.

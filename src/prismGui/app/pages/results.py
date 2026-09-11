@@ -1,0 +1,271 @@
+"""Results page: run header, plots, schedule table/export, activity graph."""
+from __future__ import annotations
+
+from prismGui.app._streamlit import st
+from prismGui.application import services
+from prismGui.domain.results import DispositionOverall, Freshness, RunResultStatus
+from prismGui.app.components import _render_issues
+from prismGui.app.scenario_model import _current_schedule_payload
+from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _provenance_rows, _resource_util_rows, _schedule_csv, _step_series
+
+
+def _render_plots(result) -> None:
+    """Gantt + per-skill resource utilization on ONE shared, scrollable time axis.
+
+    Builds a single Plotly figure (``make_subplots`` with ``shared_xaxes=True``) so the Gantt
+    (row 1) and each skill's demand-vs-available step chart (rows 2..) line up perfectly on
+    the same "hours since project start" x-axis; a range slider on the bottom axis gives
+    horizontal scrolling for long-horizon schedules. Fed by the streamlit-free ``_gantt_rows``
+    / ``_resource_util_rows`` builders; Plotly is imported lazily (the discipline the former
+    Altair charts followed) so the module still imports with neither Streamlit nor Plotly
+    installed. The Plots tab needs Plotly present in the run environment."""
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    schedule = result.schedule
+    g_rows = _gantt_rows(schedule)
+    util = result.diagnostics.resource_utilization if result.diagnostics is not None else None
+    u_rows = _resource_util_rows(util)
+    skills = sorted({r["skill"] for r in u_rows})
+
+    if not g_rows:
+        st.caption("No scheduled activities to chart.")
+    else:
+        n_rows = 1 + len(skills)
+        row_heights = [0.5, *([0.5 / len(skills)] * len(skills))] if skills else [1.0]
+        fig = make_subplots(
+            rows=n_rows, cols=1, shared_xaxes=True, vertical_spacing=0.05,
+            row_heights=row_heights,
+            subplot_titles=["Gantt", *[f"{s} — crew" for s in skills]])
+
+        # --- row 1: Gantt — one horizontal bar per activity ------------------
+        for r in g_rows:
+            fig.add_trace(
+                go.Bar(
+                    x=[r["end"] - r["start"]], base=[r["start"]], y=[r["task"]],
+                    orientation="h", width=0.6,
+                    marker_color=_FLOAT_CLASS_COLORS.get(r["float_class"], "#7f8c8d"),
+                    marker_line_color="#111", marker_line_width=1.0,
+                    opacity=1.0 if r["on_chain"] else 0.55, showlegend=False,
+                    hovertemplate=(
+                        f"<b>{r['task']}</b><br>start {r['start']:g}h · end {r['end']:g}h"
+                        f" · dur {r['duration']:g}h<br>float {r['float_class'] or '—'}"
+                        f"{' · on chain' if r['on_chain'] else ''}<extra></extra>")),
+                row=1, col=1)
+        fig.update_yaxes(autorange="reversed", row=1, col=1)  # first activity on top
+
+        # --- rows 2..: one demand/available step chart per skill -------------
+        for i, skill in enumerate(skills, start=2):
+            xs, dem, avail = _step_series([r for r in u_rows if r["skill"] == skill])
+            fig.add_trace(
+                go.Scatter(x=xs, y=dem, mode="lines", line_shape="hv",
+                           line_color="#3498db", fill="tozeroy",
+                           fillcolor="rgba(52,152,219,0.35)", name="demand",
+                           legendgroup="demand", showlegend=(i == 2)),
+                row=i, col=1)
+            fig.add_trace(
+                go.Scatter(x=xs, y=avail, mode="lines", line_shape="hv",
+                           line_color="#e67e22", line_dash="dash", name="available",
+                           legendgroup="available", showlegend=(i == 2)),
+                row=i, col=1)
+            fig.update_yaxes(title_text="crew", rangemode="tozero", row=i, col=1)
+
+        fig.update_xaxes(title_text="hours since project start", row=n_rows, col=1)
+        fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.06), row=n_rows, col=1)
+        fig.update_layout(
+            height=260 + 150 * max(len(skills), 1), bargap=0.2,
+            margin=dict(l=10, r=10, t=40, b=10),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("**Schedule**")
+    _render_schedule_table(schedule)
+    _render_schedule_export(schedule)
+
+def _render_schedule_table(schedule) -> None:
+    rows = [
+        {
+            "task": a.task_id,
+            "start (h)": a.start_hour,
+            "end (h)": a.end_hour,
+            "duration (h)": a.duration,
+            "delay (h)": a.delay_hours,
+            "float": a.float_class.value if a.float_class is not None else "",
+            "on chain": "★" if a.on_constrained_chain else "",
+            "description": a.description or "",
+        }
+        for a in schedule.activities
+    ]
+    st.dataframe(rows, use_container_width=True, hide_index=True)
+
+def _render_schedule_export(schedule) -> None:
+    st.download_button(
+        "Download schedule (CSV)",
+        data=_schedule_csv(schedule),
+        file_name="prism_schedule.csv",
+        mime="text/csv",
+    )
+
+def _render_disposition_badge(disposition) -> None:
+    overall = disposition.overall
+    if overall is DispositionOverall.READY:
+        st.success("✅ READY")
+    elif overall is DispositionOverall.READY_WITH_WARNINGS:
+        st.warning("⚠️ READY — with warnings")
+    else:
+        st.error("⛔ BLOCKED")
+
+def _render_provenance_freshness(result, freshness, reasons) -> None:
+    """The freshness badge + the *why* (reason codes) as a caption, plus the full 10-field
+    provenance record in a collapsed expander (an audit surface, not front-and-center)."""
+    label = _FRESHNESS_LABEL.get(freshness, freshness.value)
+    if reasons:
+        why = "; ".join(_FRESHNESS_REASON_LABEL.get(r, r) for r in reasons)
+        st.caption(f"Freshness: {label} — {why}")
+    else:
+        st.caption(f"Freshness: {label}")
+    with st.expander("Provenance", expanded=False):
+        st.dataframe(_provenance_rows(result.provenance),
+                     use_container_width=True, hide_index=True)
+
+def _render_results_header(result, session, baseline, run_config) -> None:
+    """The persistent run summary shown above the tabs whenever a run is selected: disposition
+    badge + headline metrics, with the 6-indicator disposition grid, provenance/freshness and
+    audit findings tucked into expanders so the header stays compact. A non-COMPLETED run shows
+    the failure and its diagnostics here (there is nothing to plot)."""
+    st.subheader(f"Result — run `{result.run_id}`")
+    if result.status is not RunResultStatus.COMPLETED:
+        st.error(f"Run {result.status.value}.")
+        _render_issues(result.issues, empty_msg="No diagnostics.")
+        return
+
+    s = result.schedule
+    _render_disposition_badge(result.disposition)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Makespan (h)", f"{s.makespan_hours:g}")
+    c2.metric("CPM lower bound (h)", f"{s.cpm_lower_bound_hours:g}")
+    c3.metric("Optimism gap (h)", f"{s.optimism_gap_hours:g}")
+
+    freshness, reasons = services.current_freshness_detail(
+        result, baseline=baseline, scenario=session.get_scenario(), run_config=run_config)
+
+    with st.expander("Disposition detail", expanded=False):
+        st.dataframe(_disposition_rows(result.disposition),
+                     use_container_width=True, hide_index=True)
+    _render_provenance_freshness(result, freshness, reasons)  # freshness caption + provenance
+
+    if result.issues:
+        with st.expander(f"Audit findings ({len(result.issues)})", expanded=False):
+            _render_issues(result.issues)
+
+    if result.diagnostics is not None and result.diagnostics.fitness is not None:
+        f = result.diagnostics.fitness
+        st.caption(
+            f"fitness: composite={f.composite:g} · makespan_ratio={f.makespan_ratio:g} · "
+            f"delay_ratio={f.delay_ratio:g} · criticality_ratio={f.criticality_ratio:g} · "
+            f"window_violations={f.n_window_violations}"
+        )
+
+def _render_activity_graph(session, baseline, result=None) -> None:
+    """The current schedule's activity/dependency DAG (Plotly network scatter): tasks as nodes,
+    precedence links as edges, fed by the MATERIALIZED current schedule (a scenario's duration
+    override / emergent task is reflected). When ``result`` is a COMPLETED run whose schedule
+    matches the CURRENT lineage, the graph is ENRICHED — nodes colored by float class, a "Layer
+    by" control lays them out by dependency depth or CPM ES/LS, and the run's contention arcs
+    ride the tooltip/overlay; otherwise it degrades to the structural pre-run graph. Labels are
+    dropped on large plans (kept hover-only) so the picture stays legible."""
+    import plotly.graph_objects as go
+
+    scenario = session.get_scenario()
+    payload, warning = _current_schedule_payload(baseline, scenario)
+    if warning:
+        st.warning(warning)
+
+    # Enrich only when a COMPLETED run's schedule matches the CURRENT lineage. run_config is
+    # omitted from the compare (lineage only), so a config-only difference still enriches; only
+    # a baseline/scenario change (STALE) suppresses. ``not warning`` covers the materialization
+    # fallback, where the shown topology is the baseline rather than the run's scenario.
+    enrich = (
+        result is not None
+        and result.status is RunResultStatus.COMPLETED
+        and result.schedule is not None
+        and not warning
+        and services.current_freshness(
+            result, baseline=baseline, scenario=scenario) is Freshness.CURRENT
+    )
+
+    layer_by = "topo"
+    if enrich:
+        layer_by = st.selectbox(
+            "Layer by", ["topo", "es", "ls"], key="prism_dag_layer_by",
+            format_func=lambda m: {"topo": "Dependency depth", "es": "Earliest start (CPM)",
+                                   "ls": "Latest start (CPM)"}[m])
+        data = _activity_graph_enriched(payload, result.schedule, layer_by=layer_by)
+    else:
+        data = _activity_graph_data(payload)
+        st.caption("Structural (pre-run) graph — no completed run selected for the current "
+                   "schedule (or the selected run is stale).")
+
+    nodes = data["nodes"]
+    if not nodes:
+        st.info("This plan has no activities to graph.")
+        return
+    by_id = {n["id"]: n for n in nodes}
+
+    ex: list = []
+    ey: list = []
+    for src, dst in data["edges"]:
+        ex += [by_id[src]["x"], by_id[dst]["x"], None]
+        ey += [by_id[src]["y"], by_id[dst]["y"], None]
+
+    fig = go.Figure()
+    if ex:
+        fig.add_trace(go.Scatter(x=ex, y=ey, mode="lines", line=dict(color="#b0b7c3", width=1),
+                                 hoverinfo="skip"))
+    # Resource-contention overlay: the arcs the constrained schedule ADDED beyond plan precedence,
+    # drawn dashed-red beneath the nodes (endpoints already filtered to known ids by the builder).
+    cx: list = []
+    cy: list = []
+    for src, dst in data.get("contention_edges", []):
+        cx += [by_id[src]["x"], by_id[dst]["x"], None]
+        cy += [by_id[src]["y"], by_id[dst]["y"], None]
+    if cx:
+        fig.add_trace(go.Scatter(x=cx, y=cy, mode="lines", hoverinfo="skip",
+                                 line=dict(color="#d62728", width=1, dash="dash")))
+    show_labels = len(nodes) <= 60          # cap labels; hover always carries the detail
+    enriched = data.get("enriched", False)
+    marker_color = [n["color"] for n in nodes] if enriched else "#1f77b4"
+    fig.add_trace(go.Scatter(
+        x=[n["x"] for n in nodes], y=[n["y"] for n in nodes],
+        mode="markers+text" if show_labels else "markers",
+        text=[n["label"] for n in nodes] if show_labels else None,
+        textposition="top center",
+        marker=dict(size=18, color=marker_color, line=dict(color="#0d3b66", width=1)),
+        hovertext=[_dag_hover(n) for n in nodes],
+        hoverinfo="text"))
+    _graph_layout(fig, height=460)
+    if enriched and cx:
+        st.caption("Dashed red arcs are resource-contention links the schedule added beyond plan "
+                   "precedence. Node color = float class (red critical / orange zero / green positive).")
+    if data["has_cycle"]:
+        st.warning("The dependency graph contains a cycle — the layout is approximate.")
+    st.plotly_chart(fig, use_container_width=True)
+
+def _render_results_page(session, baseline, result, run_config) -> None:
+    """Results page: the selected run's summary header (or a prompt to run), then a segmented
+    switch between the Gantt / resource *Plots* and the run-aware *Activity DAG*. The DAG
+    degrades to the structural pre-run graph when no completed, current run is selected."""
+    if result is not None:
+        _render_results_header(result, session, baseline, run_config)
+    else:
+        st.info("Run a schedule (sidebar) to see results for the current schedule.")
+    view = st.segmented_control(
+        "View", ["Plots", "Activity DAG"], default="Plots", key="prism_results_view")
+    if view == "Activity DAG":
+        _render_activity_graph(session, baseline, result)
+    elif result is not None and result.status is RunResultStatus.COMPLETED:
+        _render_plots(result)
+    elif result is not None:
+        st.info("The selected run did not complete — see the failure above.")
+    else:
+        st.info("Run a schedule (sidebar) to see the Gantt and resource plots.")
