@@ -296,8 +296,17 @@ class SessionState(Protocol):
     def set_draft(self, draft: PlanDraft) -> None: ...
     def clear_draft(self) -> None: ...
 
+    # Scenarios: the session holds a keyed collection plus a "current schedule" pointer
+    # (None == the baseline itself). get_scenario / set_scenario are convenience shims over
+    # that pointer, kept so render-layer call sites and older tests read unchanged.
     def get_scenario(self) -> Optional[Scenario]: ...
     def set_scenario(self, scenario: Optional[Scenario]) -> None: ...
+
+    def list_scenarios(self) -> tuple[Scenario, ...]: ...
+    def add_scenario(self, scenario: Scenario) -> None: ...
+    def remove_scenario(self, scenario_id: str) -> None: ...
+    def get_current_scenario_id(self) -> Optional[str]: ...
+    def set_current_scenario_id(self, scenario_id: Optional[str]) -> None: ...
 
     def get_run_config(self) -> Optional[RunConfig]: ...
     def set_run_config(self, run_config: Optional[RunConfig]) -> None: ...
@@ -318,7 +327,8 @@ class InMemorySessionState:
     def __init__(self) -> None:
         self._baseline: Optional[ReferencePlan] = None
         self._draft: Optional[PlanDraft] = None
-        self._scenario: Optional[Scenario] = None
+        self._scenarios: dict[str, Scenario] = {}       # insertion-ordered, keyed by scenario_id
+        self._current_schedule: Optional[str] = None    # scenario_id, or None == the baseline
         self._run_config: Optional[RunConfig] = None
         self._results: dict[str, RunResult] = {}
         self._selected_id: Optional[str] = None
@@ -339,10 +349,35 @@ class InMemorySessionState:
         self._draft = None
 
     def get_scenario(self) -> Optional[Scenario]:
-        return self._scenario
+        """The scenario the current-schedule pointer names, or None (== the baseline, or a
+        pointer whose scenario is gone)."""
+        if self._current_schedule is None:
+            return None
+        return self._scenarios.get(self._current_schedule)
 
     def set_scenario(self, scenario: Optional[Scenario]) -> None:
-        self._scenario = scenario
+        """Shim over (collection + pointer): None detaches to the baseline (does NOT delete
+        any stored scenario); a scenario is stored (add-or-update) and made current."""
+        if scenario is None:
+            self._current_schedule = None
+            return
+        self._scenarios[scenario.scenario_id] = scenario
+        self._current_schedule = scenario.scenario_id
+
+    def list_scenarios(self) -> tuple[Scenario, ...]:
+        return tuple(self._scenarios.values())
+
+    def add_scenario(self, scenario: Scenario) -> None:
+        self._scenarios[scenario.scenario_id] = scenario
+
+    def remove_scenario(self, scenario_id: str) -> None:
+        self._scenarios.pop(scenario_id, None)
+
+    def get_current_scenario_id(self) -> Optional[str]:
+        return self._current_schedule
+
+    def set_current_scenario_id(self, scenario_id: Optional[str]) -> None:
+        self._current_schedule = scenario_id
 
     def get_run_config(self) -> Optional[RunConfig]:
         return self._run_config
@@ -372,34 +407,50 @@ class InMemorySessionState:
 
 @dataclass(frozen=True)
 class BaselineResolution:
-    """What survived a baseline switch: whether the prior scenario / draft were kept
-    (still bound to the new revision) or cleared (bound to a different one)."""
-    scenario_kept: bool
+    """What survived a baseline switch: how many stored scenarios were kept (still bound to
+    the new revision) vs dropped (bound to a different one), whether the current-schedule
+    pointer had to reset to the baseline (its scenario was dropped), and whether the draft
+    was kept."""
+    scenarios_kept: int
+    scenarios_dropped: int
+    current_reset: bool
     draft_kept: bool
 
 
 def resolve_for_new_baseline(
     session: SessionState, new_baseline: ReferencePlan
 ) -> BaselineResolution:
-    """Point the session at ``new_baseline`` and resolve a now-incompatible scenario / draft.
+    """Point the session at ``new_baseline`` and resolve now-incompatible scenarios / draft.
 
     A scenario or draft is bound (by ``base_plan_hash``) to the revision it was built against.
-    When the baseline changes, anything bound to a DIFFERENT revision is cleared — a delta or
+    When the baseline changes, anything bound to a DIFFERENT revision is dropped — a delta or
     an edit built against another revision is never silently carried onto the new baseline
     (that would apply a mismatched change). Anything already bound to the new revision is kept.
-    Returns which of the two survived. This is the pure core of the app shell's source-key
-    guard, so the "loading a new baseline resolves an incompatible scenario/draft" contract is
-    testable without Streamlit."""
+    If the current-schedule pointer named a dropped scenario, it resets to the baseline.
+    Returns what survived. This is the pure core of the app shell's source-key guard, so the
+    "loading a new baseline resolves incompatible scenarios/draft" contract is testable
+    without Streamlit."""
     session.set_baseline(new_baseline)
 
-    scenario = session.get_scenario()
-    scenario_kept = scenario is not None and scenario.base_plan_hash == new_baseline.plan_hash
-    if scenario is not None and not scenario_kept:
-        session.set_scenario(None)
+    current_before = session.get_current_scenario_id()
+    kept = dropped = 0
+    for scenario in session.list_scenarios():   # tuple snapshot: safe to remove while iterating
+        if scenario.base_plan_hash == new_baseline.plan_hash:
+            kept += 1
+        else:
+            session.remove_scenario(scenario.scenario_id)
+            dropped += 1
+
+    # The pointer named a scenario that was dropped (get_scenario now returns None) -> reset it
+    # to the baseline. A pointer to a surviving scenario, or one already on the baseline, stays.
+    current_reset = current_before is not None and session.get_scenario() is None
+    if current_reset:
+        session.set_current_scenario_id(None)
 
     draft = session.get_draft()
     draft_kept = draft is not None and draft.base_plan_hash == new_baseline.plan_hash
     if draft is not None and not draft_kept:
         session.clear_draft()
 
-    return BaselineResolution(scenario_kept=scenario_kept, draft_kept=draft_kept)
+    return BaselineResolution(scenarios_kept=kept, scenarios_dropped=dropped,
+                              current_reset=current_reset, draft_kept=draft_kept)

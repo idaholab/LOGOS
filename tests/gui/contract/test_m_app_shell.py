@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 
 from prismGui.app import main as app_main
 from prismGui.domain.issues import IssueCode
@@ -1099,3 +1100,184 @@ class TestScenarioPanelBuilders:
         assert rebuilt.base_plan_hash == baseline.plan_hash
         # the stale override for A is gone; only the freshly-authored one remains
         assert rebuilt.duration_overrides == (DurationOverride(task_id="B", duration_hours=9.0),)
+
+
+class TestStageBScheduleHelpers:
+    """The streamlit-free helpers Stage B adds for the multi-scenario workflow: ``_mint_scenario``
+    (a NEW named scenario with a UNIQUE id, so several coexist — unlike ``_new_scenario_for``'s
+    fixed per-baseline id) and ``_current_schedule_payload`` (the effective plan payload the Data
+    viewer / activity graph render for whichever schedule is current). Built off the `baseline`
+    fixture (tasks A dur 4, B dur 6; one MECH pool). No ``st.*``."""
+
+    def test_mint_scenario_gives_unique_ids_and_binds_to_baseline(self, baseline):
+        """Each mint yields a distinct ``scn-…`` id (so scenarios never overwrite each other)
+        bound to THIS baseline revision, and starts empty (no overlay staged yet)."""
+        a = app_main._mint_scenario(baseline)
+        b = app_main._mint_scenario(baseline, existing_ids=(a.scenario_id,))
+        assert a.scenario_id != b.scenario_id
+        assert a.scenario_id.startswith("scn-") and b.scenario_id.startswith("scn-")
+        for scn in (a, b):
+            assert scn.base_plan_id == baseline.plan_id
+            assert scn.base_plan_hash == baseline.plan_hash
+            assert app_main._scenario_is_empty(scn) is True
+
+    def test_mint_scenario_auto_names_by_existing_count(self, baseline):
+        """With no explicit name the auto label follows how many scenarios already exist —
+        the first is "Scenario A", the second "Scenario B", …."""
+        first = app_main._mint_scenario(baseline, existing_ids=())
+        assert first.name == "Scenario A"
+        second = app_main._mint_scenario(baseline, existing_ids=("scn-x",))
+        assert second.name == "Scenario B"
+        # past the alphabet it falls back to a number rather than a non-letter glyph
+        far = app_main._mint_scenario(baseline, existing_ids=tuple(f"scn-{i}" for i in range(26)))
+        assert far.name == "Scenario 27"
+
+    def test_mint_scenario_honours_an_explicit_name(self, baseline):
+        """A caller-supplied name wins over the auto label."""
+        scn = app_main._mint_scenario(baseline, name="Winter re-plan")
+        assert scn.name == "Winter re-plan"
+
+    def test_mint_scenario_avoids_a_clashing_id(self, baseline):
+        """``existing_ids`` guards the (vanishingly unlikely) id clash — the minted id is
+        never one already taken."""
+        taken = tuple(f"scn-{i:08x}" for i in range(50))
+        scn = app_main._mint_scenario(baseline, existing_ids=taken)
+        assert scn.scenario_id not in taken
+
+    def test_current_schedule_payload_none_is_the_plain_baseline(self, baseline):
+        """No current scenario (Baseline is current) → the plain baseline payload, no warning."""
+        payload, warning = app_main._current_schedule_payload(baseline, None)
+        assert warning is None
+        durations = {t["task_id"]: t["duration"] for t in payload["tasks"]}
+        assert durations == {"A": 4, "B": 6}
+
+    def test_current_schedule_payload_materializes_a_valid_overlay(self, baseline):
+        """A valid duration-override scenario → the payload with the overlay folded in (B's
+        duration is the override, 9.0, not the baseline's 6), no warning."""
+        scn = app_main._add_duration_override(None, baseline, "B", 9.0)
+        payload, warning = app_main._current_schedule_payload(baseline, scn)
+        assert warning is None
+        durations = {t["task_id"]: t["duration"] for t in payload["tasks"]}
+        assert durations["B"] == 9.0
+        assert durations["A"] == 4               # untouched tasks pass through unchanged
+
+    def test_current_schedule_payload_falls_back_to_baseline_on_stale_scenario(self, baseline):
+        """A scenario bound to a superseded revision can't be materialized (a hash mismatch),
+        so the plain baseline payload is returned WITH a warning — the caller still renders."""
+        stale = Scenario(
+            scenario_id="scn-stale", base_plan_id="old", base_plan_hash="f" * 64,
+            duration_overrides=(DurationOverride(task_id="B", duration_hours=99.0),))
+        assert stale.base_plan_hash != baseline.plan_hash
+        payload, warning = app_main._current_schedule_payload(baseline, stale)
+        assert warning is not None                # a human-readable fallback notice
+        durations = {t["task_id"]: t["duration"] for t in payload["tasks"]}
+        assert durations["B"] == 6                # the stale 99.0 override never leaked in
+
+
+class TestRelationGraphData:
+    """The streamlit-free builder behind the Graphs tab's baseline → scenarios picture. Pure
+    node/edge/position data (a manual star) — the ``_render_relation_graph`` wrapper is the only
+    ``st.*``/Plotly site. Built off the `baseline` fixture."""
+
+    def test_baseline_only_is_a_single_current_node(self, baseline):
+        """No scenarios → just the baseline node, flagged current (None pointer == baseline),
+        no edges."""
+        data = app_main._relation_graph_data(baseline, (), None)
+        assert len(data["nodes"]) == 1 and data["edges"] == []
+        node = data["nodes"][0]
+        assert node["kind"] == "baseline" and node["is_current"] is True
+        assert node["label"] == baseline.plan_id
+
+    def test_one_edge_per_scenario_and_exactly_one_current(self, baseline):
+        """Each scenario adds a node and a baseline→scenario edge; the pointer flags exactly
+        one node current, and each scenario node carries its staged overlay count."""
+        a = app_main._mint_scenario(baseline, name="A")
+        b = app_main._add_duration_override(
+            app_main._mint_scenario(baseline, existing_ids=(a.scenario_id,), name="B"),
+            baseline, "B", 9.0)                       # b carries one duration override
+        data = app_main._relation_graph_data(baseline, (a, b), b.scenario_id)
+
+        assert len(data["nodes"]) == 3                # baseline + 2 scenarios
+        assert len(data["edges"]) == 2
+        assert all(src == app_main._BASELINE_NODE_ID for src, _ in data["edges"])
+        assert {dst for _, dst in data["edges"]} == {a.scenario_id, b.scenario_id}
+
+        by_id = {n["id"]: n for n in data["nodes"]}
+        assert [n["id"] for n in data["nodes"] if n["is_current"]] == [b.scenario_id]
+        assert by_id[app_main._BASELINE_NODE_ID]["is_current"] is False
+        assert by_id[a.scenario_id]["overlay_count"] == 0
+        assert by_id[b.scenario_id]["overlay_count"] == 1
+
+
+class TestActivityGraphData:
+    """The streamlit-free builder behind the Graphs tab's activity/dependency DAG. Nodes =
+    tasks, edges = precedence links (via ``_dependency_options``), positions = a longest-path
+    layered layout. Built off the `baseline` fixture's tiny A→B chain."""
+
+    def test_nodes_edges_and_layered_depth(self, baseline):
+        """The 2-task A→B baseline yields two nodes and the single A→B edge, with B one depth
+        layer to the right of A (x = longest-path depth), and no cycle."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        data = app_main._activity_graph_data(raw)
+        assert data["has_cycle"] is False
+        assert {n["id"] for n in data["nodes"]} == {"A", "B"}
+        assert data["edges"] == [("A", "B")]
+        by_id = {n["id"]: n for n in data["nodes"]}
+        assert by_id["A"]["depth"] == 0 and by_id["B"]["depth"] == 1
+        assert by_id["B"]["x"] > by_id["A"]["x"]      # laid out left→right by depth
+        assert by_id["A"]["duration"] == 4 and by_id["B"]["duration"] == 6
+
+    def test_edges_to_unknown_tasks_are_dropped(self, baseline):
+        """A successor naming a task not in the plan is not drawn (no dangling edge / KeyError)
+        — the builder never trusts an edge endpoint it has no node for."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        raw["tasks"][0]["successors"] = ["B", "GHOST"]
+        data = app_main._activity_graph_data(raw)
+        assert data["edges"] == [("A", "B")]          # the GHOST edge is dropped
+        assert {n["id"] for n in data["nodes"]} == {"A", "B"}
+
+    def test_cycle_degrades_without_raising(self, baseline):
+        """A cycle (A→B→A) is reported via ``has_cycle`` and the builder still returns every
+        node/edge rather than raising — a valid baseline is acyclic, but the graph never crashes
+        the tab on a mid-edit tree."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        raw["tasks"][0]["successors"] = ["B"]
+        raw["tasks"][1]["successors"] = ["A"]
+        data = app_main._activity_graph_data(raw)
+        assert data["has_cycle"] is True
+        assert {n["id"] for n in data["nodes"]} == {"A", "B"}
+        assert set(data["edges"]) == {("A", "B"), ("B", "A")}
+
+
+class TestModeOptions:
+    """The streamlit-free builder behind the run-time execution-mode picker. It offers only
+    tasks that define MORE THAN ONE mode (mode_name == the schema's ``mode_id``); the render
+    helper turns each row into a per-task selectbox and merges the picks into the RunConfig."""
+
+    def test_empty_when_no_task_defines_multiple_modes(self, baseline):
+        """The shipping-sample case: no task carries a multi-mode ``modes`` list, so there is
+        nothing to pick (the picker shows its 'no multi-mode tasks' caption)."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        assert app_main._mode_options(raw) == []
+
+    def test_single_mode_task_is_not_offered(self, baseline):
+        """A task with exactly one mode offers no choice, so it is omitted (only >1 counts)."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        raw["tasks"][0]["modes"] = [{"mode_id": "normal", "duration": 4}]
+        assert app_main._mode_options(raw) == []
+
+    def test_multi_mode_task_yields_its_selectable_modes(self, baseline):
+        """A task defining two+ modes is offered with each mode's name (its ``mode_id``) and
+        duration — the exact rows the picker builds a selectbox from, and whose ``mode_name``s
+        ``ModeSelection`` / ``validate_run_config`` accept."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        raw["tasks"][0]["modes"] = [
+            {"mode_id": "normal", "duration": 4, "required_resources": []},
+            {"mode_id": "crash", "duration": 2, "required_resources": []},
+        ]
+        options = app_main._mode_options(raw)
+        assert len(options) == 1
+        row = options[0]
+        assert row["task_id"] == "A"
+        assert [m["mode_name"] for m in row["modes"]] == ["normal", "crash"]
+        assert [m["duration"] for m in row["modes"]] == [4, 2]

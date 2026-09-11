@@ -27,7 +27,9 @@ from __future__ import annotations
 import csv
 import io
 import json
+import math
 import sys
+import uuid
 from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
@@ -59,8 +61,9 @@ from prismGui.domain.plan import (
     discard_draft,
     open_draft,
 )
+from prismGui.domain.materialize import materialize
 from prismGui.domain.results import DispositionOverall, Freshness, RunResultStatus
-from prismGui.domain.run_config import PRIORITY_RULES, RunConfig, SGSVariant
+from prismGui.domain.run_config import ModeSelection, PRIORITY_RULES, RunConfig, SGSVariant
 from prismGui.domain.scenario import DurationOverride, ResourceChange, Scenario
 from prismGui.infrastructure.memory_repository import InMemoryRepository
 from prismGui.infrastructure.memory_snapshot_store import InMemorySnapshotStore
@@ -166,12 +169,35 @@ def _scenario_is_empty(scenario: Optional[Scenario]) -> bool:
 
 
 def _new_scenario_for(baseline) -> Scenario:
-    """A fresh empty Scenario bound to the given baseline revision (by plan_hash)."""
+    """A fresh empty Scenario bound to the given baseline revision (by plan_hash), with a
+    FIXED per-baseline id — the internal single-overlay rebuild target used by
+    ``_scenario_base``. For a NEW named scenario the analyst keeps alongside others, use
+    ``_mint_scenario`` (a unique id), never this."""
     return Scenario(
         scenario_id=f"scn-{baseline.plan_id}",
         base_plan_id=baseline.plan_id,
         base_plan_hash=baseline.plan_hash,
         name="session what-if",
+    )
+
+
+def _mint_scenario(baseline, existing_ids=(), name: Optional[str] = None) -> Scenario:
+    """A fresh empty Scenario bound to ``baseline`` with a UNIQUE id, so several scenarios
+    coexist (unlike ``_new_scenario_for``'s fixed per-baseline id, which would collide). When
+    no ``name`` is given an auto label is chosen from how many already exist ("Scenario A",
+    "Scenario B", …). ``existing_ids`` guards the (vanishingly unlikely) id clash."""
+    existing = tuple(existing_ids)
+    scenario_id = f"scn-{uuid.uuid4().hex[:8]}"
+    while scenario_id in existing:
+        scenario_id = f"scn-{uuid.uuid4().hex[:8]}"
+    if not name:
+        n = len(existing)
+        name = f"Scenario {chr(ord('A') + n)}" if n < 26 else f"Scenario {n + 1}"
+    return Scenario(
+        scenario_id=scenario_id,
+        base_plan_id=baseline.plan_id,
+        base_plan_hash=baseline.plan_hash,
+        name=name,
     )
 
 
@@ -250,20 +276,24 @@ class StreamlitSessionState:
 
     _BASELINE = "prism_baseline"
     _DRAFT = "prism_draft"
-    _SCENARIO = "prism_scenario"
+    _SCENARIOS = "prism_scenarios"                 # dict[scenario_id, Scenario], insertion-ordered
+    _CURRENT_SCHEDULE = "prism_current_schedule"   # scenario_id, or None == the baseline
     _RUN_CONFIG = "prism_run_config"
     _RESULTS = "prism_results"
     _SELECTED = "prism_selected_id"
     _SOURCE_KEY = "prism_source_key"      # signature of the last file-reloaded source
+    _MODE_SELECTIONS = "prism_mode_selections"   # tuple[ModeSelection, ...] merged into RunConfig
 
     def __init__(self) -> None:
         st.session_state.setdefault(self._BASELINE, None)
         st.session_state.setdefault(self._DRAFT, None)
-        st.session_state.setdefault(self._SCENARIO, None)
+        st.session_state.setdefault(self._SCENARIOS, {})
+        st.session_state.setdefault(self._CURRENT_SCHEDULE, None)
         st.session_state.setdefault(self._RUN_CONFIG, None)
         st.session_state.setdefault(self._RESULTS, {})
         st.session_state.setdefault(self._SELECTED, None)
         st.session_state.setdefault(self._SOURCE_KEY, None)
+        st.session_state.setdefault(self._MODE_SELECTIONS, ())
 
     def get_baseline(self):
         return st.session_state[self._BASELINE]
@@ -290,11 +320,45 @@ class StreamlitSessionState:
     def set_source_key(self, key) -> None:
         st.session_state[self._SOURCE_KEY] = key
 
+    # Streamlit-only: not part of the SessionState Protocol. The run-time execution-mode
+    # picks (task_id -> mode_name) merged into the RunConfig at Run — a run-config concern,
+    # not a scenario delta (keeping it on RunConfig preserves the run-config hash / freshness).
+    def get_mode_selections(self) -> tuple[ModeSelection, ...]:
+        return tuple(st.session_state[self._MODE_SELECTIONS])
+
+    def set_mode_selections(self, selections) -> None:
+        st.session_state[self._MODE_SELECTIONS] = tuple(selections)
+
     def get_scenario(self):
-        return st.session_state[self._SCENARIO]
+        """The scenario the current-schedule pointer names, or None (== the baseline)."""
+        current = st.session_state[self._CURRENT_SCHEDULE]
+        if current is None:
+            return None
+        return st.session_state[self._SCENARIOS].get(current)
 
     def set_scenario(self, scenario) -> None:
-        st.session_state[self._SCENARIO] = scenario
+        """Shim: None detaches to the baseline (keeps stored scenarios); a scenario is
+        stored (add-or-update) and made current."""
+        if scenario is None:
+            st.session_state[self._CURRENT_SCHEDULE] = None
+            return
+        st.session_state[self._SCENARIOS][scenario.scenario_id] = scenario
+        st.session_state[self._CURRENT_SCHEDULE] = scenario.scenario_id
+
+    def list_scenarios(self) -> tuple:
+        return tuple(st.session_state[self._SCENARIOS].values())
+
+    def add_scenario(self, scenario) -> None:
+        st.session_state[self._SCENARIOS][scenario.scenario_id] = scenario
+
+    def remove_scenario(self, scenario_id: str) -> None:
+        st.session_state[self._SCENARIOS].pop(scenario_id, None)
+
+    def get_current_scenario_id(self):
+        return st.session_state[self._CURRENT_SCHEDULE]
+
+    def set_current_scenario_id(self, scenario_id) -> None:
+        st.session_state[self._CURRENT_SCHEDULE] = scenario_id
 
     def get_run_config(self):
         return st.session_state[self._RUN_CONFIG]
@@ -351,6 +415,20 @@ def _render_issues(issues, *, empty_msg: str = "No issues.") -> None:
     st.dataframe(_issue_rows(issues), use_container_width=True, hide_index=True)
 
 
+def _render_validation_badge(load) -> None:
+    """Compact sidebar badge for the load's validation outcome — blocked / warnings / valid.
+    The full issue list stays in the main column (``_render_issues``); the sidebar is too
+    narrow for a table."""
+    n_warn = sum(1 for i in load.issues if i.severity.value == "warning")
+    if not load.ok:
+        n_err = sum(1 for i in load.issues if i.severity.value == "error")
+        st.sidebar.error(f"⛔ Plan invalid — {n_err} blocking error(s)")
+    elif n_warn:
+        st.sidebar.warning(f"⚠️ Valid — {n_warn} warning(s)")
+    else:
+        st.sidebar.success("✅ Plan valid")
+
+
 def _gantt_rows(schedule) -> list[dict]:
     """One streamlit-free row per scheduled activity for the Gantt: numeric hour-offsets
     plus the float-class / chain metadata that drive bar color and the chain highlight.
@@ -368,30 +446,6 @@ def _gantt_rows(schedule) -> list[dict]:
         }
         for a in schedule.activities
     ]
-
-
-def _render_gantt(schedule) -> None:
-    import altair as alt  # lazy: Streamlit ships Altair, but keep it off module import
-
-    rows = _gantt_rows(schedule)
-    st.markdown("**Gantt**")
-    if not rows:
-        st.caption("No scheduled activities to chart.")
-        return
-    chart = (
-        alt.Chart(alt.Data(values=rows))
-        .mark_bar(stroke="#111", strokeWidth=0)
-        .encode(
-            x=alt.X("start:Q", title="hours since project start"),
-            x2="end:Q",
-            y=alt.Y("task:N", sort=[r["task"] for r in rows], title=None),
-            color=alt.Color("float_class:N", title="float class"),
-            opacity=alt.condition("datum.on_chain", alt.value(1.0), alt.value(0.55)),
-            tooltip=["task:N", "start:Q", "end:Q", "duration:Q", "delay:Q",
-                     "float_class:N", "on_chain:N", "description:N"],
-        )
-    )
-    st.altair_chart(chart, use_container_width=True)
 
 
 def _resource_util_rows(util) -> list[dict]:
@@ -413,27 +467,105 @@ def _resource_util_rows(util) -> list[dict]:
     ]
 
 
-def _render_resource_util(util) -> None:
-    st.markdown("**Resource utilization**")
-    rows = _resource_util_rows(util)
-    if not rows:
-        st.caption("No resource-utilization data for this run.")
-        return
-    import altair as alt  # lazy: same discipline as _render_gantt
+# Gantt bar color by float class (the old Altair chart auto-colored the categories; Plotly
+# needs the mapping stated). Keys are FloatClass.value; unknown/empty falls back to grey.
+_FLOAT_CLASS_COLORS = {
+    "critical": "#e74c3c",
+    "zero_float": "#f39c12",
+    "positive_float": "#2ecc71",
+    "": "#7f8c8d",
+}
 
-    base = alt.Chart(alt.Data(values=rows)).encode(
-        x=alt.X("start_hour:Q", title="hours since project start"))
-    demand = base.mark_area(interpolate="step-after", opacity=0.5, color="#3498db").encode(
-        y=alt.Y("demand:Q", title="crew"))
-    available = base.mark_line(
-        interpolate="step-after", strokeDash=[4, 3], color="#e67e22").encode(
-        y=alt.Y("available:Q", title="crew"))
-    chart = (
-        alt.layer(demand, available)
-        .facet(row=alt.Row("skill:N", title="skill"))
-        .resolve_scale(y="independent")
-    )
-    st.altair_chart(chart, use_container_width=True)
+
+def _step_series(rows: list[dict]) -> tuple[list, list, list]:
+    """Interval rows -> (x, demand, available) points for a step (``line_shape='hv'``) plot:
+    one point per interval start (the level held until the next start) plus a closing point
+    at the last interval's end, reproducing the former Altair ``step-after`` area."""
+    rows = sorted(rows, key=lambda r: r["start_hour"])
+    xs, dem, avail = [], [], []
+    for r in rows:
+        xs.append(r["start_hour"])
+        dem.append(r["demand"])
+        avail.append(r["available"])
+    if rows:
+        xs.append(rows[-1]["end_hour"])
+        dem.append(rows[-1]["demand"])
+        avail.append(rows[-1]["available"])
+    return xs, dem, avail
+
+
+def _render_plots(result) -> None:
+    """Gantt + per-skill resource utilization on ONE shared, scrollable time axis.
+
+    Builds a single Plotly figure (``make_subplots`` with ``shared_xaxes=True``) so the Gantt
+    (row 1) and each skill's demand-vs-available step chart (rows 2..) line up perfectly on
+    the same "hours since project start" x-axis; a range slider on the bottom axis gives
+    horizontal scrolling for long-horizon schedules. Fed by the streamlit-free ``_gantt_rows``
+    / ``_resource_util_rows`` builders; Plotly is imported lazily (the discipline the former
+    Altair charts followed) so the module still imports with neither Streamlit nor Plotly
+    installed. The Plots tab needs Plotly present in the run environment."""
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    schedule = result.schedule
+    g_rows = _gantt_rows(schedule)
+    util = result.diagnostics.resource_utilization if result.diagnostics is not None else None
+    u_rows = _resource_util_rows(util)
+    skills = sorted({r["skill"] for r in u_rows})
+
+    if not g_rows:
+        st.caption("No scheduled activities to chart.")
+    else:
+        n_rows = 1 + len(skills)
+        row_heights = [0.5, *([0.5 / len(skills)] * len(skills))] if skills else [1.0]
+        fig = make_subplots(
+            rows=n_rows, cols=1, shared_xaxes=True, vertical_spacing=0.05,
+            row_heights=row_heights,
+            subplot_titles=["Gantt", *[f"{s} — crew" for s in skills]])
+
+        # --- row 1: Gantt — one horizontal bar per activity ------------------
+        for r in g_rows:
+            fig.add_trace(
+                go.Bar(
+                    x=[r["end"] - r["start"]], base=[r["start"]], y=[r["task"]],
+                    orientation="h", width=0.6,
+                    marker_color=_FLOAT_CLASS_COLORS.get(r["float_class"], "#7f8c8d"),
+                    marker_line_color="#111", marker_line_width=1.0,
+                    opacity=1.0 if r["on_chain"] else 0.55, showlegend=False,
+                    hovertemplate=(
+                        f"<b>{r['task']}</b><br>start {r['start']:g}h · end {r['end']:g}h"
+                        f" · dur {r['duration']:g}h<br>float {r['float_class'] or '—'}"
+                        f"{' · on chain' if r['on_chain'] else ''}<extra></extra>")),
+                row=1, col=1)
+        fig.update_yaxes(autorange="reversed", row=1, col=1)  # first activity on top
+
+        # --- rows 2..: one demand/available step chart per skill -------------
+        for i, skill in enumerate(skills, start=2):
+            xs, dem, avail = _step_series([r for r in u_rows if r["skill"] == skill])
+            fig.add_trace(
+                go.Scatter(x=xs, y=dem, mode="lines", line_shape="hv",
+                           line_color="#3498db", fill="tozeroy",
+                           fillcolor="rgba(52,152,219,0.35)", name="demand",
+                           legendgroup="demand", showlegend=(i == 2)),
+                row=i, col=1)
+            fig.add_trace(
+                go.Scatter(x=xs, y=avail, mode="lines", line_shape="hv",
+                           line_color="#e67e22", line_dash="dash", name="available",
+                           legendgroup="available", showlegend=(i == 2)),
+                row=i, col=1)
+            fig.update_yaxes(title_text="crew", rangemode="tozero", row=i, col=1)
+
+        fig.update_xaxes(title_text="hours since project start", row=n_rows, col=1)
+        fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.06), row=n_rows, col=1)
+        fig.update_layout(
+            height=260 + 150 * max(len(skills), 1), bargap=0.2,
+            margin=dict(l=10, r=10, t=40, b=10),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("**Schedule**")
+    _render_schedule_table(schedule)
+    _render_schedule_export(schedule)
 
 
 def _render_schedule_table(schedule) -> None:
@@ -581,37 +713,35 @@ def _render_provenance_freshness(result, freshness, reasons) -> None:
                      use_container_width=True, hide_index=True)
 
 
-def _render_result(result, session, baseline, run_config) -> None:
-    st.subheader("Result")
+def _render_results_header(result, session, baseline, run_config) -> None:
+    """The persistent run summary shown above the tabs whenever a run is selected: disposition
+    badge + headline metrics, with the 6-indicator disposition grid, provenance/freshness and
+    audit findings tucked into expanders so the header stays compact. A non-COMPLETED run shows
+    the failure and its diagnostics here (there is nothing to plot)."""
+    st.subheader(f"Result — run `{result.run_id}`")
     if result.status is not RunResultStatus.COMPLETED:
         st.error(f"Run {result.status.value}.")
         _render_issues(result.issues, empty_msg="No diagnostics.")
         return
 
     s = result.schedule
+    _render_disposition_badge(result.disposition)
     c1, c2, c3 = st.columns(3)
     c1.metric("Makespan (h)", f"{s.makespan_hours:g}")
     c2.metric("CPM lower bound (h)", f"{s.cpm_lower_bound_hours:g}")
     c3.metric("Optimism gap (h)", f"{s.optimism_gap_hours:g}")
 
-    _render_disposition_panel(result.disposition)
-
     freshness, reasons = services.current_freshness_detail(
         result, baseline=baseline, scenario=session.get_scenario(), run_config=run_config)
-    _render_provenance_freshness(result, freshness, reasons)
 
-    _render_gantt(s)
-
-    util = result.diagnostics.resource_utilization if result.diagnostics is not None else None
-    _render_resource_util(util)
-
-    st.markdown("**Schedule**")
-    _render_schedule_table(s)
-    _render_schedule_export(s)
+    with st.expander("Disposition detail", expanded=False):
+        st.dataframe(_disposition_rows(result.disposition),
+                     use_container_width=True, hide_index=True)
+    _render_provenance_freshness(result, freshness, reasons)  # freshness caption + provenance
 
     if result.issues:
-        st.markdown("**Audit findings**")
-        _render_issues(result.issues)
+        with st.expander(f"Audit findings ({len(result.issues)})", expanded=False):
+            _render_issues(result.issues)
 
     if result.diagnostics is not None and result.diagnostics.fitness is not None:
         f = result.diagnostics.fitness
@@ -620,6 +750,72 @@ def _render_result(result, session, baseline, run_config) -> None:
             f"delay_ratio={f.delay_ratio:g} · criticality_ratio={f.criticality_ratio:g} · "
             f"window_violations={f.n_window_violations}"
         )
+
+
+def _data_viewer_rows(tasks: list[dict]) -> list[dict]:
+    """One streamlit-free overview row per activity: scalar fields verbatim, nested/list fields
+    summarized to a ``{n}`` / ``[n]`` count so the table stays scannable. Full per-field detail
+    is the JSON expander's job (``_render_data_viewer``)."""
+    rows: list[dict] = []
+    for t in tasks:
+        row: dict = {}
+        for k, v in t.items():
+            if isinstance(v, dict):
+                row[k] = f"{{{len(v)}}}"
+            elif isinstance(v, list):
+                row[k] = f"[{len(v)}]"
+            else:
+                row[k] = v
+        rows.append(row)
+    return rows
+
+
+def _current_schedule_payload(baseline, scenario) -> tuple[dict, Optional[str]]:
+    """The effective payload for the current schedule (streamlit-free): the plain baseline when
+    ``scenario`` is None, else the baseline with the scenario overlay MATERIALIZED in (duration
+    overrides, resource what-ifs, emergent tasks). Returns ``(payload, warning)`` — ``warning``
+    is set when the scenario cannot be materialized (a stale binding or a conflict), in which
+    case the plain baseline payload is returned so the caller still renders something."""
+    if scenario is None:
+        return json.loads(baseline.raw_snapshot)["payload"], None
+    outcome = materialize(baseline, scenario)
+    if not outcome.ok or outcome.effective_plan is None:
+        return (json.loads(baseline.raw_snapshot)["payload"],
+                "This scenario could not be applied to the baseline; showing the baseline.")
+    return json.loads(outcome.effective_plan.raw_snapshot)["payload"], None
+
+
+def _schedule_label(session, baseline) -> str:
+    """Human label for the current schedule — 'Baseline' or the scenario's name/id."""
+    scenario = session.get_scenario()
+    if scenario is None:
+        return "Baseline"
+    return f"Scenario “{scenario.name or scenario.scenario_id}”"
+
+
+def _render_data_viewer(session, baseline) -> None:
+    """Read-only tabular view of the CURRENT schedule's activities and their data fields — the
+    plan INPUT, available before any run. Shows the baseline when Baseline is current, else the
+    baseline with the selected scenario's overlay materialized in (so a duration override or an
+    emergent task is visible here). Nested per-task detail is offered as raw JSON in a per-
+    activity expander. Scheduled start/finish times are output — they live under Plots."""
+    scenario = session.get_scenario()
+    payload, warning = _current_schedule_payload(baseline, scenario)
+    tasks = payload.get("tasks", [])
+    if warning:
+        st.warning(warning)
+    st.caption(f"**{_schedule_label(session, baseline)}** — `{baseline.plan_id}` — "
+               f"{len(tasks)} activit(ies). Plan input (baseline + any overlay); scheduled "
+               f"times appear under **Plots** after a run.")
+    if not tasks:
+        st.info("This plan has no activities.")
+        return
+    st.dataframe(_data_viewer_rows(tasks), use_container_width=True, hide_index=True)
+    with st.expander("Per-activity detail (all fields)", expanded=False):
+        labels = [t.get("task_id", f"#{i}") for i, t in enumerate(tasks)]
+        pick = st.selectbox("Activity", range(len(tasks)),
+                            format_func=lambda k: labels[k], key="prism_dv_task")
+        st.json(tasks[pick])
 
 
 def _patch_rows(patches) -> list[dict]:
@@ -767,6 +963,125 @@ def _remove_dependency_patch(raw_tree, predecessor_id: str,
                            path=f"/tasks/{pred_index}/successors/{k}"), []
     return None, [_ref_missing(
         successor_id, f"dependency '{predecessor_id}'->'{successor_id}' is not present to remove")]
+
+
+# =============================================================================
+# graph builders (streamlit-free): node/edge/position data for the Graphs tab
+# =============================================================================
+# Two pictures the analyst can explore before any run, both derived purely from the
+# INPUT lineage: the current schedule's activity/dependency DAG (task precedence) and the
+# baseline → scenarios relation graph (how each what-if hangs off the baseline). Both
+# builders are pure — nodes, edges, AND positions in plain Python (no plotly/networkx, so
+# the module still imports without either and group M can unit-test the layout). The two
+# ``_render_*_graph`` helpers are the only ``st.*``/Plotly sites.
+
+_BASELINE_NODE_ID = "__baseline__"      # synthetic id for the baseline node (never a task id)
+
+# The scenario overlay families whose staged deltas make a scenario non-empty — the count
+# shown on each relation-graph node (mirrors the Scenario dataclass's optional tuple fields).
+_OVERLAY_FIELDS = (
+    "duration_overrides", "resource_changes", "equipment_changes",
+    "hold_point_release_overrides", "emergent_tasks", "emergent_dependencies",
+)
+
+
+def _overlay_count(scenario: Scenario) -> int:
+    """How many individual deltas the scenario stages across all overlay families (0 == an
+    empty overlay, i.e. a run would use the plain baseline)."""
+    return sum(len(getattr(scenario, f) or ()) for f in _OVERLAY_FIELDS)
+
+
+def _relation_graph_data(baseline, scenarios, current_id: Optional[str]) -> dict:
+    """Nodes + edges + positions for the baseline → scenarios relation graph: one central
+    baseline node and one node per scenario on a circle around it, an edge baseline→scenario
+    each. ``current_id`` (the current-schedule pointer; None == the baseline) flags exactly
+    one node ``is_current``. Pure — positions are a manual star, no layout library."""
+    nodes = [{
+        "id": _BASELINE_NODE_ID, "kind": "baseline", "label": baseline.plan_id,
+        "is_current": current_id is None, "overlay_count": None, "x": 0.0, "y": 0.0,
+    }]
+    edges: list[tuple[str, str]] = []
+    scenarios = tuple(scenarios)
+    n = len(scenarios)
+    for k, s in enumerate(scenarios):
+        angle = 2.0 * math.pi * k / n if n else 0.0
+        nodes.append({
+            "id": s.scenario_id, "kind": "scenario", "label": s.name or s.scenario_id,
+            "is_current": s.scenario_id == current_id, "overlay_count": _overlay_count(s),
+            "x": math.cos(angle), "y": math.sin(angle),
+        })
+        edges.append((_BASELINE_NODE_ID, s.scenario_id))
+    return {"nodes": nodes, "edges": edges}
+
+
+def _activity_graph_data(raw_tree) -> dict:
+    """Nodes + edges + positions for the current schedule's activity/dependency DAG: one node
+    per task, one edge per precedence link (reusing ``_dependency_options``, so both successor
+    schema forms are handled). Nodes are laid out left→right by longest-path DEPTH (a DAG feel)
+    and spread vertically within each depth layer. Edges to/from a non-task id are dropped, and
+    a cycle (never in a valid baseline) degrades gracefully — the offending nodes keep depth 0
+    and ``has_cycle`` is set — rather than raising. Pure — no plotly/networkx."""
+    from collections import deque
+
+    tasks = _task_options(raw_tree)
+    ids = [t["task_id"] for t in tasks]
+    id_set = set(ids)
+    edges = [(d["predecessor"], d["successor"]) for d in _dependency_options(raw_tree)
+             if d["predecessor"] in id_set and d["successor"] in id_set]
+
+    # Longest-path depth via a Kahn topological sweep (depth = longest chain of predecessors).
+    succs: dict[str, list[str]] = {i: [] for i in ids}
+    indeg: dict[str, int] = {i: 0 for i in ids}
+    for p, s in edges:
+        succs[p].append(s)
+        indeg[s] += 1
+    depth = {i: 0 for i in ids}
+    queue = deque(i for i in ids if indeg[i] == 0)
+    visited = 0
+    while queue:
+        node = queue.popleft()
+        visited += 1
+        for s in succs[node]:
+            depth[s] = max(depth[s], depth[node] + 1)
+            indeg[s] -= 1
+            if indeg[s] == 0:
+                queue.append(s)
+    has_cycle = visited < len(ids)
+
+    # Position: x = depth; y spreads the layer's nodes, centered on 0 (document order within).
+    layers: dict[int, list[str]] = {}
+    for i in ids:
+        layers.setdefault(depth[i], []).append(i)
+    pos: dict[str, tuple[float, float]] = {}
+    for d, layer in layers.items():
+        offset = (len(layer) - 1) / 2.0
+        for j, i in enumerate(layer):
+            pos[i] = (float(d), float(j) - offset)
+
+    dur_by_id = {t["task_id"]: t["duration"] for t in tasks}
+    nodes = [{
+        "id": i, "label": i, "duration": dur_by_id.get(i), "depth": depth[i],
+        "x": pos[i][0], "y": pos[i][1],
+    } for i in ids]
+    return {"nodes": nodes, "edges": edges, "has_cycle": has_cycle}
+
+
+def _mode_options(raw_tree) -> list[dict]:
+    """Per-task execution-mode rows for the run-time mode picker — only tasks that define MORE
+    THAN ONE mode (a task with zero or one mode offers no choice, so it is omitted). Each row is
+    ``{task_id, modes}`` where ``modes`` is ``[{mode_name, duration}, …]`` (``mode_name`` is the
+    schema's ``mode_id``, matching ``ModeSelection``/``validate_run_config``). Empty for every
+    shipping sample (none defines modes). Streamlit-free."""
+    rows: list[dict] = []
+    for t in (raw_tree.get("tasks") or []):
+        modes = t.get("modes") or []
+        if len(modes) > 1:
+            rows.append({
+                "task_id": t.get("task_id", ""),
+                "modes": [{"mode_name": m.get("mode_id", ""), "duration": m.get("duration")}
+                          for m in modes],
+            })
+    return rows
 
 
 def _resource_options(raw_tree) -> list[dict]:
@@ -2906,16 +3221,18 @@ def _pick_source():
     return None, ""
 
 
-def _apply_scenario(session, new_scenario: Optional[Scenario], *, success_msg: str) -> None:
-    """Store the scenario overlay on the session — or clear it when the edit left it empty.
-    A scenario is NOT a baseline edit: no draft, no commit, no validator pass here (the
-    domain re-validates the EFFECTIVE plan at Run time). Emptiness maps to set_scenario(None)
-    so the plain-baseline mirror path runs and provenance stamps no delta."""
+def _apply_scenario(session, new_scenario: Scenario, *, success_msg: str) -> None:
+    """Update the CURRENT scenario overlay in place (add-or-update by id). The panel only
+    authors when a scenario is the current schedule, so ``new_scenario`` keeps that id and the
+    current-schedule pointer never moves (moving it would fight the keyed sidebar selector). A
+    scenario is NOT a baseline edit: no draft, commit, or validator pass here — the domain
+    re-validates the EFFECTIVE plan at Run time. An emptied overlay is kept as a named, empty
+    scenario (the run then uses the plain baseline); true deletion lives in the scenario
+    manager, not here."""
+    session.add_scenario(new_scenario)
     if _scenario_is_empty(new_scenario):
-        session.set_scenario(None)
-        st.info("Scenario is empty — the run will use the plain baseline.")
+        st.info("Scenario is now empty — the run will use the plain baseline.")
     else:
-        session.set_scenario(new_scenario)
         st.success(success_msg)
 
 
@@ -3012,16 +3329,265 @@ def _render_scenario_panel(session, baseline) -> None:
                     success_msg=f"Removed resource change for {row['skill_type']}.")
                 scenario = session.get_scenario()
 
-        # --- clear ------------------------------------------------------------
+        # --- reset overlay (keep the named scenario; empty its deltas) --------
         if not _scenario_is_empty(scenario):
-            if st.button("Clear scenario", key="prism_scn_clear"):
-                session.set_scenario(None)
-                st.success("Scenario cleared — the run will use the plain baseline.")
+            if st.button("Reset overlay", key="prism_scn_reset"):
+                session.add_scenario(replace(
+                    scenario, duration_overrides=None, resource_changes=None,
+                    equipment_changes=None, hold_point_release_overrides=None,
+                    emergent_tasks=None, emergent_dependencies=None))
+                st.success("Overlay reset — this scenario is now empty (the run uses the plain "
+                           "baseline). Delete it in **Scenarios** to remove it entirely.")
+                st.rerun()
+
+
+def _render_scenario_manager(session, baseline, *, allow_edit: bool) -> None:
+    """Create / rename / delete scenarios. Creating a new scenario is always available; rename
+    and delete act on the CURRENT scenario and are shown only when a scenario is selected
+    (``allow_edit``). All three route their selection change through ``_select_schedule_next_run``
+    / a rerun so the sidebar selector stays in sync (see its widget-reconcile note)."""
+    with st.expander("Scenarios", expanded=False):
+        scenarios = session.list_scenarios()
+        ids = [s.scenario_id for s in scenarios]
+        st.caption(f"{len(scenarios)} scenario(s) on this baseline. "
+                   "Scenarios are thin overlays (durations + resource what-ifs) — structural "
+                   "edits belong to the Baseline.")
+
+        # --- create -----------------------------------------------------------
+        new_name = st.text_input("New scenario name", key="prism_scn_new_name",
+                                 placeholder="(auto-named if left blank)")
+        if st.button("Create scenario", key="prism_scn_create"):
+            scn = _mint_scenario(baseline, existing_ids=ids, name=new_name.strip() or None)
+            session.add_scenario(scn)
+            _select_schedule_next_run(scn.scenario_id)
+
+        # --- rename / delete the current scenario -----------------------------
+        if allow_edit:
+            cur = session.get_scenario()
+            if cur is not None:
+                st.divider()
+                # A per-scenario widget key: value= seeds each scenario's box once, so switching
+                # scenarios shows the right name without a value/session-state collision warning.
+                rename = st.text_input("Rename current scenario", value=cur.name or "",
+                                       key=f"prism_scn_rename_{cur.scenario_id}")
+                c1, c2 = st.columns(2)
+                if c1.button("Rename", key="prism_scn_rename_btn"):
+                    session.add_scenario(replace(cur, name=rename.strip() or None))
+                    st.success(f"Renamed to “{rename.strip() or cur.scenario_id}”.")
+                    st.rerun()
+                if c2.button("Delete scenario", key="prism_scn_delete"):
+                    session.remove_scenario(cur.scenario_id)
+                    _select_schedule_next_run(None)   # detach to the baseline
+
+
+def _render_mode_picker(session, baseline) -> None:
+    """Pick an execution MODE per multi-mode task in the current schedule. The picks are held on
+    the session and merged into the RunConfig at Run (in ``main()``), so they ride the run-config
+    hash / freshness rather than becoming a scenario delta. Reads the MATERIALIZED current
+    schedule, so an emergent multi-mode task would be offered too. No shipping sample defines
+    modes → the caption path, and the stored selection is cleared so a stale pick never rides."""
+    with st.expander("Execution modes (optional)", expanded=False):
+        payload, _warning = _current_schedule_payload(baseline, session.get_scenario())
+        options = _mode_options(payload)
+        if not options:
+            st.caption("No multi-mode tasks in this plan.")
+            session.set_mode_selections(())
+            return
+        st.caption("Choose an execution mode per multi-mode task; the picks apply to the run.")
+        existing = {ms.task_id: ms.mode_name for ms in session.get_mode_selections()}
+        selections: list[ModeSelection] = []
+        for row in options:
+            names = [m["mode_name"] for m in row["modes"]]
+            labels = {m["mode_name"]: f"{m['mode_name']} ({m['duration']}h)" for m in row["modes"]}
+            default = existing.get(row["task_id"], names[0])
+            idx = names.index(default) if default in names else 0
+            pick = st.selectbox(
+                f"Mode for {row['task_id']}", names, index=idx,
+                format_func=lambda n: labels.get(n, n), key=f"prism_mode_{row['task_id']}")
+            selections.append(ModeSelection(task_id=row["task_id"], mode_name=pick))
+        session.set_mode_selections(tuple(selections))
+
+
+def _graph_layout(fig, height: int) -> None:
+    """Common styling for a network-scatter figure: hidden axes, tight margins, no legend —
+    so the nodes/edges read as a graph, not a chart. Mutates ``fig`` in place."""
+    fig.update_layout(
+        height=height, showlegend=False, margin=dict(l=10, r=10, t=10, b=10),
+        hovermode="closest", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+    axis = dict(showgrid=False, zeroline=False, showticklabels=False)
+    fig.update_xaxes(**axis)
+    fig.update_yaxes(**axis)
+
+
+def _render_activity_graph(session, baseline) -> None:
+    """The current schedule's activity/dependency DAG (Plotly network scatter): tasks as nodes
+    laid out left→right by depth, precedence links as edges. Fed by the MATERIALIZED current
+    schedule, so a scenario's duration override / emergent task is reflected here. Labels are
+    dropped on large plans (kept hover-only) so the picture stays legible."""
+    import plotly.graph_objects as go
+
+    scenario = session.get_scenario()
+    payload, warning = _current_schedule_payload(baseline, scenario)
+    if warning:
+        st.warning(warning)
+    data = _activity_graph_data(payload)
+    nodes = data["nodes"]
+    if not nodes:
+        st.info("This plan has no activities to graph.")
+        return
+    by_id = {n["id"]: n for n in nodes}
+
+    ex: list = []
+    ey: list = []
+    for src, dst in data["edges"]:
+        ex += [by_id[src]["x"], by_id[dst]["x"], None]
+        ey += [by_id[src]["y"], by_id[dst]["y"], None]
+
+    fig = go.Figure()
+    if ex:
+        fig.add_trace(go.Scatter(x=ex, y=ey, mode="lines", line=dict(color="#b0b7c3", width=1),
+                                 hoverinfo="skip"))
+    show_labels = len(nodes) <= 60          # cap labels; hover always carries the detail
+    fig.add_trace(go.Scatter(
+        x=[n["x"] for n in nodes], y=[n["y"] for n in nodes],
+        mode="markers+text" if show_labels else "markers",
+        text=[n["label"] for n in nodes] if show_labels else None,
+        textposition="top center",
+        marker=dict(size=18, color="#1f77b4", line=dict(color="#0d3b66", width=1)),
+        hovertext=[f"{n['label']}<br>duration: {n['duration']}h<br>depth: {n['depth']}"
+                   for n in nodes],
+        hoverinfo="text"))
+    _graph_layout(fig, height=460)
+    if data["has_cycle"]:
+        st.warning("The dependency graph contains a cycle — the layout is approximate.")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_relation_graph(session, baseline) -> None:
+    """The baseline → scenarios relation graph (Plotly network scatter): the baseline at the
+    centre with each stored scenario on a ring around it, an edge to each. The baseline is a
+    square, scenarios circles; the CURRENT schedule is highlighted. Hover shows each scenario's
+    staged overlay count."""
+    import plotly.graph_objects as go
+
+    scenarios = session.list_scenarios()
+    data = _relation_graph_data(baseline, scenarios, session.get_current_scenario_id())
+    nodes = data["nodes"]
+    by_id = {n["id"]: n for n in nodes}
+
+    ex: list = []
+    ey: list = []
+    for src, dst in data["edges"]:
+        ex += [by_id[src]["x"], by_id[dst]["x"], None]
+        ey += [by_id[src]["y"], by_id[dst]["y"], None]
+
+    fig = go.Figure()
+    if ex:
+        fig.add_trace(go.Scatter(x=ex, y=ey, mode="lines", line=dict(color="#b0b7c3", width=1),
+                                 hoverinfo="skip"))
+
+    def _hover(n: dict) -> str:
+        if n["kind"] == "baseline":
+            return f"Baseline<br>{n['label']}"
+        return f"Scenario “{n['label']}”<br>{n['overlay_count']} overlay change(s)"
+
+    fig.add_trace(go.Scatter(
+        x=[n["x"] for n in nodes], y=[n["y"] for n in nodes],
+        mode="markers+text", text=[n["label"] for n in nodes], textposition="top center",
+        marker=dict(
+            size=[30 if n["kind"] == "baseline" else 22 for n in nodes],
+            symbol=["square" if n["kind"] == "baseline" else "circle" for n in nodes],
+            color=["#d62728" if n["is_current"] else
+                   ("#1f77b4" if n["kind"] == "baseline" else "#7f7f7f") for n in nodes],
+            line=dict(color="#222", width=[3 if n["is_current"] else 1 for n in nodes])),
+        hovertext=[_hover(n) for n in nodes], hoverinfo="text"))
+    _graph_layout(fig, height=420)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_graphs(session, baseline) -> None:
+    """Graphs tab: the current schedule's activity/dependency DAG (top) and the baseline →
+    scenarios relation graph (bottom). Both are input/lineage-derived, so available before any
+    run."""
+    st.subheader("Activity / dependency graph")
+    st.caption(f"**{_schedule_label(session, baseline)}** — tasks and precedence links, laid "
+               "out left→right by depth. Hover a node for its duration.")
+    _render_activity_graph(session, baseline)
+
+    st.divider()
+    st.subheader("Baseline → scenarios")
+    scenarios = session.list_scenarios()
+    st.caption(f"{len(scenarios)} scenario(s) hang off this baseline as overlays; the current "
+               "schedule is highlighted in red.")
+    _render_relation_graph(session, baseline)
+
+
+_SCHEDULE_PICK_WIDGET = "prism_current_schedule_pick"   # keyed selectbox
+_SCHEDULE_PENDING = "prism_schedule_pending"            # a programmatic selection to apply next run
+
+
+def _select_schedule_next_run(scenario_id: Optional[str]) -> None:
+    """Queue a programmatic current-schedule selection (a scenario_id, or None == baseline) to
+    apply on the NEXT run, then rerun. A keyed widget's value can only be set BEFORE its widget
+    is instantiated, so New / rename / delete anywhere cannot poke ``_SCHEDULE_PICK_WIDGET``
+    directly (the widget is already built by the time those buttons fire) — they stash the
+    choice here and ``_render_schedule_selector`` applies it at the top of the next run."""
+    st.session_state[_SCHEDULE_PENDING] = scenario_id
+    st.rerun()
+
+
+def _render_schedule_selector(session, baseline) -> None:
+    """Sidebar 'current schedule' picker: the baseline or one of the stored scenarios. The
+    pick is the INPUT axis — it drives which schedule every tab operates on (Data viewer,
+    Graphs, edit target) and what the Run button runs; the selected RUN RESULT (output) is a
+    separate axis. A [+ New scenario] button mints an empty named scenario bound to the
+    current baseline and selects it.
+
+    Rerun-safety: the selectbox is keyed, so its widget value persists across reruns
+    independently of the session pointer. A queued programmatic selection is applied — and any
+    stale stored value (a scenario dropped by a baseline switch or deleted) is popped — BEFORE
+    the widget is created; a keyed selectbox whose stored value is outside its options raises
+    ``StreamlitAPIException``."""
+    st.sidebar.header("Current schedule")
+    scenarios = session.list_scenarios()
+    ids = [s.scenario_id for s in scenarios]
+    options = [None, *ids]                       # None == the baseline
+    names = {s.scenario_id: (s.name or s.scenario_id) for s in scenarios}
+
+    # Apply a queued programmatic selection before the widget instantiates (only legal here).
+    pending = st.session_state.pop(_SCHEDULE_PENDING, _NO_VALUE)
+    if pending is not _NO_VALUE:
+        st.session_state[_SCHEDULE_PICK_WIDGET] = pending
+
+    current = session.get_current_scenario_id()
+    if current is not None and current not in ids:      # pointer's scenario is gone
+        session.set_current_scenario_id(None)
+        current = None
+    # Drop a stale keyed-widget value so the selectbox never sees a value outside its options.
+    stored = st.session_state.get(_SCHEDULE_PICK_WIDGET, _NO_VALUE)
+    if stored is not _NO_VALUE and stored not in options:
+        st.session_state.pop(_SCHEDULE_PICK_WIDGET, None)
+
+    picked = st.sidebar.selectbox(
+        "Editing / running", options,
+        format_func=lambda sid: "Baseline" if sid is None else names.get(sid, sid),
+        key=_SCHEDULE_PICK_WIDGET,
+        help="The schedule every tab operates on and the Run button runs — the baseline, or a "
+             "what-if scenario. Create scenarios with the button below or in What-if / Edit.")
+    if picked != current:                                # mirror the widget → the session pointer
+        session.set_current_scenario_id(picked)
+
+    if st.sidebar.button("➕ New scenario", key="prism_new_scenario_sidebar"):
+        scn = _mint_scenario(baseline, existing_ids=ids)
+        session.add_scenario(scn)
+        _select_schedule_next_run(scn.scenario_id)
 
 
 def _pick_run_config(plan_id: str) -> RunConfig:
-    """Sidebar SGS + priority-rule + seed selectors -> a RunConfig. The rule list is the
-    engine's own 22-key library, so an unknown key is impossible."""
+    """Sidebar SGS + priority-rule + seed + horizon selectors -> a RunConfig. The rule list
+    is the engine's own 22-key library, so an unknown key is impossible. The scheduling
+    horizon maps to PRISM's ``max_time_hours=`` (0 -> None -> engine default) and is folded
+    into the run-config hash, so it is part of provenance/freshness."""
     st.sidebar.header("Run configuration")
     sgs_value = st.sidebar.selectbox(
         "Schedule-generation scheme", [v.value for v in SGSVariant], index=0)
@@ -3029,8 +3595,12 @@ def _pick_run_config(plan_id: str) -> RunConfig:
         "Priority rule", list(PRIORITY_RULES),
         index=PRIORITY_RULES.index("lf"))
     seed = int(st.sidebar.number_input("Seed", min_value=0, value=42, step=1))
+    horizon = st.sidebar.number_input(
+        "Scheduling horizon (h)", min_value=0.0, value=0.0, step=1.0,
+        help="Schedule-length cap passed to PRISM (max_time_hours). 0 = engine default.")
     return RunConfig(run_config_id=f"rc-{plan_id}", sgs=SGSVariant(sgs_value),
-                     priority_rule=rule, seed=seed)
+                     priority_rule=rule, seed=seed,
+                     scheduling_horizon_hours=(horizon if horizon > 0 else None))
 
 
 def main() -> None:
@@ -3043,8 +3613,9 @@ def main() -> None:
 
     st.set_page_config(page_title="PRISM Scheduler", layout="wide")
     st.title("PRISM — Outage Schedule")
-    st.caption("Load → validate → run one schedule → view: Gantt, resource utilization, "
-               "disposition, provenance, and CSV export.")
+    st.caption("Load a plan and configure the run in the sidebar, then explore the selected "
+               "schedule in the tabs: data, plots (Gantt + resource utilization), and "
+               "what-if editing.")
 
     session = StreamlitSessionState()
     validator = build_validator()
@@ -3057,13 +3628,16 @@ def main() -> None:
         st.info("Choose a sample project or upload a plan JSON to begin.")
         return
 
-    # --- validation panel (of the freshly-selected source file) ---
-    st.subheader("Validation")
+    # --- validation: compact badge in the sidebar, full issue list in the main column ---
     load = services.load_and_validate(plan_id, raw, validator)
-    _render_issues(load.issues, empty_msg="Plan is valid — no issues.")
+    _render_validation_badge(load)
     if not load.ok:
+        st.subheader("Validation")
         st.error("Plan has blocking errors; fix them before running.")
+        _render_issues(load.issues, empty_msg="Plan is valid — no issues.")
         return
+    with st.expander("Validation details", expanded=False):
+        _render_issues(load.issues, empty_msg="Plan is valid — no issues.")
 
     # Source-signature guard: seed the session baseline from the file only when the selected
     # source changes. A committed edit (which sets the baseline to the new revision) then
@@ -3076,17 +3650,21 @@ def main() -> None:
         # pure services.resolve_for_new_baseline the group-J contract drives headlessly).
         services.resolve_for_new_baseline(session, load.reference_plan)
 
-    # --- edit plan (may commit a new revision into the session baseline) ---
-    _render_editor(session, validator)
     baseline = session.get_baseline()
 
-    # --- author an optional what-if scenario over the current baseline ---
-    _render_scenario_panel(session, baseline)
+    # Current-schedule selector (baseline or a scenario) — read the pointer within this same
+    # rerun so every tab below and the Run button operate on the selected schedule.
+    _render_schedule_selector(session, baseline)
 
     run_config = _pick_run_config(plan_id)
+    # Fold in the execution-mode picks (What-if / Edit tab) — kept on the RunConfig, so they ride
+    # the run-config hash / freshness. The picker persists them to the session on each render, so
+    # this reads the latest picks. Empty (the shipping-sample case) leaves the default ().
+    run_config = replace(run_config, mode_selections=session.get_mode_selections())
     session.set_run_config(run_config)
 
-    if st.button("Run schedule", type="primary"):
+    # --- run controls live in the sidebar (below the run configuration) ---
+    if st.sidebar.button("Run schedule", type="primary"):
         # Run the CURRENT session baseline's payload — a committed edit is what runs — with
         # the session scenario (if any) materialized into the effective plan by prepare_run.
         payload = json.loads(baseline.raw_snapshot)["payload"]
@@ -3096,17 +3674,51 @@ def main() -> None:
                 validator=validator, store=store, executor=executor, repository=repository,
                 scenario=session.get_scenario())
         if not outcome.ok:
-            st.error(f"Cannot run — blocked at {outcome.stage}.")
+            st.sidebar.error(f"Cannot run — blocked at {outcome.stage}.")
+            st.error(f"Run blocked at {outcome.stage}.")
             _render_issues(outcome.issues)
         else:
             session.add_run_result(outcome.result)
             session.set_selected_result_id(outcome.result.run_id)
 
+    # --- persistent results header (only when a run is selected) ---
+    result = None
     selected_id = session.get_selected_result_id()
     if selected_id:
         result = session.get_run_result(selected_id)
         if result is not None:
-            _render_result(result, session, session.get_baseline(), session.get_run_config())
+            _render_results_header(result, session, baseline, session.get_run_config())
+
+    # --- the views of the current schedule (baseline or the selected scenario) ---
+    tab_data, tab_plots, tab_graphs, tab_edit = st.tabs(
+        ["Data viewer", "Plots", "Graphs", "What-if / Edit"])
+    with tab_data:
+        _render_data_viewer(session, baseline)
+    with tab_plots:
+        if result is not None and result.status is RunResultStatus.COMPLETED:
+            _render_plots(result)
+        elif result is not None:
+            st.info("The selected run did not complete — see the failure above.")
+        else:
+            st.info("Run a schedule (sidebar) to see the Gantt and resource plots.")
+    with tab_graphs:
+        _render_graphs(session, baseline)
+    with tab_edit:
+        # Edit target follows the current-schedule selection (D1): Baseline -> the full
+        # structural editor (add/remove tasks, constraints); a scenario -> the thin-overlay
+        # what-if panel, with structural edits routed back to the Baseline.
+        if session.get_current_scenario_id() is None:
+            _render_editor(session, validator)
+            _render_scenario_manager(session, baseline, allow_edit=False)
+        else:
+            st.info("A scenario is a thin overlay (task durations + resource what-ifs). To "
+                    "add/remove tasks or edit constraints, select **Baseline** in the sidebar "
+                    "and edit the baseline itself.")
+            _render_scenario_panel(session, baseline)
+            _render_scenario_manager(session, baseline, allow_edit=True)
+        # Execution-mode picks apply to whatever schedule runs (a run-config concern), so the
+        # picker sits below both edit targets.
+        _render_mode_picker(session, baseline)
 
 
 if __name__ == "__main__":

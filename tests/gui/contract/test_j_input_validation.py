@@ -154,17 +154,23 @@ class TestInputValidation:
         assert outcome.effective_plan is None
         assert IssueCode.EMERGENT_ID_COLLISION in _codes(outcome.issues)
 
-    def test_loading_new_baseline_resolves_incompatible_scenario_and_draft(self, baseline, raw_plan):
-        """Loading a NEW baseline resolves anything bound to a prior revision: a scenario or
-        draft built against a different plan_hash is cleared (never carried onto the new
-        baseline as a mismatched delta), while one bound to the new revision is kept. Drives
-        the pure ``services.resolve_for_new_baseline`` the app-shell source guard calls."""
+    def test_loading_new_baseline_resolves_incompatible_scenarios_and_draft(self, baseline, raw_plan):
+        """Loading a NEW baseline resolves everything bound to a prior revision: EVERY scenario
+        (the session holds many now) and the draft built against a different plan_hash are
+        dropped — never carried onto the new baseline as a mismatched delta — while those bound
+        to the new revision are kept. If the current-schedule pointer named a dropped scenario
+        it resets to the baseline. Drives the pure ``services.resolve_for_new_baseline`` the
+        app-shell source guard calls."""
         session = InMemorySessionState()
         session.set_baseline(baseline)
-        # A scenario + a draft, both bound to the ORIGINAL baseline revision.
-        session.set_scenario(Scenario(
-            scenario_id="scn-old", base_plan_id=baseline.plan_id,
-            base_plan_hash=baseline.plan_hash, name="bound to old"))
+        # Two scenarios + a draft, all bound to the ORIGINAL baseline revision; select one.
+        session.add_scenario(Scenario(
+            scenario_id="scn-old-1", base_plan_id=baseline.plan_id,
+            base_plan_hash=baseline.plan_hash, name="bound to old 1"))
+        session.add_scenario(Scenario(
+            scenario_id="scn-old-2", base_plan_id=baseline.plan_id,
+            base_plan_hash=baseline.plan_hash, name="bound to old 2"))
+        session.set_current_scenario_id("scn-old-1")
         session.set_draft(open_draft(baseline))
 
         # A different revision of the same logical plan (edit a duration -> new plan_hash).
@@ -176,20 +182,33 @@ class TestInputValidation:
 
         resolution = services.resolve_for_new_baseline(session, new_baseline)
         assert session.get_baseline() is new_baseline
-        assert resolution.scenario_kept is False and resolution.draft_kept is False
-        assert session.get_scenario() is None          # incompatible scenario cleared
+        # both stale scenarios dropped, none kept; the current pointer (a dropped one) reset
+        assert resolution.scenarios_dropped == 2 and resolution.scenarios_kept == 0
+        assert resolution.current_reset is True and resolution.draft_kept is False
+        assert session.list_scenarios() == ()          # incompatible scenarios cleared
+        assert session.get_current_scenario_id() is None and session.get_scenario() is None
         assert session.get_draft() is None             # incompatible draft cleared
 
-        # Now bind a scenario + draft to the NEW revision and resolve against it again:
-        # both are compatible, so both are RETAINED (clear the incompatible, keep the rest).
-        kept_scenario = Scenario(
-            scenario_id="scn-new", base_plan_id=new_baseline.plan_id,
-            base_plan_hash=new_baseline.plan_hash, name="bound to new")
+        # Now hold a MIX: two scenarios bound to the NEW revision + one still bound to the old,
+        # a draft bound to the new revision, and select a NEW-bound scenario. Resolving keeps
+        # the two compatible scenarios + the draft, drops only the stale one, and — because the
+        # current pointer names a survivor — does NOT reset.
+        keep_a = Scenario(scenario_id="scn-new-a", base_plan_id=new_baseline.plan_id,
+                          base_plan_hash=new_baseline.plan_hash, name="bound to new a")
+        keep_b = Scenario(scenario_id="scn-new-b", base_plan_id=new_baseline.plan_id,
+                          base_plan_hash=new_baseline.plan_hash, name="bound to new b")
+        stale = Scenario(scenario_id="scn-stale", base_plan_id=baseline.plan_id,
+                         base_plan_hash=baseline.plan_hash, name="bound to old")
+        session.add_scenario(keep_a)
+        session.add_scenario(keep_b)
+        session.add_scenario(stale)
+        session.set_current_scenario_id("scn-new-a")
         kept_draft = open_draft(new_baseline)
-        session.set_scenario(kept_scenario)
         session.set_draft(kept_draft)
 
         resolution = services.resolve_for_new_baseline(session, new_baseline)
-        assert resolution.scenario_kept is True and resolution.draft_kept is True
-        assert session.get_scenario() is kept_scenario
+        assert resolution.scenarios_kept == 2 and resolution.scenarios_dropped == 1
+        assert resolution.current_reset is False and resolution.draft_kept is True
+        assert session.list_scenarios() == (keep_a, keep_b)
+        assert session.get_current_scenario_id() == "scn-new-a" and session.get_scenario() is keep_a
         assert session.get_draft() is kept_draft

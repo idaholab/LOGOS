@@ -270,3 +270,47 @@ class TestSessionState:
 
         s.set_selected_result_id(run_result.run_id)
         assert s.get_selected_result_id() == run_result.run_id
+
+    def test_scenario_collection_and_current_pointer(self, baseline):
+        """The session holds a keyed scenario collection plus a current-schedule pointer
+        (None == the baseline). ``get_scenario`` / ``set_scenario`` are shims over the pointer:
+        set stores-and-selects, ``set_scenario(None)`` detaches to the baseline WITHOUT
+        deleting the stored scenario, and a dangling pointer reads as None."""
+        s = InMemorySessionState()
+        assert s.list_scenarios() == ()
+        assert s.get_current_scenario_id() is None
+        assert s.get_scenario() is None                      # None pointer == baseline
+
+        a = Scenario(scenario_id="scn-a", base_plan_id=baseline.plan_id,
+                     base_plan_hash=baseline.plan_hash, name="A")
+        b = Scenario(scenario_id="scn-b", base_plan_id=baseline.plan_id,
+                     base_plan_hash=baseline.plan_hash, name="B")
+
+        # add keeps insertion order and does NOT move the pointer
+        s.add_scenario(a)
+        s.add_scenario(b)
+        assert s.list_scenarios() == (a, b)
+        assert s.get_current_scenario_id() is None and s.get_scenario() is None
+
+        # set_scenario is the shim: stores (add-or-update) AND selects
+        s.set_scenario(a)
+        assert s.get_current_scenario_id() == "scn-a" and s.get_scenario() is a
+
+        # set_scenario(None) detaches to the baseline but keeps both stored scenarios
+        s.set_scenario(None)
+        assert s.get_current_scenario_id() is None and s.get_scenario() is None
+        assert s.list_scenarios() == (a, b)
+
+        # explicit pointer selection + add-or-update by id (same id replaces in place)
+        s.set_current_scenario_id("scn-b")
+        assert s.get_scenario() is b
+        b2 = Scenario(scenario_id="scn-b", base_plan_id=baseline.plan_id,
+                      base_plan_hash=baseline.plan_hash, name="B renamed")
+        s.add_scenario(b2)
+        assert s.list_scenarios() == (a, b2) and s.get_scenario() is b2   # id-keyed, order kept
+
+        # remove is idempotent; a dangling pointer reads as None (not an error)
+        s.remove_scenario("scn-b")
+        assert s.list_scenarios() == (a,)
+        assert s.get_current_scenario_id() == "scn-b" and s.get_scenario() is None
+        s.remove_scenario("scn-b")                            # gone already — no raise
