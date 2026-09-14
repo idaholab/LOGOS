@@ -1976,6 +1976,115 @@ class TestRunSweep:
         assert bad["delta_vs_best"] is None
 
 
+class TestChartLayer:
+    """The two streamlit-free builders behind the deferred Phase-4 visual half — the overlaid makespan
+    bar chart (all three orchestration views) and the aligned multi-run Gantt (Compare runs / Augment).
+    ``_makespan_bar_rows`` turns ``(label, RunResult)`` pairs into stacked-bar rows (a CPM-floor + an
+    optimism-gap segment that sum to the makespan, the shortest flagged ``is_best``); ``_multi_gantt_rows``
+    tags each run's ``_gantt_rows`` with its label and concatenates them over the shared hour-0 axis.
+    Both pure: stdlib + domain DTOs only, no ``st``/Plotly — the render helpers own the figure. Bar
+    fixtures reuse ``TestRunAugmentation._run``; Gantt fixtures build a schedule WITH activities inline
+    (``_run``'s schedule has ``activities=()``)."""
+
+    _run = staticmethod(TestRunAugmentation._run)
+
+    @staticmethod
+    def _act(task_id, start, end, on_chain=False):
+        return ScheduledActivityDTO(
+            task_id=task_id, start_hour=start, end_hour=end, duration=end - start,
+            delay_hours=0.0, on_constrained_chain=on_chain,
+            float_class=classify_float(0.0, on_chain),
+            es_hours=start, ls_hours=start, cpm_slack_hours=0.0)
+
+    @staticmethod
+    def _run_acts(run_id, acts):
+        """A COMPLETED RunResult whose schedule carries ``acts`` (makespan = last activity end)."""
+        makespan = max((a.end_hour for a in acts), default=0.0)
+        sched = ScheduleDTO(
+            makespan_hours=makespan, cpm_lower_bound_hours=makespan, optimism_gap_hours=0.0,
+            activities=tuple(acts), constrained_chain=())
+        return RunResult(
+            run_id=run_id, status=RunResultStatus.COMPLETED,
+            provenance=TestRunAugmentation._prov(run_id), schedule=sched, diagnostics=None)
+
+    # ---- _makespan_bar_rows --------------------------------------------------------------------
+    def test_makespan_bar_rows_one_per_run_in_order_with_keys(self):
+        """One row per labeled run, in INPUT order (not ranked), each carrying the six bar keys; the
+        CPM floor + optimism gap sum to the makespan (the stacked-bar identity)."""
+        labeled = [
+            ("lf", self._run("r-lf", 85.0, 20.0)),
+            ("ls", self._run("r-ls", 71.0, 6.0)),
+            ("ef", self._run("r-ef", 90.0, 30.0)),
+        ]
+        rows = app_main._makespan_bar_rows(labeled)
+        assert [r["label"] for r in rows] == ["lf", "ls", "ef"]   # input order, NOT ranked
+        keys = {"label", "status", "cpm_lower_bound_hours", "optimism_gap_hours",
+                "makespan_hours", "is_best"}
+        assert all(set(r) == keys for r in rows)
+        for r in rows:
+            assert r["cpm_lower_bound_hours"] + r["optimism_gap_hours"] == r["makespan_hours"]
+
+    def test_makespan_bar_rows_is_best_marks_shortest(self):
+        """``is_best`` is True on the shortest-makespan run and only there; a makespan tie flags BOTH
+        tying runs (the render helper outlines every shortest bar)."""
+        rows = {r["label"]: r for r in app_main._makespan_bar_rows([
+            ("a", self._run("r-a", 85.0, 20.0)),
+            ("b", self._run("r-b", 71.0, 6.0)),
+            ("c", self._run("r-c", 90.0, 30.0)),
+        ])}
+        assert rows["b"]["is_best"] is True
+        assert rows["a"]["is_best"] is False and rows["c"]["is_best"] is False
+        tie = {r["label"]: r for r in app_main._makespan_bar_rows([
+            ("x", self._run("r-x", 71.0, 6.0)),
+            ("y", self._run("r-y", 71.0, 8.0)),      # ties x on makespan
+            ("z", self._run("r-z", 90.0, 30.0)),
+        ])}
+        assert tie["x"]["is_best"] is True and tie["y"]["is_best"] is True
+        assert tie["z"]["is_best"] is False
+
+    def test_makespan_bar_rows_failed_run_none_cells(self):
+        """A FAILED run (no schedule) → None cpm/gap/makespan and is_best False; when NO run completed,
+        nothing is flagged best and nothing raises."""
+        rows = {r["label"]: r for r in app_main._makespan_bar_rows([
+            ("ok", self._run("r-ok", 71.0, 6.0)),
+            ("bad", self._run("r-bad", 0.0, 0.0, completed=False)),
+        ])}
+        assert rows["bad"]["makespan_hours"] is None
+        assert rows["bad"]["cpm_lower_bound_hours"] is None
+        assert rows["bad"]["optimism_gap_hours"] is None
+        assert rows["bad"]["is_best"] is False
+        assert rows["bad"]["status"] == "failed"
+        assert rows["ok"]["is_best"] is True
+        allbad = app_main._makespan_bar_rows([
+            ("f1", self._run("r-f1", 0.0, 0.0, completed=False)),
+            ("f2", self._run("r-f2", 0.0, 0.0, completed=False)),
+        ])
+        assert all(r["is_best"] is False and r["makespan_hours"] is None for r in allbad)
+
+    # ---- _multi_gantt_rows ---------------------------------------------------------------------
+    def test_multi_gantt_rows_tags_label_and_preserves_run_order(self):
+        """Every activity row is tagged with its ``run_label``; rows group by run in input order and
+        preserve each schedule's activity order, carrying the ``_gantt_rows`` fields plus ``run_label``."""
+        run1 = self._run_acts("r-1", [self._act("A", 0.0, 4.0, on_chain=True), self._act("B", 4.0, 8.0)])
+        run2 = self._run_acts("r-2", [self._act("A", 0.0, 3.0)])
+        rows = app_main._multi_gantt_rows([("first", run1), ("second", run2)])
+        assert [r["run_label"] for r in rows] == ["first", "first", "second"]   # run order preserved
+        assert [r["task"] for r in rows] == ["A", "B", "A"]                     # activity order kept
+        gantt_keys = {"task", "start", "end", "duration", "delay", "float_class",
+                      "on_chain", "description"}
+        assert all(set(r) == {"run_label"} | gantt_keys for r in rows)
+        assert isinstance(rows[0]["on_chain"], bool) and isinstance(rows[0]["start"], float)
+
+    def test_multi_gantt_rows_skips_runs_without_schedule(self):
+        """A FAILED run (schedule None) contributes zero rows; a completed run beside it still
+        contributes its activities."""
+        ok = self._run_acts("r-ok", [self._act("A", 0.0, 4.0)])
+        bad = self._run("r-bad", 0.0, 0.0, completed=False)
+        rows = app_main._multi_gantt_rows([("bad", bad), ("ok", ok)])
+        assert {r["run_label"] for r in rows} == {"ok"}
+        assert [r["task"] for r in rows] == ["A"]
+
+
 class TestModeOptions:
     """The streamlit-free builder behind the run-time execution-mode picker. It offers only
     tasks that define MORE THAN ONE mode (mode_name == the schema's ``mode_id``); the render

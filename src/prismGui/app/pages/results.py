@@ -9,7 +9,7 @@ from prismGui.domain.results import DispositionOverall, Freshness, RunResultStat
 from prismGui.domain.run_config import PRIORITY_RULES, SGSVariant
 from prismGui.app.components import _render_issues
 from prismGui.app.scenario_model import _add_resource_change, _current_schedule_payload, _mint_scenario
-from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip
+from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _makespan_bar_rows, _multi_gantt_rows, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip
 
 
 def _render_plots(result) -> None:
@@ -414,6 +414,97 @@ def _render_task_inspector(session, baseline, result) -> None:
         st.caption("The authoritative NAMED binding resource / delaying predecessor is a deferred "
                    "Tier-B item — the engine computes it but does not surface it yet.")
 
+# --- Phase-4 chart helpers: the deferred visual half shared by the three orchestration views. Both
+#     take the same ``labeled_results`` primitive — a list of ``(label, RunResult)`` — so Compare /
+#     Augment / Sweep feed them from the DTOs they already hold. Plotly is imported lazily (the
+#     _render_plots discipline) so the module still imports with neither Streamlit nor Plotly present;
+#     the pure ``_makespan_bar_rows`` / ``_multi_gantt_rows`` builders do the streamlit-free shaping. ---
+def _render_makespan_bars(labeled_results) -> None:
+    """Overlaid makespan bar chart: one stacked horizontal bar per run — a CPM lower-bound floor plus
+    the optimism-gap segment on top, so the total width is the makespan and the split shows how much is
+    the irreducible critical-path floor vs resource-induced slack. The shortest bar(s) are outlined
+    green and flagged. Runs that did not complete (no schedule) are named in a caption, not charted."""
+    import plotly.graph_objects as go
+
+    rows = _makespan_bar_rows(labeled_results)
+    charted = [r for r in rows if r["makespan_hours"] is not None]
+    if not charted:
+        st.caption("No completed runs to chart.")
+        return
+
+    labels = [r["label"] for r in charted]
+    line_colors = ["#2ecc71" if r["is_best"] else "#111" for r in charted]
+    line_widths = [2.5 if r["is_best"] else 1.0 for r in charted]
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        y=labels, x=[r["cpm_lower_bound_hours"] for r in charted], orientation="h", name="CPM floor",
+        marker_color="#3498db", marker_line_color=line_colors, marker_line_width=line_widths,
+        hovertemplate="%{y}<br>CPM lower bound %{x:g} h<extra></extra>"))
+    fig.add_trace(go.Bar(
+        y=labels, x=[r["optimism_gap_hours"] for r in charted], orientation="h", name="optimism gap",
+        marker_color=_FLOAT_CLASS_COLORS["zero_float"], marker_line_color=line_colors,
+        marker_line_width=line_widths,
+        hovertemplate="%{y}<br>optimism gap %{x:g} h<extra></extra>"))
+    for r in charted:  # makespan total at each bar's end; the shortest is flagged
+        fig.add_annotation(
+            x=r["makespan_hours"], y=r["label"], xanchor="left", showarrow=False,
+            text=(f"  {r['makespan_hours']:g} h ◄ shortest" if r["is_best"]
+                  else f"  {r['makespan_hours']:g} h"),
+            font=dict(color="#2ecc71" if r["is_best"] else "#444"))
+    fig.update_layout(
+        barmode="stack", height=90 + 46 * len(charted), margin=dict(l=10, r=90, t=30, b=10),
+        xaxis_title="hours since project start",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+    fig.update_yaxes(autorange="reversed")  # first run on top
+    st.plotly_chart(fig, use_container_width=True)
+
+    dropped = [r["label"] for r in rows if r["makespan_hours"] is None]
+    if dropped:
+        st.caption(f"Not charted (no schedule): {', '.join(dropped)}.")
+
+def _render_multi_gantt(labeled_results) -> None:
+    """Aligned multi-run Gantt: one faceted subplot per run over the shared "hours since project start"
+    x-axis (every run's times are hour-offsets from 0, so no alignment transform is needed), bars
+    colored by float class exactly as the single-run Plots Gantt and a range slider on the bottom axis.
+    Runs with no scheduled activities (a FAILED run, or an empty schedule) are named in a caption, not
+    faceted."""
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    rows = _multi_gantt_rows(labeled_results)
+    labels = list(dict.fromkeys(r["run_label"] for r in rows))  # facet order = run order, deduped
+    if not labels:
+        st.caption("No scheduled activities to chart.")
+        return
+
+    n = len(labels)
+    fig = make_subplots(rows=n, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+                        subplot_titles=labels)
+    for i, label in enumerate(labels, start=1):
+        for r in (row for row in rows if row["run_label"] == label):
+            fig.add_trace(
+                go.Bar(
+                    x=[r["end"] - r["start"]], base=[r["start"]], y=[r["task"]],
+                    orientation="h", width=0.6,
+                    marker_color=_FLOAT_CLASS_COLORS.get(r["float_class"], "#7f8c8d"),
+                    marker_line_color="#111", marker_line_width=1.0,
+                    opacity=1.0 if r["on_chain"] else 0.55, showlegend=False,
+                    hovertemplate=(
+                        f"<b>{r['task']}</b><br>start {r['start']:g}h · end {r['end']:g}h"
+                        f" · dur {r['duration']:g}h<br>float {r['float_class'] or '—'}"
+                        f"{' · on chain' if r['on_chain'] else ''}<extra></extra>")),
+                row=i, col=1)
+        fig.update_yaxes(autorange="reversed", row=i, col=1)  # first activity on top
+    fig.update_xaxes(title_text="hours since project start", row=n, col=1)
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.06), row=n, col=1)
+    fig.update_layout(height=120 + 160 * n, bargap=0.2, margin=dict(l=10, r=10, t=40, b=10))
+    st.plotly_chart(fig, use_container_width=True)
+
+    charted = set(labels)
+    dropped = [lbl for lbl, _r in labeled_results if lbl not in charted]
+    if dropped:
+        st.caption(f"Not charted (no scheduled activities): {', '.join(dropped)}.")
+
 def _render_run_comparison(session, baseline, run_config) -> None:
     """Side-by-side diff of 2..N stored runs (Phase-4 keystone) — the first consumer of
     ``session.list_run_results()``. A keyed multiselect picks the runs; the table shows makespan /
@@ -459,6 +550,13 @@ def _render_run_comparison(session, baseline, run_config) -> None:
     for r in selected:
         with st.expander(f"Provenance — run `{r.run_id}`", expanded=False):
             st.dataframe(_provenance_rows(r.provenance), use_container_width=True, hide_index=True)
+
+    # --- charts: overlaid makespan bars + an aligned multi-run Gantt over the compared runs ---
+    labeled = [(_label(r.run_id), r) for r in selected]
+    st.markdown("**Makespan**")
+    _render_makespan_bars(labeled)
+    with st.expander("Aligned Gantt", expanded=False):
+        _render_multi_gantt(labeled)
 
 def _render_run_augmentation(session, baseline, result, run_config, run_plan) -> None:
     """Guided resource-augmentation what-if (Phase-4.2): pick the bottleneck pool + N crew, then one
@@ -552,6 +650,14 @@ def _render_run_augmentation(session, baseline, result, run_config, run_plan) ->
     st.dataframe(delta_rows, use_container_width=True, hide_index=True)
     st.caption(f"Verified: both sides were actually re-run. The bump SET {done_pool} to its baseline "
                f"hour-0 count + {done_n} crew, held flat from hour 0.")
+
+    # --- charts: baseline-vs-augmented makespan bars + an aligned before/after Gantt ---
+    labeled = [("baseline", before), (f"{done_pool} +{done_n}", after)]
+    st.markdown("**Makespan**")
+    _render_makespan_bars(labeled)
+    with st.expander("Aligned Gantt", expanded=False):
+        _render_multi_gantt(labeled)
+
     with st.expander("Full comparison & provenance", expanded=False):
         scenario_labels = _scenario_hash_labels(session.list_scenarios())
         scenario = session.get_scenario()
@@ -678,6 +784,12 @@ def _render_run_sweep(session, baseline, run_config, run_plan) -> None:
     st.caption("Verified: each value was actually re-run on the baseline. Δ vs best is hours above the "
                "shortest makespan. The swept runs are stored — open or diff them with full provenance on "
                "**Compare runs**.")
+
+    # --- chart: overlaid makespan bars echoing the leaderboard order (no per-run Gantt — a wide sweep
+    #     would be unreadable faceted; the aligned Gantt lives on Compare runs / Augment). ---
+    labeled = [(sweep["label_by_run"].get(r.run_id, ""), r) for r in results]
+    st.markdown("**Makespan**")
+    _render_makespan_bars(labeled)
 
 def _render_results_page(session, baseline, result, run_config, run_plan=None) -> None:
     """Results page: the selected run's summary header (or a prompt to run), then a segmented

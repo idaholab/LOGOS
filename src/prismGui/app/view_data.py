@@ -335,6 +335,53 @@ def _sweep_rows(results, label_by_run, freshness_by_run, label_key="priority_rul
                                row[label_key]))
     return rows
 
+def _makespan_bar_rows(labeled_results) -> list[dict]:
+    """Streamlit-free rows for the overlaid makespan bar chart shared by the three Phase-4
+    orchestration views (Compare runs / Augment resources / Sweep) — one dict per labeled run, in the
+    given order, ``{label, status, cpm_lower_bound_hours, optimism_gap_hours, makespan_hours,
+    is_best}``. ``labeled_results`` is a list of ``(label, RunResult)`` pairs; the caller supplies the
+    label (a run/scenario name, a swept value) since it is not recoverable from the run itself. The
+    three schedule metrics are read straight off ``r.schedule`` so the bar's CPM-floor + optimism-gap
+    segments always sum to its makespan (``cpm_lower_bound_hours + optimism_gap_hours ==
+    makespan_hours``); a run with no schedule (FAILED/CANCELLED) yields ``None`` for all three (the
+    render helper drops it from the bars). ``is_best`` is ``True`` for every run whose makespan equals
+    the smallest makespan among runs that have one (ties → multiple ``True``; all ``False`` when no run
+    completed). Pure — takes DTOs, no ``st``/Plotly."""
+    makespans = [r.schedule.makespan_hours for _label, r in labeled_results
+                 if r.schedule is not None and r.schedule.makespan_hours is not None]
+    best = min(makespans) if makespans else None
+    rows: list[dict] = []
+    for label, r in labeled_results:
+        sched = r.schedule
+        makespan = None if sched is None else sched.makespan_hours
+        rows.append({
+            "label": label,
+            "status": r.status.value,
+            "cpm_lower_bound_hours": None if sched is None else sched.cpm_lower_bound_hours,
+            "optimism_gap_hours": None if sched is None else sched.optimism_gap_hours,
+            "makespan_hours": makespan,
+            "is_best": makespan is not None and best is not None and makespan == best,
+        })
+    return rows
+
+def _multi_gantt_rows(labeled_results) -> list[dict]:
+    """Streamlit-free rows for the aligned multi-run Gantt (Compare runs / Augment resources) — the
+    per-activity ``_gantt_rows`` of each run's schedule, each tagged with the caller-supplied
+    ``run_label`` and concatenated in the given run order: ``{run_label, task, start, end, duration,
+    delay, float_class, on_chain, description}``. ``labeled_results`` is a list of ``(label,
+    RunResult)`` pairs. Because every run's time fields are hour-offsets from project start (0), the
+    rows share one numeric x-axis with no alignment transform — the render helper facets one subplot
+    per run over that shared axis. A run with no schedule (FAILED/CANCELLED) contributes zero rows (the
+    render helper names it instead); within a run the rows stay start-sorted (inherited from
+    ``_gantt_rows``). Pure — delegates to ``_gantt_rows``, no ``st``/Plotly."""
+    rows: list[dict] = []
+    for label, r in labeled_results:
+        if r.schedule is None:
+            continue
+        for g in _gantt_rows(r.schedule):
+            rows.append({"run_label": label, **g})
+    return rows
+
 def _data_viewer_rows(tasks: list[dict]) -> list[dict]:
     """One streamlit-free overview row per activity: scalar fields verbatim, nested/list fields
     summarized to a ``{n}`` / ``[n]`` count so the table stays scannable. Full per-field detail
