@@ -69,8 +69,8 @@ the storage/navigation a capability needs exists, but the capability itself does
 | DAG view **with options** | ✅ | **Delivered 2026-09-11 as Tier 2 (Graphs tab).** The Stage B input-side DAG now enriches into the run-aware view notes_3 meant: nodes colored by float class (red constrained-chain / orange zero-float / green positive), a **Layer by** control (dependency depth / CPM ES / CPM LS), a dashed-red **resource-contention overlay** (the arcs the schedule adds beyond plan precedence), and a rich per-node tooltip (CPM ES/LS/slack labeled "(CPM)", wall-clock start/end, float class + actual TF, CPM-critical / Constrained flags). **Achieved by parity-by-wiring, NOT by calling engine plotting**: the engine's analytics reach the GUI as pure output-DTO fields (`ScheduledActivityDTO.es/ls/cpm_slack_hours`, `ScheduleDTO.contention_edges`) and the existing pure builder (`_activity_graph_enriched`) + lazy-Plotly render helper draw the graph the GUI already owns — so no engine drawing code enters the architecture and the pure path stays stdlib-only. Corrections baked in: the engine's `highlight` param is dead code and the "purple overlap" was fictional; the real `_node_color` rule (constrained-chain → red / actual-TF ≈ 0 → orange / else) is reproduced via the single `classify_float`/`FloatClass` source. Enrichment is gated on the selected run being COMPLETED and lineage-`CURRENT` for the shown schedule; otherwise the structural pre-run graph is drawn with a fallback caption. |
 | Per-task drill-down / inspector ("why isn't this starting sooner?") | 🟡 | **partial (2026-09-11):** the enriched DAG tooltip now answers much of "why" per node — CPM ES/LS/slack, actual TF, float class, and CPM-critical / Constrained flags. A dedicated inspector panel (predecessor/successor slack attribution, binding resource) is still ⬜. |
 | Fitness score with components + **configurable weights** | 🟡 | composite + makespan_ratio shown read-only (`main.py:746-749`); **no** configurable α/β/γ/δ, no advanced "schedule evaluation" section, no non-optimization caveat |
-| CPM-only baseline view (logical critical path) | ⬜ | only the CPM lower-bound *number* is shown, not the `getCriticalPath()` path view |
-| Dependency-violation check as a distinct output | ⬜ | not surfaced (the disposition indicators from Phase 1 give a coarse feasibility flag, not the `check_dependency_violations()` structured output) |
+| CPM-only baseline view (logical critical path) | ✅ | **Delivered 2026-09-14 (display wire-up).** The `getCriticalPath()` path now rides `ScheduleDTO.cpm_critical_path` and is surfaced two ways for a COMPLETED run: an ordered `A → B → C` readout under the CPM lower-bound metric in the results header (`_cpm_path_label`), **and** a solid-gold edge trace along the path in the enriched Activity DAG (`_cpm_path_edges` → `cpm_path_edges` in `_activity_graph_enriched`, drawn beneath the nodes with an extended legend). This is the *logical* critical path (resources ignored) — **distinct** from the resource-constrained chain the DAG/Gantt already color red. Pure builders (stdlib-only, in `view_data.py`, re-exported through `main.py`); no engine/adapter/DTO change. |
+| Dependency-violation check as a distinct output | ✅ | **Delivered 2026-09-14 (display wire-up).** `pert.check_dependency_violations()` already rode `DiagnosticsDTO.dependency_violations`; the results header now surfaces it as its **own verdict** (`_render_dependency_violations`) — a clean run states `✅ No dependency violations.` explicitly, violations get a `⛔ n dependency violation(s)` headline + a focused issue list in an open expander. (These same issues also remain, undifferentiated, in the full "Audit findings" expander because they're concatenated into `result.issues`; the new section is the feasibility-focused view.) No engine/adapter/DTO change. |
 
 ### Phase 4 — High-value analysis — 🟡 substrate only, no analysis delivered
 | Capability | Status | Where / caveat |
@@ -106,14 +106,17 @@ charts, the activity DAG, a fitness readout, multi-scenario navigation) **withou
 substance. Tier 2 (2026-09-11) has since closed the **DAG-options** gap — the activity DAG is now
 run-aware (float-class color, CPM ES/LS/topo layout, resource-contention overlay, CPM-timing tooltip),
 delivered by wiring the engine's analytics through output DTOs rather than rendering an engine figure.
-The substance still missing: the full per-task "why" inspector, dependency-violation output, CPM-only
-path, configurable fitness weights, and any actual scenario/run comparison. Do **not** read "the
-graph/plot exists" as "the phase is done" — for the remaining rows the work is the diagnostics, not
-the rendering:
+A 2026-09-14 increment closed two more Phase-3 rows the **same way** — by surfacing DTOs the adapter
+already populated: the **CPM-only (logical) critical path** (readout + gold DAG trace) and the
+**dependency-violation verdict** (a distinct feasibility output). The substance still missing: the
+full per-task "why" inspector and configurable fitness weights, plus any actual scenario/run
+comparison. Do **not** read "the graph/plot exists" as "the phase is done" — for the remaining rows
+the work is the diagnostics, not the rendering:
 
-- **Phase 3 gaps:** configurable fitness weights, CPM-only path view, dependency-violation output,
-  and the full per-task inspector (the Tier 2 DAG tooltip now covers per-node "why" — CPM slack, TF,
-  flags — but not predecessor/successor attribution). The options-rich DAG itself is **done** (Tier 2).
+- **Phase 3 gaps (remaining):** configurable fitness weights, and the full per-task inspector (the
+  Tier 2 DAG tooltip now covers per-node "why" — CPM slack, TF, flags — but not predecessor/successor
+  attribution). The options-rich DAG (Tier 2), the CPM-only path view and the dependency-violation
+  output (2026-09-14) are **done**.
 - **Phase 4 gaps:** everything analytical — the storage exists (Stage B), the comparison does not.
 - **Phase 5:** untouched; overlay fields exist but no replan loop.
 
@@ -121,9 +124,12 @@ the rendering:
 
 ## Suggested next increment (not yet scoped/approved)
 
-The cheapest high-value follow-on that builds directly on Stage B's substrate is **Phase-4
-scenario/run comparison** (side-by-side makespan/disposition across the scenarios we can now store),
-optionally paired with **dependency-violation output** (the `check_dependency_violations()` structured
-result, which already rides `DiagnosticsDTO.dependency_violations` but is not yet surfaced), to keep
-closing the "display without diagnostics" gap. The run-aware DAG follow-on suggested here previously is
-now **done** (Tier 2, 2026-09-11). This is a suggestion only — no work is authorized past Tier 2.
+The two cheapest display-only Phase-3 wins — **dependency-violation output** and the **CPM-only path
+view** — are now **done** (2026-09-14), leaving two Phase-3 rows that need real diagnostics rather than
+a DTO wire-up: **configurable fitness weights** (moderate — the adapter already consumes
+`evaluation_weights` at run time via `_build_fitness(pert, weights)`, so this is a run-config control
++ re-run, not display-only) and the **full per-task inspector** (largest — predecessor/successor slack
+attribution + binding-resource identification, substrate only partial). The other high-value follow-on
+is **Phase-4 scenario/run comparison** (side-by-side makespan/disposition across the scenarios we can
+now store) — pure analysis, no substrate gap. This is a suggestion only — no work is authorized past
+the 2026-09-14 increment.

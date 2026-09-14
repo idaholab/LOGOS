@@ -1315,6 +1315,28 @@ class TestActivityGraphEnriched:
         data = app_main._activity_graph_enriched(raw, self._schedule(), layer_by="topo")
         assert data["contention_edges"] == [("A", "B")]
 
+    def test_cpm_path_edges_consecutive_pairs(self):
+        """The pure CPM-path edge builder yields consecutive (pred, succ) pairs; a path shorter
+        than two nodes has no edges. No id filtering (the enriched builder guards that)."""
+        assert app_main._cpm_path_edges(("A", "B", "C")) == [("A", "B"), ("B", "C")]
+        assert app_main._cpm_path_edges(("A",)) == []
+        assert app_main._cpm_path_edges(()) == []
+
+    def test_cpm_path_label_joins_with_arrow(self):
+        """The header readout renders the ordered CPM path as ``A → B → C``; empty → ``""``."""
+        assert app_main._cpm_path_label(("A", "B", "C")) == "A → B → C"
+        assert app_main._cpm_path_label(()) == ""
+
+    def test_enriched_carries_cpm_path_edges_filtered(self, baseline):
+        """The enriched graph exposes ``cpm_path_edges`` for the DAG's gold overlay, filtered to
+        known nodes so a synthetic CPM START/END id (``GHOST``) drops its touching segment — the
+        same guard the contention overlay uses."""
+        from dataclasses import replace
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        sched = replace(self._schedule(), cpm_critical_path=("A", "B", "GHOST"))
+        data = app_main._activity_graph_enriched(raw, sched, layer_by="topo")
+        assert data["cpm_path_edges"] == [("A", "B")]
+
     def test_unscheduled_task_stays_structural(self, baseline):
         """A node with no matching DTO keeps structural defaults (grey, ``scheduled=False``) rather
         than raising — the DTO's synthetic START/END and un-timed tasks never crash the merge; an

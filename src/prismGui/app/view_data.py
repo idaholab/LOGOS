@@ -325,6 +325,19 @@ def _dag_hover(n: dict) -> str:
         lines.append(" · ".join(flags))
     return "<br>".join(lines)
 
+def _cpm_path_edges(cpm_critical_path) -> list[tuple[str, str]]:
+    """Consecutive (predecessor, successor) pairs along the ordered CPM critical path, so the DAG
+    can highlight the path the same way it draws ``contention_edges``. A path of fewer than two
+    nodes has no edges. Pure — no filtering to known ids (``_activity_graph_enriched`` guards that
+    against synthetic CPM START/END nodes the input topology omits)."""
+    path = tuple(cpm_critical_path)
+    return [(path[i], path[i + 1]) for i in range(len(path) - 1)]
+
+def _cpm_path_label(cpm_critical_path) -> str:
+    """The ordered CPM (logical) critical path as a readable ``A → B → C`` string for the results
+    header; an empty path yields ``""`` (the caller then shows nothing). Pure — string join only."""
+    return " → ".join(cpm_critical_path)
+
 def _activity_graph_enriched(raw_tree, schedule, layer_by: str = "topo") -> dict:
     """The activity DAG ENRICHED with a selected run's analytics: the same structural nodes/edges
     as ``_activity_graph_data`` (built from the current INPUT schedule), overlaid — keyed by
@@ -372,8 +385,13 @@ def _activity_graph_enriched(raw_tree, schedule, layer_by: str = "topo") -> dict
 
     contention = [(p, s) for p, s in schedule.contention_edges
                   if p in id_set and s in id_set]
+    # CPM (logical) critical path as edge pairs, filtered to known nodes so synthetic CPM
+    # START/END ids the input topology omits drop out cleanly (same guard as contention).
+    cpm_path = [(p, s) for p, s in _cpm_path_edges(schedule.cpm_critical_path)
+                if p in id_set and s in id_set]
     return {"nodes": nodes, "edges": base["edges"], "contention_edges": contention,
-            "has_cycle": base["has_cycle"], "enriched": True, "layer_by": layer_by}
+            "cpm_path_edges": cpm_path, "has_cycle": base["has_cycle"],
+            "enriched": True, "layer_by": layer_by}
 
 def _graph_layout(fig, height: int) -> None:
     """Common styling for a network-scatter figure: hidden axes, tight margins, no legend —

@@ -6,7 +6,7 @@ from prismGui.application import services
 from prismGui.domain.results import DispositionOverall, Freshness, RunResultStatus
 from prismGui.app.components import _render_issues
 from prismGui.app.scenario_model import _current_schedule_payload
-from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _provenance_rows, _resource_util_rows, _schedule_csv, _step_series
+from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _provenance_rows, _resource_util_rows, _schedule_csv, _step_series
 
 
 def _render_plots(result) -> None:
@@ -115,6 +115,22 @@ def _render_disposition_badge(disposition) -> None:
     else:
         st.error("⛔ BLOCKED")
 
+def _render_dependency_violations(diagnostics) -> None:
+    """The dependency-feasibility verdict as a DISTINCT output (not the generic audit list): the
+    engine's ``check_dependency_violations()`` result rides ``DiagnosticsDTO.dependency_violations``.
+    A clean run states so explicitly (that is the point of a distinct check); violations get a red
+    headline + the focused issue list in an open expander. (These issues also appear, undifferentiated,
+    in the header's full 'Audit findings' expander — this section is the feasibility-focused view.)"""
+    if diagnostics is None:
+        return
+    violations = diagnostics.dependency_violations
+    if not violations:
+        st.success("✅ No dependency violations.")
+        return
+    st.error(f"⛔ {len(violations)} dependency violation(s)")
+    with st.expander("Dependency violations", expanded=True):
+        _render_issues(violations)
+
 def _render_provenance_freshness(result, freshness, reasons) -> None:
     """The freshness badge + the *why* (reason codes) as a caption, plus the full 10-field
     provenance record in a collapsed expander (an audit surface, not front-and-center)."""
@@ -145,6 +161,14 @@ def _render_results_header(result, session, baseline, run_config) -> None:
     c1.metric("Makespan (h)", f"{s.makespan_hours:g}")
     c2.metric("CPM lower bound (h)", f"{s.cpm_lower_bound_hours:g}")
     c3.metric("Optimism gap (h)", f"{s.optimism_gap_hours:g}")
+
+    # CPM (logical) critical path — the PATH behind the lower-bound number, distinct from the
+    # resource-constrained chain the DAG/Gantt color red. Shown for any completed run.
+    if s.cpm_critical_path:
+        st.caption(f"Critical path (CPM): {_cpm_path_label(s.cpm_critical_path)}")
+
+    # Dependency feasibility as its own verdict (distinct from the generic audit findings below).
+    _render_dependency_violations(result.diagnostics)
 
     freshness, reasons = services.current_freshness_detail(
         result, baseline=baseline, scenario=session.get_scenario(), run_config=run_config)
@@ -232,6 +256,17 @@ def _render_activity_graph(session, baseline, result=None) -> None:
     if cx:
         fig.add_trace(go.Scatter(x=cx, y=cy, mode="lines", hoverinfo="skip",
                                  line=dict(color="#d62728", width=1, dash="dash")))
+    # CPM (logical) critical-path overlay: the path behind the lower-bound number, drawn solid gold
+    # beneath the nodes. Distinct from the red constrained-chain node coloring and the dashed-red
+    # contention arcs. Endpoints already filtered to known ids by the enriched builder.
+    px: list = []
+    py: list = []
+    for src, dst in data.get("cpm_path_edges", []):
+        px += [by_id[src]["x"], by_id[dst]["x"], None]
+        py += [by_id[src]["y"], by_id[dst]["y"], None]
+    if px:
+        fig.add_trace(go.Scatter(x=px, y=py, mode="lines", hoverinfo="skip",
+                                 line=dict(color="#f1c40f", width=2.5)))
     show_labels = len(nodes) <= 60          # cap labels; hover always carries the detail
     enriched = data.get("enriched", False)
     marker_color = [n["color"] for n in nodes] if enriched else "#1f77b4"
@@ -244,9 +279,14 @@ def _render_activity_graph(session, baseline, result=None) -> None:
         hovertext=[_dag_hover(n) for n in nodes],
         hoverinfo="text"))
     _graph_layout(fig, height=460)
-    if enriched and cx:
-        st.caption("Dashed red arcs are resource-contention links the schedule added beyond plan "
-                   "precedence. Node color = float class (red critical / orange zero / green positive).")
+    if enriched and (cx or px):
+        parts = ["Grey = plan precedence"]
+        if px:
+            parts.append("gold = CPM (logical) critical path")
+        if cx:
+            parts.append("dashed red = resource-contention arcs added beyond precedence")
+        parts.append("node color = float class (red critical / orange zero / green positive)")
+        st.caption(" · ".join(parts) + ".")
     if data["has_cycle"]:
         st.warning("The dependency graph contains a cycle — the layout is approximate.")
     st.plotly_chart(fig, use_container_width=True)
