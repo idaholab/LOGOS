@@ -5,8 +5,8 @@ from prismGui.app._streamlit import st
 from prismGui.application import services
 from prismGui.domain.results import DispositionOverall, Freshness, RunResultStatus
 from prismGui.app.components import _render_issues
-from prismGui.app.scenario_model import _current_schedule_payload
-from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _task_neighbors, _task_slip
+from prismGui.app.scenario_model import _add_resource_change, _current_schedule_payload, _mint_scenario
+from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _task_neighbors, _task_slip
 
 
 def _render_plots(result) -> None:
@@ -457,7 +457,111 @@ def _render_run_comparison(session, baseline, run_config) -> None:
         with st.expander(f"Provenance — run `{r.run_id}`", expanded=False):
             st.dataframe(_provenance_rows(r.provenance), use_container_width=True, hide_index=True)
 
-def _render_results_page(session, baseline, result, run_config) -> None:
+def _render_run_augmentation(session, baseline, result, run_config, run_scenario) -> None:
+    """Guided resource-augmentation what-if (Phase-4.2): pick the bottleneck pool + N crew, then one
+    button clones the baseline, reruns with that pool SET to (current + N) crew from hour 0, and shows a
+    VERIFIED before/after delta — both sides actually re-run. The bottleneck ranking and the shown crew
+    count are ADVISORY, read off the selected run's aggregate resource utilization (the same heuristic as
+    the Task inspector — NOT the authoritative named binding resource, a deferred Tier-B item); the
+    bump's arithmetic is recomputed against the freshly-run baseline, so the delta is honest regardless
+    of which run was selected. ``run_scenario`` is the composition-root seam — a callable
+    ``run_scenario(scenario) -> PipelineResult`` running the current baseline through the shared
+    store+executor; ``None`` means the page was built without wiring (defensive; never in the app)."""
+    if run_scenario is None:
+        st.info("Augmentation is unavailable — the runner is not wired.")
+        return
+    if result is None or result.status is not RunResultStatus.COMPLETED:
+        st.info("Run a schedule first (sidebar) to see resource bottlenecks to augment.")
+        return
+    util = result.diagnostics.resource_utilization if result.diagnostics is not None else None
+    cands = _augmentation_candidates(util)
+    if not cands:
+        st.info("This run has no resource-utilization data to guide augmentation.")
+        return
+
+    by_skill = {c["skill_type"]: c for c in cands}
+    pool = st.selectbox(
+        "Resource pool", [c["skill_type"] for c in cands], key="prism_augment_pool",
+        format_func=lambda s: (
+            f"{s} — {by_skill[s]['current_count']} crew · saturated "
+            f"{by_skill[s]['saturated_hours']:g} h · peak short {by_skill[s]['peak_shortfall']}"))
+    n = int(st.number_input("Add crew (N)", min_value=1, value=1, step=1, key="prism_augment_n"))
+    current = by_skill[pool]["current_count"]
+    st.caption(f"Rerun with **{current + n}** {pool} crew (currently {current}).")
+    if by_skill[pool]["time_varying"]:
+        st.caption(f"⚠️ {pool} has time-varying availability — a from-hour-0 bump flattens it to "
+                   f"{current + n} crew for the whole outage.")
+    st.caption("Bottleneck ranking is aggregate demand ≥ capacity (heuristic), NOT the authoritative "
+               "named binding resource (deferred Tier B); the counts above are from the selected run.")
+
+    if st.button(f"Clone baseline & rerun with +{n} {pool} crew", type="primary"):
+        before = run_scenario(None)
+        if not before.ok:
+            st.error(f"Baseline run blocked at {before.stage}.")
+            _render_issues(before.issues)
+            return
+        # Authoritative current count read off the freshly-run baseline (guidance value as fallback).
+        base_util = (before.result.diagnostics.resource_utilization
+                     if before.result.diagnostics is not None else None)
+        base_counts = {c["skill_type"]: c["current_count"] for c in _augmentation_candidates(base_util)}
+        base_current = base_counts.get(pool, current)
+        scn = _add_resource_change(
+            _mint_scenario(baseline, existing_ids=[s.scenario_id for s in session.list_scenarios()],
+                           name=f"{pool} +{n}"),
+            baseline, pool, 0.0, base_current + n)
+        after = run_scenario(scn)
+        if not after.ok:
+            st.error(f"Augmented run blocked at {after.stage}.")
+            _render_issues(after.issues)
+            return
+        session.add_run_result(before.result)
+        session.add_run_result(after.result)
+        session.add_scenario(scn)      # additive — do NOT hijack the current-schedule pointer
+        st.session_state["prism_augment_pair"] = (
+            before.result.run_id, after.result.run_id, pool, n)
+
+    # --- verified delta, rendered from the pinned pair so it survives the click's rerun ---
+    pair = st.session_state.get("prism_augment_pair")
+    if not pair:
+        return
+    before_id, after_id, done_pool, done_n = pair
+    before = session.get_run_result(before_id)
+    after = session.get_run_result(after_id)
+    if before is None or after is None:
+        return
+
+    st.markdown(f"**Verified delta — {done_pool} +{done_n} crew**")
+    delta_rows = _augmentation_delta(before, after)
+    by_metric = {r["metric"]: r for r in delta_rows}
+    m1, m2 = st.columns(2)
+    for col, (metric, label) in zip(
+            (m1, m2),
+            (("makespan_hours", "Makespan (h)"), ("optimism_gap_hours", "Optimism gap (h)"))):
+        row = by_metric.get(metric)
+        if row is None or row["before"] is None or row["after"] is None:
+            col.metric(label, "—")
+        else:
+            d = row["delta"]
+            col.metric(label, f"{row['after']:g}",
+                       delta=None if d is None else f"{d:g}", delta_color="inverse")  # shorter = good
+
+    st.dataframe(delta_rows, use_container_width=True, hide_index=True)
+    st.caption(f"Verified: both sides were actually re-run. The bump SET {done_pool} to its baseline "
+               f"hour-0 count + {done_n} crew, held flat from hour 0.")
+    with st.expander("Full comparison & provenance", expanded=False):
+        scenario_labels = _scenario_hash_labels(session.list_scenarios())
+        scenario = session.get_scenario()
+        freshness_by_run = {
+            r.run_id: services.current_freshness_detail(
+                r, baseline=baseline, scenario=scenario, run_config=run_config)[0]
+            for r in (before, after)}
+        st.dataframe(_comparison_rows([before, after], scenario_labels, freshness_by_run),
+                     use_container_width=True, hide_index=True)
+        for r in (before, after):
+            st.markdown(f"Provenance — run `{r.run_id}`")
+            st.dataframe(_provenance_rows(r.provenance), use_container_width=True, hide_index=True)
+
+def _render_results_page(session, baseline, result, run_config, run_scenario=None) -> None:
     """Results page: the selected run's summary header (or a prompt to run), then a segmented
     switch between the Gantt / resource *Plots*, the run-aware *Activity DAG*, and a per-task
     *Task inspector*. The DAG degrades to the structural pre-run graph when no completed, current
@@ -467,8 +571,8 @@ def _render_results_page(session, baseline, result, run_config) -> None:
     else:
         st.info("Run a schedule (sidebar) to see results for the current schedule.")
     view = st.segmented_control(
-        "View", ["Plots", "Activity DAG", "Task inspector", "Compare runs"], default="Plots",
-        key="prism_results_view")
+        "View", ["Plots", "Activity DAG", "Task inspector", "Compare runs", "Augment resources"],
+        default="Plots", key="prism_results_view")
     if view == "Activity DAG":
         _render_activity_graph(session, baseline, result)
     elif view == "Task inspector":
@@ -480,6 +584,8 @@ def _render_results_page(session, baseline, result, run_config) -> None:
             st.info("Run a schedule (sidebar) to inspect individual tasks.")
     elif view == "Compare runs":
         _render_run_comparison(session, baseline, run_config)
+    elif view == "Augment resources":
+        _render_run_augmentation(session, baseline, result, run_config, run_scenario)
     elif result is not None and result.status is RunResultStatus.COMPLETED:
         _render_plots(result)
     elif result is not None:

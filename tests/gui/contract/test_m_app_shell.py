@@ -1744,6 +1744,120 @@ class TestRunComparison:
         assert rows["run-fail"]["freshness"] == ""
 
 
+class TestRunAugmentation:
+    """The two streamlit-free builders behind the Phase-4.2 guided resource-augmentation view
+    (Results-page "Augment resources" segment): ``_augmentation_candidates`` (rank a run's resource
+    pools by aggregate pressure and read each pool's hour-0 crew count — the guidance that seeds the
+    bump; the SAME heuristic demand ≥ available signal as ``_saturated_skills``, not a per-task binding
+    resource) and ``_augmentation_delta`` (the before/after headline-metric diff — makespan / optimism
+    gap / fitness composite — with Δ and Δ%). Both pure: stdlib + domain DTOs only, no ``st`` — the
+    render helper owns the run/store/freshness. Fixtures are built inline in the run_result style."""
+
+    @staticmethod
+    def _prov(run_id):
+        return Provenance(
+            baseline_snapshot_hash="base-hash", effective_plan_hash="eff-hash",
+            run_config_hash="cfg-hash", schema_version=SCHEMA_VERSION,
+            canonicalization_version=CANON_VERSION, app_version=APP_VERSION,
+            prism_version="test", run_id=run_id,
+            timestamp=datetime(2025, 1, 1, tzinfo=timezone.utc))
+
+    @staticmethod
+    def _run(run_id, makespan, gap, composite=None, completed=True):
+        """A RunResult with a schedule (makespan / optimism gap) and, when ``composite`` is given, a
+        ``FitnessDTO`` on diagnostics. ``completed=False`` → FAILED with schedule/diagnostics None."""
+        sched = None
+        if completed:
+            sched = ScheduleDTO(
+                makespan_hours=makespan, cpm_lower_bound_hours=makespan - gap,
+                optimism_gap_hours=gap, activities=(), constrained_chain=())
+        diag = None
+        if composite is not None:
+            diag = DiagnosticsDTO(fitness=FitnessDTO(
+                composite=composite, makespan_ratio=1.0, delay_ratio=0.0,
+                criticality_ratio=0.0, window_violation_ratio=0.0, n_window_violations=0))
+        return RunResult(
+            run_id=run_id,
+            status=RunResultStatus.COMPLETED if completed else RunResultStatus.FAILED,
+            provenance=TestRunAugmentation._prov(run_id), schedule=sched, diagnostics=diag)
+
+    @staticmethod
+    def _util(series):
+        """Build a ``ResourceUtilizationDTO`` from ``[(skill, [(start, end, demand, available), …]), …]``."""
+        return ResourceUtilizationDTO(
+            horizon_hours=max((iv[1] for _s, ivs in series for iv in ivs), default=0.0),
+            series=tuple(
+                SkillUtilizationSeries(
+                    skill_type=s,
+                    intervals=tuple(UtilizationInterval(a, b, d, av) for (a, b, d, av) in ivs))
+                for s, ivs in series))
+
+    # ---- _augmentation_candidates --------------------------------------------------------------
+    def test_candidates_rank_bottleneck_first_with_fields(self):
+        """Pools rank by saturation (tightest first); ``current_count`` is the hour-0 interval's
+        availability, ``saturated_hours`` sums the demand ≥ available intervals, ``peak_shortfall`` is
+        the largest positive ``demand - available`` (0 when never tight), and ``time_varying`` flags a
+        pool whose availability changes across intervals."""
+        util = self._util([
+            ("ELEC", [(0.0, 20.0, 2, 5)]),                      # never saturated, flat
+            ("MECH", [(0.0, 10.0, 5, 4), (10.0, 20.0, 3, 6)]),  # tight early, availability varies
+        ])
+        cands = app_main._augmentation_candidates(util)
+        assert [c["skill_type"] for c in cands] == ["MECH", "ELEC"]   # saturated pool leads
+        keys = {"skill_type", "current_count", "saturated_hours", "peak_shortfall", "time_varying"}
+        assert all(set(c) == keys for c in cands)
+        mech, elec = cands[0], cands[1]
+        assert mech["current_count"] == 4          # interval covering hour 0
+        assert mech["saturated_hours"] == 10.0     # only [0,10) has demand >= available
+        assert mech["peak_shortfall"] == 1         # max(5-4, 3-6) clamped at 0
+        assert mech["time_varying"] is True        # available 4 then 6
+        assert elec["current_count"] == 5
+        assert elec["saturated_hours"] == 0
+        assert elec["peak_shortfall"] == 0         # never short → clamped to 0
+        assert elec["time_varying"] is False
+
+    def test_candidates_none_util_is_empty(self):
+        """No utilization DTO (a FAILED run, a bare diagnostics) → no candidates."""
+        assert app_main._augmentation_candidates(None) == []
+
+    # ---- _augmentation_delta -------------------------------------------------------------------
+    def test_delta_numeric_rows_with_delta_and_pct(self):
+        """One row per headline metric with ``delta = after - before`` and ``pct = delta / before``."""
+        before = self._run("before", 85.0, 20.0, composite=0.5)
+        after = self._run("after", 71.0, 6.0, composite=0.75)
+        rows = app_main._augmentation_delta(before, after)
+        assert [r["metric"] for r in rows] == [
+            "makespan_hours", "optimism_gap_hours", "fitness_composite"]
+        assert all(set(r) == {"metric", "before", "after", "delta", "pct"} for r in rows)
+        by = {r["metric"]: r for r in rows}
+        assert (by["makespan_hours"]["before"], by["makespan_hours"]["after"]) == (85.0, 71.0)
+        assert by["makespan_hours"]["delta"] == -14.0
+        assert by["makespan_hours"]["pct"] == (71.0 - 85.0) / 85.0
+        assert by["optimism_gap_hours"]["delta"] == -14.0
+        assert by["fitness_composite"]["delta"] == 0.25
+        assert by["fitness_composite"]["pct"] == 0.5
+
+    def test_delta_failed_after_yields_none_cells(self):
+        """A FAILED ``after`` (schedule/diagnostics None) → None after/delta/pct, no exception."""
+        before = self._run("before", 85.0, 20.0, composite=0.5)
+        after = self._run("after", 0.0, 0.0, completed=False)
+        by = {r["metric"]: r for r in app_main._augmentation_delta(before, after)}
+        assert by["makespan_hours"]["before"] == 85.0
+        assert by["makespan_hours"]["after"] is None
+        assert by["makespan_hours"]["delta"] is None
+        assert by["makespan_hours"]["pct"] is None
+        assert by["fitness_composite"]["after"] is None
+        assert by["fitness_composite"]["delta"] is None
+
+    def test_delta_pct_none_when_before_zero(self):
+        """A zero ``before`` yields a delta but no percentage (never a division by zero)."""
+        before = self._run("before", 0.0, 0.0, composite=0.0)
+        after = self._run("after", 5.0, 5.0, composite=0.5)
+        by = {r["metric"]: r for r in app_main._augmentation_delta(before, after)}
+        assert by["makespan_hours"]["delta"] == 5.0
+        assert by["makespan_hours"]["pct"] is None
+
+
 class TestModeOptions:
     """The streamlit-free builder behind the run-time execution-mode picker. It offers only
     tasks that define MORE THAN ONE mode (mode_name == the schema's ``mode_id``); the render

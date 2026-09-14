@@ -231,6 +231,70 @@ def _comparison_rows(results, scenario_labels, freshness_by_run) -> list[dict]:
         })
     return rows
 
+def _augmentation_candidates(util) -> list[dict]:
+    """One row per resource pool from a ``ResourceUtilizationDTO``, ranked bottleneck-first, to guide
+    a resource-augmentation what-if — ``{skill_type, current_count, saturated_hours, peak_shortfall,
+    time_varying}``. ``current_count`` is the pool's availability over the interval covering hour 0
+    (the whole-outage bump's baseline); ``saturated_hours`` sums the interval lengths where
+    the pool is tight **with real demand** (``demand > 0 and demand >= available`` — so an idle
+    ``0``-of-``0`` pool is never mistaken for a bottleneck, the trap the example_10 smoke exposed) and
+    ``peak_shortfall`` is the largest ``demand - available`` (0 when never over-subscribed) — an
+    aggregate/heuristic pressure signal (kin to ``_saturated_skills``), NOT the
+    authoritative per-task binding resource. ``time_varying`` flags a pool whose availability changes
+    across intervals (a from-hour-0 bump flattens it to one count). Sorted by ``(saturated_hours,
+    peak_shortfall, skill_type)`` so the tightest pool leads (the selectbox default). ``util is None``
+    (or a pool with no intervals) contributes nothing → ``[]``. Pure — no ``st``."""
+    if util is None:
+        return []
+    rows: list[dict] = []
+    for series in util.series:
+        intervals = series.intervals
+        if not intervals:
+            continue
+        covering = next((iv for iv in intervals if iv.start_hour <= 0 < iv.end_hour), intervals[0])
+        saturated_hours = sum(
+            iv.end_hour - iv.start_hour for iv in intervals
+            if iv.demand > 0 and iv.demand >= iv.available)
+        peak_shortfall = max(0, max(iv.demand - iv.available for iv in intervals))
+        rows.append({
+            "skill_type": series.skill_type,
+            "current_count": covering.available,
+            "saturated_hours": saturated_hours,
+            "peak_shortfall": peak_shortfall,
+            "time_varying": len({iv.available for iv in intervals}) > 1,
+        })
+    rows.sort(key=lambda r: (-r["saturated_hours"], -r["peak_shortfall"], r["skill_type"]))
+    return rows
+
+def _augmentation_delta(before, after) -> list[dict]:
+    """Before/after rows for a resource-augmentation what-if — one dict per headline metric
+    ``{metric, before, after, delta, pct}`` with ``delta = after - before`` and ``pct = delta /
+    before`` (``None`` when ``before`` is missing or zero). Reads ``makespan_hours`` and
+    ``optimism_gap_hours`` off each run's ``schedule`` and the composite off ``diagnostics.fitness``;
+    a missing schedule/fitness (a FAILED side, a bare ``DiagnosticsDTO``) yields ``None`` cells rather
+    than raising (the "no data → None cell" convention). ``cpm_lower_bound_hours`` is omitted — it is
+    logical and unchanged by resources. Pure — takes two ``RunResult`` DTOs, no ``st``/``services``."""
+    def _sched(run, attr):
+        s = run.schedule
+        return None if s is None else getattr(s, attr)
+
+    def _fitness(run):
+        d = run.diagnostics
+        return d.fitness.composite if (d is not None and d.fitness is not None) else None
+
+    specs = (
+        ("makespan_hours", _sched(before, "makespan_hours"), _sched(after, "makespan_hours")),
+        ("optimism_gap_hours", _sched(before, "optimism_gap_hours"), _sched(after, "optimism_gap_hours")),
+        ("fitness_composite", _fitness(before), _fitness(after)),
+    )
+    rows: list[dict] = []
+    for metric, b, a in specs:
+        numeric = isinstance(b, (int, float)) and isinstance(a, (int, float))
+        delta = (a - b) if numeric else None
+        pct = (delta / b) if (numeric and b) else None
+        rows.append({"metric": metric, "before": b, "after": a, "delta": delta, "pct": pct})
+    return rows
+
 def _data_viewer_rows(tasks: list[dict]) -> list[dict]:
     """One streamlit-free overview row per activity: scalar fields verbatim, nested/list fields
     summarized to a ``{n}`` / ``[n]`` count so the table stays scannable. Full per-field detail

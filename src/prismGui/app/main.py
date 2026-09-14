@@ -118,7 +118,7 @@ from prismGui.app.view_data import (
     _SEVERITY_ORDER, _issue_rows, _gantt_rows, _resource_util_rows, _FLOAT_CLASS_COLORS,
     _step_series, _schedule_csv, _DISPOSITION_INDICATOR_LABELS, _disposition_rows,
     _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _PROVENANCE_FIELD_LABELS, _provenance_rows,
-    _scenario_hash_labels, _comparison_rows,
+    _scenario_hash_labels, _comparison_rows, _augmentation_candidates, _augmentation_delta,
     _data_viewer_rows, _BASELINE_NODE_ID, _OVERLAY_FIELDS, _overlay_count,
     _relation_graph_data, _activity_graph_data, _dag_node_color, _dag_hover,
     _activity_graph_enriched, _graph_layout, _cpm_path_edges, _cpm_path_label,
@@ -226,11 +226,21 @@ def main() -> None:
     #     (Streamlit's contract) and closes over the prologue locals resolved above; only the
     #     selected page's body runs on a rerun, so the load-bearing prologue must stay ABOVE
     #     pg.run() — every page still sees a fresh source load, schedule pick, and run-config. ---
+    # The Results page's guided augmentation needs to RUN a schedule from the page; hand it a seam
+    # closing over the SAME store+executor the sidebar Run uses (so run ids increment, never collide)
+    # — the page layer stays free of infrastructure imports, the composition root remains the wirer.
+    def _run_scenario(scenario) -> PipelineResult:
+        payload = json.loads(baseline.raw_snapshot)["payload"]
+        return run_pipeline(
+            payload, baseline.plan_id, run_config,
+            validator=validator, store=store, executor=executor, repository=repository,
+            scenario=scenario)
+
     def _page_plan() -> None:
         _render_plan_page(session, baseline, validator)
 
     def _page_results() -> None:
-        _render_results_page(session, baseline, result, run_config)
+        _render_results_page(session, baseline, result, run_config, run_scenario=_run_scenario)
 
     def _page_replan() -> None:
         _render_replan(session, baseline)
