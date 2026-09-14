@@ -1858,6 +1858,85 @@ class TestRunAugmentation:
         assert by["makespan_hours"]["pct"] is None
 
 
+class TestRunSweep:
+    """The streamlit-free builder behind the Phase-4.3 priority-rule sweep (Results-page "Sweep
+    priority rules" segment): ``_sweep_rows`` turns the sweep's re-run ``RunResult`` DTOs into a
+    ranked leaderboard — one row per run, shortest makespan first. The priority rule is NOT stored on
+    a RunResult (only its opaque ``run_config_hash``), so the sweep tracks ``{run_id: rule}`` at run
+    time and the builder reads the label from that map — never decoding the hash. Freshness likewise
+    arrives as a ``{run_id: Freshness}`` dict; the render helper owns the run/store/services. Pure:
+    stdlib + domain DTOs only, no ``st``. Fixtures reuse ``TestRunAugmentation``'s inline builders."""
+
+    _run = staticmethod(TestRunAugmentation._run)
+
+    def test_sweep_rows_rank_shortest_makespan_first(self):
+        """Three completed runs ranked shortest-makespan-first; ``delta_vs_best`` is hours above the
+        winner (0 for the winner), and every row carries the 7-key set."""
+        results = [
+            self._run("r-lf", 85.0, 20.0),
+            self._run("r-ls", 71.0, 6.0),
+            self._run("r-ef", 90.0, 25.0),
+        ]
+        rule_by_run = {"r-lf": "lf", "r-ls": "ls", "r-ef": "ef"}
+        rows = app_main._sweep_rows(results, rule_by_run, {})
+        assert [r["priority_rule"] for r in rows] == ["ls", "lf", "ef"]   # 71 < 85 < 90
+        keys = {"priority_rule", "status", "makespan_hours", "optimism_gap_hours",
+                "fitness", "delta_vs_best", "freshness"}
+        assert all(set(r) == keys for r in rows)
+        by = {r["priority_rule"]: r for r in rows}
+        assert by["ls"]["delta_vs_best"] == 0.0     # the winner
+        assert by["lf"]["delta_vs_best"] == 14.0    # 85 - 71
+        assert by["ef"]["delta_vs_best"] == 19.0    # 90 - 71
+        assert by["lf"]["status"] == "completed"
+        assert by["lf"]["optimism_gap_hours"] == 20.0
+
+    def test_sweep_rows_failed_run_sorts_last_with_none_cells(self):
+        """A FAILED run (schedule None) sorts to the bottom with None makespan / optimism gap /
+        delta, and ``status == 'failed'`` — never raising on the missing schedule."""
+        results = [
+            self._run("r-ok", 60.0, 5.0),
+            self._run("r-bad", 0.0, 0.0, completed=False),
+        ]
+        rows = app_main._sweep_rows(results, {"r-ok": "lf", "r-bad": "ls"}, {})
+        assert [r["priority_rule"] for r in rows] == ["lf", "ls"]   # failed run last
+        bad = rows[-1]
+        assert bad["status"] == "failed"
+        assert bad["makespan_hours"] is None
+        assert bad["optimism_gap_hours"] is None
+        assert bad["delta_vs_best"] is None
+
+    def test_sweep_rows_rule_label_from_map(self):
+        """``priority_rule`` is pulled from ``rule_by_run``; a run absent from the map → ``""``
+        (the builder never tries to recover the rule from the stored run)."""
+        results = [self._run("r-1", 50.0, 5.0), self._run("r-2", 55.0, 5.0)]
+        rows = app_main._sweep_rows(results, {"r-1": "duration"}, {})
+        by = {r["makespan_hours"]: r for r in rows}
+        assert by[50.0]["priority_rule"] == "duration"
+        assert by[55.0]["priority_rule"] == ""     # unmapped run → empty label
+
+    def test_sweep_rows_fitness_and_freshness(self):
+        """``fitness`` is the composite only when a ``FitnessDTO`` is present (else None); ``freshness``
+        maps through ``_FRESHNESS_LABEL`` from the supplied ``{run_id: Freshness}`` dict, empty → ``""``."""
+        results = [
+            self._run("r-fit", 70.0, 5.0, composite=0.8),
+            self._run("r-nofit", 72.0, 5.0),
+        ]
+        freshness = {"r-fit": Freshness.CURRENT, "r-nofit": Freshness.DIFFERENT_CONFIG}
+        rows = app_main._sweep_rows(results, {"r-fit": "lf", "r-nofit": "ls"}, freshness)
+        by = {r["priority_rule"]: r for r in rows}
+        assert by["lf"]["fitness"] == 0.8
+        assert by["ls"]["fitness"] is None
+        assert by["lf"]["freshness"] == app_main._FRESHNESS_LABEL[Freshness.CURRENT]
+        assert by["ls"]["freshness"] == app_main._FRESHNESS_LABEL[Freshness.DIFFERENT_CONFIG]
+        # A run with no freshness entry falls back to the empty label.
+        rows2 = app_main._sweep_rows(results, {"r-fit": "lf", "r-nofit": "ls"}, {})
+        assert all(r["freshness"] == "" for r in rows2)
+
+    def test_sweep_rows_empty(self):
+        """No runs → no rows (the pre-sweep state)."""
+        assert app_main._sweep_rows([], {}, {}) == []
+
+
 class TestModeOptions:
     """The streamlit-free builder behind the run-time execution-mode picker. It offers only
     tasks that define MORE THAN ONE mode (mode_name == the schema's ``mode_id``); the render

@@ -72,13 +72,13 @@ the storage/navigation a capability needs exists, but the capability itself does
 | CPM-only baseline view (logical critical path) | ✅ | **Delivered 2026-09-14 (display wire-up).** The `getCriticalPath()` path now rides `ScheduleDTO.cpm_critical_path` and is surfaced two ways for a COMPLETED run: an ordered `A → B → C` readout under the CPM lower-bound metric in the results header (`_cpm_path_label`), **and** a solid-gold edge trace along the path in the enriched Activity DAG (`_cpm_path_edges` → `cpm_path_edges` in `_activity_graph_enriched`, drawn beneath the nodes with an extended legend). This is the *logical* critical path (resources ignored) — **distinct** from the resource-constrained chain the DAG/Gantt already color red. Pure builders (stdlib-only, in `view_data.py`, re-exported through `main.py`); no engine/adapter/DTO change. |
 | Dependency-violation check as a distinct output | ✅ | **Delivered 2026-09-14 (display wire-up).** `pert.check_dependency_violations()` already rode `DiagnosticsDTO.dependency_violations`; the results header now surfaces it as its **own verdict** (`_render_dependency_violations`) — a clean run states `✅ No dependency violations.` explicitly, violations get a `⛔ n dependency violation(s)` headline + a focused issue list in an open expander. (These same issues also remain, undifferentiated, in the full "Audit findings" expander because they're concatenated into `result.issues`; the new section is the feasibility-focused view.) No engine/adapter/DTO change. |
 
-### Phase 4 — High-value analysis — 🟡 4.1 comparison view + 4.2 guided augmentation delivered; sweeps / chain-sets / cross-revision rows ⬜
+### Phase 4 — High-value analysis — 🟡 4.1 comparison view + 4.2 guided augmentation + 4.3 priority-rule sweep delivered; chain-sets / config-sweep / cross-revision rows ⬜
 | Capability | Status | Where / caveat |
 |---|---|---|
 | What-if cloning / compare scenarios on same baseline | ✅ *(comparison half)* | **Delivered 2026-09-14 as Phase 4.1 — the keystone run-comparison diff, GUI-only.** A **Compare runs** segment on the Results page (4th beside Plots / Activity DAG / Task inspector) picks **2..N** stored runs and shows their makespan / CPM lower bound / optimism gap / fitness / disposition / status / freshness **side by side**, each row labeled by resolving its `scenario_delta_hash` **forward** — *"match, don't decode"*: provenance hashes are one-way and omit human names, so we hash the live `session.list_scenarios()` into `{hash: name}` and look up (`None` → "Baseline", unmatched/edited-since → `scenario <8-char-hash>`), with each run's full provenance in a collapsed expander for audit. **First and only consumer of `session.list_run_results()`** (which had zero call sites before this). Two pure builders (`_scenario_hash_labels`, `_comparison_rows` in `view_data.py`, re-exported through `main.py`; render helper `_render_run_comparison` in `pages/results.py`) — freshness is computed in the render helper (which owns the `services` dependency) and passed in as a `{run_id: Freshness}` dict so the builders stay `services`/`st`-free; **no engine/adapter/DTO/schema/serialization change**. There is deliberately **no config-summary column**: only the *current* `RunConfig` object is retained (past runs keep only their `run_config_hash`), so a run made under a different config is surfaced honestly by the **freshness** column (`🟠 different config`), never a synthesized past config. Scope was **table only** — overlaid makespan chart / aligned Gantt deferred. This closes the *comparison* half of the row and lays the reusable diff substrate for 4.2/4.3; the remaining Phase-4 rows (sweeps, augmentation) stay ⬜. |
-| Priority-rule sweep | ⬜ | |
+| Priority-rule sweep | ✅ | **Delivered 2026-09-14 as Phase 4.3 — the second Phase-4 orchestration, GUI-only.** A **Sweep priority rules** segment on the Results page (6th beside Plots / Activity DAG / Task inspector / Compare runs / Augment resources) lets the analyst select a set of priority rules (default: the current rule + a classic shortlist `lf/ls/ef/es/duration`, ordered by `PRIORITY_RULES`; **all 22** engine rules selectable) and **one button** re-runs the baseline once per rule, then shows a **ranked leaderboard** (shortest makespan first) of each rule's makespan / optimism gap / fitness / **Δ-vs-best** / freshness, with an `st.success` banner naming the winning rule and its hours saved vs the *current* rule. Where 4.2 varies the **scenario**, 4.3 varies the **RunConfig** (`replace(run_config, priority_rule=rule)`) — the direct generalization of 4.2's clone→rerun→delta loop from a single +N bump to an **N-way fan-out**. Every rule is **actually solved** (verified, not estimated) through the composition root's **one shared store+executor** so run ids increment and never collide (the 4.1/4.2 lesson). Each swept run is a plain **baseline** run (`scenario=None`); its rule is **not** recoverable from the stored `RunResult`/`Provenance` (only the opaque `run_config_hash` is kept — "match, don't decode" applies to configs too), so the sweep tracks `{run_id: rule}` at run time, pins it in session state (survives Streamlit reruns), and feeds a **rule-aware** builder. Swept runs are stored **additively** (`add_run_result` per rule, no `add_scenario`) so they also appear in **Compare runs** — the path for full provenance/cross-diff, keeping this segment focused on the leaderboard (a caption points there). One pure builder (`_sweep_rows` in `view_data.py`, re-exported through `main.py`; render helper `_render_run_sweep` in `pages/results.py`) — freshness is computed in the render helper (owns `services`) and passed in as a `{run_id: Freshness}` dict so the builder stays `services`/`st`-free. The one seam was **generalized** `run_scenario(scenario)` → `run_plan(run_config=None, scenario=None)` (run_config `None` ⇒ the live one; 4.2's two calls now pass `scenario=`); **no engine/adapter/DTO/schema/serialization change** (all 22 rules pre-validated by `validate_run_config`, so no new validation surface). Deferred: config / seed / mode sweeps (same loop, later cuts), an overlaid makespan bar chart / aligned Gantt, and an "adopt winning rule" write-back to the sidebar picker (the analyst changes the rule themselves after reading the winner). |
 | Chain-sets comparison | ⬜ | |
-| Idle-time diagnostics + **verified** resource-augmentation (clone→add→rerun→delta) | ✅ *(augmentation half)* | **Delivered 2026-09-14 as Phase 4.2 — the first Phase-4 orchestration, GUI-only.** An **Augment resources** segment on the Results page (5th beside Plots / Activity DAG / Task inspector / Compare runs) ranks the selected run's resource pools bottleneck-first, lets the analyst pick a pool + increment **N**, and **one button** clones the baseline, reruns it with **+N** crew on that pool, and shows a **verified** before/after delta (makespan / optimism gap / fitness composite, with Δ and Δ%) — both sides *actually re-run*, not estimated. **"+N" = SET the pool to (baseline hour-0 count) + N held flat from hour 0** via `ResourceChange` REPLACE semantics (`_mint_scenario` + `_add_resource_change`); a **time-varying** pool is thereby flattened, surfaced with a caveat. The bump's arithmetic is recomputed against the **freshly-run baseline** (not the possibly-scenario selected run), so the delta is honest regardless of what run was selected. Both runs go through the composition root's **one shared store+executor** (a `run_scenario` seam threaded into the Results page — the page layer stays infrastructure-free) so run ids increment and never collide (the 4.1 smoke's lesson); results are stored **additively** (`add_run_result` ×2 + `add_scenario`, never `set_scenario`) and the before/after pair is pinned in session state so the delta survives Streamlit reruns. Two pure builders (`_augmentation_candidates`, `_augmentation_delta` in `view_data.py`, re-exported through `main.py`; render helper `_render_run_augmentation` in `pages/results.py` reusing the **4.1** `_comparison_rows` / `_provenance_rows` in a "Full comparison & provenance" expander) — **no engine/adapter/DTO/schema/serialization change**. The ranking is **aggregate/heuristic** (`demand > 0 and demand ≥ available` over the horizon — the `demand > 0` guard keeps an idle 0-of-0 pool from posing as the top bottleneck; captioned as advisory, NOT the authoritative named binding resource, deferred Tier B). Closes the *augmentation* half of the row; the *idle-time* diagnostics half (authoritative named binding resource) stays with Tier B. |
+| Idle-time diagnostics + **verified** resource-augmentation (clone→add→rerun→delta) | ✅ *(augmentation half)* | **Delivered 2026-09-14 as Phase 4.2 — the first Phase-4 orchestration, GUI-only.** An **Augment resources** segment on the Results page (5th beside Plots / Activity DAG / Task inspector / Compare runs) ranks the selected run's resource pools bottleneck-first, lets the analyst pick a pool + increment **N**, and **one button** clones the baseline, reruns it with **+N** crew on that pool, and shows a **verified** before/after delta (makespan / optimism gap / fitness composite, with Δ and Δ%) — both sides *actually re-run*, not estimated. **"+N" = SET the pool to (baseline hour-0 count) + N held flat from hour 0** via `ResourceChange` REPLACE semantics (`_mint_scenario` + `_add_resource_change`); a **time-varying** pool is thereby flattened, surfaced with a caveat. The bump's arithmetic is recomputed against the **freshly-run baseline** (not the possibly-scenario selected run), so the delta is honest regardless of what run was selected. Both runs go through the composition root's **one shared store+executor** (a `run_scenario` seam threaded into the Results page — the page layer stays infrastructure-free; **generalized in 4.3** to `run_plan(run_config=None, scenario=None)`, these calls now pass `scenario=`) so run ids increment and never collide (the 4.1 smoke's lesson); results are stored **additively** (`add_run_result` ×2 + `add_scenario`, never `set_scenario`) and the before/after pair is pinned in session state so the delta survives Streamlit reruns. Two pure builders (`_augmentation_candidates`, `_augmentation_delta` in `view_data.py`, re-exported through `main.py`; render helper `_render_run_augmentation` in `pages/results.py` reusing the **4.1** `_comparison_rows` / `_provenance_rows` in a "Full comparison & provenance" expander) — **no engine/adapter/DTO/schema/serialization change**. The ranking is **aggregate/heuristic** (`demand > 0 and demand ≥ available` over the horizon — the `demand > 0` guard keeps an idle 0-of-0 pool from posing as the top bottleneck; captioned as advisory, NOT the authoritative named binding resource, deferred Tier B). Closes the *augmentation* half of the row; the *idle-time* diagnostics half (authoritative named binding resource) stays with Tier B. |
 | Regulatory time-window pre-flight (tested, not global) | ⬜ | |
 | Guided mode-sweep / trade-off exploration | ⬜ | (note: Stage B added a mode *picker* — the input control — not a mode *sweep* analysis) |
 | Compare different solver configs on same baseline+scenario | ⬜ | |
@@ -121,8 +121,12 @@ analysis. **Guided resource-augmentation** (4.2, 2026-09-14) then landed the fir
 substrate — one click clones the baseline, reruns it with +N crew on a chosen bottleneck pool, and diffs
 the two real solves — reusing the existing clone (`_mint_scenario` / `_add_resource_change`), run
 (`run_pipeline`), and 4.1 diff builders behind a single composition-root `run_scenario` seam, again with
-**no engine/adapter/DTO change**. Do **not** read "the graph/plot exists" as "the phase is done" — for the
-*remaining* Phase-4 rows the work is the diagnostics, not the rendering:
+**no engine/adapter/DTO change**. **Priority-rule sweep** (4.3, 2026-09-14) is the second orchestration: it
+generalizes that seam to `run_plan(run_config=None, scenario=None)` and fans the loop out **N ways** —
+re-running the baseline once per selected priority rule (`replace(run_config, priority_rule=rule)`) and
+ranking the real solves in a leaderboard — where 4.2 varies the scenario, 4.3 varies the RunConfig, and
+again **no engine/adapter/DTO change**. Do **not** read "the graph/plot exists" as "the phase is done" —
+for the *remaining* Phase-4 rows the work is the diagnostics, not the rendering:
 
 - **Phase 3 gaps (remaining):** none at Tier A — the per-task inspector shipped 2026-09-14 (slip
   decomposition, predecessor/successor slack attribution, aggregate resource pressure), joining the
@@ -130,32 +134,37 @@ the two real solves — reusing the existing clone (`_mint_scenario` / `_add_res
   fitness weights. The one Phase-3 follow-up is **Tier B**: surfacing the engine's authoritative *named*
   binding resource / delaying predecessor (computed in `explain_idle_on_chain_detailed`, logged only —
   needs engine→adapter→DTO plumbing).
-- **Phase 4 gaps:** the **comparison view (4.1)** and **guided resource-augmentation (4.2)** are delivered
-  — the storage (Stage B) now has both its diff and the first orchestration that generates a run set to
-  diff. What remains is the *rest* of the orchestration: priority-rule / config / mode **sweeps** (4.3),
-  chain-sets comparison, and the cross-revision (4b) comparison that needs baseline versioning (Phase 6);
-  plus the **idle-time** half of the augmentation row — the authoritative *named* binding resource — which
-  is Tier B (engine→adapter→DTO plumbing), not GUI-only. The 4.1 diff is the reusable substrate every
-  remaining comparison reduces to, and 4.2 is the reusable clone→rerun→delta loop the sweeps generalize.
+- **Phase 4 gaps:** the **comparison view (4.1)**, **guided resource-augmentation (4.2)**, and the
+  **priority-rule sweep (4.3)** are delivered — the storage (Stage B) now has its diff, the first
+  orchestration that generates a run set to diff, and the N-way fan-out that ranks a run set. What remains
+  is the *rest* of the orchestration: **config / seed / mode** sweeps (further 4.3 cuts on the same
+  `run_plan` loop), chain-sets comparison, and the cross-revision (4b) comparison that needs baseline
+  versioning (Phase 6); plus the **idle-time** half of the augmentation row — the authoritative *named*
+  binding resource — which is Tier B (engine→adapter→DTO plumbing), not GUI-only. The 4.1 diff is the
+  reusable substrate every remaining comparison reduces to; 4.2 is the reusable clone→rerun→delta loop, and
+  4.3 generalized its seam to `run_plan` and fanned it out — the pattern the remaining sweeps reuse.
 - **Phase 5:** untouched; overlay fields exist but no replan loop.
 
 ---
 
 ## Suggested next increment (not yet scoped/approved)
 
-All Phase-3 rows are **done**; Phase-4 has opened with **4.1, the run-comparison view** (2026-09-14,
+All Phase-3 rows are **done**; Phase-4 has delivered **4.1, the run-comparison view** (2026-09-14,
 GUI-only) — the Results-page **Compare runs** segment diffs 2..N stored runs side by side, resolving each
-run's scenario forward from the live scenarios ("match, don't decode") — and **4.2, guided resource-augmentation** (2026-09-14, GUI-only) — the **Augment resources** segment clones the baseline, reruns it
-with +N crew on a chosen bottleneck pool, and shows the verified before/after delta. 4.1 is the **reusable
-diff substrate** the rest of the phase's comparisons reduce to; 4.2 is the **reusable clone→rerun→delta
-loop** the sweeps generalize. Candidate follow-ons, none scoped/approved:
+run's scenario forward from the live scenarios ("match, don't decode") — **4.2, guided resource-augmentation** (2026-09-14, GUI-only) — the **Augment resources** segment clones the baseline, reruns it
+with +N crew on a chosen bottleneck pool, and shows the verified before/after delta — and **4.3, the
+priority-rule sweep** (2026-09-14, GUI-only) — the **Sweep priority rules** segment re-runs the baseline
+once per selected rule and ranks the real solves in a leaderboard. 4.1 is the **reusable diff substrate**
+the rest of the phase's comparisons reduce to; 4.2 is the **reusable clone→rerun→delta loop**, and 4.3
+generalized its seam to `run_plan(run_config=None, scenario=None)` and fanned it out **N ways** — the
+pattern the remaining sweeps reuse. Candidate follow-ons, none scoped/approved:
 
-- **4.1/4.2 chart layer (small)** — the deferred visual half: an overlaid makespan bar chart and/or an
-  aligned multi-run Gantt over the compared runs (and the augmentation before/after pair). Still GUI-only;
-  reuses the existing selection + row builders. Pure display polish, no new analysis.
-- **4.3 sweeps** — the remaining Phase-4 orchestration: a priority-rule / config / mode **sweep** that fans
-  out runs over a parameter, then compares them. Generalizes 4.2's clone→rerun loop from a single +N bump
-  to an N-way fan-out and feeds the 4.1 diff; still GUI-only (no engine change).
+- **More 4.3 sweeps (config / seed / mode)** — the same `run_plan` fan-out over a *different* RunConfig
+  axis (SGS variant, seed, execution modes) feeding the same leaderboard. Purely a new default set + the
+  `replace(...)` field varied; reuses `_sweep_rows` (or a tiny sibling). Still GUI-only (no engine change).
+- **4.1/4.2/4.3 chart layer (small)** — the deferred visual half: an overlaid makespan bar chart and/or an
+  aligned multi-run Gantt over the compared / swept runs (and the augmentation before/after pair). Still
+  GUI-only; reuses the existing selection + row builders. Pure display polish, no new analysis.
 - **Multi-pool / layered augmentation** — extend 4.2 beyond a single-pool bump on the baseline: augment two
   pools at once, or layer +N over an *existing* scenario run (deferred in 4.2 because "match, don't decode"
   means a past run's scenario can't be reconstructed from its hash). GUI-only.
@@ -164,6 +173,6 @@ loop** the sweeps generalize. Candidate follow-ons, none scoped/approved:
   `prism_adapter.py` into new per-task `DiagnosticsDTO`/`ScheduledActivityDTO` fields, then show it in the
   inspector and use it to replace 4.2's **heuristic** bottleneck ranking with the true binding pool. This
   is the first **non-GUI-only** increment in a while (engine + adapter + DTOs), so it carries more risk
-  than the Tier-A / 4.1 / 4.2 wire-ups.
+  than the Tier-A / 4.1 / 4.2 / 4.3 wire-ups.
 
-This is a suggestion only — no work is authorized past the 4.1 run-comparison increment.
+This is a suggestion only — no work is authorized past the 4.3 priority-rule-sweep increment.

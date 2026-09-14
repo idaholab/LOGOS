@@ -119,7 +119,7 @@ from prismGui.app.view_data import (
     _step_series, _schedule_csv, _DISPOSITION_INDICATOR_LABELS, _disposition_rows,
     _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _PROVENANCE_FIELD_LABELS, _provenance_rows,
     _scenario_hash_labels, _comparison_rows, _augmentation_candidates, _augmentation_delta,
-    _data_viewer_rows, _BASELINE_NODE_ID, _OVERLAY_FIELDS, _overlay_count,
+    _sweep_rows, _data_viewer_rows, _BASELINE_NODE_ID, _OVERLAY_FIELDS, _overlay_count,
     _relation_graph_data, _activity_graph_data, _dag_node_color, _dag_hover,
     _activity_graph_enriched, _graph_layout, _cpm_path_edges, _cpm_path_label,
     _evaluation_weights, _task_slip, _task_neighbors, _saturated_skills
@@ -226,13 +226,17 @@ def main() -> None:
     #     (Streamlit's contract) and closes over the prologue locals resolved above; only the
     #     selected page's body runs on a rerun, so the load-bearing prologue must stay ABOVE
     #     pg.run() — every page still sees a fresh source load, schedule pick, and run-config. ---
-    # The Results page's guided augmentation needs to RUN a schedule from the page; hand it a seam
-    # closing over the SAME store+executor the sidebar Run uses (so run ids increment, never collide)
-    # — the page layer stays free of infrastructure imports, the composition root remains the wirer.
-    def _run_scenario(scenario) -> PipelineResult:
+    # The Results page's guided augmentation (4.2) and priority-rule sweep (4.3) both RUN schedules from
+    # the page; hand them ONE seam closing over the SAME store+executor the sidebar Run uses (so run ids
+    # increment, never collide) — the page layer stays free of infrastructure imports, the composition
+    # root remains the wirer. 4.2 varies the scenario (run_config defaults to the live one); 4.3 varies
+    # the run_config (a different priority_rule per run). The param aliases the live config so a caller
+    # that omits run_config still runs with the sidebar's selection.
+    live_run_config = run_config
+    def _run_plan(run_config=None, scenario=None) -> PipelineResult:
         payload = json.loads(baseline.raw_snapshot)["payload"]
         return run_pipeline(
-            payload, baseline.plan_id, run_config,
+            payload, baseline.plan_id, run_config or live_run_config,
             validator=validator, store=store, executor=executor, repository=repository,
             scenario=scenario)
 
@@ -240,7 +244,7 @@ def main() -> None:
         _render_plan_page(session, baseline, validator)
 
     def _page_results() -> None:
-        _render_results_page(session, baseline, result, run_config, run_scenario=_run_scenario)
+        _render_results_page(session, baseline, result, run_config, run_plan=_run_plan)
 
     def _page_replan() -> None:
         _render_replan(session, baseline)

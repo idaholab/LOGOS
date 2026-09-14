@@ -295,6 +295,43 @@ def _augmentation_delta(before, after) -> list[dict]:
         rows.append({"metric": metric, "before": b, "after": a, "delta": delta, "pct": pct})
     return rows
 
+def _sweep_rows(results, rule_by_run, freshness_by_run) -> list[dict]:
+    """Leaderboard rows for a priority-rule sweep (Phase-4.3) — one dict per swept run, ranked
+    shortest-makespan-first, ``{priority_rule, status, makespan_hours, optimism_gap_hours, fitness,
+    delta_vs_best, freshness}``. Each swept run is a plain BASELINE run whose only difference is its
+    ``priority_rule`` — but the rule is NOT recoverable from the stored ``RunResult`` (provenance keeps
+    only the one-way ``run_config_hash``), so the caller tracks ``{run_id: rule}`` at sweep time and
+    passes it as ``rule_by_run``; a run absent from that map labels ``""``. ``delta_vs_best`` is
+    ``makespan_hours - best`` where ``best`` is the smallest makespan among runs that have one (``0`` for
+    the winner, ``None`` when this run — or every run — has no makespan). ``fitness`` is the composite
+    when a ``FitnessDTO`` is present else ``None``; ``freshness`` maps the supplied ``{run_id: Freshness}``
+    through ``_FRESHNESS_LABEL`` (the SAME dict 4.1 uses; missing → ``""``). Sorted so completed/with-a-
+    makespan runs lead in ascending makespan and any FAILED runs sink to the bottom (rule-name tiebreak).
+    ``results == []`` → ``[]``. Pure — takes DTOs + the two maps, no ``st``/``services``."""
+    makespans = [r.schedule.makespan_hours for r in results
+                 if r.schedule is not None and r.schedule.makespan_hours is not None]
+    best = min(makespans) if makespans else None
+    rows: list[dict] = []
+    for r in results:
+        sched = r.schedule
+        makespan = None if sched is None else sched.makespan_hours
+        fitness = (r.diagnostics.fitness.composite
+                   if (r.diagnostics is not None and r.diagnostics.fitness is not None) else None)
+        delta_vs_best = (makespan - best) if (makespan is not None and best is not None) else None
+        rows.append({
+            "priority_rule": rule_by_run.get(r.run_id, ""),
+            "status": r.status.value,
+            "makespan_hours": makespan,
+            "optimism_gap_hours": None if sched is None else sched.optimism_gap_hours,
+            "fitness": fitness,
+            "delta_vs_best": delta_vs_best,
+            "freshness": _FRESHNESS_LABEL.get(freshness_by_run.get(r.run_id), ""),
+        })
+    rows.sort(key=lambda row: (row["makespan_hours"] is None,
+                               row["makespan_hours"] if row["makespan_hours"] is not None else 0.0,
+                               row["priority_rule"]))
+    return rows
+
 def _data_viewer_rows(tasks: list[dict]) -> list[dict]:
     """One streamlit-free overview row per activity: scalar fields verbatim, nested/list fields
     summarized to a ``{n}`` / ``[n]`` count so the table stays scannable. Full per-field detail
