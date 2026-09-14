@@ -7,7 +7,7 @@ import math
 from itertools import product
 from typing import Optional
 
-from prismGui.domain.results import Freshness
+from prismGui.domain.results import FloatClass, Freshness
 from prismGui.domain.run_config import EvaluationWeights, ModeSelection
 from prismGui.domain.scenario import Scenario
 from prismGui.domain.hashing import hash_scenario
@@ -743,6 +743,55 @@ def _saturated_skills(util, lo: float, hi: float) -> list[str]:
             if iv.start_hour < hi and iv.end_hour > lo and iv.demand >= iv.available:
                 saturated.add(series.skill_type)
     return sorted(saturated)
+
+def _chain_sets(schedule) -> dict:
+    """Overlap of a single run's three criticality sets, computed from the schedule DTO alone.
+
+    The three sets:
+      - cpm         : ``ScheduleDTO.cpm_critical_path`` — the LOGICAL critical path (resources ignored)
+      - constrained : ``ScheduleDTO.constrained_chain`` — the RESOURCE-constrained chain (the red chain)
+      - zero_tf     : activities with ``float_class`` in ``{CRITICAL, ZERO_FLOAT}`` — no scheduling slack
+                      (by construction constrained ⊆ zero_tf, since every chain task is CRITICAL)
+
+    The headline partition is CPM vs constrained (the engine's ``print_chain_sets_summary`` semantics):
+      - ``both``             : critical for BOTH reasons (precedence AND resources)
+      - ``only_cpm``         : precedence-critical, but resources do not gate them
+      - ``only_constrained`` : on the constrained chain but NOT the CPM path — critical because of
+                               RESOURCE contention, not precedence logic. THE leverage points.
+
+    Returns ``{"cpm", "constrained", "zero_tf": tuple[str], "n_cpm", "n_constrained", "n_zero_tf": int,
+    "only_cpm", "only_constrained", "both": tuple[str] (sorted), "rows": [{task_id, on_cpm,
+    on_constrained, zero_tf, float_class, tf_actual_hours}, ...] (over the union, sorted by task_id)}``.
+    ``cpm``/``constrained`` keep the DTO's order; the partitions and ``zero_tf`` are sorted for stable
+    display. Pure — set arithmetic + ``FloatClass`` only, no ``st``."""
+    cpm_set = set(schedule.cpm_critical_path)
+    constrained_set = set(schedule.constrained_chain)
+    zero_tf = {a.task_id for a in schedule.activities
+               if a.float_class in (FloatClass.CRITICAL, FloatClass.ZERO_FLOAT)}
+    by_task = {a.task_id: a for a in schedule.activities}
+    rows: list[dict] = []
+    for tid in sorted(cpm_set | constrained_set | zero_tf):
+        a = by_task.get(tid)
+        rows.append({
+            "task_id": tid,
+            "on_cpm": tid in cpm_set,
+            "on_constrained": tid in constrained_set,
+            "zero_tf": tid in zero_tf,
+            "float_class": a.float_class.value if (a is not None and a.float_class is not None) else None,
+            "tf_actual_hours": a.tf_actual_hours if a is not None else None,
+        })
+    return {
+        "cpm": tuple(schedule.cpm_critical_path),
+        "constrained": tuple(schedule.constrained_chain),
+        "zero_tf": tuple(sorted(zero_tf)),
+        "n_cpm": len(cpm_set),
+        "n_constrained": len(constrained_set),
+        "n_zero_tf": len(zero_tf),
+        "only_cpm": tuple(sorted(cpm_set - constrained_set)),
+        "only_constrained": tuple(sorted(constrained_set - cpm_set)),
+        "both": tuple(sorted(cpm_set & constrained_set)),
+        "rows": rows,
+    }
 
 def _graph_layout(fig, height: int) -> None:
     """Common styling for a network-scatter figure: hidden axes, tight margins, no legend —

@@ -2063,6 +2063,93 @@ class TestModeSweep:
         assert empty["variants"][0][1] == ()                  # single empty-combo variant
 
 
+class TestChainSets:
+    """The streamlit-free ``_chain_sets`` builder behind the Results **Chain sets** segment: it
+    overlaps a single run's three criticality sets — the CPM logical critical path, the resource-
+    constrained chain, and the zero-float set — computed from a ``ScheduleDTO`` alone, and partitions
+    CPM vs constrained (only_cpm / only_constrained / both) so the resource-driven leverage points
+    (on the constrained chain but off the CPM path) are named. Built with hand-made DTOs."""
+
+    @staticmethod
+    def _act(task_id, on_chain, tf=0.0):
+        # float_class is derived through the SHARED rule so zero_tf tracks classify_float exactly.
+        return ScheduledActivityDTO(
+            task_id=task_id, start_hour=0.0, end_hour=1.0, duration=1.0, delay_hours=0.0,
+            on_constrained_chain=on_chain, float_class=classify_float(tf, on_chain),
+            tf_actual_hours=tf)
+
+    @staticmethod
+    def _sched(activities, constrained, cpm):
+        return ScheduleDTO(
+            makespan_hours=1.0, cpm_lower_bound_hours=1.0, optimism_gap_hours=0.0,
+            activities=tuple(activities), constrained_chain=tuple(constrained),
+            cpm_critical_path=tuple(cpm))
+
+    def test_chain_sets_partitions_cpm_vs_constrained(self):
+        """CPM path (A,B,C) and constrained chain (A,B,D) overlapping partly → both={A,B},
+        only_cpm={C}, only_constrained={D}; sizes count DISTINCT members."""
+        sched = self._sched(
+            [self._act("A", True), self._act("B", True), self._act("C", False, tf=0.0),
+             self._act("D", True)],
+            constrained=("A", "B", "D"), cpm=("A", "B", "C"))
+        cs = app_main._chain_sets(sched)
+        assert cs["both"] == ("A", "B")
+        assert cs["only_cpm"] == ("C",)
+        assert cs["only_constrained"] == ("D",)
+        assert cs["n_cpm"] == 3 and cs["n_constrained"] == 3
+
+    def test_chain_sets_leverage_points_are_only_constrained(self):
+        """A task on the constrained chain but NOT the CPM path is the resource leverage point
+        (only_constrained); a task on BOTH chains is not."""
+        sched = self._sched(
+            [self._act("X", True), self._act("Y", False, tf=0.0), self._act("Z", True)],
+            constrained=("X", "Z"), cpm=("X", "Y"))
+        cs = app_main._chain_sets(sched)
+        assert "Z" in cs["only_constrained"]          # constrained-only ⇒ resource-driven
+        assert "X" not in cs["only_constrained"]       # on both ⇒ not a resource-only leverage point
+        assert cs["both"] == ("X",)
+
+    def test_chain_sets_zero_tf_superset_of_constrained(self):
+        """zero_tf = float_class ∈ {CRITICAL, ZERO_FLOAT}: a CRITICAL chain task and a ZERO_FLOAT
+        off-chain task are in, a POSITIVE_FLOAT task is out, and constrained ⊆ zero_tf."""
+        sched = self._sched(
+            [self._act("A", True), self._act("Z", False, tf=0.0), self._act("P", False, tf=5.0)],
+            constrained=("A",), cpm=())
+        cs = app_main._chain_sets(sched)
+        assert set(cs["zero_tf"]) == {"A", "Z"}
+        assert "P" not in cs["zero_tf"]
+        assert set(cs["constrained"]).issubset(set(cs["zero_tf"]))
+
+    def test_chain_sets_membership_rows_cover_union(self):
+        """rows cover exactly set(cpm) | set(constrained) | zero_tf, sorted by task_id, each row's
+        three booleans + float_class/tf_actual_hours matching the source activity (a task in NO set
+        — positive-float, off both chains — is absent)."""
+        sched = self._sched(
+            [self._act("A", True), self._act("B", False, tf=3.0), self._act("C", True),
+             self._act("Z", False, tf=0.0), self._act("P", False, tf=5.0)],
+            constrained=("A", "C"), cpm=("A", "B"))
+        cs = app_main._chain_sets(sched)
+        assert [r["task_id"] for r in cs["rows"]] == ["A", "B", "C", "Z"]     # sorted; P excluded
+        by_id = {r["task_id"]: r for r in cs["rows"]}
+        assert by_id["B"] == {"task_id": "B", "on_cpm": True, "on_constrained": False,
+                              "zero_tf": False, "float_class": "positive_float", "tf_actual_hours": 3.0}
+        assert by_id["C"] == {"task_id": "C", "on_cpm": False, "on_constrained": True,
+                              "zero_tf": True, "float_class": "critical", "tf_actual_hours": 0.0}
+        assert by_id["Z"] == {"task_id": "Z", "on_cpm": False, "on_constrained": False,
+                              "zero_tf": True, "float_class": "zero_float", "tf_actual_hours": 0.0}
+
+    def test_chain_sets_empty_cpm_path(self):
+        """cpm_critical_path=() (the DTO default when the engine emits none): n_cpm=0, both=() and
+        only_cpm=(), and only_constrained is the whole constrained chain — no crash."""
+        sched = self._sched(
+            [self._act("A", True), self._act("B", True)],
+            constrained=("A", "B"), cpm=())
+        cs = app_main._chain_sets(sched)
+        assert cs["n_cpm"] == 0
+        assert cs["both"] == () and cs["only_cpm"] == ()
+        assert set(cs["only_constrained"]) == {"A", "B"}
+
+
 class TestChartLayer:
     """The two streamlit-free builders behind the deferred Phase-4 visual half — the overlaid makespan
     bar chart (all three orchestration views) and the aligned multi-run Gantt (Compare runs / Augment).

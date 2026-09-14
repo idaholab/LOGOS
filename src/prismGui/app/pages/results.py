@@ -10,7 +10,7 @@ from prismGui.domain.run_config import PRIORITY_RULES, SGSVariant
 from prismGui.app.components import _render_issues
 from prismGui.app.edit_model import _mode_options
 from prismGui.app.scenario_model import _add_resource_change, _current_schedule_payload, _mint_scenario
-from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _makespan_bar_rows, _mode_sweep_variants, _multi_gantt_rows, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip
+from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _chain_sets, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _makespan_bar_rows, _mode_sweep_variants, _multi_gantt_rows, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip
 
 
 def _render_plots(result) -> None:
@@ -414,6 +414,42 @@ def _render_task_inspector(session, baseline, result) -> None:
                 f"h) — the {activity.delay_hours:g} h wait isn't explained by aggregate saturation.")
         st.caption("The authoritative NAMED binding resource / delaying predecessor is a deferred "
                    "Tier-B item — the engine computes it but does not surface it yet.")
+
+def _render_chain_sets(result) -> None:
+    """Within-run overlap of the selected COMPLETED run's three criticality sets — the CPM logical
+    critical path, the resource-constrained chain, and the zero-float set. Schedule-only, shown
+    regardless of freshness (reads ``result.schedule`` alone, like the inspector's summary/slip):
+    three size metrics, the CPM-vs-constrained partition with the resource-vs-logic leverage-point
+    framing, and a per-task membership table. This QUANTIFIES membership — the Activity DAG already
+    *draws* the two chains; here we name the tasks that are critical because of resource contention
+    rather than precedence (on the constrained chain but off the CPM path — the true leverage points)."""
+    schedule = result.schedule
+    if not schedule.activities:
+        st.info("This run scheduled no activities to analyze.")
+        return
+    cs = _chain_sets(schedule)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("CPM path", cs["n_cpm"])
+    c2.metric("Constrained chain", cs["n_constrained"])
+    c3.metric("Zero-float set", cs["n_zero_tf"])
+    if cs["only_constrained"]:
+        st.markdown(f"**Resource leverage points ({len(cs['only_constrained'])}):** "
+                    f"{', '.join(cs['only_constrained'])}")
+        st.caption("On the resource-constrained chain but NOT the CPM logical path — critical because "
+                   "of resource contention, not precedence. Adding crew or re-sequencing here moves the "
+                   "makespan; a classic CPM read misses them.")
+    else:
+        st.caption("The constrained chain and CPM path coincide — no resource-only leverage points; "
+                   "precedence logic drives the schedule.")
+    st.caption(f"Both (precedence + resources): {len(cs['both'])} · only CPM (precedence-critical, "
+               f"resources don't gate): {len(cs['only_cpm'])} · only constrained (resource-driven): "
+               f"{len(cs['only_constrained'])}.")
+    st.dataframe(
+        [{"task": r["task_id"], "CPM path": "✓" if r["on_cpm"] else "",
+          "constrained": "✓" if r["on_constrained"] else "", "zero-float": "✓" if r["zero_tf"] else "",
+          "float": r["float_class"] or "", "actual TF (h)": r["tf_actual_hours"]}
+         for r in cs["rows"]],
+        use_container_width=True, hide_index=True)
 
 # --- Phase-4 chart helpers: the deferred visual half shared by the three orchestration views. Both
 #     take the same ``labeled_results`` primitive — a list of ``(label, RunResult)`` — so Compare /
@@ -833,8 +869,8 @@ def _render_results_page(session, baseline, result, run_config, run_plan=None) -
         st.info("Run a schedule (sidebar) to see results for the current schedule.")
     view = st.segmented_control(
         "View",
-        ["Plots", "Activity DAG", "Task inspector", "Compare runs", "Augment resources",
-         "Sweep"],
+        ["Plots", "Activity DAG", "Task inspector", "Chain sets", "Compare runs",
+         "Augment resources", "Sweep"],
         default="Plots", key="prism_results_view")
     if view == "Activity DAG":
         _render_activity_graph(session, baseline, result)
@@ -845,6 +881,13 @@ def _render_results_page(session, baseline, result, run_config, run_plan=None) -
             st.info("The selected run did not complete — no schedule to inspect.")
         else:
             st.info("Run a schedule (sidebar) to inspect individual tasks.")
+    elif view == "Chain sets":
+        if result is not None and result.status is RunResultStatus.COMPLETED:
+            _render_chain_sets(result)
+        elif result is not None:
+            st.info("The selected run did not complete — no schedule to analyze.")
+        else:
+            st.info("Run a schedule (sidebar) to see the chain sets.")
     elif view == "Compare runs":
         _render_run_comparison(session, baseline, run_config)
     elif view == "Augment resources":
