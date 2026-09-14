@@ -7,8 +7,22 @@ import math
 from typing import Optional
 
 from prismGui.domain.results import Freshness
+from prismGui.domain.run_config import EvaluationWeights
 from prismGui.domain.scenario import Scenario
 from prismGui.app.edit_model import _dependency_options, _task_options
+
+
+def _evaluation_weights(
+    alpha: float, beta: float, gamma: float, delta: float
+) -> Optional[EvaluationWeights]:
+    """Assemble the four sidebar fitness-weight inputs into an ``EvaluationWeights``, or ``None``
+    when all four equal the engine/dataclass defaults (1.0/0.5/0.3/2.0). Returning ``None`` at the
+    defaults keeps a GUI "defaults" run byte-identical to the no-weights path — same run_config_hash,
+    same engine fitness — so this control is strictly additive and invisible until a weight is actually
+    customized. (The weights are post-hoc COMPARISON weights: they re-score a completed schedule's
+    composite fitness, they do NOT change the search.) Pure — a frozen domain dataclass, no ``st``."""
+    weights = EvaluationWeights(alpha=alpha, beta=beta, gamma=gamma, delta=delta)
+    return None if weights == EvaluationWeights() else weights
 
 
 # =============================================================================
@@ -392,6 +406,99 @@ def _activity_graph_enriched(raw_tree, schedule, layer_by: str = "topo") -> dict
     return {"nodes": nodes, "edges": base["edges"], "contention_edges": contention,
             "cpm_path_edges": cpm_path, "has_cycle": base["has_cycle"],
             "enriched": True, "layer_by": layer_by}
+
+# =============================================================================
+# per-task inspector builders (streamlit-free): the "why isn't this task
+# starting sooner?" decomposition, fusing a run's DTOs with the plan's edges
+# =============================================================================
+# All three are pure (stdlib + domain DTOs only, no ``st``) and derive the
+# inspector entirely from data already on the output DTOs — no engine call. The
+# authoritative NAMED binding resource / delaying predecessor is computed by the
+# engine but not surfaced today; ``_saturated_skills`` is a clearly-labeled
+# aggregate stand-in, not that per-task attribution (a documented Tier-B follow-up).
+
+def _task_slip(activity) -> dict:
+    """Decompose one scheduled task's lateness against its CPM early start into the two
+    buckets the DTOs let us separate. Total lateness ``start_hour - es_hours`` splits into
+    ``contention_delay`` (``delay_hours`` — the engine's eligible-but-waiting-on-resources
+    portion, measured AFTER precedence/window/calendar gates cleared) and ``other_gating``
+    (the remainder — precedence / time-window / shift-calendar gating), clamped at 0 so
+    calendar-rounding never yields a spurious negative. ``lateness_vs_es`` / ``other_gating``
+    are ``None`` when the task has no CPM early start (``es_hours is None``); ``contention_delay``
+    is always the raw ``delay_hours``. Pure — arithmetic only."""
+    delay = activity.delay_hours
+    if activity.es_hours is None:
+        return {"lateness_vs_es": None, "contention_delay": delay, "other_gating": None}
+    lateness = activity.start_hour - activity.es_hours
+    return {"lateness_vs_es": lateness, "contention_delay": delay,
+            "other_gating": max(0.0, lateness - delay)}
+
+def _task_neighbors(raw_tree, schedule, task_id: str) -> dict:
+    """Predecessor/successor slack-attribution rows for one task, fusing the plan's precedence
+    edges (``_dependency_options`` — both successor schema forms) with each neighbor's timing/
+    float from the run's ``ScheduledActivityDTO``s (keyed by task_id). Returns
+    ``{"predecessors": [...], "successors": [...]}``. A predecessor row carries its ``lag_hours``,
+    ``end_hour``, the finish-to-start ready time ``fs_ready = end_hour + lag_hours``, CPM slack,
+    actual TF, float class, and ``is_driver`` — the flag on the predecessor(s) whose ``fs_ready``
+    is the maximum (the latest finish that gated this task's eligibility). A successor row carries
+    its ``lag_hours``, ``start_hour``, CPM slack, actual TF, and float class. A neighbor with no
+    matching DTO (un-timed) is still listed, with ``None`` timing and ``is_driver=False``; preds
+    with an unknown finish never win the driver flag (``fs_ready is None``). Pure — no ``st``."""
+    by_task = {a.task_id: a for a in schedule.activities}
+    deps = _dependency_options(raw_tree)
+
+    def _float(a):
+        return a.float_class.value if (a is not None and a.float_class is not None) else None
+
+    preds: list[dict] = []
+    for d in deps:
+        if d["successor"] != task_id:
+            continue
+        a = by_task.get(d["predecessor"])
+        end = a.end_hour if a is not None else None
+        preds.append({
+            "task_id": d["predecessor"], "lag_hours": d["lag_hours"], "end_hour": end,
+            "fs_ready": (end + d["lag_hours"]) if end is not None else None,
+            "cpm_slack_hours": a.cpm_slack_hours if a is not None else None,
+            "tf_actual_hours": a.tf_actual_hours if a is not None else None,
+            "float_class": _float(a), "is_driver": False,
+        })
+    ready = [p["fs_ready"] for p in preds if p["fs_ready"] is not None]
+    if ready:
+        driving = max(ready)
+        for p in preds:
+            if p["fs_ready"] == driving:      # flag every predecessor tied at the latest finish
+                p["is_driver"] = True
+
+    succs: list[dict] = []
+    for d in deps:
+        if d["predecessor"] != task_id:
+            continue
+        a = by_task.get(d["successor"])
+        succs.append({
+            "task_id": d["successor"], "lag_hours": d["lag_hours"],
+            "start_hour": a.start_hour if a is not None else None,
+            "cpm_slack_hours": a.cpm_slack_hours if a is not None else None,
+            "tf_actual_hours": a.tf_actual_hours if a is not None else None,
+            "float_class": _float(a),
+        })
+    return {"predecessors": preds, "successors": succs}
+
+def _saturated_skills(util, lo: float, hi: float) -> list[str]:
+    """The sorted, unique skill pools whose demand met or exceeded capacity at any point over the
+    half-open window ``[lo, hi)`` — a HEURISTIC, AGGREGATE resource-pressure readout (which pools
+    were tight while a task waited), NOT the authoritative per-task binding resource. Reads a
+    ``ResourceUtilizationDTO``; a skill counts when one of its intervals overlaps ``[lo, hi)`` with
+    ``demand >= available``. Returns ``[]`` when ``util is None`` or nothing overlaps/saturates.
+    Pure — no ``st``."""
+    if util is None:
+        return []
+    saturated: set[str] = set()
+    for series in util.series:
+        for iv in series.intervals:
+            if iv.start_hour < hi and iv.end_hour > lo and iv.demand >= iv.available:
+                saturated.add(series.skill_type)
+    return sorted(saturated)
 
 def _graph_layout(fig, height: int) -> None:
     """Common styling for a network-scatter figure: hidden axes, tight margins, no legend —

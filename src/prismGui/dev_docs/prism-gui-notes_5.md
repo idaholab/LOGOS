@@ -62,13 +62,13 @@ the storage/navigation a capability needs exists, but the capability itself does
 | Advanced pools: equipment zone-affinity, consumables, system state, dose-budget resources | ⬜ | notes_3 Phase 2 "later increments" |
 | Editing contract (transactional commit, referential integrity, valid export) | ✅ | |
 
-### Phase 3 — Make output trustworthy & readable — 🟡 partial (mostly *display*, little *diagnostics*)
+### Phase 3 — Make output trustworthy & readable — ✅ complete (all rows delivered; the inspector's *named* binding-resource attribution is a documented Tier-B follow-up)
 | Capability | Status | Where / caveat |
 |---|---|---|
 | Resource utilization charts | ✅ | Stage A **Plots**, `make_subplots(shared_xaxes=True)` + range slider → aligned x-axes + horizontal scroll (this was a notes_4 layout goal that *is* a Phase-3 item) |
 | DAG view **with options** | ✅ | **Delivered 2026-09-11 as Tier 2 (Graphs tab).** The Stage B input-side DAG now enriches into the run-aware view notes_3 meant: nodes colored by float class (red constrained-chain / orange zero-float / green positive), a **Layer by** control (dependency depth / CPM ES / CPM LS), a dashed-red **resource-contention overlay** (the arcs the schedule adds beyond plan precedence), and a rich per-node tooltip (CPM ES/LS/slack labeled "(CPM)", wall-clock start/end, float class + actual TF, CPM-critical / Constrained flags). **Achieved by parity-by-wiring, NOT by calling engine plotting**: the engine's analytics reach the GUI as pure output-DTO fields (`ScheduledActivityDTO.es/ls/cpm_slack_hours`, `ScheduleDTO.contention_edges`) and the existing pure builder (`_activity_graph_enriched`) + lazy-Plotly render helper draw the graph the GUI already owns — so no engine drawing code enters the architecture and the pure path stays stdlib-only. Corrections baked in: the engine's `highlight` param is dead code and the "purple overlap" was fictional; the real `_node_color` rule (constrained-chain → red / actual-TF ≈ 0 → orange / else) is reproduced via the single `classify_float`/`FloatClass` source. Enrichment is gated on the selected run being COMPLETED and lineage-`CURRENT` for the shown schedule; otherwise the structural pre-run graph is drawn with a fallback caption. |
-| Per-task drill-down / inspector ("why isn't this starting sooner?") | 🟡 | **partial (2026-09-11):** the enriched DAG tooltip now answers much of "why" per node — CPM ES/LS/slack, actual TF, float class, and CPM-critical / Constrained flags. A dedicated inspector panel (predecessor/successor slack attribution, binding resource) is still ⬜. |
-| Fitness score with components + **configurable weights** | 🟡 | composite + makespan_ratio shown read-only (`main.py:746-749`); **no** configurable α/β/γ/δ, no advanced "schedule evaluation" section, no non-optimization caveat |
+| Per-task drill-down / inspector ("why isn't this starting sooner?") | ✅ | **Delivered 2026-09-14 (Tier A — GUI-only wire-up).** A dedicated **Task inspector** segment on the Results page (third segment beside Plots / Activity DAG): a task selector, a **slip decomposition** (lateness vs CPM early start = the resource-contention portion `delay_hours` + a predecessor/time-window/**calendar** gating remainder, clamped at 0 for calendar rounding), **predecessor/successor slack-attribution** tables (each neighbor's lag, finish-or-start, CPM slack, actual TF, float class) with the **finish-driving predecessor** flagged (argmax `end_hour + lag`), and a clearly-labeled **aggregate** resource-pressure readout (which pools were at/over capacity during the wait — demand ≥ capacity, *not* task-attributed). Built by three **pure** builders (`_task_slip`, `_task_neighbors`, `_saturated_skills` in `view_data.py`, re-exported through `main.py`; render helper `_render_task_inspector` in `pages/results.py`) fusing existing output DTOs (`ScheduledActivityDTO.es/ls/cpm_slack/tf_actual/delay_hours`) with the plan's precedence edges (`_dependency_options`) — **no engine/adapter/DTO/serialization change**. Honesty guards: summary + slip come from `result.schedule` alone (shown regardless of freshness); the neighbor tables are gated on `Freshness.CURRENT` (so the plan's edges match the run); `contention_edges` are NEVER presented as causal blockers, and the aggregate pool readout is explicitly not per-task attribution. **Deferred (Tier B):** the authoritative *named* binding resource / *named* delaying predecessor — the engine computes both in `explain_idle_on_chain_detailed` (`pert.py:5275`) but only `logger.debug`s them; surfacing needs engine→adapter→DTO plumbing. |
+| Fitness score with components + **configurable weights** | ✅ | **Delivered 2026-09-14 (UI wire-up).** The composite + component ratios were already shown read-only in the results header; the sidebar now carries a collapsed **Fitness weights (advanced)** expander (four `st.number_input`s, α/β/γ/δ, `min_value=0.0`) that populates `RunConfig.evaluation_weights` via the pure `_evaluation_weights` helper (`view_data.py`, re-exported through `main.py`). The whole substrate below the UI already existed — the field, its canonical hash (`hashing.py`), the `DIFFERENT_CONFIG` freshness it drives, and the adapter's `pert.compute_fitness(α,β,γ,δ)` consumption — so this was a **UI-only insertion**, no engine/adapter/domain/serialization change. Two honesty guards: `_evaluation_weights` returns `None` at the defaults (1.0/0.5/0.3/2.0) so a default run stays hash- and fitness-identical to the no-weights path (feature invisible until used), and the sidebar caption + header echo state these are **post-hoc comparison** weights — they re-score a completed schedule's composite, they do **not** change the GA/ALNS search (a weight change re-runs to the *same* schedule with a *different* composite). The results header echoes the active weights only when the selected run is `CURRENT` and the weights are non-default. |
 | CPM-only baseline view (logical critical path) | ✅ | **Delivered 2026-09-14 (display wire-up).** The `getCriticalPath()` path now rides `ScheduleDTO.cpm_critical_path` and is surfaced two ways for a COMPLETED run: an ordered `A → B → C` readout under the CPM lower-bound metric in the results header (`_cpm_path_label`), **and** a solid-gold edge trace along the path in the enriched Activity DAG (`_cpm_path_edges` → `cpm_path_edges` in `_activity_graph_enriched`, drawn beneath the nodes with an extended legend). This is the *logical* critical path (resources ignored) — **distinct** from the resource-constrained chain the DAG/Gantt already color red. Pure builders (stdlib-only, in `view_data.py`, re-exported through `main.py`); no engine/adapter/DTO change. |
 | Dependency-violation check as a distinct output | ✅ | **Delivered 2026-09-14 (display wire-up).** `pert.check_dependency_violations()` already rode `DiagnosticsDTO.dependency_violations`; the results header now surfaces it as its **own verdict** (`_render_dependency_violations`) — a clean run states `✅ No dependency violations.` explicitly, violations get a `⛔ n dependency violation(s)` headline + a focused issue list in an open expander. (These same issues also remain, undifferentiated, in the full "Audit findings" expander because they're concatenated into `result.issues`; the new section is the feasibility-focused view.) No engine/adapter/DTO change. |
 
@@ -108,15 +108,22 @@ run-aware (float-class color, CPM ES/LS/topo layout, resource-contention overlay
 delivered by wiring the engine's analytics through output DTOs rather than rendering an engine figure.
 A 2026-09-14 increment closed two more Phase-3 rows the **same way** — by surfacing DTOs the adapter
 already populated: the **CPM-only (logical) critical path** (readout + gold DAG trace) and the
-**dependency-violation verdict** (a distinct feasibility output). The substance still missing: the
-full per-task "why" inspector and configurable fitness weights, plus any actual scenario/run
-comparison. Do **not** read "the graph/plot exists" as "the phase is done" — for the remaining rows
-the work is the diagnostics, not the rendering:
+**dependency-violation verdict** (a distinct feasibility output). A later 2026-09-14 increment closed
+**configurable fitness weights** — a UI-only insertion over the already-wired `RunConfig.evaluation_weights`
+(sidebar expander + `_evaluation_weights` helper + header echo; no engine/adapter/domain change). A later
+2026-09-14 increment closed the **last** Phase-3 row the same way — the **per-task inspector** (Tier A:
+slip decomposition + predecessor/successor slack attribution + aggregate resource pressure), three pure
+builders fusing existing DTOs with the plan's precedence edges, no engine/adapter/DTO change. The
+substance still missing is now **Phase-4** — any actual scenario/run comparison. Do **not** read "the
+graph/plot exists" as "the phase is done" — for the remaining Phase-4 rows the work is the diagnostics,
+not the rendering:
 
-- **Phase 3 gaps (remaining):** configurable fitness weights, and the full per-task inspector (the
-  Tier 2 DAG tooltip now covers per-node "why" — CPM slack, TF, flags — but not predecessor/successor
-  attribution). The options-rich DAG (Tier 2), the CPM-only path view and the dependency-violation
-  output (2026-09-14) are **done**.
+- **Phase 3 gaps (remaining):** none at Tier A — the per-task inspector shipped 2026-09-14 (slip
+  decomposition, predecessor/successor slack attribution, aggregate resource pressure), joining the
+  options-rich DAG (Tier 2), the CPM-only path view, the dependency-violation output, and configurable
+  fitness weights. The one Phase-3 follow-up is **Tier B**: surfacing the engine's authoritative *named*
+  binding resource / delaying predecessor (computed in `explain_idle_on_chain_detailed`, logged only —
+  needs engine→adapter→DTO plumbing).
 - **Phase 4 gaps:** everything analytical — the storage exists (Stage B), the comparison does not.
 - **Phase 5:** untouched; overlay fields exist but no replan loop.
 
@@ -124,12 +131,18 @@ the work is the diagnostics, not the rendering:
 
 ## Suggested next increment (not yet scoped/approved)
 
-The two cheapest display-only Phase-3 wins — **dependency-violation output** and the **CPM-only path
-view** — are now **done** (2026-09-14), leaving two Phase-3 rows that need real diagnostics rather than
-a DTO wire-up: **configurable fitness weights** (moderate — the adapter already consumes
-`evaluation_weights` at run time via `_build_fitness(pert, weights)`, so this is a run-config control
-+ re-run, not display-only) and the **full per-task inspector** (largest — predecessor/successor slack
-attribution + binding-resource identification, substrate only partial). The other high-value follow-on
-is **Phase-4 scenario/run comparison** (side-by-side makespan/disposition across the scenarios we can
-now store) — pure analysis, no substrate gap. This is a suggestion only — no work is authorized past
-the 2026-09-14 increment.
+All Phase-3 rows are now **done** — the **per-task inspector** shipped 2026-09-14 (Tier A: slip
+decomposition + predecessor/successor slack attribution + aggregate resource pressure), the last of the
+row after the options-rich DAG, the CPM-only path view, the dependency-violation output, and
+configurable fitness weights. Two candidate follow-ons remain, neither scoped/approved:
+
+- **Phase-4 scenario/run comparison** — side-by-side makespan / disposition across the scenarios we can
+  already store (Stage B substrate). Pure analysis, no substrate gap; the largest remaining GUI value,
+  and still GUI-only.
+- **Tier B for the inspector** — give `explain_idle_on_chain_detailed` (`pert.py:5275`) a structured
+  return and thread the authoritative *named* binding resource / delaying predecessor through
+  `prism_adapter.py` into new per-task `DiagnosticsDTO`/`ScheduledActivityDTO` fields, then show it in
+  the existing inspector. This is the first **non-GUI-only** increment in a while (engine + adapter +
+  DTOs), so it carries more risk than the Tier-A wire-ups.
+
+This is a suggestion only — no work is authorized past the per-task-inspector increment.

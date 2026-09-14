@@ -56,7 +56,7 @@ from prismGui.domain.plan import (
 )
 from prismGui.domain.materialize import materialize
 from prismGui.domain.results import DispositionOverall, Freshness, RunResultStatus
-from prismGui.domain.run_config import ModeSelection, PRIORITY_RULES, RunConfig, SGSVariant
+from prismGui.domain.run_config import EvaluationWeights, ModeSelection, PRIORITY_RULES, RunConfig, SGSVariant
 from prismGui.domain.scenario import DurationOverride, ResourceChange, Scenario
 from prismGui.infrastructure.memory_repository import InMemoryRepository
 from prismGui.infrastructure.memory_snapshot_store import InMemorySnapshotStore
@@ -117,7 +117,8 @@ from prismGui.app.view_data import (
     _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _PROVENANCE_FIELD_LABELS, _provenance_rows,
     _data_viewer_rows, _BASELINE_NODE_ID, _OVERLAY_FIELDS, _overlay_count,
     _relation_graph_data, _activity_graph_data, _dag_node_color, _dag_hover,
-    _activity_graph_enriched, _graph_layout, _cpm_path_edges, _cpm_path_label
+    _activity_graph_enriched, _graph_layout, _cpm_path_edges, _cpm_path_label,
+    _evaluation_weights, _task_slip, _task_neighbors, _saturated_skills
 )
 
 # view-layer wiring used by main() / the page closures below

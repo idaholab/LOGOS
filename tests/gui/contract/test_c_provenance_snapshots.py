@@ -28,7 +28,7 @@ from prismGui.domain.hashing import (
     hash_scenario,
     reference_plan_snapshot,
 )
-from prismGui.domain.run_config import SGSVariant
+from prismGui.domain.run_config import EvaluationWeights, SGSVariant
 from prismGui.domain.scenario import DurationOverride
 from prismGui.domain.versions import SCHEMA_VERSION
 from prismGui.ports.snapshot_store import SnapshotNotFoundError
@@ -57,6 +57,22 @@ class TestProvenanceAndSnapshots:
         assert hash_run_config(dataclasses.replace(run_config, priority_rule="es")) != h
         assert hash_run_config(dataclasses.replace(run_config, seed=run_config.seed + 1)) != h
         assert hash_run_config(dataclasses.replace(run_config, sgs=SGSVariant.FIRST)) != h
+
+    def test_run_config_hash_covers_evaluation_weights(self, run_config):
+        """The composite fitness weights are part of run-config identity: setting them (vs the
+        None the fixture carries) and changing them each shift the hash — so the GUI weights
+        control already registers as ``DIFFERENT_CONFIG`` freshness with no serialization change.
+        (The fixture's ``evaluation_weights`` is None — the "defaults → None" GUI path — so this
+        also pins that a None run and a custom-weights run are distinct configs.)"""
+        h = hash_run_config(run_config)
+        assert run_config.evaluation_weights is None
+        custom = dataclasses.replace(
+            run_config, evaluation_weights=EvaluationWeights(alpha=2.0, beta=0.5, gamma=0.3, delta=2.0))
+        assert hash_run_config(custom) != h
+        other = dataclasses.replace(
+            run_config, evaluation_weights=EvaluationWeights(alpha=1.0, beta=1.0, gamma=1.0, delta=1.0))
+        assert hash_run_config(other) != h
+        assert hash_run_config(other) != hash_run_config(custom)
 
     def test_scenario_hash_excludes_nonsemantic_fields(self, scenario):
         """Scenario hash ignores scenario_id and display name; it depends on the delta

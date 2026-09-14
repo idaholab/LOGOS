@@ -6,10 +6,11 @@ from pathlib import Path
 from typing import Optional
 
 from prismGui.app._streamlit import st
-from prismGui.domain.run_config import PRIORITY_RULES, RunConfig, SGSVariant
+from prismGui.domain.run_config import EvaluationWeights, PRIORITY_RULES, RunConfig, SGSVariant
 from prismGui.app.edit_model import _NO_VALUE
 from prismGui.app.pipeline import discover_samples
 from prismGui.app.scenario_model import _mint_scenario
+from prismGui.app.view_data import _evaluation_weights
 
 
 def _render_validation_badge(load) -> None:
@@ -111,10 +112,16 @@ def _render_schedule_selector(session, baseline) -> None:
         _select_schedule_next_run(scn.scenario_id)
 
 def _pick_run_config(plan_id: str) -> RunConfig:
-    """Sidebar SGS + priority-rule + seed + horizon selectors -> a RunConfig. The rule list
-    is the engine's own 22-key library, so an unknown key is impossible. The scheduling
-    horizon maps to PRISM's ``max_time_hours=`` (0 -> None -> engine default) and is folded
-    into the run-config hash, so it is part of provenance/freshness."""
+    """Sidebar SGS + priority-rule + seed + horizon selectors + fitness weights -> a RunConfig.
+    The rule list is the engine's own 22-key library, so an unknown key is impossible. The
+    scheduling horizon maps to PRISM's ``max_time_hours=`` (0 -> None -> engine default) and is
+    folded into the run-config hash, so it is part of provenance/freshness.
+
+    The **Fitness weights** expander sets the α/β/γ/δ composite weights (``evaluation_weights``);
+    ``_evaluation_weights`` returns None when they equal the defaults, so a default run is
+    hash-identical to the no-weights path. These are POST-HOC comparison weights — they re-score a
+    completed schedule's composite, they do NOT change the search (a weight change re-runs to the
+    same schedule with a different composite, and flags a prior run ``DIFFERENT_CONFIG``)."""
     st.sidebar.header("Run configuration")
     sgs_value = st.sidebar.selectbox(
         "Schedule-generation scheme", [v.value for v in SGSVariant], index=0)
@@ -125,6 +132,19 @@ def _pick_run_config(plan_id: str) -> RunConfig:
     horizon = st.sidebar.number_input(
         "Scheduling horizon (h)", min_value=0.0, value=0.0, step=1.0,
         help="Schedule-length cap passed to PRISM (max_time_hours). 0 = engine default.")
+    with st.sidebar.expander("Fitness weights (advanced)", expanded=False):
+        alpha = st.number_input("Makespan (α)", min_value=0.0, value=1.0, step=0.1,
+                                key="prism_weight_alpha")
+        beta = st.number_input("Delay (β)", min_value=0.0, value=0.5, step=0.1,
+                               key="prism_weight_beta")
+        gamma = st.number_input("Criticality (γ)", min_value=0.0, value=0.3, step=0.1,
+                                key="prism_weight_gamma")
+        delta = st.number_input("Window violations (δ)", min_value=0.0, value=2.0, step=0.1,
+                                key="prism_weight_delta")
+        st.caption("Post-hoc comparison weights for the composite fitness "
+                   "(α·makespan + β·delay + γ·criticality + δ·window-violations). They change how a "
+                   "completed schedule is **scored**, not the schedule **search**.")
     return RunConfig(run_config_id=f"rc-{plan_id}", sgs=SGSVariant(sgs_value),
                      priority_rule=rule, seed=seed,
-                     scheduling_horizon_hours=(horizon if horizon > 0 else None))
+                     scheduling_horizon_hours=(horizon if horizon > 0 else None),
+                     evaluation_weights=_evaluation_weights(alpha, beta, gamma, delta))

@@ -159,6 +159,28 @@ class TestShapingHelpers:
         assert row["actual_resources"] == "MECH:1"        # skill:crew, ';'-joined
         assert row["description"] == "task a"
 
+    def test_evaluation_weights_defaults_collapse_to_none(self):
+        """The four fitness-weight sidebar inputs at their prefilled defaults (1.0/0.5/0.3/2.0)
+        assemble to ``None`` — so a GUI "defaults" run stays byte-identical to the no-weights
+        path (same run_config_hash, same engine fitness); the feature is invisible until used."""
+        assert app_main._evaluation_weights(1.0, 0.5, 0.3, 2.0) is None
+
+    def test_evaluation_weights_custom_carries_the_passed_values(self):
+        """Any non-default input yields an explicit ``EvaluationWeights`` carrying the four
+        passed values verbatim (no clamping / normalization — weights are unvalidated)."""
+        w = app_main._evaluation_weights(2.0, 0.5, 0.3, 2.0)
+        assert isinstance(w, app_main.EvaluationWeights)
+        assert (w.alpha, w.beta, w.gamma, w.delta) == (2.0, 0.5, 0.3, 2.0)
+
+    def test_evaluation_weights_non_default_in_any_position_is_not_none(self):
+        """A customized value in any one of the four positions (the other three left at their
+        defaults) is enough to produce a non-``None`` weights object — the "defaults → None"
+        collapse is an all-four-equal test, not a per-field one."""
+        assert app_main._evaluation_weights(9.0, 0.5, 0.3, 2.0) is not None   # α
+        assert app_main._evaluation_weights(1.0, 9.0, 0.3, 2.0) is not None   # β
+        assert app_main._evaluation_weights(1.0, 0.5, 9.0, 2.0) is not None   # γ
+        assert app_main._evaluation_weights(1.0, 0.5, 0.3, 9.0) is not None   # δ
+
 
 class TestEditorFormBuilders:
     """The streamlit-free builders behind the structured editor forms. Each maps raw-tree
@@ -1375,6 +1397,107 @@ class TestActivityGraphEnriched:
         hov = app_main._dag_hover(structural)
         assert "duration:" in hov and "depth:" in hov
         assert "CPM" not in hov and "float:" not in hov
+
+
+class TestTaskInspector:
+    """The three streamlit-free builders behind the per-task inspector ("why isn't this task
+    starting sooner?"): ``_task_slip`` (lateness-vs-CPM-early-start decomposition), ``_task_neighbors``
+    (predecessor/successor slack attribution off the plan's edges + the run's timing), and
+    ``_saturated_skills`` (an AGGREGATE resource-pressure readout — deliberately NOT a per-task
+    binding-resource attribution). All pure: stdlib + domain DTOs only, no ``st``, exercised through
+    ``app_main`` off the ``run_result`` + ``baseline`` fixtures (A→B chain, A finishes at 4, B starts
+    at 4). See the plan: the named binding resource stays a deferred Tier-B item."""
+
+    def test_slip_zero_when_on_time(self, run_result):
+        """A task that starts at its CPM early start with no resource delay decomposes to all zeros."""
+        a = next(x for x in run_result.schedule.activities if x.task_id == "A")
+        assert app_main._task_slip(a) == {
+            "lateness_vs_es": 0.0, "contention_delay": 0.0, "other_gating": 0.0}
+
+    def test_slip_splits_contention_from_other_gating(self):
+        """Total lateness (start − ES) splits into the resource-contention portion (``delay_hours``)
+        and the remainder (predecessor/window/calendar gating): start 10, ES 4, delay 2 → 6 h late =
+        2 h contention + 4 h other gating."""
+        act = ScheduledActivityDTO(
+            task_id="X", start_hour=10.0, end_hour=16.0, duration=6.0, delay_hours=2.0,
+            on_constrained_chain=False, float_class=classify_float(3.0, False), es_hours=4.0)
+        assert app_main._task_slip(act) == {
+            "lateness_vs_es": 6.0, "contention_delay": 2.0, "other_gating": 4.0}
+
+    def test_slip_none_safe_without_cpm_early_start(self):
+        """No CPM early start (``es_hours is None``) → lateness/other unavailable (None); the
+        contention portion is still the raw ``delay_hours``."""
+        act = ScheduledActivityDTO(
+            task_id="X", start_hour=10.0, end_hour=16.0, duration=6.0, delay_hours=2.0,
+            on_constrained_chain=False, float_class=classify_float(3.0, False))  # es_hours defaults None
+        assert app_main._task_slip(act) == {
+            "lateness_vs_es": None, "contention_delay": 2.0, "other_gating": None}
+
+    def test_slip_other_gating_clamped_at_zero(self):
+        """When ``delay_hours`` exceeds total lateness (calendar rounding), ``other_gating`` clamps at
+        0 rather than going negative."""
+        act = ScheduledActivityDTO(
+            task_id="X", start_hour=5.0, end_hour=9.0, duration=4.0, delay_hours=7.0,
+            on_constrained_chain=False, float_class=classify_float(0.0, False), es_hours=4.0)
+        slip = app_main._task_slip(act)
+        assert slip["lateness_vs_es"] == 1.0 and slip["contention_delay"] == 7.0
+        assert slip["other_gating"] == 0.0
+
+    def test_neighbors_predecessor_attribution_and_driver(self, baseline, run_result):
+        """For B, the sole predecessor A is listed with its lag/finish/CPM-slack/TF/float and flagged
+        as the finish-driving predecessor (``fs_ready = end + lag = 4``); B has no successors."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        n = app_main._task_neighbors(raw, run_result.schedule, "B")
+        assert n["successors"] == []
+        assert n["predecessors"] == [{
+            "task_id": "A", "lag_hours": 0.0, "end_hour": 4.0, "fs_ready": 4.0,
+            "cpm_slack_hours": 0.0, "tf_actual_hours": 0.0, "float_class": "critical",
+            "is_driver": True}]
+
+    def test_neighbors_successor_attribution(self, baseline, run_result):
+        """For A, the sole successor B is listed with its lag/start/CPM-slack/TF/float; A has no
+        predecessors."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        n = app_main._task_neighbors(raw, run_result.schedule, "A")
+        assert n["predecessors"] == []
+        assert n["successors"] == [{
+            "task_id": "B", "lag_hours": 0.0, "start_hour": 4.0, "cpm_slack_hours": 0.0,
+            "tf_actual_hours": 0.0, "float_class": "critical"}]
+
+    def test_neighbors_untimed_predecessor_is_none_and_not_driver(self, baseline):
+        """A predecessor with no matching scheduled DTO is still listed, with None timing and never
+        the driver flag (an unknown finish can't be the finish that gated eligibility)."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        empty = ScheduleDTO(makespan_hours=0.0, cpm_lower_bound_hours=0.0, optimism_gap_hours=0.0,
+                            activities=(), constrained_chain=())
+        n = app_main._task_neighbors(raw, empty, "B")
+        assert n["predecessors"] == [{
+            "task_id": "A", "lag_hours": 0.0, "end_hour": None, "fs_ready": None,
+            "cpm_slack_hours": None, "tf_actual_hours": None, "float_class": None,
+            "is_driver": False}]
+
+    @staticmethod
+    def _util():
+        # MECH: 0-4 h has slack (demand 2 of 4); 4-6 h is saturated (demand 5 of 5).
+        return ResourceUtilizationDTO(horizon_hours=6.0, series=(
+            SkillUtilizationSeries(skill_type="MECH", intervals=(
+                UtilizationInterval(start_hour=0.0, end_hour=4.0, demand=2, available=4),
+                UtilizationInterval(start_hour=4.0, end_hour=6.0, demand=5, available=5))),))
+
+    def test_saturated_skills_reports_pools_at_capacity_over_window(self):
+        """A pool counts when one of its intervals overlaps [lo, hi) with demand ≥ available: the
+        saturated 4-6 h interval surfaces MECH over (4, 6)."""
+        assert app_main._saturated_skills(self._util(), 4.0, 6.0) == ["MECH"]
+
+    def test_saturated_skills_empty_when_window_only_hits_slack(self):
+        """Over (0, 4) only the non-saturated interval overlaps → nothing reported (half-open: the
+        4-6 interval starts exactly at hi=4 and does not count)."""
+        assert app_main._saturated_skills(self._util(), 0.0, 4.0) == []
+
+    def test_saturated_skills_empty_for_nonoverlapping_window_or_no_util(self):
+        """A window past the horizon overlaps no interval, and a missing utilization DTO yields []."""
+        assert app_main._saturated_skills(self._util(), 20.0, 24.0) == []
+        assert app_main._saturated_skills(None, 0.0, 6.0) == []
 
 
 class TestModeOptions:

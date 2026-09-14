@@ -6,7 +6,7 @@ from prismGui.application import services
 from prismGui.domain.results import DispositionOverall, Freshness, RunResultStatus
 from prismGui.app.components import _render_issues
 from prismGui.app.scenario_model import _current_schedule_payload
-from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _provenance_rows, _resource_util_rows, _schedule_csv, _step_series
+from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _provenance_rows, _resource_util_rows, _saturated_skills, _schedule_csv, _step_series, _task_neighbors, _task_slip
 
 
 def _render_plots(result) -> None:
@@ -189,6 +189,14 @@ def _render_results_header(result, session, baseline, run_config) -> None:
             f"delay_ratio={f.delay_ratio:g} · criticality_ratio={f.criticality_ratio:g} · "
             f"window_violations={f.n_window_violations}"
         )
+        # Echo the custom weights that produced this composite — only when the selected run is
+        # CURRENT (so run_config's weights ARE the run-time weights) and non-default (else no info;
+        # a stale/different-config run is already flagged by the freshness badge above).
+        w = run_config.evaluation_weights
+        if w is not None and freshness is Freshness.CURRENT:
+            st.caption(
+                f"weights: makespan α={w.alpha:g} · delay β={w.beta:g} · "
+                f"criticality γ={w.gamma:g} · window δ={w.delta:g}")
 
 def _render_activity_graph(session, baseline, result=None) -> None:
     """The current schedule's activity/dependency DAG (Plotly network scatter): tasks as nodes,
@@ -291,18 +299,139 @@ def _render_activity_graph(session, baseline, result=None) -> None:
         st.warning("The dependency graph contains a cycle — the layout is approximate.")
     st.plotly_chart(fig, use_container_width=True)
 
+def _render_task_inspector(session, baseline, result) -> None:
+    """Per-task drill-down — "why isn't this task starting sooner?" — built ENTIRELY from the
+    selected run's output DTOs plus the current-schedule precedence edges (no engine call). A task
+    selector, a summary (timing / CPM float / actual TF / crews), a slip decomposition (lateness vs
+    CPM early start split into a resource-contention portion and a precedence/time-window/calendar
+    portion), predecessor / successor slack-attribution tables with the finish-driving predecessor
+    flagged, and a clearly-labeled AGGREGATE resource-pressure readout.
+
+    Honesty boundaries (load-bearing): the summary and slip come from ``result.schedule`` alone and
+    show regardless of freshness; the neighbor tables are gated on the run being CURRENT for the
+    current schedule (so the plan's edges match the run). The resource-pressure line is aggregate
+    demand≥capacity over the wait window, NOT attributed to this task, and the authoritative NAMED
+    binding resource / delaying predecessor is a documented Tier-B follow-up (the engine computes it
+    but does not surface it) — this panel never presents an aggregate reading, nor a contention
+    overlap/coupling, as an authoritative per-task blocker."""
+    schedule = result.schedule
+    activities = schedule.activities
+    if not activities:
+        st.info("This run scheduled no activities to inspect.")
+        return
+    by_task = {a.task_id: a for a in activities}
+    task_id = st.selectbox("Task", [a.task_id for a in activities], key="prism_inspector_task")
+    activity = by_task[task_id]
+
+    # --- summary: self-consistent from the run's own schedule; shown regardless of freshness -----
+    if activity.description:
+        st.caption(activity.description)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Start (h)", f"{activity.start_hour:g}")
+    c2.metric("End (h)", f"{activity.end_hour:g}")
+    c3.metric("Duration (h)", f"{activity.duration:g}")
+
+    def _h(v):
+        return "—" if v is None else f"{v:g}"
+
+    st.caption(
+        f"CPM: ES {_h(activity.es_hours)} · LS {_h(activity.ls_hours)} · "
+        f"slack {_h(activity.cpm_slack_hours)} (h)  ·  actual TF {_h(activity.tf_actual_hours)} h  ·  "
+        f"float **{activity.float_class.value if activity.float_class is not None else '—'}**"
+        f"{'  ·  on constrained chain' if activity.on_constrained_chain else ''}")
+    crews = ";".join(f"{r.skill_type}:{r.crew_count}" for r in activity.actual_resources)
+    st.caption(f"Assigned crews: {crews or '—'}")
+
+    # --- slip decomposition (lateness vs CPM early start) ----------------------------------------
+    slip = _task_slip(activity)
+    if slip["lateness_vs_es"] is None:
+        st.caption("No CPM early start recorded for this task — slip decomposition unavailable.")
+    elif slip["lateness_vs_es"] <= 0:
+        st.success(f"Starts at its CPM-earliest ({activity.start_hour:g} h) — no slip.")
+    else:
+        st.markdown(
+            f"**Slip:** started {activity.start_hour:g} h vs CPM-earliest {activity.es_hours:g} h "
+            f"→ **{slip['lateness_vs_es']:g} h late** = {slip['contention_delay']:g} h waiting on "
+            f"resources + {slip['other_gating']:g} h predecessor / time-window / calendar gating.")
+
+    # --- predecessor / successor slack attribution (needs the plan's edges to match the run) -----
+    scenario = session.get_scenario()
+    payload, warning = _current_schedule_payload(baseline, scenario)
+    current = (
+        not warning
+        and services.current_freshness(
+            result, baseline=baseline, scenario=scenario) is Freshness.CURRENT
+    )
+    if not current:
+        st.caption("Dependency attribution hidden — the selected run isn't current for the current "
+                   "schedule (re-run, or revert edits, to align them).")
+    else:
+        neighbors = _task_neighbors(payload, schedule, task_id)
+        preds, succs = neighbors["predecessors"], neighbors["successors"]
+        st.markdown("**Predecessors**")
+        if not preds:
+            st.caption("None — this task has no predecessors in the current plan.")
+        else:
+            st.dataframe(
+                [{"★": "★" if p["is_driver"] else "", "task": p["task_id"],
+                  "lag (h)": p["lag_hours"], "end (h)": p["end_hour"],
+                  "FS-ready (h)": p["fs_ready"], "CPM slack (h)": p["cpm_slack_hours"],
+                  "actual TF (h)": p["tf_actual_hours"], "float": p["float_class"] or ""}
+                 for p in preds],
+                use_container_width=True, hide_index=True)
+            drivers = [p["task_id"] for p in preds if p["is_driver"]]
+            if drivers:
+                st.caption("★ finish-driving predecessor(s) — latest finish-to-start ready time, "
+                           "the finish that gated this task's eligibility: " + ", ".join(drivers) + ".")
+        st.markdown("**Successors**")
+        if not succs:
+            st.caption("None — nothing in the current plan depends on this task.")
+        else:
+            st.dataframe(
+                [{"task": s["task_id"], "lag (h)": s["lag_hours"], "start (h)": s["start_hour"],
+                  "CPM slack (h)": s["cpm_slack_hours"], "actual TF (h)": s["tf_actual_hours"],
+                  "float": s["float_class"] or ""}
+                 for s in succs],
+                use_container_width=True, hide_index=True)
+
+    # --- aggregate resource pressure over the wait window (heuristic, NOT task-attributed) -------
+    if activity.delay_hours and activity.delay_hours > 0:
+        util = result.diagnostics.resource_utilization if result.diagnostics is not None else None
+        lo = activity.start_hour - activity.delay_hours
+        hot = _saturated_skills(util, lo, activity.start_hour)
+        if hot:
+            st.caption(
+                f"Over its {activity.delay_hours:g} h resource wait ([{lo:g}, "
+                f"{activity.start_hour:g}) h) these pools were at/over capacity: **{', '.join(hot)}** "
+                "— aggregate demand ≥ capacity during the wait, NOT attributed to this task.")
+        elif util is not None:
+            st.caption(
+                f"No pool was at capacity over its resource wait ([{lo:g}, {activity.start_hour:g}) "
+                f"h) — the {activity.delay_hours:g} h wait isn't explained by aggregate saturation.")
+        st.caption("The authoritative NAMED binding resource / delaying predecessor is a deferred "
+                   "Tier-B item — the engine computes it but does not surface it yet.")
+
 def _render_results_page(session, baseline, result, run_config) -> None:
     """Results page: the selected run's summary header (or a prompt to run), then a segmented
-    switch between the Gantt / resource *Plots* and the run-aware *Activity DAG*. The DAG
-    degrades to the structural pre-run graph when no completed, current run is selected."""
+    switch between the Gantt / resource *Plots*, the run-aware *Activity DAG*, and a per-task
+    *Task inspector*. The DAG degrades to the structural pre-run graph when no completed, current
+    run is selected; the inspector needs a completed run."""
     if result is not None:
         _render_results_header(result, session, baseline, run_config)
     else:
         st.info("Run a schedule (sidebar) to see results for the current schedule.")
     view = st.segmented_control(
-        "View", ["Plots", "Activity DAG"], default="Plots", key="prism_results_view")
+        "View", ["Plots", "Activity DAG", "Task inspector"], default="Plots",
+        key="prism_results_view")
     if view == "Activity DAG":
         _render_activity_graph(session, baseline, result)
+    elif view == "Task inspector":
+        if result is not None and result.status is RunResultStatus.COMPLETED:
+            _render_task_inspector(session, baseline, result)
+        elif result is not None:
+            st.info("The selected run did not complete — no schedule to inspect.")
+        else:
+            st.info("Run a schedule (sidebar) to inspect individual tasks.")
     elif result is not None and result.status is RunResultStatus.COMPLETED:
         _render_plots(result)
     elif result is not None:
