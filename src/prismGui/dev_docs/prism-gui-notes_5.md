@@ -53,13 +53,13 @@ the storage/navigation a capability needs exists, but the capability itself does
 | Provenance: input snapshot, run id, rule/SGS/seed/version, staleness | ✅ | freshness shown in results header |
 | Sample project guided load (`example_10` primary) | ✅ | |
 
-### Phase 2 — In-GUI editing (scoped) — 🟡 Increment 1 committed, later increments pending
+### Phase 2 — In-GUI editing (scoped) — ✅ all rows delivered (Increment 1 committed; advanced-pool editors in the working tree, not yet committed)
 | Capability | Status | Notes |
 |---|---|---|
 | Tasks & durations | ✅ | `_render_editor` draft→commit lifecycle |
 | Dependencies & lags | ✅ | |
 | Basic resources & availability (renewable first) | ✅ | |
-| Advanced pools: equipment zone-affinity, consumables, system state, dose-budget resources | ⬜ | notes_3 Phase 2 "later increments" |
+| Advanced pools: equipment zone-affinity, consumables, system state, dose-budget resources | ✅ | **The stale-row correction: two of the four already shipped** — consumables (`_render_consumable_form`) and system-states (`_render_system_form`). The remaining two shipped **2026-09-14 (GUI-only wire-up)**: **equipment zone-affinity** (`equipment[].zone_id` + its task-side `tasks[].zone_ids`) and **dose-budget** (`resources[].dose_budget_per_worker_mrem` + task-level `tasks[].dose_rate_mrem_per_hour`). All four fields were already schema-declared, loader-parsed, and on the domain dataclasses; the editors author them as `PatchOp`s onto the raw working tree (dedicated readers + widget blocks in `pages/plan.py`), which the commit path (`build_reference_plan(draft.raw_working_tree)`) and engine adapter read verbatim — **no engine/schema/domain/loader change**. Zone pickers offer only declared `location_id`s; the dose-budget widget gates on the pool's persisted `resource_type == consumable`. **Caveat:** the *typed export* path `serialize_plan_content` remains lossy for these four advanced fields (a **pre-existing** display/download gap, NOT on the run/commit path — the raw snapshot is authoritative), so the editors are fully functional for scheduling; documented, not fixed here. |
 | Editing contract (transactional commit, referential integrity, valid export) | ✅ | |
 
 ### Phase 3 — Make output trustworthy & readable — ✅ complete (all rows delivered; the inspector's *named* binding-resource attribution is a documented Tier-B follow-up)

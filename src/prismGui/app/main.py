@@ -84,7 +84,8 @@ from prismGui.app.edit_model import (
     _availability_window_patch, _available_count_patch, _consumable_options,
     _consumable_total_patch, _dependency_options, _description_patch, _dup_id,
     _duration_patch, _equipment_availability_options, _equipment_options,
-    _equipment_quantity_patch, _equipment_window_patch, _find_task_index, _iso_date_value,
+    _equipment_quantity_patch, _equipment_window_patch, _equipment_zone,
+    _equipment_zone_clear_patch, _equipment_zone_patch, _find_task_index, _iso_date_value,
     _location_availability_options, _location_capacity_patch, _location_options,
     _location_period_value, _location_window_patch, _mode_options, _patch_rows, _ref_missing,
     _remove_availability_period_patch, _remove_consumable_patch, _remove_dependency_patch,
@@ -94,16 +95,18 @@ from prismGui.app.edit_model import (
     _remove_task_alt_skill_patch, _remove_task_consumable_patch, _remove_task_equipment_patch,
     _remove_task_mode_equipment_patch, _remove_task_mode_patch,
     _remove_task_mode_resource_patch, _remove_task_patch, _remove_task_resource_patch,
-    _remove_task_system_state_patch, _remove_task_time_window_patch, _resource_options,
+    _remove_task_system_state_patch, _remove_task_time_window_patch, _resource_dose_budget,
+    _resource_dose_budget_clear_patch, _resource_dose_budget_patch, _resource_options,
     _resource_type_patch, _restock_edit_patch, _restock_options, _system_options,
-    _system_state_options, _task_at, _task_consumable_reqs, _task_equipment_reqs,
+    _system_state_options, _task_at, _task_consumable_reqs, _task_dose,
+    _task_dose_clear_patch, _task_dose_patch, _task_equipment_reqs,
     _task_hold_point, _task_hold_point_clear_patch, _task_hold_point_set_patch, _task_ids,
     _task_location, _task_location_clear_patch, _task_location_patch,
     _task_mode_dose_clear_patch, _task_mode_dose_patch, _task_mode_duration_patch,
     _task_mode_mob_clear_patch, _task_mode_mob_patch, _task_modes, _task_options,
     _task_resource_crew_patch, _task_resource_reqs, _task_resource_skill_patch,
-    _task_system_state_reqs, _task_time_window_edit_patch, _task_time_windows,
-    _window_replace_ops
+    _task_system_state_reqs, _task_time_window_edit_patch, _task_time_windows, _task_zones,
+    _task_zones_clear_patch, _task_zones_patch, _window_replace_ops
 )
 from prismGui.app.scenario_model import (
     _SCN_INTENTS, _is_whatif, _scenario_is_empty, _new_scenario_for, _mint_scenario,

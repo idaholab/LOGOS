@@ -8,7 +8,7 @@ from prismGui.app._streamlit import st
 from prismGui.application import services
 from prismGui.domain.plan import PatchAction, PatchOp, ResourceType, apply_patch, discard_draft, open_draft
 from prismGui.app.components import _render_issues
-from prismGui.app.edit_model import _HOLD_POINT_TYPES, _NO_VALUE, _add_availability_period_patch, _add_consumable_patch, _add_dependency_patch, _add_equipment_availability_patch, _add_equipment_patch, _add_location_availability_patch, _add_location_patch, _add_resource_pool_patch, _add_restock_patch, _add_system_patch, _add_system_state_patch, _add_task_alt_skill_patch, _add_task_consumable_patch, _add_task_equipment_patch, _add_task_mode_equipment_patch, _add_task_mode_patch, _add_task_mode_resource_patch, _add_task_patch, _add_task_resource_patch, _add_task_system_state_patch, _add_task_time_window_patch, _as_date, _as_float, _as_str, _availability_options, _availability_window_patch, _available_count_patch, _consumable_options, _consumable_total_patch, _dependency_options, _description_patch, _duration_patch, _equipment_availability_options, _equipment_options, _equipment_quantity_patch, _equipment_window_patch, _iso_date_value, _location_availability_options, _location_capacity_patch, _location_options, _location_window_patch, _patch_rows, _remove_availability_period_patch, _remove_consumable_patch, _remove_dependency_patch, _remove_equipment_availability_patch, _remove_equipment_patch, _remove_location_availability_patch, _remove_location_patch, _remove_resource_pool_patch, _remove_restock_patch, _remove_system_patch, _remove_system_state_patch, _remove_task_alt_skill_patch, _remove_task_consumable_patch, _remove_task_equipment_patch, _remove_task_mode_equipment_patch, _remove_task_mode_patch, _remove_task_mode_resource_patch, _remove_task_patch, _remove_task_resource_patch, _remove_task_system_state_patch, _remove_task_time_window_patch, _resource_options, _resource_type_patch, _restock_edit_patch, _restock_options, _system_options, _system_state_options, _task_consumable_reqs, _task_equipment_reqs, _task_hold_point, _task_hold_point_clear_patch, _task_hold_point_set_patch, _task_ids, _task_location, _task_location_clear_patch, _task_location_patch, _task_mode_dose_clear_patch, _task_mode_dose_patch, _task_mode_duration_patch, _task_mode_mob_clear_patch, _task_mode_mob_patch, _task_modes, _task_options, _task_resource_crew_patch, _task_resource_reqs, _task_resource_skill_patch, _task_system_state_reqs, _task_time_window_edit_patch, _task_time_windows
+from prismGui.app.edit_model import _HOLD_POINT_TYPES, _NO_VALUE, _add_availability_period_patch, _add_consumable_patch, _add_dependency_patch, _add_equipment_availability_patch, _add_equipment_patch, _add_location_availability_patch, _add_location_patch, _add_resource_pool_patch, _add_restock_patch, _add_system_patch, _add_system_state_patch, _add_task_alt_skill_patch, _add_task_consumable_patch, _add_task_equipment_patch, _add_task_mode_equipment_patch, _add_task_mode_patch, _add_task_mode_resource_patch, _add_task_patch, _add_task_resource_patch, _add_task_system_state_patch, _add_task_time_window_patch, _as_date, _as_float, _as_str, _availability_options, _availability_window_patch, _available_count_patch, _consumable_options, _consumable_total_patch, _dependency_options, _description_patch, _duration_patch, _equipment_availability_options, _equipment_options, _equipment_quantity_patch, _equipment_window_patch, _equipment_zone, _equipment_zone_clear_patch, _equipment_zone_patch, _iso_date_value, _location_availability_options, _location_capacity_patch, _location_options, _location_window_patch, _patch_rows, _remove_availability_period_patch, _remove_consumable_patch, _remove_dependency_patch, _remove_equipment_availability_patch, _remove_equipment_patch, _remove_location_availability_patch, _remove_location_patch, _remove_resource_pool_patch, _remove_restock_patch, _remove_system_patch, _remove_system_state_patch, _remove_task_alt_skill_patch, _remove_task_consumable_patch, _remove_task_equipment_patch, _remove_task_mode_equipment_patch, _remove_task_mode_patch, _remove_task_mode_resource_patch, _remove_task_patch, _remove_task_resource_patch, _remove_task_system_state_patch, _remove_task_time_window_patch, _resource_dose_budget, _resource_dose_budget_clear_patch, _resource_dose_budget_patch, _resource_options, _resource_type_patch, _restock_edit_patch, _restock_options, _system_options, _system_state_options, _task_consumable_reqs, _task_dose, _task_dose_clear_patch, _task_dose_patch, _task_equipment_reqs, _task_hold_point, _task_hold_point_clear_patch, _task_hold_point_set_patch, _task_ids, _task_location, _task_location_clear_patch, _task_location_patch, _task_mode_dose_clear_patch, _task_mode_dose_patch, _task_mode_duration_patch, _task_mode_mob_clear_patch, _task_mode_mob_patch, _task_modes, _task_options, _task_resource_crew_patch, _task_resource_reqs, _task_resource_skill_patch, _task_system_state_reqs, _task_time_window_edit_patch, _task_time_windows, _task_zones, _task_zones_clear_patch, _task_zones_patch
 from prismGui.app.scenario_model import _current_schedule_payload, _schedule_label
 from prismGui.app.view_data import _data_viewer_rows
 
@@ -193,6 +193,30 @@ def _render_resource_form(session, draft) -> None:
         _apply_ops(session, draft, [op], [],
                    success_msg=f"Staged removal of resource pool {chosen['skill_type']}.")
 
+    # --- Dose budget (mRem/worker; optional numeric, SET is ADD, CLEAR is REMOVE). Gated on the pool's
+    # PERSISTED resource_type == consumable (schema: "only meaningful when resource_type is 'consumable'");
+    # renewable pools show a caption pointing at the two-step apply-type-first flow. ---
+    st.markdown("**Dose budget**")
+    if chosen["resource_type"] != ResourceType.CONSUMABLE.value:
+        st.caption("Dose budget applies only to consumable pools — set the resource type to "
+                   "'consumable' and apply it first.")
+    else:
+        current_dose = _resource_dose_budget(draft.raw_working_tree, chosen["index"])
+        dose_on = st.checkbox("Set dose budget (mRem/worker)", value=current_dose is not None,
+                              key="prism_res_dose_on")
+        if dose_on:
+            dose_val = st.number_input("Dose budget per worker (mRem)", min_value=0.0,
+                                       value=float(current_dose) if current_dose is not None else 0.0,
+                                       step=1.0, key="prism_res_dose_val")
+            if st.button("Apply dose budget", key="prism_res_dose_apply"):
+                op = _resource_dose_budget_patch(chosen["index"], dose_val)
+                _apply_ops(session, draft, [op], [],
+                           success_msg=f"Staged dose budget {dose_val:g} mRem for {chosen['skill_type']}.")
+        elif current_dose is not None and st.button("Clear dose budget", key="prism_res_dose_clear"):
+            op = _resource_dose_budget_clear_patch(chosen["index"])
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged clearing the dose budget of {chosen['skill_type']}.")
+
     periods = _availability_options(draft.raw_working_tree, chosen["index"])
     if periods:
         st.markdown("**Availability period**")
@@ -271,6 +295,29 @@ def _render_equipment_form(session, draft) -> None:
         op = _remove_equipment_patch(chosen["index"])
         _apply_ops(session, draft, [op], [],
                    success_msg=f"Staged removal of equipment {chosen['equipment_id']}.")
+
+    # --- Zone affinity (a single optional zone; SET is ADD, CLEAR is REMOVE — null can't be patched) ---
+    _NONE = "— none —"
+    st.markdown("**Zone affinity**")
+    zone_ids = [o["location_id"] for o in _location_options(draft.raw_working_tree)]
+    if not zone_ids:
+        st.caption("No location zones yet — add one on the Locations tab to set a zone affinity.")
+    else:
+        current_zone = _equipment_zone(draft.raw_working_tree, chosen["index"])
+        st.caption(f"Current zone: {current_zone if current_zone else _NONE} — when set, only "
+                   "activities whose zones include it may use this equipment.")
+        z_opts = [_NONE, *zone_ids]
+        z_default = z_opts.index(current_zone) if current_zone in zone_ids else 0
+        z_choice = st.selectbox("Set zone affinity", z_opts, index=z_default, key="prism_equip_zone")
+        if st.button("Apply zone affinity", key="prism_equip_zone_apply"):
+            if z_choice != _NONE:
+                _apply_ops(session, draft, [_equipment_zone_patch(chosen["index"], z_choice)], [],
+                           success_msg=f"Staged zone {z_choice} for equipment {chosen['equipment_id']}.")
+            elif current_zone is not None:
+                _apply_ops(session, draft, [_equipment_zone_clear_patch(chosen["index"])], [],
+                           success_msg=f"Staged clearing the zone of equipment {chosen['equipment_id']}.")
+            else:
+                st.info("No zone set — nothing to clear.")
 
     periods = _equipment_availability_options(draft.raw_working_tree, chosen["index"])
     if periods:
@@ -582,6 +629,48 @@ def _render_task_requirements_form(session, draft) -> None:
                        success_msg=f"Staged clearing the location of task {task_id}.")
         else:
             st.info("No location set — nothing to clear.")
+
+    # --- Zones (multi-zone occupancy; a whole-list SET via ADD, CLEAR via REMOVE). Each entry
+    # references a declared location_id (schema); an omitted zone_ids falls back to [location_id]. ---
+    st.markdown("**Zones**")
+    if not zone_ids:
+        st.caption("No location zones yet — add one on the Locations tab to set task zones.")
+    else:
+        current_zones = _task_zones(draft.raw_working_tree, task_index)
+        st.caption("Activities occupying more than one zone; when omitted, defaults to the single "
+                   "location above. Zone-affine equipment requires its zone to appear here.")
+        z_default = [z for z in current_zones if z in zone_ids]
+        z_choice = st.multiselect("Zones (multi-zone occupancy)", zone_ids, default=z_default,
+                                   key="prism_req_zones")
+        if st.button("Apply zones", key="prism_req_zones_apply"):
+            if z_choice:
+                _apply_ops(session, draft, [_task_zones_patch(task_index, z_choice)], [],
+                           success_msg=f"Staged zones {', '.join(z_choice)} for task {task_id}.")
+            elif current_zones:
+                _apply_ops(session, draft, [_task_zones_clear_patch(task_index)], [],
+                           success_msg=f"Staged clearing the zones of task {task_id}.")
+            else:
+                st.info("No zones selected — nothing to clear.")
+
+    # --- Dose rate (task default mRem/h; optional numeric, SET is ADD, CLEAR is REMOVE). A mode
+    # may override this on the Modes tab (_task_mode_dose_patch); this is the task-level default. ---
+    st.markdown("**Dose rate**")
+    current_dose = _task_dose(draft.raw_working_tree, task_index)
+    st.caption("Task-default ambient dose rate; a specific mode may override it on the Modes tab.")
+    dose_on = st.checkbox("Set dose rate (mRem/h)", value=current_dose is not None,
+                          key="prism_req_dose_on")
+    if dose_on:
+        dose_val = st.number_input("Dose rate (mRem/h)", min_value=0.0,
+                                   value=float(current_dose) if current_dose is not None else 0.0,
+                                   step=0.5, key="prism_req_dose_val")
+        if st.button("Apply dose rate", key="prism_req_dose_apply"):
+            op = _task_dose_patch(task_index, dose_val)
+            _apply_ops(session, draft, [op], [],
+                       success_msg=f"Staged dose rate {dose_val:g} mRem/h for task {task_id}.")
+    elif current_dose is not None and st.button("Clear dose rate", key="prism_req_dose_clear"):
+        op = _task_dose_clear_patch(task_index)
+        _apply_ops(session, draft, [op], [],
+                   success_msg=f"Staged clearing the dose rate of task {task_id}.")
 
     # --- Resource requirements (skill_type + crew_count, plus nested alternative_skill_types) ---
     st.markdown("**Resource requirements**")

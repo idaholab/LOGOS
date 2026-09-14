@@ -207,6 +207,31 @@ def _resource_type_patch(resource_index: int, resource_type) -> PatchOp:
     return PatchOp(action=PatchAction.ADD, path=f"/resources/{resource_index}/resource_type",
                    value=value)
 
+def _resource_dose_budget(raw_tree, resource_index: int) -> Optional[float]:
+    """The current ``dose_budget_per_worker_mrem`` of pool #resource_index (None if absent or out of
+    range) -- the pre-fill reader for the dose-budget widget. Dedicated reader, not a key on
+    ``_resource_options``, whose exact shape a contract test pins."""
+    resources = raw_tree.get("resources") or []
+    if resource_index < 0 or resource_index >= len(resources):
+        return None
+    return resources[resource_index].get("dose_budget_per_worker_mrem")
+
+def _resource_dose_budget_patch(resource_index: int, dose_budget: float) -> PatchOp:
+    """ADD (set-or-create) a pool's optional ``dose_budget_per_worker_mrem``. ADD, not REPLACE: the
+    field is optional and shipping pools omit it (the ``_resource_type_patch`` precedent). Only
+    meaningful when the pool is ``consumable`` (schema note), so the widget gates on that; a negative
+    value BLOCKS at commit (SCHEMA_RANGE_ERROR -- minimum 0)."""
+    return PatchOp(action=PatchAction.ADD,
+                   path=f"/resources/{resource_index}/dose_budget_per_worker_mrem",
+                   value=float(dose_budget))
+
+def _resource_dose_budget_clear_patch(resource_index: int) -> PatchOp:
+    """REMOVE a pool's ``dose_budget_per_worker_mrem`` -- the only way to clear it (a set-to-null is
+    impossible; ``apply_patch`` rejects a None value). Valid only when the key is present (the wrapper
+    gates on the current budget)."""
+    return PatchOp(action=PatchAction.REMOVE,
+                   path=f"/resources/{resource_index}/dose_budget_per_worker_mrem")
+
 # -----------------------------------------------------------------------------
 # Increment 3: structural CRUD (add/remove whole tasks & resource pools, add/
 # remove availability periods) + availability-window date editing. Same discipline:
@@ -452,6 +477,29 @@ def _equipment_window_patch(equip_index: int, period_index: int, start_iso: str,
     """Move/resize one equipment availability window by date (two REPLACE ops)."""
     return _window_replace_ops(
         f"/equipment/{equip_index}/availability_periods/{period_index}", start_iso, end_iso)
+
+def _equipment_zone(raw_tree, equip_index: int) -> Optional[str]:
+    """The current ``zone_id`` (zone affinity) of equipment #equip_index (None if absent or out of
+    range) -- the pre-fill reader for the zone-affinity selector. Dedicated reader, not a key on
+    ``_equipment_options``, whose exact shape a contract test pins."""
+    equipment = raw_tree.get("equipment") or []
+    if equip_index < 0 or equip_index >= len(equipment):
+        return None
+    return equipment[equip_index].get("zone_id")
+
+def _equipment_zone_patch(equip_index: int, zone_id: str) -> PatchOp:
+    """ADD (set-or-create) ``/equipment/{i}/zone_id`` (a zone affinity, the ``_resource_type_patch``
+    precedent: optional, shipping items omit it). The picker offers only declared ``location_id``s
+    (equipment ``zone_id`` shares the location namespace task ``zone_ids`` reference), so a blank
+    ``minLength 1`` value never arises through the UI."""
+    return PatchOp(action=PatchAction.ADD, path=f"/equipment/{equip_index}/zone_id",
+                   value=str(zone_id))
+
+def _equipment_zone_clear_patch(equip_index: int) -> PatchOp:
+    """REMOVE ``/equipment/{i}/zone_id`` -- the only way to clear the zone affinity (a set-to-null is
+    impossible; ``apply_patch`` rejects a None value). Clearing makes the equipment usable from any
+    zone. Valid only when the key is present (the wrapper gates on the current zone)."""
+    return PatchOp(action=PatchAction.REMOVE, path=f"/equipment/{equip_index}/zone_id")
 
 def _location_options(raw_tree) -> list[dict]:
     """Per-zone selector rows ``{index, location_id, description, n_periods}``."""
@@ -806,6 +854,49 @@ def _task_location_clear_patch(task_index: int) -> PatchOp:
     nullable but ``apply_patch`` rejects a None value (a set-to-null is impossible). Valid only when
     the key is present (the wrapper gates on a current location)."""
     return PatchOp(action=PatchAction.REMOVE, path=f"/tasks/{task_index}/location_id")
+
+# --- zone_ids (a multi-zone list; SET is a whole-list ADD, CLEAR is REMOVE) ---
+
+def _task_zones(raw_tree, task_index: int) -> list[str]:
+    """The current ``zone_ids`` of task #task_index (``[]`` if absent or out of range) -- the
+    multiselect pre-fill reader. Multi-zone occupancy (Option C): each entry references a declared
+    ``location_id``; falls back to ``[location_id]`` when omitted."""
+    return list((_task_at(raw_tree, task_index) or {}).get("zone_ids") or [])
+
+def _task_zones_patch(task_index: int, zone_ids) -> PatchOp:
+    """ADD (set-or-create) the WHOLE ``/tasks/{i}/zone_ids`` list at once (a multiselect yields the
+    full set). ADD, not REPLACE: the field is optional and tasks omit it. Each id must reference a
+    declared ``location_id`` (the picker offers only those), else commit BLOCKS (REF_MISSING); an
+    empty list clears via ``_task_zones_clear_patch`` instead (absent == empty)."""
+    return PatchOp(action=PatchAction.ADD, path=f"/tasks/{task_index}/zone_ids",
+                   value=[str(z) for z in zone_ids])
+
+def _task_zones_clear_patch(task_index: int) -> PatchOp:
+    """REMOVE ``/tasks/{i}/zone_ids`` -- clearing multi-zone occupancy (the task falls back to
+    ``[location_id]``). Valid only when the key is present (the wrapper gates on current zones)."""
+    return PatchOp(action=PatchAction.REMOVE, path=f"/tasks/{task_index}/zone_ids")
+
+# --- dose_rate_mrem_per_hour (the task-level default; a mode may override it) ---
+
+def _task_dose(raw_tree, task_index: int) -> Optional[float]:
+    """The current task-level ``dose_rate_mrem_per_hour`` of task #task_index (None if absent or out
+    of range) -- the pre-fill reader for the task dose widget. A per-mode override lives separately
+    at ``/tasks/{i}/modes/{m}/dose_rate_mrem_per_hour`` (``_task_mode_dose_patch``)."""
+    task = _task_at(raw_tree, task_index)
+    return task.get("dose_rate_mrem_per_hour") if task else None
+
+def _task_dose_patch(task_index: int, dose_rate: float) -> PatchOp:
+    """ADD (set-or-create) the task-level ``dose_rate_mrem_per_hour`` (each worker's per-hour dose on
+    this task). ADD, not REPLACE: optional, tasks omit it. Same builder as the per-mode override
+    minus the ``/modes/{m}`` segment; a negative value BLOCKS at commit (SCHEMA_RANGE_ERROR --
+    minimum 0)."""
+    return PatchOp(action=PatchAction.ADD, path=f"/tasks/{task_index}/dose_rate_mrem_per_hour",
+                   value=float(dose_rate))
+
+def _task_dose_clear_patch(task_index: int) -> PatchOp:
+    """REMOVE the task-level ``dose_rate_mrem_per_hour`` -- the only way to clear it (a set-to-null is
+    impossible). Valid only when the key is present (the wrapper gates on the current dose)."""
+    return PatchOp(action=PatchAction.REMOVE, path=f"/tasks/{task_index}/dose_rate_mrem_per_hour")
 
 # --- required_equipment (REF_MISSING-bound) ---
 

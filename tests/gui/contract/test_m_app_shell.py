@@ -1026,6 +1026,101 @@ class TestEditorFormBuilders:
         assert (rem.action, rem.path) == (
             PatchAction.REMOVE, "/tasks/0/modes/0/required_equipment/0")
 
+    # -----------------------------------------------------------------------------
+    # Advanced-pool editors (Phase-2 close-out): equipment zone-affinity, task zone_ids,
+    # resource dose-budget, task-level dose-rate. All four fields are OPTIONAL and shipping
+    # samples omit them, so each SET is an ADD (set-or-create, the _resource_type_patch /
+    # _task_mode_dose_patch precedent) and each CLEAR a REMOVE (a set-to-null is impossible;
+    # apply_patch rejects a None value). Numerics are float()-coerced (range left to commit);
+    # readers are DEDICATED (not keys on the exact-shape option readers a contract test pins).
+    # GUI-only wire-up — no engine/schema/domain change.
+    # -----------------------------------------------------------------------------
+
+    def test_equipment_zone_set_and_clear_patches(self):
+        set_op = app_main._equipment_zone_patch(0, "ZONE-A")
+        assert (set_op.action, set_op.path, set_op.value) == (
+            PatchAction.ADD, "/equipment/0/zone_id", "ZONE-A")
+        clear_op = app_main._equipment_zone_clear_patch(0)
+        assert (clear_op.action, clear_op.path) == (PatchAction.REMOVE, "/equipment/0/zone_id")
+
+    def test_equipment_zone_reader(self):
+        tree = self._tree_with_equipment_and_location()
+        assert app_main._equipment_zone(tree, 0) is None     # key absent -> None
+        assert app_main._equipment_zone(tree, 9) is None     # out of range -> None
+        tree["equipment"][0]["zone_id"] = "ZONE-A"
+        assert app_main._equipment_zone(tree, 0) == "ZONE-A"
+
+    def test_equipment_zone_apply_patch_round_trip(self):
+        """The scalar SET (ADD create-branch) then CLEAR (REMOVE) feed straight through
+        domain.apply_patch: after the set the reader sees the value; after the clear it is gone."""
+        from prismGui.domain.plan import PlanDraft, apply_patch
+        draft = PlanDraft(base_plan_id="t", raw_working_tree=self._tree_with_equipment_and_location())
+        assert apply_patch(draft, app_main._equipment_zone_patch(0, "ZONE-A")).ok
+        assert app_main._equipment_zone(draft.raw_working_tree, 0) == "ZONE-A"
+        assert apply_patch(draft, app_main._equipment_zone_clear_patch(0)).ok
+        assert app_main._equipment_zone(draft.raw_working_tree, 0) is None
+
+    def test_task_zones_set_and_clear_patches(self):
+        set_op = app_main._task_zones_patch(0, ["ZONE-A", "ZONE-B"])
+        assert (set_op.action, set_op.path, set_op.value) == (
+            PatchAction.ADD, "/tasks/0/zone_ids", ["ZONE-A", "ZONE-B"])
+        clear_op = app_main._task_zones_clear_patch(0)
+        assert (clear_op.action, clear_op.path) == (PatchAction.REMOVE, "/tasks/0/zone_ids")
+
+    def test_task_zones_patch_stringifies_entries(self):
+        """Every entry is coerced to str — the multiselect yields declared location_id strings,
+        but the builder never trusts the caller's element type."""
+        op = app_main._task_zones_patch(0, ["ZONE-A", 7])
+        assert op.value == ["ZONE-A", "7"]
+
+    def test_task_zones_reader(self):
+        tree = self._tree_with_wired_task()
+        assert app_main._task_zones(tree, 0) == []       # key absent -> []
+        assert app_main._task_zones(tree, 9) == []       # out of range -> []
+        tree["tasks"][0]["zone_ids"] = ["ZONE-1", "ZONE-2"]
+        assert app_main._task_zones(tree, 0) == ["ZONE-1", "ZONE-2"]
+
+    def test_task_zones_apply_patch_round_trip(self):
+        """The whole-list SET (ADD create-branch) then CLEAR (REMOVE) round-trip through
+        domain.apply_patch; an absent zone_ids reads as the empty list either side of the clear."""
+        from prismGui.domain.plan import PlanDraft, apply_patch
+        draft = PlanDraft(base_plan_id="t", raw_working_tree=self._tree_with_wired_task())
+        assert apply_patch(draft, app_main._task_zones_patch(0, ["ZONE-1", "ZONE-2"])).ok
+        assert app_main._task_zones(draft.raw_working_tree, 0) == ["ZONE-1", "ZONE-2"]
+        assert apply_patch(draft, app_main._task_zones_clear_patch(0)).ok
+        assert app_main._task_zones(draft.raw_working_tree, 0) == []
+
+    def test_resource_dose_budget_set_and_clear_patches(self):
+        """A bare int coerces to float (the 2000 -> 2000.0 convention); the optional pool field
+        is ADDed (samples omit it) and cleared via REMOVE."""
+        set_op = app_main._resource_dose_budget_patch(0, 2000)
+        assert (set_op.action, set_op.path, set_op.value) == (
+            PatchAction.ADD, "/resources/0/dose_budget_per_worker_mrem", 2000.0)
+        clear_op = app_main._resource_dose_budget_clear_patch(0)
+        assert (clear_op.action, clear_op.path) == (
+            PatchAction.REMOVE, "/resources/0/dose_budget_per_worker_mrem")
+
+    def test_resource_dose_budget_reader(self, raw_plan):
+        assert app_main._resource_dose_budget(raw_plan, 0) is None    # key absent -> None
+        assert app_main._resource_dose_budget(raw_plan, 9) is None    # out of range -> None
+        raw_plan["resources"][0]["dose_budget_per_worker_mrem"] = 1500.0
+        assert app_main._resource_dose_budget(raw_plan, 0) == 1500.0
+
+    def test_task_dose_set_and_clear_patches(self):
+        set_op = app_main._task_dose_patch(0, 7.5)
+        assert (set_op.action, set_op.path, set_op.value) == (
+            PatchAction.ADD, "/tasks/0/dose_rate_mrem_per_hour", 7.5)
+        clear_op = app_main._task_dose_clear_patch(0)
+        assert (clear_op.action, clear_op.path) == (
+            PatchAction.REMOVE, "/tasks/0/dose_rate_mrem_per_hour")
+
+    def test_task_dose_reader(self):
+        tree = self._tree_with_wired_task()
+        assert app_main._task_dose(tree, 0) is None      # key absent -> None
+        assert app_main._task_dose(tree, 9) is None      # out of range -> None
+        tree["tasks"][0]["dose_rate_mrem_per_hour"] = 3.25
+        assert app_main._task_dose(tree, 0) == 3.25
+
 
 class TestScenarioPanelBuilders:
     """The streamlit-free scenario-overlay helpers behind the Increment-8 run-panel what-if
