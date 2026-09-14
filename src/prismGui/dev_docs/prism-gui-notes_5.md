@@ -72,10 +72,10 @@ the storage/navigation a capability needs exists, but the capability itself does
 | CPM-only baseline view (logical critical path) | ✅ | **Delivered 2026-09-14 (display wire-up).** The `getCriticalPath()` path now rides `ScheduleDTO.cpm_critical_path` and is surfaced two ways for a COMPLETED run: an ordered `A → B → C` readout under the CPM lower-bound metric in the results header (`_cpm_path_label`), **and** a solid-gold edge trace along the path in the enriched Activity DAG (`_cpm_path_edges` → `cpm_path_edges` in `_activity_graph_enriched`, drawn beneath the nodes with an extended legend). This is the *logical* critical path (resources ignored) — **distinct** from the resource-constrained chain the DAG/Gantt already color red. Pure builders (stdlib-only, in `view_data.py`, re-exported through `main.py`); no engine/adapter/DTO change. |
 | Dependency-violation check as a distinct output | ✅ | **Delivered 2026-09-14 (display wire-up).** `pert.check_dependency_violations()` already rode `DiagnosticsDTO.dependency_violations`; the results header now surfaces it as its **own verdict** (`_render_dependency_violations`) — a clean run states `✅ No dependency violations.` explicitly, violations get a `⛔ n dependency violation(s)` headline + a focused issue list in an open expander. (These same issues also remain, undifferentiated, in the full "Audit findings" expander because they're concatenated into `result.issues`; the new section is the feasibility-focused view.) No engine/adapter/DTO change. |
 
-### Phase 4 — High-value analysis — 🟡 substrate only, no analysis delivered
+### Phase 4 — High-value analysis — 🟡 4.1 comparison view delivered; the remaining analytical rows ⬜
 | Capability | Status | Where / caveat |
 |---|---|---|
-| What-if cloning / compare scenarios on same baseline | **(substrate)** | Stage B's multi-scenario storage + selector + relation graph is the *storage & navigation* Phase-4 comparison needs. We can hold many scenarios and see how they relate to the baseline — but we **cannot yet diff their run results** (no side-by-side makespan comparison). |
+| What-if cloning / compare scenarios on same baseline | ✅ *(comparison half)* | **Delivered 2026-09-14 as Phase 4.1 — the keystone run-comparison diff, GUI-only.** A **Compare runs** segment on the Results page (4th beside Plots / Activity DAG / Task inspector) picks **2..N** stored runs and shows their makespan / CPM lower bound / optimism gap / fitness / disposition / status / freshness **side by side**, each row labeled by resolving its `scenario_delta_hash` **forward** — *"match, don't decode"*: provenance hashes are one-way and omit human names, so we hash the live `session.list_scenarios()` into `{hash: name}` and look up (`None` → "Baseline", unmatched/edited-since → `scenario <8-char-hash>`), with each run's full provenance in a collapsed expander for audit. **First and only consumer of `session.list_run_results()`** (which had zero call sites before this). Two pure builders (`_scenario_hash_labels`, `_comparison_rows` in `view_data.py`, re-exported through `main.py`; render helper `_render_run_comparison` in `pages/results.py`) — freshness is computed in the render helper (which owns the `services` dependency) and passed in as a `{run_id: Freshness}` dict so the builders stay `services`/`st`-free; **no engine/adapter/DTO/schema/serialization change**. There is deliberately **no config-summary column**: only the *current* `RunConfig` object is retained (past runs keep only their `run_config_hash`), so a run made under a different config is surfaced honestly by the **freshness** column (`🟠 different config`), never a synthesized past config. Scope was **table only** — overlaid makespan chart / aligned Gantt deferred. This closes the *comparison* half of the row and lays the reusable diff substrate for 4.2/4.3; the remaining Phase-4 rows (sweeps, augmentation) stay ⬜. |
 | Priority-rule sweep | ⬜ | |
 | Chain-sets comparison | ⬜ | |
 | Idle-time diagnostics + **verified** resource-augmentation (clone→add→rerun→delta) | ⬜ | |
@@ -113,10 +113,12 @@ already populated: the **CPM-only (logical) critical path** (readout + gold DAG 
 (sidebar expander + `_evaluation_weights` helper + header echo; no engine/adapter/domain change). A later
 2026-09-14 increment closed the **last** Phase-3 row the same way — the **per-task inspector** (Tier A:
 slip decomposition + predecessor/successor slack attribution + aggregate resource pressure), three pure
-builders fusing existing DTOs with the plan's precedence edges, no engine/adapter/DTO change. The
-substance still missing is now **Phase-4** — any actual scenario/run comparison. Do **not** read "the
-graph/plot exists" as "the phase is done" — for the remaining Phase-4 rows the work is the diagnostics,
-not the rendering:
+builders fusing existing DTOs with the plan's precedence edges, no engine/adapter/DTO change. **Phase-4
+has now begun the same way:** the **run-comparison view** (4.1, 2026-09-14) is the first *analytical*
+capability — it diffs stored `RunResult`s side by side — and it too shipped GUI-only, by consuming the
+`list_run_results()` substrate and the metrics already on the output DTOs rather than adding any engine
+analysis. Do **not** read "the graph/plot exists" as "the phase is done" — for the *remaining* Phase-4
+rows the work is the diagnostics, not the rendering:
 
 - **Phase 3 gaps (remaining):** none at Tier A — the per-task inspector shipped 2026-09-14 (slip
   decomposition, predecessor/successor slack attribution, aggregate resource pressure), joining the
@@ -124,25 +126,34 @@ not the rendering:
   fitness weights. The one Phase-3 follow-up is **Tier B**: surfacing the engine's authoritative *named*
   binding resource / delaying predecessor (computed in `explain_idle_on_chain_detailed`, logged only —
   needs engine→adapter→DTO plumbing).
-- **Phase 4 gaps:** everything analytical — the storage exists (Stage B), the comparison does not.
+- **Phase 4 gaps:** the **comparison view (4.1) is delivered** — the storage (Stage B) now has its diff.
+  What remains is the *orchestration* that produces the run sets to diff: priority-rule / config / mode
+  **sweeps**, guided resource-**augmentation** (clone→add→rerun→delta), chain-sets comparison, and the
+  cross-revision (4b) comparison that needs baseline versioning (Phase 6). The 4.1 diff is the reusable
+  substrate every one of those reduces to.
 - **Phase 5:** untouched; overlay fields exist but no replan loop.
 
 ---
 
 ## Suggested next increment (not yet scoped/approved)
 
-All Phase-3 rows are now **done** — the **per-task inspector** shipped 2026-09-14 (Tier A: slip
-decomposition + predecessor/successor slack attribution + aggregate resource pressure), the last of the
-row after the options-rich DAG, the CPM-only path view, the dependency-violation output, and
-configurable fitness weights. Two candidate follow-ons remain, neither scoped/approved:
+All Phase-3 rows are **done**, and Phase-4 has opened with **4.1, the run-comparison view** (2026-09-14,
+GUI-only): the Results-page **Compare runs** segment diffs 2..N stored runs side by side, resolving each
+run's scenario forward from the live scenarios ("match, don't decode"). It is the first analytical Phase-4
+capability and the **reusable diff substrate** the rest of the phase reduces to. Candidate follow-ons,
+none scoped/approved:
 
-- **Phase-4 scenario/run comparison** — side-by-side makespan / disposition across the scenarios we can
-  already store (Stage B substrate). Pure analysis, no substrate gap; the largest remaining GUI value,
-  and still GUI-only.
+- **4.1 chart layer (small)** — the deferred visual half of the comparison: an overlaid makespan bar
+  chart and/or an aligned multi-run Gantt over the same selected runs. Still GUI-only; reuses the 4.1
+  selection + row builders. Pure display polish, no new analysis.
+- **Phase-4 orchestration (4.2 / 4.3)** — the increments that *generate* the run sets 4.1 diffs: a
+  priority-rule / config / mode **sweep** (fan out runs over a parameter, then compare), and guided
+  resource-**augmentation** (clone→add→rerun→delta). These add a run-orchestration loop over the existing
+  pipeline but remain GUI-only (no engine change) — the diff itself already exists.
 - **Tier B for the inspector** — give `explain_idle_on_chain_detailed` (`pert.py:5275`) a structured
   return and thread the authoritative *named* binding resource / delaying predecessor through
   `prism_adapter.py` into new per-task `DiagnosticsDTO`/`ScheduledActivityDTO` fields, then show it in
   the existing inspector. This is the first **non-GUI-only** increment in a while (engine + adapter +
-  DTOs), so it carries more risk than the Tier-A wire-ups.
+  DTOs), so it carries more risk than the Tier-A / 4.1 wire-ups.
 
-This is a suggestion only — no work is authorized past the per-task-inspector increment.
+This is a suggestion only — no work is authorized past the 4.1 run-comparison increment.

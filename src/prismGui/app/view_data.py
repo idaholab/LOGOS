@@ -9,6 +9,7 @@ from typing import Optional
 from prismGui.domain.results import Freshness
 from prismGui.domain.run_config import EvaluationWeights
 from prismGui.domain.scenario import Scenario
+from prismGui.domain.hashing import hash_scenario
 from prismGui.app.edit_model import _dependency_options, _task_options
 
 
@@ -188,6 +189,46 @@ def _provenance_rows(provenance) -> list[dict]:
         elif value is None:
             value = ""
         rows.append({"field": label, "value": str(value)})
+    return rows
+
+def _scenario_hash_labels(scenarios) -> dict[str, str]:
+    """``{hash_scenario(s): s.name or s.scenario_id}`` for the live session scenarios — the
+    forward-hash map used to resolve a run's ``provenance.scenario_delta_hash`` back to a human
+    label. Resolution is FORWARD (the direction ``services.current_freshness`` already uses): a
+    provenance hash cannot be decoded, because the canonical scenario payload deliberately omits the
+    id/name, so we re-hash the live scenarios and match. Pure — hashing is stdlib SHA-256, no ``st``."""
+    return {hash_scenario(s): (s.name or s.scenario_id) for s in scenarios}
+
+def _comparison_rows(results, scenario_labels, freshness_by_run) -> list[dict]:
+    """One streamlit-free row per run for the side-by-side comparison table, in the given order —
+    ``{run_id, scenario, status, makespan_hours, cpm_lower_bound_hours, optimism_gap_hours, fitness,
+    disposition, freshness}``. The ``scenario`` label resolves ``provenance.scenario_delta_hash``
+    against ``scenario_labels`` (``None`` → ``"Baseline"``; unmatched → ``"scenario <8-char prefix>"``,
+    i.e. that scenario was edited/removed since the run). Schedule metrics are ``None`` for a run with
+    no schedule (FAILED/CANCELLED — the ``status`` column explains the blanks, per the "no data → None
+    cell" convention); ``fitness`` is ``None`` unless a ``FitnessDTO`` rides ``diagnostics``. The
+    ``freshness`` cell maps ``freshness_by_run[run_id]`` (a ``{run_id: Freshness}`` map the caller
+    computes via ``services`` — kept out of this module so it stays ``st``/``services``-free) through
+    ``_FRESHNESS_LABEL``, empty string when a run is absent from the map. Pure — no ``st``."""
+    rows: list[dict] = []
+    for r in results:
+        h = r.provenance.scenario_delta_hash
+        scenario = "Baseline" if h is None else scenario_labels.get(h, f"scenario {h[:8]}")
+        sched = r.schedule
+        fitness = None
+        if r.diagnostics is not None and r.diagnostics.fitness is not None:
+            fitness = r.diagnostics.fitness.composite
+        rows.append({
+            "run_id": r.run_id,
+            "scenario": scenario,
+            "status": r.status.value,
+            "makespan_hours": None if sched is None else sched.makespan_hours,
+            "cpm_lower_bound_hours": None if sched is None else sched.cpm_lower_bound_hours,
+            "optimism_gap_hours": None if sched is None else sched.optimism_gap_hours,
+            "fitness": fitness,
+            "disposition": r.disposition.overall.value if r.disposition is not None else None,
+            "freshness": _FRESHNESS_LABEL.get(freshness_by_run.get(r.run_id), ""),
+        })
     return rows
 
 def _data_viewer_rows(tasks: list[dict]) -> list[dict]:

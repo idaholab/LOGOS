@@ -20,13 +20,19 @@ from __future__ import annotations
 import csv
 import io
 import json
+from datetime import datetime, timezone
 
 from prismGui.app import main as app_main
 from prismGui.domain.issues import IssueCode
 from prismGui.domain.plan import PatchAction
 from prismGui.domain.results import (
+    DiagnosticsDTO,
+    FitnessDTO,
     FloatClass,
+    Freshness,
+    Provenance,
     ResourceUtilizationDTO,
+    RunResult,
     RunResultStatus,
     ScheduledActivityDTO,
     ScheduleDTO,
@@ -34,7 +40,10 @@ from prismGui.domain.results import (
     UtilizationInterval,
     classify_float,
 )
+from prismGui.domain.disposition import ScheduleSummary, compute_disposition
+from prismGui.domain.hashing import hash_scenario
 from prismGui.domain.scenario import DurationOverride, ResourceChange, Scenario
+from prismGui.domain.versions import APP_VERSION, CANON_VERSION, SCHEMA_VERSION
 
 
 class TestImportSeam:
@@ -1593,6 +1602,146 @@ class TestTaskInspector:
         """A window past the horizon overlaps no interval, and a missing utilization DTO yields []."""
         assert app_main._saturated_skills(self._util(), 20.0, 24.0) == []
         assert app_main._saturated_skills(None, 0.0, 6.0) == []
+
+
+class TestRunComparison:
+    """The two streamlit-free builders behind the Phase-4.1 run-comparison view (Results-page
+    "Compare runs" segment): ``_scenario_hash_labels`` (forward-hash the live scenarios into
+    ``{hash_scenario(s): name}`` — the "match, don't decode" resolution, since provenance hashes
+    are one-way and omit human names) and ``_comparison_rows`` (one streamlit-free row per stored
+    ``RunResult``, diffing makespan / CPM bound / gap / fitness / disposition / status / freshness,
+    each labeled by resolving its ``scenario_delta_hash`` forward). Both pure: stdlib + domain DTOs
+    only, no ``st`` — freshness arrives as a plain ``{run_id: Freshness}`` dict the render helper
+    (which owns the ``services`` dependency) computes, so ``view_data`` stays services/st-free.
+    Fixtures are built inline in the ``run_result``-fixture style (no executor)."""
+
+    # ---- inline fixture builders (the run_result-fixture style: DTOs constructed directly) ----
+    @staticmethod
+    def _prov(run_id, scenario_delta_hash):
+        return Provenance(
+            baseline_snapshot_hash="base-hash", effective_plan_hash="eff-hash",
+            run_config_hash="cfg-hash", schema_version=SCHEMA_VERSION,
+            canonicalization_version=CANON_VERSION, app_version=APP_VERSION,
+            prism_version="test", run_id=run_id,
+            timestamp=datetime(2025, 1, 1, tzinfo=timezone.utc),
+            scenario_delta_hash=scenario_delta_hash)
+
+    @staticmethod
+    def _sched(makespan):
+        # cpm_lower_bound = makespan - 2, optimism_gap = 2 (arbitrary but distinct per field).
+        return ScheduleDTO(
+            makespan_hours=makespan, cpm_lower_bound_hours=makespan - 2.0,
+            optimism_gap_hours=2.0, activities=(), constrained_chain=())
+
+    def _make(self):
+        """Three stored runs sharing one live scenario 'Winter outage':
+          * run-base — COMPLETED, no scenario (Baseline), makespan 10, ``FitnessDTO`` on diagnostics;
+          * run-scn  — COMPLETED, ``scenario_delta_hash`` == the live scenario's hash, makespan 12,
+                       bare ``DiagnosticsDTO()`` (fitness None);
+          * run-fail — FAILED, an unmatched scenario hash, ``schedule``/``diagnostics`` None.
+        Returns ``(results, labels, disposition, scenario)``."""
+        scn = Scenario(scenario_id="scn-1", base_plan_id="p", base_plan_hash="h",
+                       name="Winter outage")
+        labels = app_main._scenario_hash_labels([scn])
+        fit = FitnessDTO(composite=0.42, makespan_ratio=1.0, delay_ratio=0.1,
+                         criticality_ratio=0.2, window_violation_ratio=0.0, n_window_violations=0)
+        disp = compute_disposition(
+            ScheduleSummary(produced=True, n_unscheduled=0, audit_ran=True), ())
+        base = RunResult(
+            run_id="run-base", status=RunResultStatus.COMPLETED,
+            provenance=self._prov("run-base", None), disposition=disp,
+            schedule=self._sched(10.0), diagnostics=DiagnosticsDTO(fitness=fit))
+        scnrun = RunResult(
+            run_id="run-scn", status=RunResultStatus.COMPLETED,
+            provenance=self._prov("run-scn", hash_scenario(scn)), disposition=disp,
+            schedule=self._sched(12.0), diagnostics=DiagnosticsDTO())
+        fail = RunResult(
+            run_id="run-fail", status=RunResultStatus.FAILED,
+            provenance=self._prov("run-fail", "f" * 64), disposition=None,
+            schedule=None, diagnostics=None)
+        return [base, scnrun, fail], labels, disp, scn
+
+    # ---- _scenario_hash_labels -----------------------------------------------------------------
+    def test_scenario_hash_labels_maps_forward_to_name_or_id(self):
+        """Each live scenario's ``hash_scenario`` maps to its ``name`` (or ``scenario_id`` when the
+        name is None — the same fallback the relation graph / schedule label already use)."""
+        named = Scenario(scenario_id="scn-1", base_plan_id="p", base_plan_hash="h",
+                         name="Winter outage")
+        unnamed = Scenario(scenario_id="scn-2", base_plan_id="p", base_plan_hash="h")  # name None
+        assert app_main._scenario_hash_labels([named, unnamed]) == {
+            hash_scenario(named): "Winter outage",
+            hash_scenario(unnamed): "scn-2",
+        }
+
+    def test_scenario_hash_labels_empty(self):
+        """No live scenarios → empty map (every run then resolves to Baseline or a hash prefix)."""
+        assert app_main._scenario_hash_labels([]) == {}
+
+    # ---- _comparison_rows ----------------------------------------------------------------------
+    def test_rows_one_per_run_in_order_with_stable_keys(self):
+        """One row per run, in the order given, each carrying exactly the nine comparison keys."""
+        results, labels, _disp, _scn = self._make()
+        rows = app_main._comparison_rows(results, labels, {})
+        assert len(rows) == len(results) == 3
+        assert [r["run_id"] for r in rows] == ["run-base", "run-scn", "run-fail"]
+        keys = {"run_id", "scenario", "status", "makespan_hours", "cpm_lower_bound_hours",
+                "optimism_gap_hours", "fitness", "disposition", "freshness"}
+        assert all(set(r) == keys for r in rows)
+
+    def test_scenario_label_baseline_matched_and_unmatched(self):
+        """``scenario_delta_hash is None`` → 'Baseline'; a hash present in the live-scenario map →
+        its name; an unmatched hash (scenario edited/deleted since the run) → 'scenario '+8-char
+        prefix (the match-not-decode fallback)."""
+        results, labels, _disp, _scn = self._make()
+        rows = {r["run_id"]: r for r in app_main._comparison_rows(results, labels, {})}
+        assert rows["run-base"]["scenario"] == "Baseline"
+        assert rows["run-scn"]["scenario"] == "Winter outage"
+        assert rows["run-fail"]["scenario"] == "scenario ffffffff"
+
+    def test_status_is_enum_value(self):
+        """The status cell is the ``RunResultStatus`` value (explains any blank metric cells)."""
+        results, labels, *_ = self._make()
+        rows = {r["run_id"]: r for r in app_main._comparison_rows(results, labels, {})}
+        assert rows["run-base"]["status"] == "completed"
+        assert rows["run-fail"]["status"] == "failed"
+
+    def test_schedule_metrics_present_for_completed_none_for_failed(self):
+        """Makespan / CPM bound / optimism gap come straight off ``result.schedule`` for a
+        COMPLETED run and are all None for the FAILED run (schedule=None → 'no data → None cell')."""
+        results, labels, *_ = self._make()
+        rows = {r["run_id"]: r for r in app_main._comparison_rows(results, labels, {})}
+        assert (rows["run-base"]["makespan_hours"], rows["run-base"]["cpm_lower_bound_hours"],
+                rows["run-base"]["optimism_gap_hours"]) == (10.0, 8.0, 2.0)
+        assert rows["run-scn"]["makespan_hours"] == 12.0
+        assert rows["run-fail"]["makespan_hours"] is None
+        assert rows["run-fail"]["cpm_lower_bound_hours"] is None
+        assert rows["run-fail"]["optimism_gap_hours"] is None
+
+    def test_disposition_is_overall_value_else_none(self):
+        """The disposition cell is ``disposition.overall.value`` when present, else None."""
+        results, labels, disp, _scn = self._make()
+        rows = {r["run_id"]: r for r in app_main._comparison_rows(results, labels, {})}
+        assert rows["run-base"]["disposition"] == disp.overall.value
+        assert rows["run-fail"]["disposition"] is None
+
+    def test_fitness_composite_when_present_else_none(self):
+        """Fitness is the composite when a ``FitnessDTO`` rides ``diagnostics``; None on a bare
+        ``DiagnosticsDTO()`` (the common case) and when ``diagnostics`` itself is None."""
+        results, labels, *_ = self._make()
+        rows = {r["run_id"]: r for r in app_main._comparison_rows(results, labels, {})}
+        assert rows["run-base"]["fitness"] == 0.42
+        assert rows["run-scn"]["fitness"] is None
+        assert rows["run-fail"]["fitness"] is None
+
+    def test_freshness_maps_through_label_and_blank_when_absent(self):
+        """Freshness maps through ``_FRESHNESS_LABEL`` from the passed ``{run_id: Freshness}`` dict
+        and is '' for a run id absent from that map (the builder never computes freshness itself)."""
+        results, labels, *_ = self._make()
+        freshness = {"run-base": Freshness.CURRENT, "run-scn": Freshness.DIFFERENT_CONFIG}
+        rows = {r["run_id"]: r for r in app_main._comparison_rows(results, labels, freshness)}
+        assert rows["run-base"]["freshness"] == app_main._FRESHNESS_LABEL[Freshness.CURRENT]
+        assert rows["run-scn"]["freshness"] == app_main._FRESHNESS_LABEL[Freshness.DIFFERENT_CONFIG]
+        assert rows["run-fail"]["freshness"] == ""
 
 
 class TestModeOptions:

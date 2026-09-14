@@ -118,6 +118,7 @@ from prismGui.app.view_data import (
     _SEVERITY_ORDER, _issue_rows, _gantt_rows, _resource_util_rows, _FLOAT_CLASS_COLORS,
     _step_series, _schedule_csv, _DISPOSITION_INDICATOR_LABELS, _disposition_rows,
     _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _PROVENANCE_FIELD_LABELS, _provenance_rows,
+    _scenario_hash_labels, _comparison_rows,
     _data_viewer_rows, _BASELINE_NODE_ID, _OVERLAY_FIELDS, _overlay_count,
     _relation_graph_data, _activity_graph_data, _dag_node_color, _dag_hover,
     _activity_graph_enriched, _graph_layout, _cpm_path_edges, _cpm_path_label,

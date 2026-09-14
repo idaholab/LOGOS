@@ -6,7 +6,7 @@ from prismGui.application import services
 from prismGui.domain.results import DispositionOverall, Freshness, RunResultStatus
 from prismGui.app.components import _render_issues
 from prismGui.app.scenario_model import _current_schedule_payload
-from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _provenance_rows, _resource_util_rows, _saturated_skills, _schedule_csv, _step_series, _task_neighbors, _task_slip
+from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _task_neighbors, _task_slip
 
 
 def _render_plots(result) -> None:
@@ -411,6 +411,52 @@ def _render_task_inspector(session, baseline, result) -> None:
         st.caption("The authoritative NAMED binding resource / delaying predecessor is a deferred "
                    "Tier-B item — the engine computes it but does not surface it yet.")
 
+def _render_run_comparison(session, baseline, run_config) -> None:
+    """Side-by-side diff of 2..N stored runs (Phase-4 keystone) — the first consumer of
+    ``session.list_run_results()``. A keyed multiselect picks the runs; the table shows makespan /
+    CPM lower bound / optimism gap / fitness / disposition / status, each row labeled by resolving its
+    provenance ``scenario_delta_hash`` back to a scenario name (or "Baseline"), plus a freshness column
+    relative to the CURRENTLY selected baseline / scenario / run config. GUI-only: every metric is read
+    off the stored ``RunResult`` DTOs — no engine call, no session-API change. Freshness is computed
+    here (it needs ``services``) and handed to the pure ``_comparison_rows`` as a ``{run_id: Freshness}``
+    map so the view-data layer stays ``st``/``services``-free."""
+    runs = session.list_run_results()
+    if len(runs) < 2:
+        st.info("Run at least two schedules to compare them here (sidebar → Run).")
+        return
+
+    scenario_labels = _scenario_hash_labels(session.list_scenarios())
+
+    def _label(run_id):
+        r = session.get_run_result(run_id)
+        h = r.provenance.scenario_delta_hash if r is not None else None
+        scen = "Baseline" if h is None else scenario_labels.get(h, f"scenario {h[:8]}")
+        return f"{run_id} · {scen}"
+
+    ids = [r.run_id for r in runs]
+    chosen = st.multiselect(
+        "Runs to compare", ids, default=ids[-2:], format_func=_label, key="prism_compare_runs")
+    if len(chosen) < 2:
+        st.info("Select at least two runs to compare.")
+        return
+
+    selected = [r for r in (session.get_run_result(rid) for rid in chosen) if r is not None]
+    scenario = session.get_scenario()
+    freshness_by_run = {
+        r.run_id: services.current_freshness_detail(
+            r, baseline=baseline, scenario=scenario, run_config=run_config)[0]
+        for r in selected
+    }
+    st.dataframe(
+        _comparison_rows(selected, scenario_labels, freshness_by_run),
+        use_container_width=True, hide_index=True)
+    st.caption(
+        "Freshness is relative to the currently selected baseline / scenario / run config. A scenario "
+        "label of “scenario <hash>” means that scenario was edited or removed since the run.")
+    for r in selected:
+        with st.expander(f"Provenance — run `{r.run_id}`", expanded=False):
+            st.dataframe(_provenance_rows(r.provenance), use_container_width=True, hide_index=True)
+
 def _render_results_page(session, baseline, result, run_config) -> None:
     """Results page: the selected run's summary header (or a prompt to run), then a segmented
     switch between the Gantt / resource *Plots*, the run-aware *Activity DAG*, and a per-task
@@ -421,7 +467,7 @@ def _render_results_page(session, baseline, result, run_config) -> None:
     else:
         st.info("Run a schedule (sidebar) to see results for the current schedule.")
     view = st.segmented_control(
-        "View", ["Plots", "Activity DAG", "Task inspector"], default="Plots",
+        "View", ["Plots", "Activity DAG", "Task inspector", "Compare runs"], default="Plots",
         key="prism_results_view")
     if view == "Activity DAG":
         _render_activity_graph(session, baseline, result)
@@ -432,6 +478,8 @@ def _render_results_page(session, baseline, result, run_config) -> None:
             st.info("The selected run did not complete — no schedule to inspect.")
         else:
             st.info("Run a schedule (sidebar) to inspect individual tasks.")
+    elif view == "Compare runs":
+        _render_run_comparison(session, baseline, run_config)
     elif result is not None and result.status is RunResultStatus.COMPLETED:
         _render_plots(result)
     elif result is not None:
