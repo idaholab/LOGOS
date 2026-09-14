@@ -295,19 +295,22 @@ def _augmentation_delta(before, after) -> list[dict]:
         rows.append({"metric": metric, "before": b, "after": a, "delta": delta, "pct": pct})
     return rows
 
-def _sweep_rows(results, rule_by_run, freshness_by_run) -> list[dict]:
-    """Leaderboard rows for a priority-rule sweep (Phase-4.3) — one dict per swept run, ranked
-    shortest-makespan-first, ``{priority_rule, status, makespan_hours, optimism_gap_hours, fitness,
-    delta_vs_best, freshness}``. Each swept run is a plain BASELINE run whose only difference is its
-    ``priority_rule`` — but the rule is NOT recoverable from the stored ``RunResult`` (provenance keeps
-    only the one-way ``run_config_hash``), so the caller tracks ``{run_id: rule}`` at sweep time and
-    passes it as ``rule_by_run``; a run absent from that map labels ``""``. ``delta_vs_best`` is
-    ``makespan_hours - best`` where ``best`` is the smallest makespan among runs that have one (``0`` for
-    the winner, ``None`` when this run — or every run — has no makespan). ``fitness`` is the composite
-    when a ``FitnessDTO`` is present else ``None``; ``freshness`` maps the supplied ``{run_id: Freshness}``
-    through ``_FRESHNESS_LABEL`` (the SAME dict 4.1 uses; missing → ``""``). Sorted so completed/with-a-
-    makespan runs lead in ascending makespan and any FAILED runs sink to the bottom (rule-name tiebreak).
-    ``results == []`` → ``[]``. Pure — takes DTOs + the two maps, no ``st``/``services``."""
+def _sweep_rows(results, label_by_run, freshness_by_run, label_key="priority_rule") -> list[dict]:
+    """Leaderboard rows for a config sweep (Phase-4.3) — one dict per swept run, ranked
+    shortest-makespan-first, ``{<label_key>, status, makespan_hours, optimism_gap_hours, fitness,
+    delta_vs_best, freshness}``. The sweep varies ONE ``RunConfig`` axis (priority rule / SGS variant /
+    seed) across otherwise-identical BASELINE runs; the swept value is NOT recoverable from the stored
+    ``RunResult`` (provenance keeps only the one-way ``run_config_hash``), so the caller tracks
+    ``{run_id: label}`` at sweep time and passes it as ``label_by_run``, naming the label column via
+    ``label_key`` (``"priority_rule"`` / ``"sgs"`` / ``"seed"``; default preserves the priority-rule
+    shape); a run absent from that map labels ``""``. Labels are always strings (seed → ``str(seed)``) so
+    the tiebreak stays type-homogeneous. ``delta_vs_best`` is ``makespan_hours - best`` where ``best`` is
+    the smallest makespan among runs that have one (``0`` for the winner, ``None`` when this run — or every
+    run — has no makespan). ``fitness`` is the composite when a ``FitnessDTO`` is present else ``None``;
+    ``freshness`` maps the supplied ``{run_id: Freshness}`` through ``_FRESHNESS_LABEL`` (the SAME dict 4.1
+    uses; missing → ``""``). Sorted so completed/with-a-makespan runs lead in ascending makespan and any
+    FAILED runs sink to the bottom (label tiebreak). ``results == []`` → ``[]``. Pure — takes DTOs + the
+    two maps, no ``st``/``services``."""
     makespans = [r.schedule.makespan_hours for r in results
                  if r.schedule is not None and r.schedule.makespan_hours is not None]
     best = min(makespans) if makespans else None
@@ -319,7 +322,7 @@ def _sweep_rows(results, rule_by_run, freshness_by_run) -> list[dict]:
                    if (r.diagnostics is not None and r.diagnostics.fitness is not None) else None)
         delta_vs_best = (makespan - best) if (makespan is not None and best is not None) else None
         rows.append({
-            "priority_rule": rule_by_run.get(r.run_id, ""),
+            label_key: label_by_run.get(r.run_id, ""),
             "status": r.status.value,
             "makespan_hours": makespan,
             "optimism_gap_hours": None if sched is None else sched.optimism_gap_hours,
@@ -329,7 +332,7 @@ def _sweep_rows(results, rule_by_run, freshness_by_run) -> list[dict]:
         })
     rows.sort(key=lambda row: (row["makespan_hours"] is None,
                                row["makespan_hours"] if row["makespan_hours"] is not None else 0.0,
-                               row["priority_rule"]))
+                               row[label_key]))
     return rows
 
 def _data_viewer_rows(tasks: list[dict]) -> list[dict]:

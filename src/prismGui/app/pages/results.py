@@ -6,7 +6,7 @@ from dataclasses import replace
 from prismGui.app._streamlit import st
 from prismGui.application import services
 from prismGui.domain.results import DispositionOverall, Freshness, RunResultStatus
-from prismGui.domain.run_config import PRIORITY_RULES
+from prismGui.domain.run_config import PRIORITY_RULES, SGSVariant
 from prismGui.app.components import _render_issues
 from prismGui.app.scenario_model import _add_resource_change, _current_schedule_payload, _mint_scenario
 from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip
@@ -565,55 +565,84 @@ def _render_run_augmentation(session, baseline, result, run_config, run_plan) ->
             st.markdown(f"Provenance — run `{r.run_id}`")
             st.dataframe(_provenance_rows(r.provenance), use_container_width=True, hide_index=True)
 
-# The classic/interpretable rules the sweep offers by default; the multiselect exposes all 22.
+# The classic/interpretable rules the priority-rule axis offers by default; the multiselect exposes all 22.
 _SWEEP_DEFAULT_RULES = ("lf", "ls", "ef", "es", "duration")
+# The SGS variants offered by default on the SGS axis; the multiselect exposes all five.
+_SWEEP_DEFAULT_SGS = ("max_use_res_ranked", "max_use_res_shuffled", "first")
 
 def _render_run_sweep(session, baseline, run_config, run_plan) -> None:
-    """Priority-rule sweep (Phase-4.3): re-run the baseline once per selected priority rule and rank the
-    results shortest-makespan-first, so the analyst can see which rule yields the tightest schedule. The
-    first Phase-4 *orchestration* that varies the RunConfig (4.2 varies the scenario) — it generalizes the
-    clone→rerun→delta loop into an N-way fan-out feeding a leaderboard. Every rule is ACTUALLY solved
-    (verified) through the composition-root ``run_plan`` seam and the shared store+executor, so run ids
-    increment and never collide. Each swept run is a plain BASELINE run (``scenario=None``) whose only
-    difference is its ``priority_rule``; the rule is NOT recoverable from the stored run (provenance keeps
-    only the one-way ``run_config_hash``), so we track ``{run_id: rule}`` at sweep time, pin it in session
-    state, and hand it to the pure ``_sweep_rows`` builder (freshness/services stay here). Swept runs are
-    stored additively, so they also appear in **Compare runs** — the path for full provenance/cross-diff,
-    keeping this segment focused on the leaderboard. ``run_plan`` ``None`` means unwired (defensive)."""
+    """Config sweep (Phase-4.3): re-run the baseline once per value of ONE chosen ``RunConfig`` axis
+    (priority rule / SGS variant / random seed) and rank the results shortest-makespan-first, so the
+    analyst can see which config yields the tightest schedule. The second Phase-4 *orchestration* — where
+    4.2 varies the scenario, this varies the RunConfig — it fans the clone→rerun→delta loop out N ways into
+    a leaderboard. Every value is ACTUALLY solved (verified) through the composition-root ``run_plan`` seam
+    and the shared store+executor, so run ids increment and never collide. Each swept run is a plain
+    BASELINE run (``scenario=None``) whose only difference is the one varied field; that value is NOT
+    recoverable from the stored run (provenance keeps only the one-way ``run_config_hash``), so we track
+    ``{run_id: label}`` at sweep time, pin it in session state, and hand it to the pure ``_sweep_rows``
+    builder (freshness/services stay here). Swept runs are stored additively, so they also appear in
+    **Compare runs** — the path for full provenance/cross-diff, keeping this segment focused on the
+    leaderboard. ``run_plan`` ``None`` means unwired (defensive)."""
     if run_plan is None:
         st.info("Sweep is unavailable — the runner is not wired.")
         return
 
-    default = [r for r in PRIORITY_RULES
-               if r in set(_SWEEP_DEFAULT_RULES) | {run_config.priority_rule}]
-    rules = st.multiselect(
-        "Priority rules to sweep", list(PRIORITY_RULES), default=default, key="prism_sweep_rules")
-    st.caption(f"Each rule is a full solve; all {len(PRIORITY_RULES)} engine rules are selectable. The "
-               f"current rule is **{run_config.priority_rule}**.")
-    if len(rules) < 2:
-        st.info("Pick at least two rules to sweep.")
+    axis = st.radio("Sweep axis", ["Priority rule", "SGS variant", "Seed"],
+                    horizontal=True, key="prism_sweep_axis")
+
+    # Each axis builds a common ``variants`` list of (label_str, RunConfig) plus the leaderboard column
+    # name (``label_key``), a singular display noun (``axis_label``), and the current selection's label.
+    if axis == "Priority rule":
+        label_key, axis_label, base_label = "priority_rule", "rule", run_config.priority_rule
+        default = [r for r in PRIORITY_RULES if r in set(_SWEEP_DEFAULT_RULES) | {base_label}]
+        picked = st.multiselect(
+            "Priority rules to sweep", list(PRIORITY_RULES), default=default, key="prism_sweep_rules")
+        st.caption(f"Each value is a full solve; all {len(PRIORITY_RULES)} engine rules are selectable. "
+                   f"The current rule is **{base_label}**.")
+        variants = [(r, replace(run_config, priority_rule=r)) for r in picked]
+    elif axis == "SGS variant":
+        label_key, axis_label, base_label = "sgs", "SGS variant", run_config.sgs.value
+        options = [v.value for v in SGSVariant]
+        default = [v for v in options if v in set(_SWEEP_DEFAULT_SGS) | {base_label}]
+        picked = st.multiselect(
+            "SGS variants to sweep", options, default=default, key="prism_sweep_sgs")
+        st.caption(f"Each value is a full solve; all {len(options)} schedule-generation schemes are "
+                   f"selectable. The current variant is **{base_label}**.")
+        variants = [(v, replace(run_config, sgs=SGSVariant(v))) for v in picked]
+    else:  # Seed
+        label_key, axis_label, base_label = "seed", "seed", str(run_config.seed)
+        n = int(st.number_input("Number of seeds to try", min_value=2, value=3, step=1,
+                                key="prism_sweep_nseeds"))
+        seeds = [run_config.seed + i for i in range(n)]
+        st.caption(f"Each value is a full solve; sweeps seeds {seeds[0]}–{seeds[-1]} from the current "
+                   f"seed **{run_config.seed}**.")
+        variants = [(str(s), replace(run_config, seed=s)) for s in seeds]
+
+    if len(variants) < 2:
+        st.info(f"Pick at least two {axis_label}s to sweep.")
         return
 
-    if st.button(f"Run sweep over {len(rules)} rules", type="primary"):
+    if st.button(f"Run sweep over {len(variants)} {axis_label}s", type="primary"):
         run_ids: list[str] = []
-        rule_by_run: dict[str, str] = {}
+        label_by_run: dict[str, str] = {}
         blocked: list[tuple[str, str]] = []
-        with st.spinner(f"Solving {len(rules)} rules…"):
-            for rule in rules:
-                res = run_plan(run_config=replace(run_config, priority_rule=rule))
+        with st.spinner(f"Solving {len(variants)} {axis_label}s…"):
+            for label, rc2 in variants:
+                res = run_plan(run_config=rc2)
                 if res.ok:
                     run_ids.append(res.result.run_id)
-                    rule_by_run[res.result.run_id] = rule
+                    label_by_run[res.result.run_id] = label
                     session.add_run_result(res.result)   # additive; no scenario (baseline runs)
                 else:
-                    blocked.append((rule, res.stage))
+                    blocked.append((label, res.stage))
         st.session_state["prism_sweep"] = {
-            "run_ids": run_ids, "rule_by_run": rule_by_run,
-            "blocked": blocked, "base_rule": run_config.priority_rule}
+            "run_ids": run_ids, "label_by_run": label_by_run, "blocked": blocked,
+            "base_label": base_label, "label_key": label_key, "axis_label": axis_label}
 
-    # --- leaderboard, rendered from the pinned sweep so it survives the click's rerun ---
+    # --- leaderboard, rendered from the pinned sweep so it survives the click's rerun. Only render it
+    #     under the axis that produced it (one pinned slot), so no stale cross-axis table appears. ---
     sweep = st.session_state.get("prism_sweep")
-    if not sweep:
+    if not sweep or sweep["label_key"] != label_key:
         return
     results = [r for r in (session.get_run_result(i) for i in sweep["run_ids"]) if r is not None]
     if not results and not sweep["blocked"]:
@@ -623,28 +652,30 @@ def _render_run_sweep(session, baseline, run_config, run_plan) -> None:
         r.run_id: services.current_freshness_detail(
             r, baseline=baseline, scenario=scenario, run_config=run_config)[0]
         for r in results}
-    rows = _sweep_rows(results, sweep["rule_by_run"], freshness_by_run)
+    key = sweep["label_key"]
+    rows = _sweep_rows(results, sweep["label_by_run"], freshness_by_run, label_key=key)
 
     ranked = [row for row in rows if row["makespan_hours"] is not None]
     if ranked:
         winner = ranked[0]
-        base_rule = sweep["base_rule"]
-        base_row = next((row for row in ranked if row["priority_rule"] == base_rule), None)
+        base = sweep["base_label"]
+        noun = sweep["axis_label"]
+        base_row = next((row for row in ranked if row[key] == base), None)
         if base_row is not None and base_row is not winner:
             st.success(
-                f"Shortest makespan: **{winner['priority_rule']}** at {winner['makespan_hours']:g} h "
+                f"Shortest makespan: **{winner[key]}** at {winner['makespan_hours']:g} h "
                 f"— {base_row['makespan_hours'] - winner['makespan_hours']:g} h shorter than the current "
-                f"rule '{base_rule}' ({base_row['makespan_hours']:g} h).")
+                f"{noun} '{base}' ({base_row['makespan_hours']:g} h).")
         else:
             st.success(
-                f"Shortest makespan: **{winner['priority_rule']}** at {winner['makespan_hours']:g} h"
-                + (" (the current rule)." if base_row is winner else "."))
+                f"Shortest makespan: **{winner[key]}** at {winner['makespan_hours']:g} h"
+                + (" (the current selection)." if base_row is winner else "."))
 
     st.dataframe(rows, use_container_width=True, hide_index=True)
     if sweep["blocked"]:
-        st.warning("Blocked rules: "
-                   + ", ".join(f"{rule} ({stage})" for rule, stage in sweep["blocked"]))
-    st.caption("Verified: each rule was actually re-run on the baseline. Δ vs best is hours above the "
+        st.warning("Blocked: "
+                   + ", ".join(f"{label} ({stage})" for label, stage in sweep["blocked"]))
+    st.caption("Verified: each value was actually re-run on the baseline. Δ vs best is hours above the "
                "shortest makespan. The swept runs are stored — open or diff them with full provenance on "
                "**Compare runs**.")
 
@@ -660,7 +691,7 @@ def _render_results_page(session, baseline, result, run_config, run_plan=None) -
     view = st.segmented_control(
         "View",
         ["Plots", "Activity DAG", "Task inspector", "Compare runs", "Augment resources",
-         "Sweep priority rules"],
+         "Sweep"],
         default="Plots", key="prism_results_view")
     if view == "Activity DAG":
         _render_activity_graph(session, baseline, result)
@@ -675,7 +706,7 @@ def _render_results_page(session, baseline, result, run_config, run_plan=None) -
         _render_run_comparison(session, baseline, run_config)
     elif view == "Augment resources":
         _render_run_augmentation(session, baseline, result, run_config, run_plan)
-    elif view == "Sweep priority rules":
+    elif view == "Sweep":
         _render_run_sweep(session, baseline, run_config, run_plan)
     elif result is not None and result.status is RunResultStatus.COMPLETED:
         _render_plots(result)

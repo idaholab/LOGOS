@@ -1859,11 +1859,13 @@ class TestRunAugmentation:
 
 
 class TestRunSweep:
-    """The streamlit-free builder behind the Phase-4.3 priority-rule sweep (Results-page "Sweep
-    priority rules" segment): ``_sweep_rows`` turns the sweep's re-run ``RunResult`` DTOs into a
-    ranked leaderboard — one row per run, shortest makespan first. The priority rule is NOT stored on
-    a RunResult (only its opaque ``run_config_hash``), so the sweep tracks ``{run_id: rule}`` at run
-    time and the builder reads the label from that map — never decoding the hash. Freshness likewise
+    """The streamlit-free builder behind the Phase-4.3 config sweep (Results-page "Sweep" segment,
+    axis picker: priority rule / SGS variant / seed): ``_sweep_rows`` turns the sweep's re-run
+    ``RunResult`` DTOs into a ranked leaderboard — one row per run, shortest makespan first. The swept
+    value is NOT stored on a RunResult (only its opaque ``run_config_hash``), so the sweep tracks
+    ``{run_id: label}`` at run time and the builder reads the label from that map — never decoding the
+    hash. ``label_key`` names the label column (defaults to ``"priority_rule"``, the 4.3 axis) and is
+    also the sort tiebreak, so labels are always strings (seed → ``str(seed)``). Freshness likewise
     arrives as a ``{run_id: Freshness}`` dict; the render helper owns the run/store/services. Pure:
     stdlib + domain DTOs only, no ``st``. Fixtures reuse ``TestRunAugmentation``'s inline builders."""
 
@@ -1935,6 +1937,43 @@ class TestRunSweep:
     def test_sweep_rows_empty(self):
         """No runs → no rows (the pre-sweep state)."""
         assert app_main._sweep_rows([], {}, {}) == []
+
+    def test_sweep_rows_label_key_renames_column(self):
+        """``label_key="sgs"`` (the SGS-variant axis) names the label column ``"sgs"`` — not
+        ``"priority_rule"`` — while ranking and ``delta_vs_best`` stay makespan-driven. The 7-key set
+        renames only the label column; SGS labels are the raw ``.value`` strings."""
+        results = [
+            self._run("r-ranked", 85.0, 20.0),
+            self._run("r-first", 71.0, 6.0),
+        ]
+        label_by_run = {"r-ranked": "max_use_res_ranked", "r-first": "first"}
+        rows = app_main._sweep_rows(results, label_by_run, {}, label_key="sgs")
+        keys = {"sgs", "status", "makespan_hours", "optimism_gap_hours",
+                "fitness", "delta_vs_best", "freshness"}
+        assert all(set(r) == keys for r in rows)
+        assert all("priority_rule" not in r for r in rows)
+        assert [r["sgs"] for r in rows] == ["first", "max_use_res_ranked"]   # 71 < 85
+        by = {r["sgs"]: r for r in rows}
+        assert by["first"]["delta_vs_best"] == 0.0      # the winner
+        assert by["max_use_res_ranked"]["delta_vs_best"] == 14.0    # 85 - 71
+
+    def test_sweep_rows_label_key_seed_sorts_and_tiebreaks(self):
+        """``label_key="seed"`` with string labels: a makespan TIE falls back to the ``seed``-label
+        tiebreak (ascending string), and a FAILED run still sinks last with None cells — proving the
+        parameterized tiebreak references the ``seed`` column, not a hardcoded ``priority_rule``."""
+        results = [
+            self._run("r-44", 80.0, 5.0),
+            self._run("r-42", 80.0, 5.0),      # ties r-44 on makespan → seed tiebreak decides
+            self._run("r-43", 0.0, 0.0, completed=False),
+        ]
+        label_by_run = {"r-44": "44", "r-42": "42", "r-43": "43"}
+        rows = app_main._sweep_rows(results, label_by_run, {}, label_key="seed")
+        assert [r["seed"] for r in rows] == ["42", "44", "43"]   # tie → "42" < "44"; failed last
+        bad = rows[-1]
+        assert bad["seed"] == "43"
+        assert bad["status"] == "failed"
+        assert bad["makespan_hours"] is None
+        assert bad["delta_vs_best"] is None
 
 
 class TestModeOptions:
