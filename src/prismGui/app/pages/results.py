@@ -8,8 +8,9 @@ from prismGui.application import services
 from prismGui.domain.results import DispositionOverall, Freshness, RunResultStatus
 from prismGui.domain.run_config import PRIORITY_RULES, SGSVariant
 from prismGui.app.components import _render_issues
+from prismGui.app.edit_model import _mode_options
 from prismGui.app.scenario_model import _add_resource_change, _current_schedule_payload, _mint_scenario
-from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _makespan_bar_rows, _multi_gantt_rows, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip
+from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _makespan_bar_rows, _mode_sweep_variants, _multi_gantt_rows, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip
 
 
 def _render_plots(result) -> None:
@@ -675,10 +676,14 @@ def _render_run_augmentation(session, baseline, result, run_config, run_plan) ->
 _SWEEP_DEFAULT_RULES = ("lf", "ls", "ef", "es", "duration")
 # The SGS variants offered by default on the SGS axis; the multiselect exposes all five.
 _SWEEP_DEFAULT_SGS = ("max_use_res_ranked", "max_use_res_shuffled", "first")
+# The mode axis fans out the CARTESIAN PRODUCT of the selected tasks' modes; since each combination is a
+# full solve, refuse (never truncate) above this many. A tuning detail, not a domain limit.
+_MODE_SWEEP_CAP = 24
 
 def _render_run_sweep(session, baseline, run_config, run_plan) -> None:
     """Config sweep (Phase-4.3): re-run the baseline once per value of ONE chosen ``RunConfig`` axis
-    (priority rule / SGS variant / random seed) and rank the results shortest-makespan-first, so the
+    (priority rule / SGS variant / random seed / execution-mode combination) and rank the results
+    shortest-makespan-first, so the
     analyst can see which config yields the tightest schedule. The second Phase-4 *orchestration* — where
     4.2 varies the scenario, this varies the RunConfig — it fans the clone→rerun→delta loop out N ways into
     a leaderboard. Every value is ACTUALLY solved (verified) through the composition-root ``run_plan`` seam
@@ -693,7 +698,7 @@ def _render_run_sweep(session, baseline, run_config, run_plan) -> None:
         st.info("Sweep is unavailable — the runner is not wired.")
         return
 
-    axis = st.radio("Sweep axis", ["Priority rule", "SGS variant", "Seed"],
+    axis = st.radio("Sweep axis", ["Priority rule", "SGS variant", "Seed", "Modes"],
                     horizontal=True, key="prism_sweep_axis")
 
     # Each axis builds a common ``variants`` list of (label_str, RunConfig) plus the leaderboard column
@@ -715,7 +720,7 @@ def _render_run_sweep(session, baseline, run_config, run_plan) -> None:
         st.caption(f"Each value is a full solve; all {len(options)} schedule-generation schemes are "
                    f"selectable. The current variant is **{base_label}**.")
         variants = [(v, replace(run_config, sgs=SGSVariant(v))) for v in picked]
-    else:  # Seed
+    elif axis == "Seed":
         label_key, axis_label, base_label = "seed", "seed", str(run_config.seed)
         n = int(st.number_input("Number of seeds to try", min_value=2, value=3, step=1,
                                 key="prism_sweep_nseeds"))
@@ -723,6 +728,32 @@ def _render_run_sweep(session, baseline, run_config, run_plan) -> None:
         st.caption(f"Each value is a full solve; sweeps seeds {seeds[0]}–{seeds[-1]} from the current "
                    f"seed **{run_config.seed}**.")
         variants = [(str(s), replace(run_config, seed=s)) for s in seeds]
+    else:  # Modes — cartesian product of the SELECTED multi-mode tasks' modes (capped), holding every
+           # unselected multi-mode task at its current pick. Combinatorial, so the enumeration + labelling
+           # + cap + base-merge live in the pure ``_mode_sweep_variants`` builder; this branch stays thin.
+        label_key, axis_label, base_label = "modes", "mode combination", ""
+        payload, _warn = _current_schedule_payload(baseline, session.get_scenario())
+        mode_opts = _mode_options(payload)
+        if not mode_opts:
+            st.info("No multi-mode tasks in this plan — add a second mode to a task in the Plan editor "
+                    "(Execution modes) to sweep them.")
+            return
+        picked = st.multiselect("Multi-mode tasks to sweep", [r["task_id"] for r in mode_opts],
+                                default=[r["task_id"] for r in mode_opts], key="prism_sweep_mode_tasks")
+        if not picked:
+            st.info("Select at least one multi-mode task to sweep.")
+            return
+        built = _mode_sweep_variants(mode_opts, picked, base_selections=run_config.mode_selections,
+                                     cap=_MODE_SWEEP_CAP)
+        st.caption(f"Each combination is a full solve; sweeps the product of the selected tasks' modes "
+                   f"({built['total']} combination(s), cap {_MODE_SWEEP_CAP}). Unselected multi-mode "
+                   f"tasks stay at their current pick.")
+        if built["capped"]:
+            st.warning(f"{built['total']} combinations exceeds the cap of {_MODE_SWEEP_CAP} — "
+                       f"deselect some tasks.")
+            return
+        base_label = built["base_label"]
+        variants = [(lbl, replace(run_config, mode_selections=ms)) for lbl, ms in built["variants"]]
 
     if len(variants) < 2:
         st.info(f"Pick at least two {axis_label}s to sweep.")

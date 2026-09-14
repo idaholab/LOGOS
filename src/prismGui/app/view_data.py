@@ -4,10 +4,11 @@ from __future__ import annotations
 import csv
 import io
 import math
+from itertools import product
 from typing import Optional
 
 from prismGui.domain.results import Freshness
-from prismGui.domain.run_config import EvaluationWeights
+from prismGui.domain.run_config import EvaluationWeights, ModeSelection
 from prismGui.domain.scenario import Scenario
 from prismGui.domain.hashing import hash_scenario
 from prismGui.app.edit_model import _dependency_options, _task_options
@@ -381,6 +382,57 @@ def _multi_gantt_rows(labeled_results) -> list[dict]:
         for g in _gantt_rows(r.schedule):
             rows.append({"run_label": label, **g})
     return rows
+
+def _mode_sweep_variants(mode_options, selected_task_ids, base_selections=(), cap=None) -> dict:
+    """Streamlit-free enumeration for the Phase-4.3 **mode** sweep axis: the cartesian product of each
+    SELECTED multi-mode task's modes, as ready-to-run ``RunConfig.mode_selections`` inputs.
+
+    ``mode_options`` is the ``_mode_options(payload)`` shape — one row per task with >1 mode,
+    ``{"task_id", "modes":[{"mode_name","duration"}, ...]}``. ``selected_task_ids`` names which of those
+    tasks to VARY (order preserved; an id absent from ``mode_options`` is skipped defensively).
+    ``base_selections`` is the current picks (a ``tuple[ModeSelection, ...]``): every UNSELECTED
+    multi-mode task keeps its base pick while the swept tasks are overridden per combination, so a
+    variant's selection is the FULL merged set — a swept run never silently reverts an unselected task
+    to its default mode. Base picks are filtered to tasks still in ``mode_options`` so a stale pick can
+    neither ride into a run nor trip ``INVALID_MODE``.
+
+    Returns ``{"variants", "total", "capped", "base_label"}``:
+      - ``variants``: ``list[(label, tuple[ModeSelection, ...])]`` — the label names only the swept
+        tasks (e.g. ``"C104=crash, C105=fast"``) so it stays short/comparable; the tuple is the full
+        merged selection. Empty when capped.
+      - ``total``: the product size BEFORE the cap (an empty selection → the empty product → ``1``).
+      - ``capped``: ``True`` when ``cap is not None and total > cap`` — the caller then refuses to run
+        (``variants`` is empty), never truncates.
+      - ``base_label``: the label of the combination equal to the current picks (each swept task at its
+        base pick, or its FIRST mode when unset) — always one of the variant labels, so the leaderboard's
+        winner banner can compare against it.
+
+    The run-config hash folds selections as ``{task_id: mode_name}``, so each distinct combination is a
+    distinct verified run with no new validation surface. Pure — ``itertools`` + the ``ModeSelection``
+    domain record only, no ``st``."""
+    modes_by_task = {row["task_id"]: [m["mode_name"] for m in row["modes"]] for row in mode_options}
+    swept = [t for t in selected_task_ids if t in modes_by_task]
+    base = {ms.task_id: ms.mode_name for ms in base_selections if ms.task_id in modes_by_task}
+
+    total = 1
+    for t in swept:
+        total *= len(modes_by_task[t])
+    if cap is not None and total > cap:
+        return {"variants": [], "total": total, "capped": True, "base_label": ""}
+
+    def _label(pairs) -> str:
+        return ", ".join(f"{t}={m}" for t, m in pairs)
+
+    variants: list = []
+    for combo in product(*[modes_by_task[t] for t in swept]):
+        pairs = list(zip(swept, combo))
+        merged = dict(base)
+        merged.update(dict(pairs))
+        selection = tuple(ModeSelection(task_id=t, mode_name=m) for t, m in merged.items())
+        variants.append((_label(pairs), selection))
+
+    base_label = _label([(t, base.get(t, modes_by_task[t][0])) for t in swept])
+    return {"variants": variants, "total": total, "capped": False, "base_label": base_label}
 
 def _data_viewer_rows(tasks: list[dict]) -> list[dict]:
     """One streamlit-free overview row per activity: scalar fields verbatim, nested/list fields

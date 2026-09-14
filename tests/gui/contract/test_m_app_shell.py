@@ -1976,6 +1976,93 @@ class TestRunSweep:
         assert bad["delta_vs_best"] is None
 
 
+class TestModeSweep:
+    """The streamlit-free enumerator behind the Phase-4.3 **Modes** sweep axis (Results-page "Sweep"
+    segment, fourth axis): ``_mode_sweep_variants`` fans the CARTESIAN PRODUCT of the selected multi-mode
+    tasks' modes out into ready-to-run ``RunConfig.mode_selections`` tuples, holding every UNSELECTED
+    multi-mode task at its current pick (base-merge) so a swept run never silently reverts a task to its
+    default mode. Labels name only the swept tasks; the product is capped (refuse, never truncate) because
+    each combination is a full solve. Pure — ``itertools`` + the ``ModeSelection`` domain record only.
+    ``mode_options`` is built inline in the ``_mode_options(payload)`` shape (no plan needed); the run-config
+    hash already folds ``{task_id: mode_name}`` so each distinct combination is a distinct verified run."""
+
+    _T1_T2 = [
+        {"task_id": "T1", "modes": [{"mode_name": "normal", "duration": 10},
+                                    {"mode_name": "crash", "duration": 6}]},
+        {"task_id": "T2", "modes": [{"mode_name": "slow", "duration": 9},
+                                    {"mode_name": "fast", "duration": 5}]},
+    ]
+
+    @staticmethod
+    def _as_map(selection):
+        """A variant's merged ``tuple[ModeSelection]`` → ``{task_id: mode_name}`` (order-irrelevant, as the
+        hash folds it) so a test can assert coverage without depending on tuple order."""
+        return {ms.task_id: ms.mode_name for ms in selection}
+
+    def test_mode_sweep_variants_cartesian_product_over_selected(self):
+        """Two multi-mode tasks (2 modes each), both selected → the full 2×2 product: total 4, not capped,
+        four variants whose labels are exactly the product and whose merged selections each cover BOTH
+        tasks."""
+        built = app_main._mode_sweep_variants(self._T1_T2, ["T1", "T2"], cap=24)
+        assert built["total"] == 4
+        assert built["capped"] is False
+        assert len(built["variants"]) == 4
+        labels = {lbl for lbl, _ in built["variants"]}
+        assert labels == {"T1=normal, T2=slow", "T1=normal, T2=fast",
+                          "T1=crash, T2=slow", "T1=crash, T2=fast"}
+        for _lbl, selection in built["variants"]:
+            assert set(self._as_map(selection)) == {"T1", "T2"}   # every combo pins both tasks
+
+    def test_mode_sweep_variants_holds_unselected_at_base(self):
+        """Three multi-mode tasks; sweep ONLY T1 while T2/T3 have current picks → two variants (T1's
+        modes), each merged selection carries the base T2=fast + T3=slow AND the varying T1; the labels
+        mention only the swept T1 (short/comparable)."""
+        opts = self._T1_T2 + [{"task_id": "T3", "modes": [{"mode_name": "slow", "duration": 8},
+                                                          {"mode_name": "fast", "duration": 4}]}]
+        base = (app_main.ModeSelection(task_id="T2", mode_name="fast"),
+                app_main.ModeSelection(task_id="T3", mode_name="slow"))
+        built = app_main._mode_sweep_variants(opts, ["T1"], base_selections=base, cap=24)
+        assert built["total"] == 2
+        assert len(built["variants"]) == 2
+        for lbl, selection in built["variants"]:
+            assert lbl.startswith("T1=") and "T2" not in lbl and "T3" not in lbl
+            m = self._as_map(selection)
+            assert m["T2"] == "fast" and m["T3"] == "slow"    # unselected tasks held at base
+            assert m["T1"] in {"normal", "crash"}             # swept task varies
+        assert {self._as_map(s)["T1"] for _l, s in built["variants"]} == {"normal", "crash"}
+
+    def test_mode_sweep_variants_cap_refuses(self):
+        """Product (4) over the cap (3) → capped True, empty variants (the render branch refuses to run),
+        no exception; ``total`` still reports the pre-cap size so the warning can name it."""
+        built = app_main._mode_sweep_variants(self._T1_T2, ["T1", "T2"], cap=3)
+        assert built["total"] == 4
+        assert built["capped"] is True
+        assert built["variants"] == []
+
+    def test_mode_sweep_variants_base_label_matches_current_picks(self):
+        """``base_label`` is the combination equal to the current picks — a swept task with a base pick
+        (T1=crash) keeps it, a swept task WITHOUT one falls back to its FIRST mode (T2=slow) — and it is
+        always one of the variant labels so the winner banner can compare against it."""
+        base = (app_main.ModeSelection(task_id="T1", mode_name="crash"),)
+        built = app_main._mode_sweep_variants(self._T1_T2, ["T1", "T2"], base_selections=base, cap=24)
+        assert built["base_label"] == "T1=crash, T2=slow"     # T2 unset → first mode fallback
+        assert built["base_label"] in {lbl for lbl, _ in built["variants"]}
+
+    def test_mode_sweep_variants_skips_unknown_and_empty_selection(self):
+        """A selected id absent from ``mode_options`` is skipped defensively; an EMPTY selection is the
+        empty product → total 1 with a single empty-combo variant (the render branch's "select at least
+        one" / ``len(variants) < 2`` guards keep it off the UI)."""
+        built = app_main._mode_sweep_variants(self._T1_T2, ["T1", "ZZZ"], cap=24)
+        assert built["total"] == 2                            # ZZZ ignored → only T1 varies
+        assert {self._as_map(s)["T1"] for _l, s in built["variants"]} == {"normal", "crash"}
+        assert all(set(self._as_map(s)) == {"T1"} for _l, s in built["variants"])
+
+        empty = app_main._mode_sweep_variants(self._T1_T2, [], cap=24)
+        assert empty["total"] == 1
+        assert len(empty["variants"]) == 1
+        assert empty["variants"][0][1] == ()                  # single empty-combo variant
+
+
 class TestChartLayer:
     """The two streamlit-free builders behind the deferred Phase-4 visual half — the overlaid makespan
     bar chart (all three orchestration views) and the aligned multi-run Gantt (Compare runs / Augment).
