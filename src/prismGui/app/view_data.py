@@ -466,8 +466,9 @@ _BASELINE_NODE_ID = "__baseline__"      # synthetic id for the baseline node (ne
 # The scenario overlay families whose staged deltas make a scenario non-empty — the count
 # shown on each relation-graph node (mirrors the Scenario dataclass's optional tuple fields).
 _OVERLAY_FIELDS = (
-    "duration_overrides", "resource_changes", "equipment_changes",
+    "duration_overrides", "resource_changes", "equipment_changes", "location_changes",
     "hold_point_release_overrides", "emergent_tasks", "emergent_dependencies",
+    "task_suppressions", "dependency_suppressions",
 )
 
 def _overlay_count(scenario: Scenario) -> int:
@@ -600,12 +601,18 @@ def _activity_graph_enriched(raw_tree, schedule, layer_by: str = "topo") -> dict
     """The activity DAG ENRICHED with a selected run's analytics: the same structural nodes/edges
     as ``_activity_graph_data`` (built from the current INPUT schedule), overlaid — keyed by
     task_id — with the run's chain-coloring, CPM ES/LS/slack, CPM-critical / constrained flags,
-    and the resource-contention arcs. ``layer_by`` chooses the x axis: ``topo`` (longest-path
-    depth, the base layout), ``es`` or ``ls`` (CPM time, project start = 0), each falling back to
-    depth for a node with no CPM value. Two asymmetries are tolerated without raising: the DTO
-    carries synthetic START/END the input topology omits (ignored — no node), and an un-timed task
-    has no DTO (stays structural/grey, ``scheduled=False``). Contention arcs are filtered to pairs
-    whose endpoints are both nodes (same guard as ``_activity_graph_data``). Pure — stdlib only."""
+    and the resource-contention arcs. ``layer_by`` chooses the x axis: ``schedule`` (the default —
+    actual start hour, y = float-class bands), ``topo`` (longest-path depth, the base layout), or
+    ``es`` / ``ls`` (CPM time, project start = 0), each falling back to depth for a node with no
+    value. ``schedule`` additionally remaps its distinct start hours to EVENLY-SPACED ORDINAL
+    columns (so proportional-time clustering can't overlap nodes); each node then carries
+    ``x_value`` (its true start hour) and the result carries ``x_ticks`` (``{vals, text}`` mapping
+    ordinal columns back to hours, thinned for a wide axis). Every mode returns ``x_columns`` (the
+    sorted distinct x values, post-remap) so the caller can window a wide DAG and arm a range-slider.
+    Two asymmetries are tolerated without raising: the DTO carries synthetic START/END the input
+    topology omits (ignored — no node), and an un-timed task has no DTO (stays structural/grey,
+    ``scheduled=False``). Contention arcs are filtered to pairs whose endpoints are both nodes (same
+    guard as ``_activity_graph_data``). Pure — stdlib only."""
     base = _activity_graph_data(raw_tree)
     by_task = {a.task_id: a for a in schedule.activities}
     cpm = set(schedule.cpm_critical_path)
@@ -627,11 +634,15 @@ def _activity_graph_enriched(raw_tree, schedule, layer_by: str = "topo") -> dict
                 start_hour=a.start_hour, end_hour=a.end_hour,
                 description=a.description,
             )
-            if layer_by == "es" and a.es_hours is not None:
+            if layer_by == "schedule" and a.start_hour is not None:
+                node["x"] = float(a.start_hour)          # actual scheduled start (wall-clock hours)
+            elif layer_by == "es" and a.es_hours is not None:
                 node["x"] = float(a.es_hours)
             elif layer_by == "ls" and a.ls_hours is not None:
                 node["x"] = float(a.ls_hours)
             # else: keep the base longest-path depth as x
+            #   (schedule also falls back to depth for a node with no start_hour —
+            #    an un-scheduled task keeps its structural depth column.)
         else:
             node.update(
                 scheduled=False, color=_FLOAT_CLASS_COLORS[""], float_class=None,
@@ -641,15 +652,100 @@ def _activity_graph_enriched(raw_tree, schedule, layer_by: str = "topo") -> dict
             )
         nodes.append(node)
 
+    # Re-lane the y-axis. The base ``_activity_graph_data`` places y by document order within a
+    # depth layer — arbitrary relative to the run — so nodes pile up and the gold CPM line jumps
+    # lane-to-lane. Two enriched layouts fix that, chosen by ``layer_by``:
+    #
+    # *schedule* (the default) reads x as the ACTUAL START HOUR, which frees y to encode the run's
+    # FLOAT CLASS — the node's colour — as horizontal BANDS: critical on the centre spine (y=0),
+    # zero-float and positive-float stacked above it, grey (unscheduled / unclassified) below.
+    # Within one (band, start-hour) group the highest-priority node anchors the band centre and any
+    # co-starting peers fan outward (+1, -1, +2 …); band spacing is sized from the busiest group so
+    # a fan never reaches into a neighbouring band. Net effect: real time on x, criticality on y —
+    # the left-hand pile of equal-depth / equal-ES nodes the other layouts show spreads along the
+    # true start times, and same-class tasks read as a row. The CPM path still lands on the y=0
+    # spine because its activities start at strictly-increasing hours (zero-float, back-to-back),
+    # so each holds its own start-hour column in the critical band and wins the centre.
+    #
+    # every OTHER mode (topo / es / ls) keeps the pure SPINE layout: within each x-COLUMN (a depth,
+    # or an ES/LS value) the highest-priority node (CPM-critical, then constrained-chain, then the
+    # rest) is pinned to the centre and the others fan outward. The CPM path advances through
+    # strictly-increasing x there too, so it reads as a straight horizontal spine at y=0 and
+    # constrained-chain nodes sit nearest it.
+    #
+    # Only y changes; x still encodes the chosen axis. Both layouts need the run's CPM/chain flags,
+    # which exist only in this enriched path — the structural pre-run graph keeps its doc-order lanes.
+    def _lane_priority(n: dict) -> int:
+        if n.get("cpm_critical"):
+            return 0
+        if n.get("on_constrained_chain"):
+            return 1
+        return 2
+
+    def _fan(k: int) -> float:                        # 0, +1, -1, +2, -2, … around a centre
+        return 0.0 if k == 0 else (float((k + 1) // 2) if k % 2 else -float(k // 2))
+
+    x_ticks = None                                   # schedule mode fills this (ordinal → true hour)
+    if layer_by == "schedule":
+        # --- non-uniform (ORDINAL) time axis --------------------------------------------------
+        # x is the ACTUAL start hour, but PROPORTIONAL time crams distinct-yet-close starts within a
+        # marker's width wherever they bunch up (measured: 100% of node overlaps are horizontal
+        # time-clustering, worst on the big plans). Remap the distinct start hours to EVENLY-SPACED
+        # column indices so no two columns can collapse onto each other; the true hour rides on
+        # ``x_value`` (hover) and on the axis TICK LABELS the caller builds from ``x_ticks``. Order
+        # is preserved — earlier starts stay left — so the timeline reading survives; only the
+        # visual gap between columns becomes uniform instead of proportional. (The Earliest / Latest
+        # start layouts keep proportional CPM time, for when true distances matter.)
+        distinct = sorted({round(float(n["x"]), 6) for n in nodes})
+        ordinal = {v: i for i, v in enumerate(distinct)}
+        for node in nodes:
+            node["x_value"] = round(float(node["x"]), 6)   # true start hour (or depth fallback)
+            node["x"] = float(ordinal[node["x_value"]])     # even-spaced column index
+        # Tick labels: map ordinal columns back to their true hour, thinned to ≤ ~18 labels so a
+        # wide axis stays readable (Plotly rotates what remains). Caller applies these in schedule.
+        stride = max(1, (len(distinct) + 17) // 18)
+        x_ticks = {"vals": [float(i) for i in range(0, len(distinct), stride)],
+                   "text": [f"{distinct[i]:g}" for i in range(0, len(distinct), stride)]}
+
+        # Float class → band index (a multiple of ``spacing``). critical anchors the centre spine
+        # (0); the scheduled-but-slack classes stack above; grey / unscheduled sits below.
+        _BAND_INDEX = {"critical": 0, "zero_float": 1, "positive_float": 2}
+
+        def _band(n: dict) -> int:
+            return _BAND_INDEX.get(n.get("float_class") or "", -1)   # grey / None / unknown → -1
+
+        # Group by (band, start-hour column) so co-starting same-class nodes fan within their band.
+        groups: dict[tuple[int, float], list[dict]] = {}
+        for node in nodes:
+            groups.setdefault((_band(node), round(float(node["x"]), 6)), []).append(node)
+        # Spacing wide enough that the busiest fan (max |offset| ≈ half its size) never reaches the
+        # neighbouring band centre: size + 1 leaves ≥ 1 unit of clear air between adjacent bands.
+        max_in_group = max((len(g) for g in groups.values()), default=1)
+        spacing = float(max_in_group) + 1.0
+        for (band, _x), group in groups.items():
+            centre = band * spacing
+            for k, node in enumerate(sorted(group, key=_lane_priority)):  # stable → doc order in tie
+                node["y"] = centre + _fan(k)
+    else:
+        by_col: dict[float, list[dict]] = {}
+        for node in nodes:
+            by_col.setdefault(round(float(node["x"]), 6), []).append(node)
+        for column in by_col.values():
+            for k, node in enumerate(sorted(column, key=_lane_priority)):  # stable → doc order in tie
+                node["y"] = _fan(k)
+
     contention = [(p, s) for p, s in schedule.contention_edges
                   if p in id_set and s in id_set]
     # CPM (logical) critical path as edge pairs, filtered to known nodes so synthetic CPM
     # START/END ids the input topology omits drop out cleanly (same guard as contention).
     cpm_path = [(p, s) for p, s in _cpm_path_edges(schedule.cpm_critical_path)
                 if p in id_set and s in id_set]
+    # Distinct x-columns (post-remap) — the caller windows a wide DAG and arms the range-slider off
+    # this count, mode-agnostically (ordinal columns for schedule, real CPM-time values for es/ls).
+    x_columns = sorted({round(float(n["x"]), 6) for n in nodes})
     return {"nodes": nodes, "edges": base["edges"], "contention_edges": contention,
             "cpm_path_edges": cpm_path, "has_cycle": base["has_cycle"],
-            "enriched": True, "layer_by": layer_by}
+            "enriched": True, "layer_by": layer_by, "x_ticks": x_ticks, "x_columns": x_columns}
 
 # =============================================================================
 # per-task inspector builders (streamlit-free): the "why isn't this task
@@ -761,7 +857,9 @@ def _chain_sets(schedule) -> dict:
 
     Returns ``{"cpm", "constrained", "zero_tf": tuple[str], "n_cpm", "n_constrained", "n_zero_tf": int,
     "only_cpm", "only_constrained", "both": tuple[str] (sorted), "rows": [{task_id, on_cpm,
-    on_constrained, zero_tf, float_class, tf_actual_hours}, ...] (over the union, sorted by task_id)}``.
+    on_constrained, zero_tf, float_class, tf_actual_hours}, ...] (over the union, sorted by task_id),
+    "all_rows": same row shape over EVERY scheduled activity (sorted) — the superset the view's
+    "All activities" filter draws on (tasks on no set carry three False flags)}``.
     ``cpm``/``constrained`` keep the DTO's order; the partitions and ``zero_tf`` are sorted for stable
     display. Pure — set arithmetic + ``FloatClass`` only, no ``st``."""
     cpm_set = set(schedule.cpm_critical_path)
@@ -769,17 +867,21 @@ def _chain_sets(schedule) -> dict:
     zero_tf = {a.task_id for a in schedule.activities
                if a.float_class in (FloatClass.CRITICAL, FloatClass.ZERO_FLOAT)}
     by_task = {a.task_id: a for a in schedule.activities}
-    rows: list[dict] = []
-    for tid in sorted(cpm_set | constrained_set | zero_tf):
+    def _row(tid: str) -> dict:
         a = by_task.get(tid)
-        rows.append({
+        return {
             "task_id": tid,
             "on_cpm": tid in cpm_set,
             "on_constrained": tid in constrained_set,
             "zero_tf": tid in zero_tf,
             "float_class": a.float_class.value if (a is not None and a.float_class is not None) else None,
             "tf_actual_hours": a.tf_actual_hours if a is not None else None,
-        })
+        }
+    # ``rows`` covers only the criticality UNION (back-compat); ``all_rows`` is every scheduled
+    # activity (sorted), so the view's "All activities" filter can surface tasks on NO set — the
+    # positive-float, off-both-chains tasks that ``rows`` deliberately omits.
+    rows = [_row(tid) for tid in sorted(cpm_set | constrained_set | zero_tf)]
+    all_rows = [_row(a.task_id) for a in sorted(schedule.activities, key=lambda a: a.task_id)]
     return {
         "cpm": tuple(schedule.cpm_critical_path),
         "constrained": tuple(schedule.constrained_chain),
@@ -791,6 +893,7 @@ def _chain_sets(schedule) -> dict:
         "only_constrained": tuple(sorted(constrained_set - cpm_set)),
         "both": tuple(sorted(cpm_set & constrained_set)),
         "rows": rows,
+        "all_rows": all_rows,
     }
 
 # Regulatory time-window grace -- mirrors schedule_validator._PREC_TOL (timedelta(milliseconds=1))
@@ -866,12 +969,35 @@ def _window_preflight(raw_tree, schedule) -> dict:
         "rows": rows,
     }
 
-def _graph_layout(fig, height: int) -> None:
+def _graph_layout(fig, height: int, x_title: str | None = None, x_ticks: dict | None = None,
+                  x_range=None, rangeslider: bool = False) -> None:
     """Common styling for a network-scatter figure: hidden axes, tight margins, no legend —
-    so the nodes/edges read as a graph, not a chart. Mutates ``fig`` in place."""
+    so the nodes/edges read as a graph, not a chart. Mutates ``fig`` in place.
+
+    ``x_title`` opts the x-axis back IN as a real measured scale (ticks + gridlines + this title):
+    the *schedule* DAG layout puts (evenly-spaced) start hours on x, so that axis is meaningful and
+    worth showing. ``x_ticks`` (``{"vals", "text"}``) labels that ordinal axis with the true hours.
+    ``x_range`` sets the INITIAL visible x-window and ``rangeslider`` adds Plotly's overview/pan bar
+    beneath the plot — together they let a long DAG be read in portions (drag the bar to pan/zoom)
+    while the bar shows the whole extent for context; the caller sizes ``height`` to leave room for
+    it. The y-axis stays hidden throughout — it encodes float-class bands / fan lanes, not a numeric
+    quantity — so bottom margin grows only when an x-title is drawn."""
     fig.update_layout(
-        height=height, showlegend=False, margin=dict(l=10, r=10, t=10, b=10),
+        height=height, showlegend=False,
+        margin=dict(l=10, r=10, t=10, b=(40 if x_title else 10)),
         hovermode="closest", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-    axis = dict(showgrid=False, zeroline=False, showticklabels=False)
-    fig.update_xaxes(**axis)
-    fig.update_yaxes(**axis)
+    hidden = dict(showgrid=False, zeroline=False, showticklabels=False)
+    if x_title:
+        xcfg = dict(showgrid=True, gridcolor="rgba(0,0,0,0.06)", zeroline=False,
+                    showticklabels=True, title_text=x_title)
+        if x_ticks:
+            xcfg.update(tickmode="array", tickvals=x_ticks["vals"], ticktext=x_ticks["text"])
+        fig.update_xaxes(**xcfg)
+    else:
+        fig.update_xaxes(**hidden)
+    if x_range is not None:
+        fig.update_xaxes(range=list(x_range))            # initial window; slider spans the full data
+    if rangeslider:
+        fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.10,
+                                          bgcolor="rgba(0,0,0,0.03)"))
+    fig.update_yaxes(**hidden)

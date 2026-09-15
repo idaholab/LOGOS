@@ -29,7 +29,10 @@ from prismGui.domain.hashing import (
     reference_plan_snapshot,
 )
 from prismGui.domain.run_config import EvaluationWeights, SGSVariant
-from prismGui.domain.scenario import DurationOverride
+from prismGui.domain.scenario import (
+    DependencySuppression, DurationOverride, EquipmentChange, LocationChange, ResourceChange,
+    TaskSuppression,
+)
 from prismGui.domain.versions import SCHEMA_VERSION
 from prismGui.ports.snapshot_store import SnapshotNotFoundError
 
@@ -85,6 +88,49 @@ class TestProvenanceAndSnapshots:
         assert hash_scenario(changed_delta) != h
         rebound = dataclasses.replace(scenario, base_plan_hash="f" * 64)
         assert hash_scenario(rebound) != h
+
+    def test_scenario_hash_covers_increment_a_families(self, scenario):
+        """Freshness gate for the Increment-A families: two scenarios differing only in
+        equipment_changes or location_changes hash DIFFERENTLY, and a period change's bounded
+        ``to_hour`` is part of its identity (open-ended vs bounded hash apart) — so
+        ``scenario_payload`` includes each field (else two distinct scenarios would look
+        identical and a re-run would wrongly read as CURRENT)."""
+        base = dataclasses.replace(scenario, duration_overrides=None)   # empty-delta baseline
+        h0 = hash_scenario(base)
+        assert hash_scenario(dataclasses.replace(
+            base, equipment_changes=(EquipmentChange("CRANE", 24.0, 0),))) != h0
+        assert hash_scenario(dataclasses.replace(
+            base, location_changes=(LocationChange("BAY1", 24.0, 1),))) != h0
+        # a skill change's window bound distinguishes it (open-ended vs bounded)
+        res_open = dataclasses.replace(base, resource_changes=(ResourceChange("MECH", 24.0, 1),))
+        res_bounded = dataclasses.replace(
+            base, resource_changes=(ResourceChange("MECH", 24.0, 1, to_hour=72.0),))
+        assert hash_scenario(res_open) != hash_scenario(res_bounded)
+        # …and likewise for an equipment change's window bound
+        eqp_open = dataclasses.replace(base, equipment_changes=(EquipmentChange("CRANE", 24.0, 0),))
+        eqp_bounded = dataclasses.replace(
+            base, equipment_changes=(EquipmentChange("CRANE", 24.0, 0, to_hour=72.0),))
+        assert hash_scenario(eqp_open) != hash_scenario(eqp_bounded)
+        # a location change's worker-cap value is part of identity too
+        loc_tasks = dataclasses.replace(base, location_changes=(LocationChange("BAY1", 24.0, 1),))
+        loc_both = dataclasses.replace(
+            base, location_changes=(LocationChange("BAY1", 24.0, 1, new_max_concurrent_workers=2),))
+        assert hash_scenario(loc_tasks) != hash_scenario(loc_both)
+
+    def test_scenario_hash_covers_increment_c_suppression_families(self, scenario):
+        """Freshness gate for the Increment-C removal families: two scenarios differing only in
+        task_suppressions or dependency_suppressions hash DIFFERENTLY — so ``scenario_payload``
+        includes each (else suppressing a task/edge would look CURRENT and skip a re-run)."""
+        base = dataclasses.replace(scenario, duration_overrides=None)   # empty-delta baseline
+        h0 = hash_scenario(base)
+        assert hash_scenario(dataclasses.replace(
+            base, task_suppressions=(TaskSuppression("A"),))) != h0
+        assert hash_scenario(dataclasses.replace(
+            base, dependency_suppressions=(DependencySuppression("A", "B"),))) != h0
+        # the two removal families are distinct: suppressing a task != suppressing that task's edge
+        by_task = dataclasses.replace(base, task_suppressions=(TaskSuppression("B"),))
+        by_edge = dataclasses.replace(base, dependency_suppressions=(DependencySuppression("A", "B"),))
+        assert hash_scenario(by_task) != hash_scenario(by_edge)
 
     def test_canonicalization_is_deterministic(self, baseline, raw_plan):
         """Canonical serialization is stable across object-key ordering and numeric

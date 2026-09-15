@@ -7,7 +7,21 @@ from dataclasses import replace
 from typing import Optional
 
 from prismGui.domain.materialize import materialize
-from prismGui.domain.scenario import DurationOverride, ResourceChange, Scenario
+from prismGui.domain.plan import Dependency, EquipmentReq, ResourceReq, Task
+from prismGui.domain.scenario import (
+    DependencySuppression, EquipmentChange, LocationChange, ResourceChange, DurationOverride,
+    Scenario, TaskSuppression,
+)
+
+# Every delta-collection field on a Scenario. ``_scenario_is_empty`` is authoritative over ALL of
+# them (a scenario carrying only, say, an equipment change or an emergent task is NOT empty), so this
+# list must gain any new what-if family — it mirrors view_data._OVERLAY_FIELDS. ``checkpoint_hour``
+# is a reserved scalar, not a delta collection, so it is intentionally absent.
+_DELTA_FIELDS = (
+    "duration_overrides", "resource_changes", "equipment_changes", "location_changes",
+    "hold_point_release_overrides", "emergent_tasks", "emergent_dependencies",
+    "task_suppressions", "dependency_suppressions",
+)
 
 
 # =============================================================================
@@ -29,9 +43,13 @@ def _is_whatif(intent: str) -> bool:
     return intent == _SCN_INTENTS[0]
 
 def _scenario_is_empty(scenario: Optional[Scenario]) -> bool:
-    """True when the scenario touches nothing (no duration overrides, no resource changes),
-    so the run should use the plain baseline (materialize's scenario=None mirror path)."""
-    return scenario is None or (not scenario.duration_overrides and not scenario.resource_changes)
+    """True when the scenario touches NOTHING across every delta family (``_DELTA_FIELDS``), so the
+    run should use the plain baseline (materialize's scenario=None mirror path). Checking only a
+    subset would let an equipment-only / emergent-only / suppression-only overlay read as empty and
+    silently run the baseline."""
+    if scenario is None:
+        return True
+    return not any(getattr(scenario, f, None) for f in _DELTA_FIELDS)
 
 def _new_scenario_for(baseline) -> Scenario:
     """A fresh empty Scenario bound to the given baseline revision (by plan_hash), with a
@@ -81,12 +99,30 @@ def _scenario_duration_rows(scenario: Optional[Scenario]) -> list[dict]:
             for i, ov in enumerate(scenario.duration_overrides or ())]
 
 def _scenario_resource_rows(scenario: Optional[Scenario]) -> list[dict]:
-    """Resource changes as rows ``{index, skill_type, from_hour, new_count}``."""
+    """Skill-pool changes as rows ``{index, skill_type, from_hour, to_hour, new_count}``."""
     if scenario is None:
         return []
     return [{"index": i, "skill_type": rc.skill_type, "from_hour": rc.from_hour,
-             "new_count": rc.new_count}
+             "to_hour": rc.to_hour, "new_count": rc.new_count}
             for i, rc in enumerate(scenario.resource_changes or ())]
+
+def _scenario_equipment_rows(scenario: Optional[Scenario]) -> list[dict]:
+    """Equipment changes as rows ``{index, equipment_id, from_hour, to_hour, new_quantity}``."""
+    if scenario is None:
+        return []
+    return [{"index": i, "equipment_id": ec.equipment_id, "from_hour": ec.from_hour,
+             "to_hour": ec.to_hour, "new_quantity": ec.new_quantity}
+            for i, ec in enumerate(scenario.equipment_changes or ())]
+
+def _scenario_location_rows(scenario: Optional[Scenario]) -> list[dict]:
+    """Location changes as rows ``{index, location_id, from_hour, to_hour,
+    new_max_concurrent_tasks, new_max_concurrent_workers}``."""
+    if scenario is None:
+        return []
+    return [{"index": i, "location_id": lc.location_id, "from_hour": lc.from_hour,
+             "to_hour": lc.to_hour, "new_max_concurrent_tasks": lc.new_max_concurrent_tasks,
+             "new_max_concurrent_workers": lc.new_max_concurrent_workers}
+            for i, lc in enumerate(scenario.location_changes or ())]
 
 def _add_duration_override(scenario: Optional[Scenario], baseline, task_id: str,
                            duration_hours: float) -> Scenario:
@@ -104,23 +140,195 @@ def _remove_duration_override(scenario: Optional[Scenario], baseline, task_id: s
     return replace(base, duration_overrides=kept or None)
 
 def _add_resource_change(scenario: Optional[Scenario], baseline, skill_type: str,
-                         from_hour: float, new_count: int) -> Scenario:
-    """New Scenario with a resource change (last-write-wins per (skill_type, from_hour), so
-    the UI can never author the duplicate-hour case materialize would reject)."""
+                         from_hour: float, new_count: int, to_hour=None) -> Scenario:
+    """New Scenario with a skill-pool change (last-write-wins per (skill_type, from_hour), so
+    the UI can never author the duplicate-hour case materialize would reject). ``to_hour=None``
+    is an open-ended change (from ``from_hour`` onward); a value bounds it to ``[from, to)``."""
     base = _scenario_base(scenario, baseline)
     fh = float(from_hour)
+    th = None if to_hour is None else float(to_hour)
     kept = tuple(rc for rc in (base.resource_changes or ())
                  if not (rc.skill_type == skill_type and rc.from_hour == fh))
     return replace(base, resource_changes=kept + (
-        ResourceChange(skill_type=skill_type, from_hour=fh, new_count=int(new_count)),))
+        ResourceChange(skill_type=skill_type, from_hour=fh, new_count=int(new_count), to_hour=th),))
 
 def _remove_resource_change(scenario: Optional[Scenario], baseline, index: int) -> Scenario:
-    """New Scenario with the resource change at ``index`` dropped (empties to None)."""
+    """New Scenario with the skill-pool change at ``index`` dropped (empties to None)."""
     base = _scenario_base(scenario, baseline)
     changes = list(base.resource_changes or ())
     if 0 <= index < len(changes):
         del changes[index]
     return replace(base, resource_changes=tuple(changes) or None)
+
+def _add_equipment_change(scenario: Optional[Scenario], baseline, equipment_id: str,
+                          from_hour: float, new_quantity: int, to_hour=None) -> Scenario:
+    """New Scenario with an equipment change (last-write-wins per (equipment_id, from_hour)).
+    ``new_quantity == 0`` == out of service; ``to_hour`` bounds the window as for skills."""
+    base = _scenario_base(scenario, baseline)
+    fh = float(from_hour)
+    th = None if to_hour is None else float(to_hour)
+    kept = tuple(ec for ec in (base.equipment_changes or ())
+                 if not (ec.equipment_id == equipment_id and ec.from_hour == fh))
+    return replace(base, equipment_changes=kept + (
+        EquipmentChange(equipment_id=equipment_id, from_hour=fh, new_quantity=int(new_quantity),
+                        to_hour=th),))
+
+def _remove_equipment_change(scenario: Optional[Scenario], baseline, index: int) -> Scenario:
+    """New Scenario with the equipment change at ``index`` dropped (empties to None)."""
+    base = _scenario_base(scenario, baseline)
+    changes = list(base.equipment_changes or ())
+    if 0 <= index < len(changes):
+        del changes[index]
+    return replace(base, equipment_changes=tuple(changes) or None)
+
+def _add_location_change(scenario: Optional[Scenario], baseline, location_id: str,
+                         from_hour: float, new_max_concurrent_tasks: int, to_hour=None,
+                         new_max_concurrent_workers=None) -> Scenario:
+    """New Scenario with a location capacity change (last-write-wins per (location_id, from_hour)).
+    ``new_max_concurrent_workers=None`` leaves the baseline worker cap untouched; ``to_hour`` bounds
+    the window as for skills."""
+    base = _scenario_base(scenario, baseline)
+    fh = float(from_hour)
+    th = None if to_hour is None else float(to_hour)
+    mw = None if new_max_concurrent_workers is None else int(new_max_concurrent_workers)
+    kept = tuple(lc for lc in (base.location_changes or ())
+                 if not (lc.location_id == location_id and lc.from_hour == fh))
+    return replace(base, location_changes=kept + (
+        LocationChange(location_id=location_id, from_hour=fh,
+                       new_max_concurrent_tasks=int(new_max_concurrent_tasks), to_hour=th,
+                       new_max_concurrent_workers=mw),))
+
+def _remove_location_change(scenario: Optional[Scenario], baseline, index: int) -> Scenario:
+    """New Scenario with the location change at ``index`` dropped (empties to None)."""
+    base = _scenario_base(scenario, baseline)
+    changes = list(base.location_changes or ())
+    if 0 <= index < len(changes):
+        del changes[index]
+    return replace(base, location_changes=tuple(changes) or None)
+
+# --- activity what-ifs: emergent (added) tasks / dependencies ------------------------------
+
+def _scenario_emergent_task_rows(scenario: Optional[Scenario]) -> list[dict]:
+    """Emergent (added) tasks as rows ``{index, task_id, description, duration, location_id,
+    required_resources: [{skill_type, crew_count}], required_equipment: [{equipment_id,
+    quantity_needed}]}``."""
+    if scenario is None:
+        return []
+    rows = []
+    for i, t in enumerate(scenario.emergent_tasks or ()):
+        rows.append({
+            "index": i, "task_id": t.task_id, "description": t.description,
+            "duration": t.duration, "location_id": t.location_id,
+            "required_resources": [{"skill_type": r.skill_type, "crew_count": r.crew_count}
+                                   for r in t.required_resources],
+            "required_equipment": [{"equipment_id": e.equipment_id, "quantity_needed": e.quantity_needed}
+                                   for e in t.required_equipment],
+        })
+    return rows
+
+def _add_emergent_task(scenario: Optional[Scenario], baseline, task_id: str, duration: float,
+                       description: Optional[str] = None, location_id: Optional[str] = None,
+                       required_resources=(), required_equipment=()) -> Scenario:
+    """New Scenario with an emergent (added) task (last-write-wins per ``task_id``). ``hold_point``
+    is forced to None so materialize writes ``is_hold_point:False`` and NO ``hold_point_type`` key
+    (the schema's vacuous conditional). ``required_resources`` is an iterable of
+    ``(skill_type, crew_count)`` pairs; ``required_equipment`` of ``(equipment_id, quantity_needed)``
+    pairs. Referential validity (ghost skill/equipment/location, id collision) is materialize's job."""
+    base = _scenario_base(scenario, baseline)
+    kept = tuple(t for t in (base.emergent_tasks or ()) if t.task_id != task_id)
+    task = Task(
+        task_id=task_id,
+        duration=float(duration),
+        description=description,
+        location_id=location_id,
+        required_resources=tuple(ResourceReq(skill_type=s, crew_count=int(c))
+                                 for s, c in required_resources),
+        required_equipment=tuple(EquipmentReq(equipment_id=e, quantity_needed=int(q))
+                                 for e, q in required_equipment),
+        hold_point=None,
+    )
+    return replace(base, emergent_tasks=kept + (task,))
+
+def _remove_emergent_task(scenario: Optional[Scenario], baseline, task_id: str) -> Scenario:
+    """New Scenario with the emergent task ``task_id`` dropped (empties to None)."""
+    base = _scenario_base(scenario, baseline)
+    kept = tuple(t for t in (base.emergent_tasks or ()) if t.task_id != task_id)
+    return replace(base, emergent_tasks=kept or None)
+
+def _scenario_emergent_dependency_rows(scenario: Optional[Scenario]) -> list[dict]:
+    """Emergent (added) dependencies as rows ``{index, predecessor_id, successor_id, lag_hours}``."""
+    if scenario is None:
+        return []
+    return [{"index": i, "predecessor_id": d.predecessor_id, "successor_id": d.successor_id,
+             "lag_hours": d.lag_hours}
+            for i, d in enumerate(scenario.emergent_dependencies or ())]
+
+def _add_emergent_dependency(scenario: Optional[Scenario], baseline, predecessor_id: str,
+                             successor_id: str, lag_hours: float = 0.0) -> Scenario:
+    """New Scenario with an emergent (added) dependency edge (last-write-wins per
+    ``(predecessor_id, successor_id)``). Endpoint existence is materialize's job — the panel picks
+    endpoints from the MATERIALIZED task list so a just-added emergent task is selectable."""
+    base = _scenario_base(scenario, baseline)
+    kept = tuple(d for d in (base.emergent_dependencies or ())
+                 if not (d.predecessor_id == predecessor_id and d.successor_id == successor_id))
+    return replace(base, emergent_dependencies=kept + (
+        Dependency(predecessor_id=predecessor_id, successor_id=successor_id,
+                   lag_hours=float(lag_hours)),))
+
+def _remove_emergent_dependency(scenario: Optional[Scenario], baseline, index: int) -> Scenario:
+    """New Scenario with the emergent dependency at ``index`` dropped (empties to None)."""
+    base = _scenario_base(scenario, baseline)
+    deps = list(base.emergent_dependencies or ())
+    if 0 <= index < len(deps):
+        del deps[index]
+    return replace(base, emergent_dependencies=tuple(deps) or None)
+
+# --- activity what-ifs: task / dependency suppressions (removal) ---------------------------
+
+def _scenario_task_suppression_rows(scenario: Optional[Scenario]) -> list[dict]:
+    """Task suppressions (removals) as rows ``{index, task_id}``."""
+    if scenario is None:
+        return []
+    return [{"index": i, "task_id": s.task_id}
+            for i, s in enumerate(scenario.task_suppressions or ())]
+
+def _add_task_suppression(scenario: Optional[Scenario], baseline, task_id: str) -> Scenario:
+    """New Scenario suppressing (removing) ``task_id`` (idempotent — never listed twice).
+    Referential validity (the task must exist) is materialize's job."""
+    base = _scenario_base(scenario, baseline)
+    kept = tuple(s for s in (base.task_suppressions or ()) if s.task_id != task_id)
+    return replace(base, task_suppressions=kept + (TaskSuppression(task_id=task_id),))
+
+def _remove_task_suppression(scenario: Optional[Scenario], baseline, task_id: str) -> Scenario:
+    """New Scenario with the suppression of ``task_id`` lifted (empties to None)."""
+    base = _scenario_base(scenario, baseline)
+    kept = tuple(s for s in (base.task_suppressions or ()) if s.task_id != task_id)
+    return replace(base, task_suppressions=kept or None)
+
+def _scenario_dependency_suppression_rows(scenario: Optional[Scenario]) -> list[dict]:
+    """Dependency suppressions (edge removals) as rows ``{index, predecessor_id, successor_id}``."""
+    if scenario is None:
+        return []
+    return [{"index": i, "predecessor_id": s.predecessor_id, "successor_id": s.successor_id}
+            for i, s in enumerate(scenario.dependency_suppressions or ())]
+
+def _add_dependency_suppression(scenario: Optional[Scenario], baseline, predecessor_id: str,
+                                successor_id: str) -> Scenario:
+    """New Scenario suppressing (removing) the edge ``predecessor_id -> successor_id`` (idempotent).
+    Edge existence is materialize's job (a non-existent edge is a MATERIALIZE_CONFLICT)."""
+    base = _scenario_base(scenario, baseline)
+    kept = tuple(s for s in (base.dependency_suppressions or ())
+                 if not (s.predecessor_id == predecessor_id and s.successor_id == successor_id))
+    return replace(base, dependency_suppressions=kept + (
+        DependencySuppression(predecessor_id=predecessor_id, successor_id=successor_id),))
+
+def _remove_dependency_suppression(scenario: Optional[Scenario], baseline, index: int) -> Scenario:
+    """New Scenario with the dependency suppression at ``index`` dropped (empties to None)."""
+    base = _scenario_base(scenario, baseline)
+    sups = list(base.dependency_suppressions or ())
+    if 0 <= index < len(sups):
+        del sups[index]
+    return replace(base, dependency_suppressions=tuple(sups) or None)
 
 def _current_schedule_payload(baseline, scenario) -> tuple[dict, Optional[str]]:
     """The effective payload for the current schedule (streamlit-free): the plain baseline when

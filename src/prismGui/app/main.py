@@ -57,7 +57,10 @@ from prismGui.domain.plan import (
 from prismGui.domain.materialize import materialize
 from prismGui.domain.results import DispositionOverall, Freshness, RunResultStatus
 from prismGui.domain.run_config import EvaluationWeights, ModeSelection, PRIORITY_RULES, RunConfig, SGSVariant
-from prismGui.domain.scenario import DurationOverride, ResourceChange, Scenario
+from prismGui.domain.scenario import (
+    DependencySuppression, DurationOverride, EquipmentChange, LocationChange, ResourceChange,
+    Scenario, TaskSuppression,
+)
 from prismGui.infrastructure.memory_repository import InMemoryRepository
 from prismGui.infrastructure.memory_snapshot_store import InMemorySnapshotStore
 from prismGui.infrastructure.validation_adapter import OutageValidatorAdapter
@@ -112,6 +115,13 @@ from prismGui.app.scenario_model import (
     _SCN_INTENTS, _is_whatif, _scenario_is_empty, _new_scenario_for, _mint_scenario,
     _scenario_base, _scenario_duration_rows, _scenario_resource_rows, _add_duration_override,
     _remove_duration_override, _add_resource_change, _remove_resource_change,
+    _scenario_equipment_rows, _scenario_location_rows, _add_equipment_change,
+    _remove_equipment_change, _add_location_change, _remove_location_change,
+    _scenario_emergent_task_rows, _add_emergent_task, _remove_emergent_task,
+    _scenario_emergent_dependency_rows, _add_emergent_dependency, _remove_emergent_dependency,
+    _scenario_task_suppression_rows, _add_task_suppression, _remove_task_suppression,
+    _scenario_dependency_suppression_rows, _add_dependency_suppression,
+    _remove_dependency_suppression,
     _current_schedule_payload, _schedule_label
 )
 from prismGui.app.view_data import (
@@ -140,6 +150,33 @@ from prismGui.app.pages.replan import _render_replan
 from prismGui.app.pages.scenarios import _render_scenarios
 
 
+_RUN_ERROR = "prism_run_error"     # transient: (stage, issues) of the last blocked run, popped once shown
+
+def _run_and_store(session, payload, plan_id, run_config, validator, store, executor,
+                   repository, scenario) -> None:
+    """Run-button ``on_click`` callback: run the pipeline and store + select the result (or stash
+    the block reason) in ``session_state``.
+
+    Wired as a callback rather than ``if st.sidebar.button(): ...`` so the run fires on the FIRST
+    click. Streamlit runs on_click callbacks BEFORE the script body on the click's rerun, so the
+    result is stored + selected before ``main()`` resolves the selected result below and the
+    Results page paints it. The plain-button form lost its ``True`` return across the navigation /
+    rerun churn on the first click (an ``st.rerun`` in its success branch never fired, because the
+    branch was never entered), so results appeared only on a second click. A callback sidesteps
+    the return value entirely."""
+    st.session_state.pop(_RUN_ERROR, None)
+    # Run the CURRENT session baseline's payload — a committed edit is what runs — with the session
+    # scenario (if any) materialized into the effective plan by prepare_run.
+    outcome = run_pipeline(
+        payload, plan_id, run_config,
+        validator=validator, store=store, executor=executor, repository=repository,
+        scenario=scenario)
+    if outcome.ok:
+        session.add_run_result(outcome.result)
+        session.set_selected_result_id(outcome.result.run_id)
+    else:
+        st.session_state[_RUN_ERROR] = (outcome.stage, list(outcome.issues))
+
 def main() -> None:
     if not _HAS_STREAMLIT:  # pragma: no cover - guarded entry
         raise SystemExit(
@@ -150,9 +187,10 @@ def main() -> None:
 
     st.set_page_config(page_title="PRISM Scheduler", layout="wide")
     st.title("PRISM — Outage Schedule")
-    st.caption("Load a plan and configure the run in the sidebar, then work through the pages: "
-               "Plan (view / edit the baseline), Results (plots + activity DAG), Replan "
-               "(scenario what-ifs), and Scenarios (library + relation graph).")
+    st.caption("Load a plan and configure the run in the sidebar, then click **Run schedule** — the "
+               "schedule and plots appear here on **Results** (the landing page). Switch to **Plan** "
+               "to view / edit the baseline, **Replan** for scenario what-ifs, and **Scenarios** for "
+               "the library + relation graph.")
 
     session = StreamlitSessionState()
     validator = build_validator()
@@ -161,9 +199,18 @@ def main() -> None:
     repository = InMemoryRepository()
 
     raw, plan_id = _pick_source()
-    if raw is None:
-        st.info("Choose a sample project or upload a plan JSON to begin.")
-        return
+    # Defense in depth: the durable-memo re-seed in _pick_source keeps the pick across a run / page
+    # switch, but if the source read still comes back empty while a plan is ALREADY loaded, keep
+    # operating on that stored baseline instead of dumping the user back to the prompt (and losing
+    # their run). Only a genuinely fresh session — no baseline yet — shows the prompt.
+    from_source = raw is not None
+    if not from_source:
+        loaded = session.get_baseline()
+        if loaded is None:
+            st.info("Choose a sample project or upload a plan JSON to begin.")
+            return
+        raw = json.loads(loaded.raw_snapshot)["payload"]
+        plan_id = loaded.plan_id
 
     # --- validation: compact badge in the sidebar, full issue list in the main column ---
     load = services.load_and_validate(plan_id, raw, validator)
@@ -179,13 +226,17 @@ def main() -> None:
     # Source-signature guard: seed the session baseline from the file only when the selected
     # source changes. A committed edit (which sets the baseline to the new revision) then
     # survives Streamlit's top-to-bottom rerun instead of being overwritten by this reload.
-    source_key = _source_key(load.reference_plan)
-    if session.get_source_key() != source_key:
-        session.set_source_key(source_key)
-        # Point the session at the new baseline and resolve anything bound to a prior
-        # revision: a stale draft OR scenario is cleared, a compatible one is kept (the
-        # pure services.resolve_for_new_baseline the group-J contract drives headlessly).
-        services.resolve_for_new_baseline(session, load.reference_plan)
+    # Skip it entirely on the stored-baseline fallback above: that raw was reconstructed from the
+    # baseline's own (possibly edited) snapshot, so recomputing the source signature from it could
+    # later discard a committed edit — the baseline is already resolved, leave its signature alone.
+    if from_source:
+        source_key = _source_key(load.reference_plan)
+        if session.get_source_key() != source_key:
+            session.set_source_key(source_key)
+            # Point the session at the new baseline and resolve anything bound to a prior
+            # revision: a stale draft OR scenario is cleared, a compatible one is kept (the
+            # pure services.resolve_for_new_baseline the group-J contract drives headlessly).
+            services.resolve_for_new_baseline(session, load.reference_plan)
 
     baseline = session.get_baseline()
 
@@ -201,22 +252,22 @@ def main() -> None:
     session.set_run_config(run_config)
 
     # --- run controls live in the sidebar (below the run configuration) ---
-    if st.sidebar.button("Run schedule", type="primary"):
-        # Run the CURRENT session baseline's payload — a committed edit is what runs — with
-        # the session scenario (if any) materialized into the effective plan by prepare_run.
-        payload = json.loads(baseline.raw_snapshot)["payload"]
-        with st.spinner("Scheduling…"):
-            outcome = run_pipeline(
-                payload, baseline.plan_id, run_config,
-                validator=validator, store=store, executor=executor, repository=repository,
-                scenario=session.get_scenario())
-        if not outcome.ok:
-            st.sidebar.error(f"Cannot run — blocked at {outcome.stage}.")
-            st.error(f"Run blocked at {outcome.stage}.")
-            _render_issues(outcome.issues)
-        else:
-            session.add_run_result(outcome.result)
-            session.set_selected_result_id(outcome.result.run_id)
+    # Wired as an on_click callback (see _run_and_store) so the run fires + stores on the FIRST
+    # click, before the body resolves the result below — not the fragile `if st.button(): ...`
+    # form whose True was lost to rerun churn, needing a second click.
+    run_payload = json.loads(baseline.raw_snapshot)["payload"]
+    st.sidebar.button(
+        "Run schedule", type="primary",
+        on_click=_run_and_store,
+        args=(session, run_payload, baseline.plan_id, run_config, validator,
+              store, executor, repository, session.get_scenario()))
+    # A blocked run stashes its reason; render it once (popped) here in the main column + sidebar.
+    run_error = st.session_state.pop(_RUN_ERROR, None)
+    if run_error is not None:
+        stage, issues = run_error
+        st.sidebar.error(f"Cannot run — blocked at {stage}.")
+        st.error(f"Run blocked at {stage}.")
+        _render_issues(issues)
 
     # --- resolve the selected run result; its header + views now live on the Results page ---
     result = None
@@ -249,14 +300,22 @@ def main() -> None:
         _render_results_page(session, baseline, result, run_config, run_plan=_run_plan)
 
     def _page_replan() -> None:
-        _render_replan(session, baseline)
+        # Replan hosts the guided augmentation (moved off Results): hand it the SAME selected run,
+        # live run_config, and run-plan seam Results used, so it reads the run's bottlenecks and
+        # re-runs through the shared store+executor (run ids increment, never collide).
+        _render_replan(session, baseline, result, run_config, run_plan=_run_plan)
 
     def _page_scenarios() -> None:
         _render_scenarios(session, baseline)
 
+    # Land on Results by default: the "Run schedule" button lives in the shared sidebar, but a run's
+    # output (header + plots + DAG) only renders on the Results page. Landing here means the basic
+    # load-a-plan-then-Run flow shows the result on the FIRST click — a plain button rerun keeps the
+    # active page, so the just-stored, just-selected result resolves and renders in place. (The tabs
+    # keep their build→run→what-if→library order; only the default landing changes.)
     pg = st.navigation([
-        st.Page(_page_plan,      title="Plan",      default=True),
-        st.Page(_page_results,   title="Results"),
+        st.Page(_page_plan,      title="Plan"),
+        st.Page(_page_results,   title="Results", default=True),
         st.Page(_page_replan,    title="Replan"),
         st.Page(_page_scenarios, title="Scenarios"),
     ])

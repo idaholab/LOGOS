@@ -32,15 +32,33 @@ def _source_key(reference_plan) -> str:
     preserved); picking a different sample / uploading a new file changes it."""
     return f"{reference_plan.plan_id}::{reference_plan.plan_hash}"
 
+_SOURCE_SAMPLE_MEMO = "prism_source_sample_memo"   # durable PLAIN key: the last-picked sample name
+
 def _pick_source():
     """Sidebar sample-selectbox + uploader. Returns (raw_plan_dict | None, plan_id)."""
     st.sidebar.header("Plan source")
     samples = discover_samples()
-    names = list(samples)
+    options = ["— choose —", *samples]
+
+    # Re-seed the selectbox from a DURABLE PLAIN session_state key (``_SOURCE_SAMPLE_MEMO``) via
+    # ``index=`` — NOT from the widget's own keyed state. Streamlit's multipage navigation resets
+    # *widget* state to its default on a page transition (confirmed by minimal repro: both
+    # ``st.switch_page`` and landing on a non-first ``default`` page drop a keyed selectbox back to
+    # its first option, even a value committed on the prior run). That reset cleared the source on
+    # the Run rerun and dumped the app back to "choose a sample", forcing a re-pick every Run. A
+    # plain (non-widget) key is NOT reset by navigation, so we persist the pick there and drive the
+    # widget's index from it every run — the selection now survives a run, a page switch, and the
+    # initial landing alike. (Keying the widget itself was tried and did NOT survive the reset.)
+    prior = st.session_state.get(_SOURCE_SAMPLE_MEMO, options[0])
+    if prior not in options:                     # a sample vanished from disk between runs
+        prior = options[0]
     choice = st.sidebar.selectbox(
-        "Sample project", ["— choose —", *names],
+        "Sample project", options, index=options.index(prior),
         help="Shipping RCPSP examples from doc/demos/rcpsp/examples/.")
-    uploaded = st.sidebar.file_uploader("…or upload a plan (JSON)", type=["json"])
+    st.session_state[_SOURCE_SAMPLE_MEMO] = choice
+
+    uploaded = st.sidebar.file_uploader(
+        "…or upload a plan (JSON)", type=["json"], key="prism_source_upload")
 
     if uploaded is not None:
         try:

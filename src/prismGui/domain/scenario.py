@@ -23,13 +23,24 @@ class ResourceChange:
     skill_type: str
     from_hour: Hours
     new_count: int
+    to_hour: Optional[Hours] = None   # None == open-ended (from_hour onward); else a bounded [from, to) window
 
 
 @dataclass(frozen=True)
 class EquipmentChange:
     equipment_id: str
     from_hour: Hours
-    new_quantity: int        # 0 == OOS
+    new_quantity: int                 # 0 == OOS
+    to_hour: Optional[Hours] = None   # None == open-ended; else a bounded [from, to) window
+
+
+@dataclass(frozen=True)
+class LocationChange:
+    location_id: str
+    from_hour: Hours
+    new_max_concurrent_tasks: int
+    to_hour: Optional[Hours] = None                    # None == open-ended; else a bounded [from, to) window
+    new_max_concurrent_workers: Optional[int] = None   # None == leave the worker cap untouched (may itself be "no cap")
 
 
 @dataclass(frozen=True)
@@ -42,6 +53,21 @@ class DurationOverride:
 class HoldPointReleaseOverride:
     target_id: str           # task_id or hold_id
     release_hour: Hours
+
+
+@dataclass(frozen=True)
+class TaskSuppression:
+    """Remove a baseline (or emergent) task from the effective plan. Materialization also
+    strips the suppressed id from every remaining task's ``successors`` (dangling-edge cleanup)."""
+    task_id: str
+
+
+@dataclass(frozen=True)
+class DependencySuppression:
+    """Remove one precedence edge — drop ``successor_id`` from ``predecessor_id``'s successors —
+    without removing either task. A non-existent edge is a MATERIALIZE_CONFLICT."""
+    predecessor_id: str
+    successor_id: str
 
 
 @dataclass(frozen=True)
@@ -63,6 +89,9 @@ class Scenario:
     duration_overrides: Optional[tuple[DurationOverride, ...]] = None
     resource_changes: Optional[tuple[ResourceChange, ...]] = None
     equipment_changes: Optional[tuple[EquipmentChange, ...]] = None
+    location_changes: Optional[tuple[LocationChange, ...]] = None
     hold_point_release_overrides: Optional[tuple[HoldPointReleaseOverride, ...]] = None
     emergent_tasks: Optional[tuple[Task, ...]] = None
     emergent_dependencies: Optional[tuple[Dependency, ...]] = None
+    task_suppressions: Optional[tuple[TaskSuppression, ...]] = None
+    dependency_suppressions: Optional[tuple[DependencySuppression, ...]] = None

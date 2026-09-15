@@ -264,31 +264,52 @@ def _emergent_task_payload(t) -> dict:
     }
 
 
+def _opt_q(v):
+    """``None``-preserving quantize for optional-hour fields in the canonical payload."""
+    return None if v is None else q(v)
+
+
 def scenario_payload(sc: Scenario) -> dict:
     dur = sc.duration_overrides or ()
     res = sorted(sc.resource_changes or (), key=lambda c: (c.skill_type, c.from_hour))
     eqp = sorted(sc.equipment_changes or (), key=lambda c: (c.equipment_id, c.from_hour))
+    loc = sorted(sc.location_changes or (), key=lambda c: (c.location_id, c.from_hour))
     hpr = sc.hold_point_release_overrides or ()
     emt = sc.emergent_tasks or ()
     emd = sorted(sc.emergent_dependencies or (),
                  key=lambda d: (d.predecessor_id, d.successor_id, d.lag_hours))
+    tsup = sorted(sc.task_suppressions or (), key=lambda s: s.task_id)
+    dsup = sorted(sc.dependency_suppressions or (),
+                  key=lambda s: (s.predecessor_id, s.successor_id))
     return {
         "base_plan_hash": sc.base_plan_hash,
         "checkpoint_hour": None if sc.checkpoint_hour is None else q(sc.checkpoint_hour),
         "duration_overrides": {d.task_id: q(d.duration_hours) for d in dur},
         "resource_changes": [
-            {"skill_type": c.skill_type, "from_hour": q(c.from_hour), "new_count": c.new_count}
+            {"skill_type": c.skill_type, "from_hour": q(c.from_hour), "new_count": c.new_count,
+             "to_hour": _opt_q(c.to_hour)}
             for c in res
         ],
         "equipment_changes": [
-            {"equipment_id": c.equipment_id, "from_hour": q(c.from_hour), "new_quantity": c.new_quantity}
+            {"equipment_id": c.equipment_id, "from_hour": q(c.from_hour), "new_quantity": c.new_quantity,
+             "to_hour": _opt_q(c.to_hour)}
             for c in eqp
+        ],
+        "location_changes": [
+            {"location_id": c.location_id, "from_hour": q(c.from_hour),
+             "new_max_concurrent_tasks": c.new_max_concurrent_tasks, "to_hour": _opt_q(c.to_hour),
+             "new_max_concurrent_workers": c.new_max_concurrent_workers}
+            for c in loc
         ],
         "hold_point_release_overrides": {o.target_id: q(o.release_hour) for o in hpr},
         "emergent_tasks": [_emergent_task_payload(t) for t in emt],
         "emergent_dependencies": [
             {"predecessor_id": d.predecessor_id, "successor_id": d.successor_id, "lag_hours": q(d.lag_hours)}
             for d in emd
+        ],
+        "task_suppressions": [s.task_id for s in tsup],
+        "dependency_suppressions": [
+            {"predecessor_id": s.predecessor_id, "successor_id": s.successor_id} for s in dsup
         ],
     }
 

@@ -36,9 +36,17 @@ def _render_plots(result) -> None:
         st.caption("No scheduled activities to chart.")
     else:
         n_rows = 1 + len(skills)
-        row_heights = [0.5, *([0.5 / len(skills)] * len(skills))] if skills else [1.0]
+        # Per-band PIXEL budget → row-height fractions + a matching figure height, so every skill
+        # row keeps a readable, fixed band. The old ``[0.5, 0.5/n, …]`` split divided a fixed height
+        # N ways, collapsing the lower skill rows to a few px each on resource-rich plans (example_30
+        # has 11 skills) — the bottom row then vanished under the range slider. The Gantt gets a
+        # taller band; skill rows scroll within the page when there are many.
+        gantt_px, skill_px = 300, 120
+        px = [gantt_px, *([skill_px] * len(skills))] if skills else [gantt_px]
+        row_heights = [h / sum(px) for h in px]
+        gap = min(0.03, 0.3 / max(n_rows - 1, 1))     # keep inter-row gaps from eating the rows
         fig = make_subplots(
-            rows=n_rows, cols=1, shared_xaxes=True, vertical_spacing=0.05,
+            rows=n_rows, cols=1, shared_xaxes=True, vertical_spacing=gap,
             row_heights=row_heights,
             subplot_titles=["Gantt", *[f"{s} — crew" for s in skills]])
 
@@ -58,6 +66,19 @@ def _render_plots(result) -> None:
                 row=1, col=1)
         fig.update_yaxes(autorange="reversed", row=1, col=1)  # first activity on top
 
+        # Float-class color legend (the Gantt bars themselves carry no legend — one swatch per class
+        # actually present, in severity order, as zero-data marker traces so they add no geometry).
+        for fc, label in (("critical", "Critical — on constrained chain"),
+                          ("zero_float", "Zero float"), ("positive_float", "Positive float"),
+                          ("", "Unclassified")):
+            if any((r["float_class"] or "") == fc for r in g_rows):
+                fig.add_trace(
+                    go.Scatter(x=[None], y=[None], mode="markers", name=label,
+                               marker=dict(size=11, symbol="square",
+                                           color=_FLOAT_CLASS_COLORS.get(fc, "#7f8c8d")),
+                               showlegend=True, hoverinfo="skip"),
+                    row=1, col=1)
+
         # --- rows 2..: one demand/available step chart per skill -------------
         for i, skill in enumerate(skills, start=2):
             xs, dem, avail = _step_series([r for r in u_rows if r["skill"] == skill])
@@ -74,13 +95,15 @@ def _render_plots(result) -> None:
                 row=i, col=1)
             fig.update_yaxes(title_text="crew", rangemode="tozero", row=i, col=1)
 
+        # No range slider: pinned to the bottom x-axis, it swallowed the last (thin) skill row's
+        # y-axis on resource-rich plans. Native drag-to-zoom on the shared x-axis covers long horizons.
         fig.update_xaxes(title_text="hours since project start", row=n_rows, col=1)
-        fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.06), row=n_rows, col=1)
         fig.update_layout(
-            height=260 + 150 * max(len(skills), 1), bargap=0.2,
+            height=int(sum(px) * 1.15) + 40, bargap=0.2,
             margin=dict(l=10, r=10, t=40, b=10),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
         st.plotly_chart(fig, use_container_width=True)
+        st.caption("Bar color = float class; faded bars are off the resource-constrained chain.")
 
     st.markdown("**Schedule**")
     _render_schedule_table(schedule)
@@ -207,9 +230,10 @@ def _render_activity_graph(session, baseline, result=None) -> None:
     precedence links as edges, fed by the MATERIALIZED current schedule (a scenario's duration
     override / emergent task is reflected). When ``result`` is a COMPLETED run whose schedule
     matches the CURRENT lineage, the graph is ENRICHED — nodes colored by float class, a "Layer
-    by" control lays them out by dependency depth or CPM ES/LS, and the run's contention arcs
-    ride the tooltip/overlay; otherwise it degrades to the structural pre-run graph. Labels are
-    dropped on large plans (kept hover-only) so the picture stays legible."""
+    by" control lays them out (default **schedule**: x = actual start hour, y = float-class bands;
+    or dependency depth / CPM ES / LS), and the run's contention arcs ride the tooltip/overlay;
+    otherwise it degrades to the structural pre-run graph. Labels are dropped on large plans (kept
+    hover-only) so the picture stays legible."""
     import plotly.graph_objects as go
 
     scenario = session.get_scenario()
@@ -232,9 +256,18 @@ def _render_activity_graph(session, baseline, result=None) -> None:
 
     layer_by = "topo"
     if enrich:
+        # Default to the SCHEDULE layout: x = each task's ACTUAL start hour, y = its FLOAT CLASS as
+        # horizontal bands (critical spine at 0, slack classes above, grey below). This spreads the
+        # left-hand pile of equal-depth / equal-ES tasks along real start times and groups same-color
+        # tasks into rows — the layout the review asked for. The three CPM/topology layouts stay on
+        # offer: EARLIEST / LATEST start (CPM timeline — time monotonic along the critical path, so
+        # the gold spine is straight) and DEPENDENCY DEPTH (structural; can double back when a
+        # critical activity has no plan predecessors, e.g. example_30's T007 via a non-precedence
+        # critical link — offered, never the default).
         layer_by = st.selectbox(
-            "Layer by", ["topo", "es", "ls"], key="prism_dag_layer_by",
-            format_func=lambda m: {"topo": "Dependency depth", "es": "Earliest start (CPM)",
+            "Layer by", ["schedule", "es", "topo", "ls"], key="prism_dag_layer_by",
+            format_func=lambda m: {"schedule": "Schedule (start × float class)",
+                                   "topo": "Dependency depth", "es": "Earliest start (CPM)",
                                    "ls": "Latest start (CPM)"}[m])
         data = _activity_graph_enriched(payload, result.schedule, layer_by=layer_by)
     else:
@@ -290,15 +323,60 @@ def _render_activity_graph(session, baseline, result=None) -> None:
         marker=dict(size=18, color=marker_color, line=dict(color="#0d3b66", width=1)),
         hovertext=[_dag_hover(n) for n in nodes],
         hoverinfo="text"))
-    _graph_layout(fig, height=460)
+    # A wide DAG (many x-columns) can't fit legibly at once, so window it and add an overview /
+    # pan bar (range-slider) beneath the plot to navigate portions. ``x_columns`` is post-remap:
+    # even ordinal columns in schedule mode, real CPM-time values in es/ls — so the same count-based
+    # windowing works for every mode. Small graphs (≤ WINDOW_COLS columns) show whole, no bar.
+    WINDOW_COLS = 24
+    cols = data.get("x_columns") or sorted({n["x"] for n in nodes})
+    use_slider = enriched and len(cols) > WINDOW_COLS
+    x_range = None
+    if use_slider:
+        lo, hi = cols[0], cols[WINDOW_COLS - 1]          # first WINDOW_COLS columns
+        pad = max(0.5, (hi - lo) * 0.02)
+        x_range = [lo - pad, hi + pad]
+    # Height: keep the graph readable if the bands stack tall (light auto-scale off the y-extent),
+    # and leave room for the overview bar when it is shown.
+    ys = [n["y"] for n in nodes]
+    y_span = (max(ys) - min(ys)) if ys else 1.0
+    height = max(460, int(24 * y_span) + 80) + (120 if use_slider else 0)
+    # Schedule mode alone puts a measured quantity (start hour) on x, so reveal + label that axis;
+    # the CPM/topology modes stay a pure node-graph with both axes hidden.
+    _graph_layout(
+        fig, height=height,
+        x_title="start hour (project time, evenly spaced)" if layer_by == "schedule" else None,
+        x_ticks=data.get("x_ticks") if layer_by == "schedule" else None,
+        x_range=x_range, rangeslider=use_slider)
+    if use_slider:
+        st.caption(f"Large DAG — showing the first {WINDOW_COLS} of {len(cols)} time columns. "
+                   f"Drag the **overview bar** beneath the plot to pan / zoom to any portion.")
     if enriched and (cx or px):
         parts = ["Grey = plan precedence"]
-        if px:
-            parts.append("gold = CPM (logical) critical path")
         if cx:
             parts.append("dashed red = resource-contention arcs added beyond precedence")
         parts.append("node color = float class (red critical / orange zero / green positive)")
-        st.caption(" · ".join(parts) + ".")
+        if layer_by == "schedule":
+            # x = actual start hour, y = float-class band. The gold CPM overlay can WEAVE between
+            # bands here (unlike the es/ls spine): a task can be on the LOGICAL critical path yet
+            # carry resource slack in the constrained schedule → a non-critical float class → a
+            # different band. That is honest, and pointing to es/ls keeps the straight-spine reading.
+            if px:
+                parts.insert(1, "gold = CPM (logical) critical path")
+            st.caption(" · ".join(parts)
+                       + ". Position: **x = start hour** (distinct starts spaced *evenly*, not "
+                         "proportionally — the tick labels carry the real hour), **y = float class** "
+                         "in bands — critical on the centre row (y≈0), zero- / positive-float above, "
+                         "unscheduled below; same-color tasks read as a row and co-starting tasks "
+                         "fan within their band. (The gold path can cross bands here — a logically-"
+                         "critical task may still have resource slack; the **Earliest / Latest "
+                         "start** layouts straighten it into a spine and keep proportional time.)")
+        else:
+            if px:
+                parts.insert(1, "gold = CPM (logical) critical path — pinned to a straight y=0 spine")
+            st.caption(" · ".join(parts)
+                       + ". Off-path tasks fan above / below the spine; constrained-chain tasks sit "
+                         "nearest it. Use **Layer by** to switch the x-axis (schedule start / earliest "
+                         "start / dependency depth / latest start).")
     if data["has_cycle"]:
         st.warning("The dependency graph contains a cycle — the layout is approximate.")
     st.plotly_chart(fig, use_container_width=True)
@@ -420,9 +498,11 @@ def _render_chain_sets(result) -> None:
     critical path, the resource-constrained chain, and the zero-float set. Schedule-only, shown
     regardless of freshness (reads ``result.schedule`` alone, like the inspector's summary/slip):
     three size metrics, the CPM-vs-constrained partition with the resource-vs-logic leverage-point
-    framing, and a per-task membership table. This QUANTIFIES membership — the Activity DAG already
-    *draws* the two chains; here we name the tasks that are critical because of resource contention
-    rather than precedence (on the constrained chain but off the CPM path — the true leverage points)."""
+    framing, and a per-task membership table with a roster FILTER (Any critical set / All activities /
+    On the CPM path / On the resource chain) that narrows only the table — the metrics and partition
+    caption stay whole-run facts. This QUANTIFIES membership — the Activity DAG already *draws* the two
+    chains; here we name the tasks that are critical because of resource contention rather than
+    precedence (on the constrained chain but off the CPM path — the true leverage points)."""
     schedule = result.schedule
     if not schedule.activities:
         st.info("This run scheduled no activities to analyze.")
@@ -444,11 +524,30 @@ def _render_chain_sets(result) -> None:
     st.caption(f"Both (precedence + resources): {len(cs['both'])} · only CPM (precedence-critical, "
                f"resources don't gate): {len(cs['only_cpm'])} · only constrained (resource-driven): "
                f"{len(cs['only_constrained'])}.")
+    # Table filter: which roster to LIST. The metrics + partition caption above are whole-run facts
+    # and stay fixed; this narrows only the per-task table. Every row keeps all three membership
+    # columns, so the CPM-vs-resource overlap stays legible inside any filtered view.
+    all_rows = cs["all_rows"]
+    ANY, ALL, CPM, RES = ("Any critical set", "All activities", "On the CPM path",
+                          "On the resource chain")
+    choice = st.radio("Show", (ANY, ALL, CPM, RES), index=0, horizontal=True,
+                      key="prism_chain_filter",
+                      help="'Any critical set' = on the CPM path, the resource chain, OR zero-float "
+                           "(the union — a task can be resource-tight without being on either chain).")
+    if choice == ALL:
+        shown = all_rows
+    elif choice == CPM:
+        shown = [r for r in all_rows if r["on_cpm"]]
+    elif choice == RES:
+        shown = [r for r in all_rows if r["on_constrained"]]
+    else:  # ANY = CPM ∪ resource chain ∪ zero-float (the default; matches the prior union view)
+        shown = [r for r in all_rows if r["on_cpm"] or r["on_constrained"] or r["zero_tf"]]
+    st.caption(f"Showing {len(shown)} of {len(all_rows)} scheduled activities.")
     st.dataframe(
         [{"task": r["task_id"], "CPM path": "✓" if r["on_cpm"] else "",
           "constrained": "✓" if r["on_constrained"] else "", "zero-float": "✓" if r["zero_tf"] else "",
           "float": r["float_class"] or "", "actual TF (h)": r["tf_actual_hours"]}
-         for r in cs["rows"]],
+         for r in shown],
         use_container_width=True, hide_index=True)
 
 def _render_window_preflight(session, baseline, result) -> None:
@@ -645,6 +744,10 @@ def _render_run_comparison(session, baseline, run_config) -> None:
     with st.expander("Aligned Gantt", expanded=False):
         _render_multi_gantt(labeled)
 
+# Rendered on the REPLAN page (imported by pages/replan.py), NOT Results: augmentation is a replan
+# action — build a resource what-if from the run's bottlenecks and re-run. It physically stays here
+# beside the comparison renderers it reuses (_render_makespan_bars / _render_multi_gantt, shared with
+# Compare runs / Sweep) so relocating the tab did not drag those into a new module.
 def _render_run_augmentation(session, baseline, result, run_config, run_plan) -> None:
     """Guided resource-augmentation what-if (Phase-4.2): pick the bottleneck pool + N crew, then one
     button clones the baseline, reruns with that pool SET to (current + N) crew from hour 0, and shows a
@@ -920,7 +1023,7 @@ def _render_results_page(session, baseline, result, run_config, run_plan=None) -
     view = st.segmented_control(
         "View",
         ["Plots", "Activity DAG", "Task inspector", "Chain sets", "Time windows", "Compare runs",
-         "Augment resources", "Sweep"],
+         "Sweep"],
         default="Plots", key="prism_results_view")
     if view == "Activity DAG":
         _render_activity_graph(session, baseline, result)
@@ -947,8 +1050,6 @@ def _render_results_page(session, baseline, result, run_config, run_plan=None) -
             st.info("Run a schedule (sidebar) to pre-flight the time windows.")
     elif view == "Compare runs":
         _render_run_comparison(session, baseline, run_config)
-    elif view == "Augment resources":
-        _render_run_augmentation(session, baseline, result, run_config, run_plan)
     elif view == "Sweep":
         _render_run_sweep(session, baseline, run_config, run_plan)
     elif result is not None and result.status is RunResultStatus.COMPLETED:

@@ -42,7 +42,11 @@ from prismGui.domain.results import (
 )
 from prismGui.domain.disposition import ScheduleSummary, compute_disposition
 from prismGui.domain.hashing import hash_scenario
-from prismGui.domain.scenario import DurationOverride, ResourceChange, Scenario
+from prismGui.domain.scenario import (
+    DependencySuppression, DurationOverride, EquipmentChange, LocationChange, ResourceChange,
+    Scenario, TaskSuppression,
+)
+from prismGui.domain.plan import Dependency, Task
 from prismGui.domain.versions import APP_VERSION, CANON_VERSION, SCHEMA_VERSION
 
 
@@ -1173,7 +1177,8 @@ class TestScenarioPanelBuilders:
 
     def test_scenario_is_empty(self, baseline):
         """None, and a scenario touching nothing, are both empty (the run then uses the plain
-        baseline). A single override or resource change makes it non-empty."""
+        baseline). A single delta of ANY family makes it non-empty — checking only a subset
+        would let an equipment/location-only overlay silently run the plain baseline."""
         assert app_main._scenario_is_empty(None) is True
         empty = app_main._new_scenario_for(baseline)
         assert app_main._scenario_is_empty(empty) is True
@@ -1181,6 +1186,19 @@ class TestScenarioPanelBuilders:
         assert app_main._scenario_is_empty(with_dur) is False
         with_res = app_main._add_resource_change(None, baseline, "MECH", 48.0, 1)
         assert app_main._scenario_is_empty(with_res) is False
+        with_eqp = app_main._add_equipment_change(None, baseline, "CRANE", 48.0, 1)
+        assert app_main._scenario_is_empty(with_eqp) is False
+        with_loc = app_main._add_location_change(None, baseline, "BAY1", 48.0, 1)
+        assert app_main._scenario_is_empty(with_loc) is False
+        # Increment-C activity families: an add-only or a remove-only overlay is NOT empty
+        with_task = app_main._add_emergent_task(None, baseline, "E1", 3.0)
+        assert app_main._scenario_is_empty(with_task) is False
+        with_dep = app_main._add_emergent_dependency(None, baseline, "A", "B")
+        assert app_main._scenario_is_empty(with_dep) is False
+        with_tsup = app_main._add_task_suppression(None, baseline, "A")
+        assert app_main._scenario_is_empty(with_tsup) is False
+        with_dsup = app_main._add_dependency_suppression(None, baseline, "A", "B")
+        assert app_main._scenario_is_empty(with_dsup) is False
 
     def test_add_duration_override_binds_to_baseline(self, baseline):
         """From no scenario, adding a duration override builds a fresh Scenario bound to THIS
@@ -1232,14 +1250,76 @@ class TestScenarioPanelBuilders:
         scn = app_main._remove_resource_change(scn, baseline, 0)
         assert scn.resource_changes is None
 
+    def test_add_resource_change_carries_bounded_window(self, baseline):
+        """A resource what-if can carry a bounded ``[from, to)`` window: ``to_hour`` rides onto
+        the ``ResourceChange`` (None stays open-ended). Last-write-wins is still keyed on
+        (skill_type, from_hour) only, so re-authoring the same start replaces the window too."""
+        scn = app_main._add_resource_change(None, baseline, "MECH", 24.0, 1, to_hour=72.0)
+        assert scn.resource_changes == (ResourceChange("MECH", 24.0, 1, to_hour=72.0),)
+        # re-authoring the same (skill, from_hour) replaces the window, never duplicates
+        scn = app_main._add_resource_change(scn, baseline, "MECH", 24.0, 0)
+        assert scn.resource_changes == (ResourceChange("MECH", 24.0, 0, to_hour=None),)
+
+    def test_add_remove_equipment_change(self, baseline):
+        """Equipment what-ifs bind to the baseline, are last-write-wins per (equipment_id,
+        from_hour) with an optional window, and remove-by-index empties back to None."""
+        scn = app_main._add_equipment_change(None, baseline, "CRANE", 24.0, 0, to_hour=72.0)
+        assert scn.base_plan_hash == baseline.plan_hash
+        assert scn.equipment_changes == (EquipmentChange("CRANE", 24.0, 0, to_hour=72.0),)
+        # same (id, from_hour) replaces
+        scn = app_main._add_equipment_change(scn, baseline, "CRANE", 24.0, 1)
+        assert scn.equipment_changes == (EquipmentChange("CRANE", 24.0, 1, to_hour=None),)
+        # a different hour appends, then remove-by-index drops it
+        scn = app_main._add_equipment_change(scn, baseline, "CRANE", 80.0, 2)
+        assert len(scn.equipment_changes) == 2
+        scn = app_main._remove_equipment_change(scn, baseline, 1)
+        assert scn.equipment_changes == (EquipmentChange("CRANE", 24.0, 1, to_hour=None),)
+        scn = app_main._remove_equipment_change(scn, baseline, 0)
+        assert scn.equipment_changes is None
+
+    def test_add_remove_location_change(self, baseline):
+        """Location what-ifs bind to the baseline; a None worker cap is preserved as None (leave
+        the baseline cap untouched), a value rides through. Last-write-wins per (location_id,
+        from_hour); remove-by-index empties back to None."""
+        scn = app_main._add_location_change(None, baseline, "BAY1", 24.0, 1)
+        assert scn.location_changes == (
+            LocationChange("BAY1", 24.0, 1, to_hour=None, new_max_concurrent_workers=None),)
+        # both caps + window, replacing the same (id, from_hour)
+        scn = app_main._add_location_change(scn, baseline, "BAY1", 24.0, 2, to_hour=72.0,
+                                            new_max_concurrent_workers=3)
+        assert scn.location_changes == (
+            LocationChange("BAY1", 24.0, 2, to_hour=72.0, new_max_concurrent_workers=3),)
+        scn = app_main._remove_location_change(scn, baseline, 0)
+        assert scn.location_changes is None
+
+    def test_equipment_and_location_rows_shape(self, baseline):
+        """The equipment / location row shapers surface each change with its row index, window
+        bound, and value(s) — the shape the Replan panel renders and removes by."""
+        scn = app_main._add_equipment_change(None, baseline, "CRANE", 24.0, 0, to_hour=72.0)
+        scn = app_main._add_location_change(scn, baseline, "BAY1", 12.0, 1,
+                                            new_max_concurrent_workers=2)
+        assert app_main._scenario_equipment_rows(scn) == [
+            {"index": 0, "equipment_id": "CRANE", "from_hour": 24.0, "to_hour": 72.0,
+             "new_quantity": 0}]
+        assert app_main._scenario_location_rows(scn) == [
+            {"index": 0, "location_id": "BAY1", "from_hour": 12.0, "to_hour": None,
+             "new_max_concurrent_tasks": 1, "new_max_concurrent_workers": 2}]
+        # None reads as no rows (never crashes)
+        assert app_main._scenario_equipment_rows(None) == []
+        assert app_main._scenario_location_rows(None) == []
+
     def test_scenario_rows_shape(self, baseline):
-        """The display/removal row shapers surface each override / change with its row index."""
+        """The display/removal row shapers surface each override / change with its row index.
+        A resource row carries ``to_hour`` — None for an open-ended change, the final hour for a
+        bounded ``[from, to)`` window — so the panel can render the window it authored."""
         scn = app_main._add_duration_override(None, baseline, "B", 9.0)
-        scn = app_main._add_resource_change(scn, baseline, "MECH", 48.0, 1)
+        scn = app_main._add_resource_change(scn, baseline, "MECH", 48.0, 1)          # open-ended
+        scn = app_main._add_resource_change(scn, baseline, "MECH", 72.0, 0, to_hour=96.0)  # bounded
         assert app_main._scenario_duration_rows(scn) == [
             {"index": 0, "task_id": "B", "duration_hours": 9.0}]
         assert app_main._scenario_resource_rows(scn) == [
-            {"index": 0, "skill_type": "MECH", "from_hour": 48.0, "new_count": 1}]
+            {"index": 0, "skill_type": "MECH", "from_hour": 48.0, "to_hour": None, "new_count": 1},
+            {"index": 1, "skill_type": "MECH", "from_hour": 72.0, "to_hour": 96.0, "new_count": 0}]
         # None reads as no rows (never crashes)
         assert app_main._scenario_duration_rows(None) == []
         assert app_main._scenario_resource_rows(None) == []
@@ -1256,6 +1336,82 @@ class TestScenarioPanelBuilders:
         assert rebuilt.base_plan_hash == baseline.plan_hash
         # the stale override for A is gone; only the freshly-authored one remains
         assert rebuilt.duration_overrides == (DurationOverride(task_id="B", duration_hours=9.0),)
+
+    # --- Increment-C activity what-if helpers: emergent add + suppression remove ------------
+
+    def test_add_emergent_task_shapes_and_forces_no_hold_point(self, baseline):
+        """An emergent task binds to the baseline and carries exactly the fields materialize
+        writes; ``hold_point`` is forced None (so materialize writes ``is_hold_point:False`` and no
+        ``hold_point_type``). required_resources / required_equipment come from (skill,count) /
+        (id,qty) pairs; last-write-wins per ``task_id``."""
+        scn = app_main._add_emergent_task(
+            None, baseline, "E1", 3.0, description="emergent", location_id="BAY1",
+            required_resources=[("MECH", 2)], required_equipment=[("CRANE", 1)])
+        assert scn.base_plan_hash == baseline.plan_hash
+        (t,) = scn.emergent_tasks
+        assert t.task_id == "E1" and t.duration == 3.0 and t.description == "emergent"
+        assert t.location_id == "BAY1" and t.hold_point is None
+        assert [(r.skill_type, r.crew_count) for r in t.required_resources] == [("MECH", 2)]
+        assert [(e.equipment_id, e.quantity_needed) for e in t.required_equipment] == [("CRANE", 1)]
+        # re-authoring the same id replaces (never a silent duplicate)
+        scn = app_main._add_emergent_task(scn, baseline, "E1", 8.0)
+        assert len(scn.emergent_tasks) == 1 and scn.emergent_tasks[0].duration == 8.0
+
+    def test_remove_emergent_task_empties_to_none(self, baseline):
+        """Removing the only emergent task empties ``emergent_tasks`` back to None."""
+        scn = app_main._add_emergent_task(None, baseline, "E1", 3.0)
+        scn = app_main._remove_emergent_task(scn, baseline, "E1")
+        assert scn.emergent_tasks is None
+        assert app_main._scenario_is_empty(scn) is True
+
+    def test_emergent_task_rows_shape(self, baseline):
+        """The emergent-task row shaper surfaces each added task with its nested requirement rows."""
+        scn = app_main._add_emergent_task(
+            None, baseline, "E1", 3.0, required_resources=[("MECH", 2)])
+        assert app_main._scenario_emergent_task_rows(scn) == [
+            {"index": 0, "task_id": "E1", "description": None, "duration": 3.0,
+             "location_id": None, "required_resources": [{"skill_type": "MECH", "crew_count": 2}],
+             "required_equipment": []}]
+        assert app_main._scenario_emergent_task_rows(None) == []
+
+    def test_add_remove_emergent_dependency(self, baseline):
+        """Emergent dependencies bind to the baseline, are last-write-wins per
+        (predecessor, successor) with an optional lag, and remove-by-index empties back to None."""
+        scn = app_main._add_emergent_dependency(None, baseline, "A", "E1", lag_hours=2.0)
+        assert scn.emergent_dependencies == (Dependency("A", "E1", lag_hours=2.0),)
+        # same endpoints replace (updates the lag), never duplicate
+        scn = app_main._add_emergent_dependency(scn, baseline, "A", "E1")
+        assert scn.emergent_dependencies == (Dependency("A", "E1", lag_hours=0.0),)
+        # a different edge appends, then remove-by-index drops it
+        scn = app_main._add_emergent_dependency(scn, baseline, "B", "E1")
+        assert len(scn.emergent_dependencies) == 2
+        scn = app_main._remove_emergent_dependency(scn, baseline, 1)
+        assert scn.emergent_dependencies == (Dependency("A", "E1", lag_hours=0.0),)
+        assert app_main._scenario_emergent_dependency_rows(scn) == [
+            {"index": 0, "predecessor_id": "A", "successor_id": "E1", "lag_hours": 0.0}]
+
+    def test_add_remove_task_suppression_is_idempotent(self, baseline):
+        """Suppressing a task binds to the baseline and is idempotent (never listed twice);
+        lifting it (by task_id) empties ``task_suppressions`` back to None."""
+        scn = app_main._add_task_suppression(None, baseline, "A")
+        assert scn.task_suppressions == (TaskSuppression("A"),)
+        scn = app_main._add_task_suppression(scn, baseline, "A")          # idempotent
+        assert scn.task_suppressions == (TaskSuppression("A"),)
+        assert app_main._scenario_task_suppression_rows(scn) == [{"index": 0, "task_id": "A"}]
+        scn = app_main._remove_task_suppression(scn, baseline, "A")
+        assert scn.task_suppressions is None
+
+    def test_add_remove_dependency_suppression(self, baseline):
+        """Suppressing an edge binds to the baseline, is idempotent per (predecessor, successor),
+        and remove-by-index empties back to None."""
+        scn = app_main._add_dependency_suppression(None, baseline, "A", "B")
+        assert scn.dependency_suppressions == (DependencySuppression("A", "B"),)
+        scn = app_main._add_dependency_suppression(scn, baseline, "A", "B")   # idempotent
+        assert scn.dependency_suppressions == (DependencySuppression("A", "B"),)
+        assert app_main._scenario_dependency_suppression_rows(scn) == [
+            {"index": 0, "predecessor_id": "A", "successor_id": "B"}]
+        scn = app_main._remove_dependency_suppression(scn, baseline, 0)
+        assert scn.dependency_suppressions is None
 
 
 class TestStageBScheduleHelpers:
@@ -1459,6 +1615,50 @@ class TestActivityGraphEnriched:
         by_topo = {n["id"]: n for n in
                    app_main._activity_graph_enriched(raw, self._schedule(), layer_by="topo")["nodes"]}
         assert by_topo["B"]["x"] == by_topo["B"]["depth"]              # x = longest-path depth
+
+    def test_layer_by_schedule_x_start_hour_y_float_band(self, baseline):
+        """The default ``schedule`` layout puts start time on x (as EVENLY-SPACED ordinal columns —
+        the true hour rides on ``x_value``) and the FLOAT CLASS on y as bands: critical anchors the
+        centre spine (y=0); a positive-float task sits in a band above it (y strictly greater). This
+        is the layout that spreads the equal-ES left-hand pile along start order and rows by color."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        data = app_main._activity_graph_enriched(raw, self._schedule(), layer_by="schedule")
+        by_id = {n["id"]: n for n in data["nodes"]}
+        # x is the ORDINAL column (A starts earlier → column 0; B later → column 1)…
+        assert by_id["A"]["x"] == 0.0 and by_id["B"]["x"] == 1.0
+        # …while the TRUE start hour is preserved on x_value (0h and 4h) for hover / tick labels.
+        assert by_id["A"]["x_value"] == 0.0 and by_id["B"]["x_value"] == 4.0
+        assert by_id["A"]["y"] == 0.0                                  # critical → centre spine
+        assert by_id["B"]["y"] > by_id["A"]["y"]                       # positive-float band above
+        # Ordinal columns are 0..k-1 and the tick map carries the real hours back.
+        assert data["x_columns"] == [0.0, 1.0]
+        assert dict(zip(data["x_ticks"]["vals"], data["x_ticks"]["text"])) == {0.0: "0", 1.0: "4"}
+
+    def test_layer_by_es_keeps_proportional_time_no_ordinal_remap(self, baseline):
+        """Only ``schedule`` remaps x to even ordinals; ``es`` keeps PROPORTIONAL CPM time (x = the
+        real ES hour) and carries no ``x_ticks`` — the escape hatch for true-distance reading."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        data = app_main._activity_graph_enriched(raw, self._schedule(), layer_by="es")
+        by_id = {n["id"]: n for n in data["nodes"]}
+        assert by_id["A"]["x"] == 0.0 and by_id["B"]["x"] == 4.0       # x = real ES hour, not ordinal
+        assert data["x_ticks"] is None                                 # proportional axis, no relabel
+        assert "x_value" not in by_id["B"]                             # only schedule stamps x_value
+
+    def test_layer_by_schedule_unscheduled_falls_back_to_depth(self, baseline):
+        """An un-scheduled node (no matching DTO, no ``start_hour``) keeps its structural depth as
+        the underlying x value (``x_value``) even in schedule mode, and lands in the grey band BELOW
+        the critical spine (y < 0)."""
+        raw = json.loads(baseline.raw_snapshot)["payload"]
+        a = ScheduledActivityDTO(
+            task_id="A", start_hour=0.0, end_hour=4.0, duration=4.0, delay_hours=0.0,
+            on_constrained_chain=True, float_class=classify_float(0.0, True),
+            es_hours=0.0, ls_hours=0.0, cpm_slack_hours=0.0)
+        sched = ScheduleDTO(makespan_hours=4.0, cpm_lower_bound_hours=4.0, optimism_gap_hours=0.0,
+                            activities=(a,), constrained_chain=("A",), cpm_critical_path=("A",))
+        by_id = {n["id"]: n for n in
+                 app_main._activity_graph_enriched(raw, sched, layer_by="schedule")["nodes"]}
+        assert by_id["B"]["x_value"] == by_id["B"]["depth"]  # no start_hour → underlying x = depth
+        assert by_id["B"]["y"] < 0.0                         # grey / unscheduled band below the spine
 
     def test_contention_edges_filtered_to_known_endpoints(self, baseline):
         """Resource-contention arcs are drawn only when both endpoints are nodes (the ``GHOST``
@@ -1772,7 +1972,7 @@ class TestRunComparison:
 
 class TestRunAugmentation:
     """The two streamlit-free builders behind the Phase-4.2 guided resource-augmentation view
-    (Results-page "Augment resources" segment): ``_augmentation_candidates`` (rank a run's resource
+    (Replan-page "Guided resource augmentation" section): ``_augmentation_candidates`` (rank a run's resource
     pools by aggregate pressure and read each pool's hour-0 crew count — the guidance that seeds the
     bump; the SAME heuristic demand ≥ available signal as ``_saturated_skills``, not a per-task binding
     resource) and ``_augmentation_delta`` (the before/after headline-metric diff — makespan / optimism
@@ -2163,6 +2363,22 @@ class TestChainSets:
                               "zero_tf": True, "float_class": "critical", "tf_actual_hours": 0.0}
         assert by_id["Z"] == {"task_id": "Z", "on_cpm": False, "on_constrained": False,
                               "zero_tf": True, "float_class": "zero_float", "tf_actual_hours": 0.0}
+
+    def test_chain_sets_all_rows_cover_every_activity(self):
+        """all_rows lists EVERY scheduled activity (sorted by task_id) — the superset the view's
+        "All activities" filter draws on — unlike rows (union only): the positive-float off-chain
+        task P, deliberately absent from rows, appears in all_rows with all three flags False so the
+        filter can surface it. rows stays union-only (the two keys are distinct)."""
+        sched = self._sched(
+            [self._act("A", True), self._act("B", False, tf=3.0), self._act("C", True),
+             self._act("Z", False, tf=0.0), self._act("P", False, tf=5.0)],
+            constrained=("A", "C"), cpm=("A", "B"))
+        cs = app_main._chain_sets(sched)
+        assert [r["task_id"] for r in cs["all_rows"]] == ["A", "B", "C", "P", "Z"]   # every activity
+        by_id = {r["task_id"]: r for r in cs["all_rows"]}
+        assert by_id["P"] == {"task_id": "P", "on_cpm": False, "on_constrained": False,
+                              "zero_tf": False, "float_class": "positive_float", "tf_actual_hours": 5.0}
+        assert "P" not in {r["task_id"] for r in cs["rows"]}      # rows still union-only, P excluded
 
     def test_chain_sets_empty_cpm_path(self):
         """cpm_critical_path=() (the DTO default when the engine emits none): n_cpm=0, both=() and
