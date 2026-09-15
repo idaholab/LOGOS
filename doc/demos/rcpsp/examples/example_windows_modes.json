@@ -1,0 +1,217 @@
+{
+  "outage": {
+    "outage_id": "WINDOWS_MODES_DEMO",
+    "start_date": "2025-10-01",
+    "target_end_date": "2025-10-14",
+    "working_hours_per_day": 24
+  },
+
+  "tasks": [
+    {
+      "task_id": "START",
+      "description": "Outage start (anchor)",
+      "duration": 1,
+      "successors": ["A"],
+      "location_id": null,
+      "required_resources": [],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "A",
+      "description": "Mobilization, permits & ALARA briefing",
+      "duration": 4,
+      "successors": ["B", "D"],
+      "location_id": null,
+      "required_resources": [],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "B",
+      "description": "Primary loop weld repair (multi-mode: normal vs crash)",
+      "duration": 30,
+      "successors": ["C"],
+      "location_id": "LOC_A",
+      "required_resources": [
+        { "skill_type": "MECH", "crew_count": 3 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false,
+      "modes": [
+        {
+          "mode_id": "normal",
+          "duration": 30,
+          "required_resources": [ { "skill_type": "MECH", "crew_count": 3 } ],
+          "required_equipment": []
+        },
+        {
+          "mode_id": "crash",
+          "duration": 14,
+          "required_resources": [ { "skill_type": "MECH", "crew_count": 6 } ],
+          "required_equipment": []
+        }
+      ]
+    },
+
+    {
+      "task_id": "C",
+      "description": "Weld NDE & PT inspection (multi-mode: normal vs crash)",
+      "duration": 20,
+      "successors": ["M"],
+      "location_id": "LOC_A",
+      "required_resources": [
+        { "skill_type": "ELEC", "crew_count": 2 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false,
+      "modes": [
+        {
+          "mode_id": "normal",
+          "duration": 20,
+          "required_resources": [ { "skill_type": "ELEC", "crew_count": 2 } ],
+          "required_equipment": []
+        },
+        {
+          "mode_id": "crash",
+          "duration": 10,
+          "required_resources": [ { "skill_type": "ELEC", "crew_count": 4 } ],
+          "required_equipment": []
+        }
+      ]
+    },
+
+    {
+      "task_id": "D",
+      "description": "Shield wall segment removal (crane) — permit window opens at hour 24",
+      "duration": 6,
+      "successors": ["E"],
+      "location_id": "LOC_A",
+      "required_resources": [
+        { "skill_type": "MECH", "crew_count": 2 }
+      ],
+      "required_equipment": [
+        { "equipment_id": "EQ_CRANE", "quantity_needed": 1 }
+      ],
+      "is_hold_point": false,
+      "time_windows": [
+        { "earliest": 24, "latest": 120 }
+      ]
+    },
+
+    {
+      "task_id": "E",
+      "description": "RCP seal package swap (crane) — two authored windows; first is unreachable, fits the second",
+      "duration": 6,
+      "successors": ["M"],
+      "location_id": "LOC_A",
+      "required_resources": [
+        { "skill_type": "MECH", "crew_count": 2 }
+      ],
+      "required_equipment": [
+        { "equipment_id": "EQ_CRANE", "quantity_needed": 1 }
+      ],
+      "is_hold_point": false,
+      "time_windows": [
+        { "earliest": 0,  "latest": 20 },
+        { "earliest": 24, "latest": 90 }
+      ]
+    },
+
+    {
+      "task_id": "M",
+      "description": "Reassembly & torque (merge of weld and crane chains)",
+      "duration": 6,
+      "successors": ["N"],
+      "location_id": "LOC_A",
+      "required_resources": [
+        { "skill_type": "MECH", "crew_count": 2 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "N",
+      "description": "Post-maintenance functional test",
+      "duration": 5,
+      "successors": ["END"],
+      "location_id": "LOC_A",
+      "required_resources": [
+        { "skill_type": "ELEC", "crew_count": 2 }
+      ],
+      "required_equipment": [],
+      "is_hold_point": false
+    },
+
+    {
+      "task_id": "END",
+      "description": "Outage complete (anchor)",
+      "duration": 1,
+      "successors": [],
+      "location_id": null,
+      "required_resources": [],
+      "required_equipment": [],
+      "is_hold_point": false
+    }
+  ],
+
+  "resources": [
+    {
+      "skill_type": "MECH",
+      "availability_periods": [
+        {
+          "start_date": "2025-10-01T00:00:00",
+          "end_date":   "2025-10-14T23:59:59",
+          "available_count": 8,
+          "reason": "Mechanics on site for full outage"
+        }
+      ]
+    },
+    {
+      "skill_type": "ELEC",
+      "availability_periods": [
+        {
+          "start_date": "2025-10-01T00:00:00",
+          "end_date":   "2025-10-14T23:59:59",
+          "available_count": 6,
+          "reason": "Electricians / NDE technicians on site for full outage"
+        }
+      ]
+    }
+  ],
+
+  "equipment": [
+    {
+      "equipment_id": "EQ_CRANE",
+      "description": "Reactor building crane (single unit — shared by crane tasks)",
+      "availability_periods": [
+        {
+          "start_date": "2025-10-01T00:00:00",
+          "end_date":   "2025-10-14T23:59:59",
+          "quantity_available": 1,
+          "reason": "Crane in service for the outage"
+        }
+      ]
+    }
+  ],
+
+  "locations": [
+    {
+      "location_id": "LOC_A",
+      "description": "Reactor Building work area",
+      "is_confined_space": false,
+      "availability_periods": [
+        {
+          "start_date": "2025-10-01T00:00:00",
+          "end_date":   "2025-10-14T23:59:59",
+          "max_concurrent_tasks": 5,
+          "max_concurrent_workers": 30,
+          "reason": "Standard access for the outage"
+        }
+      ]
+    }
+  ]
+}

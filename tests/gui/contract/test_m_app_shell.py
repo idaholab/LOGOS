@@ -62,6 +62,32 @@ class TestImportSeam:
         assert "example_10" in samples
         assert samples["example_10"].endswith("example_10.json")
 
+    def test_windows_modes_demo_is_valid_and_exercises_both_features(self):
+        """The review-enablement demo sample is discovered, schema-valid, and actually
+        declares BOTH newest-feature shapes so neither Phase-4 view demos as an empty
+        state: ≥1 task with a regulatory time window (Results → Time windows) and ≥1
+        multi-mode task (Results → Sweep → Modes). Pure — validator + payload inspection
+        via the GUI's own predicate, no PRISM run. Deliberately NON-BRITTLE: it pins no
+        makespan / task-count / window-bound (those numbers live on example_10 and the
+        smoke oracle); it guards only presence, so tuning the demo's timing never breaks it."""
+        samples = app_main.discover_samples()
+        assert "example_windows_modes" in samples
+        with open(samples["example_windows_modes"], encoding="utf-8") as fh:
+            payload = json.load(fh)
+
+        # schema-valid with no ERROR-severity issue (warnings are allowed through)
+        load = app_main.services.load_and_validate(
+            "example_windows_modes", payload, app_main.build_validator())
+        assert load.ok, [i.message for i in load.issues]
+
+        # ≥1 windowed task -> the Time-windows pre-flight has content to render
+        windowed = [t for t in payload["tasks"] if t.get("time_windows")]
+        assert windowed, "demo must declare at least one task with time_windows"
+
+        # ≥1 multi-mode task -> the Mode-sweep axis has a choice to sweep (the GUI's own
+        # `len(modes) > 1` predicate, so this tracks exactly what the picker will register)
+        assert app_main._mode_options(payload), "demo must declare at least one multi-mode task"
+
 
 class TestRunPipeline:
 
