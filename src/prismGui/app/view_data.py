@@ -793,6 +793,79 @@ def _chain_sets(schedule) -> dict:
         "rows": rows,
     }
 
+# Regulatory time-window grace -- mirrors schedule_validator._PREC_TOL (timedelta(milliseconds=1))
+# so this pre-flight agrees with the engine's post-run _check_time_windows verdict.
+_WINDOW_TOL_HOURS = 1e-3 / 3600.0    # 1 ms in hours ~= 2.7778e-7
+
+def _window_preflight(raw_tree, schedule) -> dict:
+    """Per-task regulatory time-window compliance for one run, fusing each task's AUTHORED windows
+    (payload ``time_windows`` rows ``{earliest, latest}``, hours from outage start) with the run's
+    scheduled ``start_hour``/``end_hour`` (``ScheduledActivityDTO``). Replicates the engine's rule
+    (``schedule_validator._check_time_windows``): an activity is compliant iff it fits in AT LEAST ONE
+    window (``start >= earliest - tol`` AND ``end <= latest + tol``), OR across the task's window list,
+    with a ``_WINDOW_TOL_HOURS`` quantization grace -- so the verdict agrees with the post-run audit, but
+    is computed directly from the schedule (always available, structured per task; the DTOs otherwise
+    carry only an aggregate count). Only windowed tasks appear in ``rows`` (unconstrained tasks are
+    excluded and not counted). For each windowed activity the CLOSEST window (min total miss) is reported
+    with its ``start_short`` (hours the start is before ``earliest``) and ``end_over`` (hours the end is
+    past ``latest``), each 0.0 when that edge is satisfied.
+
+    Returns ``{"n_windowed": int, "n_violations": int, "violations": tuple[str] (sorted),
+    "tol_hours": float, "rows": [{task_id, start_hour, end_hour, fits, n_windows, best_window,
+    best_earliest, best_latest, start_short, end_over, windows}, ...]}`` -- rows are windowed tasks,
+    violations first then by task_id. Reads only the multi-window list form (the GUI's domain); the
+    engine's legacy scalar window fields are not represented in the GUI plan. Pure -- arithmetic only,
+    no ``st``."""
+    tol = _WINDOW_TOL_HOURS
+
+    def _windows_for(task) -> list[tuple[float, float]]:
+        wins: list[tuple[float, float]] = []
+        for w in (task.get("time_windows") or []):
+            try:
+                lo, hi = float(w["earliest"]), float(w["latest"])
+            except (KeyError, TypeError, ValueError):
+                continue                      # skip a mid-draft/raw-editor window with bad bounds
+            if math.isfinite(lo) and math.isfinite(hi):
+                wins.append((lo, hi))
+        return wins
+
+    windows_by_task = {
+        t.get("task_id"): _windows_for(t) for t in (raw_tree.get("tasks") or [])
+    }
+
+    rows: list[dict] = []
+    for a in schedule.activities:
+        wins = windows_by_task.get(a.task_id) or []
+        if not wins:
+            continue                          # unconstrained -- not pre-flighted, not counted
+        # Per window: the RAW distance outside it (start_short/end_over, reported un-fudged like the
+        # engine's audit detail) and whether it fits within the tolerance grace (the fit DECISION only).
+        misses = []                           # (not fits_win, total_raw_miss, start_short, end_over, lo, hi)
+        for lo, hi in wins:
+            start_short = max(0.0, lo - a.start_hour)
+            end_over = max(0.0, a.end_hour - hi)
+            fits_win = a.start_hour >= lo - tol and a.end_hour <= hi + tol
+            misses.append((not fits_win, start_short + end_over, start_short, end_over, lo, hi))
+        best = min(misses, key=lambda m: (m[0], m[1]))   # a fitting window first, else the closest one
+        fits = not best[0]
+        rows.append({
+            "task_id": a.task_id, "start_hour": a.start_hour, "end_hour": a.end_hour,
+            "fits": fits, "n_windows": len(wins),
+            "best_window": misses.index(best), "best_earliest": best[4], "best_latest": best[5],
+            "start_short": best[2], "end_over": best[3],
+            "windows": ", ".join(f"[{lo:g}h-{hi:g}h]" for lo, hi in wins),
+        })
+
+    rows.sort(key=lambda r: (r["fits"], r["task_id"]))     # violations first, then stable by id
+    violations = tuple(sorted(r["task_id"] for r in rows if not r["fits"]))
+    return {
+        "n_windowed": len(rows),
+        "n_violations": len(violations),
+        "violations": violations,
+        "tol_hours": tol,
+        "rows": rows,
+    }
+
 def _graph_layout(fig, height: int) -> None:
     """Common styling for a network-scatter figure: hidden axes, tight margins, no legend —
     so the nodes/edges read as a graph, not a chart. Mutates ``fig`` in place."""

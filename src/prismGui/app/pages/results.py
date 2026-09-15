@@ -10,7 +10,7 @@ from prismGui.domain.run_config import PRIORITY_RULES, SGSVariant
 from prismGui.app.components import _render_issues
 from prismGui.app.edit_model import _mode_options
 from prismGui.app.scenario_model import _add_resource_change, _current_schedule_payload, _mint_scenario
-from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _chain_sets, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _makespan_bar_rows, _mode_sweep_variants, _multi_gantt_rows, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip
+from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _chain_sets, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _makespan_bar_rows, _mode_sweep_variants, _multi_gantt_rows, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip, _window_preflight
 
 
 def _render_plots(result) -> None:
@@ -451,6 +451,56 @@ def _render_chain_sets(result) -> None:
          for r in cs["rows"]],
         use_container_width=True, hide_index=True)
 
+def _render_window_preflight(session, baseline, result) -> None:
+    """Per-task regulatory time-window pre-flight for the selected COMPLETED run: each scheduled task's
+    start/end checked against its AUTHORED windows (fit ANY one window + a 1 ms grace — the engine's
+    rule), computed directly from the schedule so it is always available and structured per task (the
+    DTOs otherwise carry only an aggregate violation count / free-text audit strings). FRESHNESS-GATED
+    like the inspector's neighbor tables: it fuses the plan's windows with the run's scheduled times, so
+    it is hidden unless the run is CURRENT for the current schedule (else new windows would be checked
+    against old scheduled times)."""
+    schedule = result.schedule
+    if not schedule.activities:
+        st.info("This run scheduled no activities to check.")
+        return
+    scenario = session.get_scenario()
+    payload, warning = _current_schedule_payload(baseline, scenario)
+    current = (
+        not warning
+        and services.current_freshness(result, baseline=baseline, scenario=scenario)
+        is Freshness.CURRENT
+    )
+    if not current:
+        st.caption("Time-window pre-flight hidden — the selected run isn't current for the current "
+                   "schedule (re-run, or revert edits, to align the scheduled times with the plan's "
+                   "windows).")
+        return
+    pf = _window_preflight(payload, schedule)
+    if pf["n_windowed"] == 0:
+        st.info("No task in this plan declares a regulatory time window — nothing to pre-flight.")
+        return
+    c1, c2 = st.columns(2)
+    c1.metric("Windowed tasks", pf["n_windowed"])
+    c2.metric("Window violations", pf["n_violations"])
+    if pf["n_violations"] == 0:
+        st.success(f"All {pf['n_windowed']} windowed task(s) fit an authored time window.")
+    else:
+        st.warning(f"**{pf['n_violations']} task(s) violate their time window(s):** "
+                   f"{', '.join(pf['violations'])} — scheduled outside every authored window "
+                   "(start before earliest, or finish after latest).")
+    st.dataframe(
+        [{"task": r["task_id"], "fits": "✓" if r["fits"] else "✗",
+          "start (h)": r["start_hour"], "end (h)": r["end_hour"],
+          "nearest window": f"[{r['best_earliest']:g}–{r['best_latest']:g}]",
+          "start early (h)": r["start_short"] or "", "finish late (h)": r["end_over"] or "",
+          "# windows": r["n_windows"], "all windows": r["windows"]}
+         for r in pf["rows"]],
+        use_container_width=True, hide_index=True)
+    st.caption("A task is compliant if it fits ANY one of its authored windows (start ≥ earliest and "
+               "finish ≤ latest), matching the engine's post-run audit with a 1 ms grace. Windows are "
+               "hours from outage start (not dates). Computed directly from the schedule — available "
+               "without running the full audit; the DTOs otherwise expose only an aggregate count.")
+
 # --- Phase-4 chart helpers: the deferred visual half shared by the three orchestration views. Both
 #     take the same ``labeled_results`` primitive — a list of ``(label, RunResult)`` — so Compare /
 #     Augment / Sweep feed them from the DTOs they already hold. Plotly is imported lazily (the
@@ -869,7 +919,7 @@ def _render_results_page(session, baseline, result, run_config, run_plan=None) -
         st.info("Run a schedule (sidebar) to see results for the current schedule.")
     view = st.segmented_control(
         "View",
-        ["Plots", "Activity DAG", "Task inspector", "Chain sets", "Compare runs",
+        ["Plots", "Activity DAG", "Task inspector", "Chain sets", "Time windows", "Compare runs",
          "Augment resources", "Sweep"],
         default="Plots", key="prism_results_view")
     if view == "Activity DAG":
@@ -888,6 +938,13 @@ def _render_results_page(session, baseline, result, run_config, run_plan=None) -
             st.info("The selected run did not complete — no schedule to analyze.")
         else:
             st.info("Run a schedule (sidebar) to see the chain sets.")
+    elif view == "Time windows":
+        if result is not None and result.status is RunResultStatus.COMPLETED:
+            _render_window_preflight(session, baseline, result)
+        elif result is not None:
+            st.info("The selected run did not complete — no schedule to check.")
+        else:
+            st.info("Run a schedule (sidebar) to pre-flight the time windows.")
     elif view == "Compare runs":
         _render_run_comparison(session, baseline, run_config)
     elif view == "Augment resources":

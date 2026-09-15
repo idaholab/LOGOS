@@ -2150,6 +2150,98 @@ class TestChainSets:
         assert set(cs["only_constrained"]) == {"A", "B"}
 
 
+class TestWindowPreflight:
+    """The streamlit-free ``_window_preflight`` builder behind the Results **Time windows** segment: it
+    checks each scheduled task's start/end against its AUTHORED windows (payload ``time_windows`` rows
+    ``{earliest, latest}``, hours from outage start), replicating the engine's rule — fit in AT LEAST ONE
+    window (start ≥ earliest, finish ≤ latest) within a 1 ms grace. Built from a raw payload dict + a
+    ``ScheduleDTO`` of hand-made activities; only windowed tasks appear in the rows."""
+
+    @staticmethod
+    def _act(task_id, start, end):
+        return ScheduledActivityDTO(
+            task_id=task_id, start_hour=float(start), end_hour=float(end),
+            duration=float(end) - float(start), delay_hours=0.0,
+            on_constrained_chain=False, float_class=FloatClass.POSITIVE_FLOAT)
+
+    @staticmethod
+    def _sched(activities):
+        return ScheduleDTO(
+            makespan_hours=1.0, cpm_lower_bound_hours=1.0, optimism_gap_hours=0.0,
+            activities=tuple(activities), constrained_chain=(), cpm_critical_path=())
+
+    @staticmethod
+    def _payload(windows_by_task):
+        # windows_by_task: {task_id: [(earliest, latest), ...]}; absent list ⇒ unconstrained task.
+        return {"tasks": [
+            {"task_id": tid,
+             "time_windows": [{"earliest": lo, "latest": hi} for lo, hi in wins]}
+            for tid, wins in windows_by_task.items()
+        ]}
+
+    def test_window_preflight_start_before_earliest(self):
+        """A task scheduled to start before its window's earliest → violation, start_short > 0 and
+        end_over == 0 (the finish is fine)."""
+        sched = self._sched([self._act("A", start=5.0, end=20.0)])
+        pf = app_main._window_preflight(self._payload({"A": [(10.0, 48.0)]}), sched)
+        row = pf["rows"][0]
+        assert row["fits"] is False and pf["violations"] == ("A",)
+        assert row["start_short"] == 5.0 and row["end_over"] == 0.0
+
+    def test_window_preflight_end_after_latest(self):
+        """A task whose finish is past its window's latest → violation, end_over > 0 and
+        start_short == 0."""
+        sched = self._sched([self._act("A", start=12.0, end=60.0)])
+        pf = app_main._window_preflight(self._payload({"A": [(10.0, 48.0)]}), sched)
+        row = pf["rows"][0]
+        assert row["fits"] is False and pf["violations"] == ("A",)
+        assert row["end_over"] == 12.0 and row["start_short"] == 0.0
+
+    def test_window_preflight_or_across_windows(self):
+        """A task with TWO windows fits the SECOND (misses the first) → compliant (OR across windows),
+        best_window points at the fitting one, not counted a violation."""
+        sched = self._sched([self._act("A", start=80.0, end=90.0)])
+        pf = app_main._window_preflight(self._payload({"A": [(0.0, 48.0), (72.0, 96.0)]}), sched)
+        row = pf["rows"][0]
+        assert row["fits"] is True and pf["violations"] == ()
+        assert row["best_window"] == 1
+        assert row["best_earliest"] == 72.0 and row["best_latest"] == 96.0
+
+    def test_window_preflight_tolerance_grace(self):
+        """A finish a hair past latest (< the 1 ms grace) still fits; a finish clearly past does not."""
+        grace = app_main._WINDOW_TOL_HOURS
+        within = self._sched([self._act("A", start=0.0, end=48.0 + grace / 2)])
+        assert app_main._window_preflight(self._payload({"A": [(0.0, 48.0)]}), within)["n_violations"] == 0
+        past = self._sched([self._act("A", start=0.0, end=48.0 + 1.0)])
+        assert app_main._window_preflight(self._payload({"A": [(0.0, 48.0)]}), past)["n_violations"] == 1
+
+    def test_window_preflight_unconstrained_excluded(self):
+        """A task with no time_windows is excluded from rows and does not count toward n_windowed."""
+        sched = self._sched([self._act("A", start=5.0, end=20.0), self._act("B", start=0.0, end=10.0)])
+        pf = app_main._window_preflight(self._payload({"A": [(10.0, 48.0)], "B": []}), sched)
+        assert pf["n_windowed"] == 1
+        assert [r["task_id"] for r in pf["rows"]] == ["A"]
+
+    def test_window_preflight_best_window_reports_closest(self):
+        """A violation with two windows reports the window with the smaller total miss as best_window."""
+        # start=60,end=70: window0 [0,48] misses by end_over=22; window1 [80,96] misses by start_short=20.
+        sched = self._sched([self._act("A", start=60.0, end=70.0)])
+        pf = app_main._window_preflight(self._payload({"A": [(0.0, 48.0), (80.0, 96.0)]}), sched)
+        row = pf["rows"][0]
+        assert row["fits"] is False
+        assert row["best_window"] == 1                      # 20 h miss < 22 h miss
+        assert row["best_earliest"] == 80.0 and row["start_short"] == 20.0
+
+    def test_window_preflight_all_fit(self):
+        """Every windowed task fits → n_violations == 0, violations == (), each row's miss edges 0.0."""
+        sched = self._sched([self._act("A", start=10.0, end=40.0), self._act("B", start=72.0, end=90.0)])
+        pf = app_main._window_preflight(
+            self._payload({"A": [(0.0, 48.0)], "B": [(72.0, 96.0)]}), sched)
+        assert pf["n_windowed"] == 2 and pf["n_violations"] == 0 and pf["violations"] == ()
+        assert all(r["start_short"] == 0.0 and r["end_over"] == 0.0 for r in pf["rows"])
+        assert all(r["fits"] for r in pf["rows"])
+
+
 class TestChartLayer:
     """The two streamlit-free builders behind the deferred Phase-4 visual half — the overlaid makespan
     bar chart (all three orchestration views) and the aligned multi-run Gantt (Compare runs / Augment).

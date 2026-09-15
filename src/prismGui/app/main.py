@@ -123,7 +123,8 @@ from prismGui.app.view_data import (
     _data_viewer_rows, _BASELINE_NODE_ID, _OVERLAY_FIELDS, _overlay_count,
     _relation_graph_data, _activity_graph_data, _dag_node_color, _dag_hover,
     _activity_graph_enriched, _graph_layout, _cpm_path_edges, _cpm_path_label,
-    _evaluation_weights, _task_slip, _task_neighbors, _saturated_skills, _chain_sets
+    _evaluation_weights, _task_slip, _task_neighbors, _saturated_skills, _chain_sets,
+    _WINDOW_TOL_HOURS, _window_preflight
 )
 
 # view-layer wiring used by main() / the page closures below
