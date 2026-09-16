@@ -38,7 +38,7 @@ class PipelineResult:
     preparation blocked (``result`` is then None and ``issues`` explains why); otherwise
     ``result`` is the terminal ``RunResult``."""
     ok: bool
-    stage: str                     # "load" | "prepare" | "run"
+    stage: str                     # "load" | "prepare" | "prepare_replan" | "run"
     issues: tuple
     result: Any = None
     reference_plan: Any = None
@@ -66,6 +66,38 @@ def run_pipeline(
     prep = services.prepare_run(load.reference_plan, scenario, run_config, store, validator=validator)
     if not prep.ok:
         return PipelineResult(ok=False, stage="prepare", issues=prep.issues,
+                              reference_plan=load.reference_plan)
+
+    result = services.run(prep.run_request, executor, repository=repository)
+    return PipelineResult(ok=True, stage="run", issues=result.issues, result=result,
+                          reference_plan=load.reference_plan)
+
+def run_replan_pipeline(
+    raw_plan: dict,
+    plan_id: str,
+    run_config: RunConfig,
+    *,
+    validator: OutageValidatorAdapter,
+    store: InMemorySnapshotStore,
+    executor,
+    repository: Optional[InMemoryRepository] = None,
+    scenario: Scenario,
+) -> PipelineResult:
+    """The replan counterpart of ``run_pipeline``: load+validate → prepare_replan → run.
+    Unlike ``run_pipeline`` the ``scenario`` is REQUIRED and its deltas are NOT materialized
+    into the effective plan — the engine's ``replan()`` applies them from the scenario's
+    as-of hour T (``prepare_replan`` persists the baseline mirror as the effective plan and
+    passes the deltas as replan arguments). ``prepare_replan``'s preflight warnings ride the
+    prepared issues; unsupported families are warned, never blocked. Blocking is reported per
+    stage; a non-ok pipeline never fabricates a result."""
+    load = services.load_and_validate(plan_id, raw_plan, validator)
+    if not load.ok:
+        return PipelineResult(ok=False, stage="load", issues=load.issues)
+
+    prep = services.prepare_replan(load.reference_plan, scenario, run_config, store,
+                                   validator=validator)
+    if not prep.ok:
+        return PipelineResult(ok=False, stage="prepare_replan", issues=prep.issues,
                               reference_plan=load.reference_plan)
 
     result = services.run(prep.run_request, executor, repository=repository)

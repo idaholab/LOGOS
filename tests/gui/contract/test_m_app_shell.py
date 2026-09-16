@@ -24,7 +24,7 @@ import json
 from datetime import datetime, timezone
 
 from prismGui.app import main as app_main
-from prismGui.domain.issues import IssueCode
+from prismGui.domain.issues import IssueCode, Severity
 from prismGui.domain.plan import PatchAction
 from prismGui.domain.results import (
     DiagnosticsDTO,
@@ -42,7 +42,8 @@ from prismGui.domain.results import (
     classify_float,
 )
 from prismGui.domain.disposition import ScheduleSummary, compute_disposition
-from prismGui.domain.hashing import hash_scenario
+from prismGui.domain.hashing import hash_scenario, scenario_payload
+from prismGui.domain.replan import build_replan_inputs, replan_preflight
 from prismGui.domain.scenario import (
     DependencySuppression, DurationOverride, EquipmentChange, HoldPointReleaseOverride,
     LocationChange, ResourceChange, Scenario, TaskSuppression,
@@ -184,6 +185,20 @@ class TestShapingHelpers:
         # the timestamp field renders as an ISO string, not a datetime repr
         ts = next(r["value"] for r in rows if r["field"] == "Timestamp")
         assert ts == run_result.provenance.timestamp.isoformat()
+
+    def test_provenance_rows_include_as_of_hour_for_replan(self, run_result):
+        """A replan provenance (``checkpoint_hour`` set) appends an 11th 'As-of hour' row; a
+        normal run (``checkpoint_hour`` None, the fixture default) keeps its ten. The row is
+        conditional, so every existing from-hour-0 run is unchanged (the ten-fields test above
+        stays green)."""
+        assert run_result.provenance.checkpoint_hour is None
+        assert len(app_main._provenance_rows(run_result.provenance)) == 10   # normal run
+        replan_prov = dataclasses.replace(run_result.provenance, checkpoint_hour=40.0)
+        rows = app_main._provenance_rows(replan_prov)
+        assert len(rows) == 11
+        assert all(set(r) == {"field", "value"} for r in rows)
+        asof = next(r for r in rows if r["field"] == "As-of hour")
+        assert asof["value"] == "40 h"                       # {:g} drops the trailing .0
 
     def test_schedule_csv_reparses_to_header_plus_one_row_per_activity(self, run_result):
         text = app_main._schedule_csv(run_result.schedule)
@@ -1413,6 +1428,155 @@ class TestScenarioPanelBuilders:
             {"index": 0, "predecessor_id": "A", "successor_id": "B"}]
         scn = app_main._remove_dependency_suppression(scn, baseline, 0)
         assert scn.dependency_suppressions is None
+
+
+class TestReplanScenarioBuilders:
+    """The Phase-5 checkpoint builders (``_add_checkpoint_hour`` / ``_remove_checkpoint_hour``).
+    The as-of hour rides the SAME scenario draft/save lifecycle as the delta families but is a
+    scalar run parameter, NOT a delta family — so a checkpoint-only scenario must still read as
+    empty (the sidebar 'Run schedule' treats it as the plain baseline; only the Replan page's
+    'Run replan' consumes the checkpoint). Built off the `baseline` fixture. No ``st.*``."""
+
+    def test_add_checkpoint_hour_binds_to_baseline_and_sets_the_hour(self, baseline):
+        """From no scenario, staging an as-of hour builds a fresh Scenario bound to THIS baseline
+        carrying the checkpoint (coerced to float)."""
+        scn = app_main._add_checkpoint_hour(None, baseline, 40.0)
+        assert scn.base_plan_id == baseline.plan_id
+        assert scn.base_plan_hash == baseline.plan_hash
+        assert scn.checkpoint_hour == 40.0
+        assert isinstance(scn.checkpoint_hour, float)
+
+    def test_remove_checkpoint_hour_clears_to_none(self, baseline):
+        """Clearing the as-of hour empties ``checkpoint_hour`` back to None (the no-replan shape)
+        while preserving the baseline binding."""
+        scn = app_main._add_checkpoint_hour(None, baseline, 40.0)
+        scn = app_main._remove_checkpoint_hour(scn, baseline)
+        assert scn.checkpoint_hour is None
+        assert scn.base_plan_hash == baseline.plan_hash
+
+    def test_checkpoint_only_scenario_still_reads_empty(self, baseline):
+        """A checkpoint is a scalar run parameter, not a delta family: a scenario carrying ONLY
+        a checkpoint is still ``_scenario_is_empty`` (so the sidebar Run treats it as the plain
+        baseline). ``checkpoint_hour`` deliberately stays out of ``_scenario_is_empty``."""
+        scn = app_main._add_checkpoint_hour(None, baseline, 40.0)
+        assert app_main._scenario_is_empty(scn) is True
+
+    def test_staging_a_checkpoint_makes_the_draft_dirty(self, baseline):
+        """Frozen-dataclass equality makes staging a checkpoint flip a stored scenario to a
+        distinct draft — so the panel's existing Save/Discard govern it with no extra plumbing."""
+        stored = app_main._new_scenario_for(baseline)
+        draft = app_main._add_checkpoint_hour(stored, baseline, 40.0)
+        assert draft != stored
+        # clearing it back returns to an equal (clean) scenario
+        assert app_main._remove_checkpoint_hour(draft, baseline) == stored
+
+
+class TestBuildReplanInputs:
+    """The pure canonical-payload → ``pert.replan()``-kwargs projection (``build_replan_inputs``).
+    Fed the SAME ``hashing.scenario_payload`` dict the SnapshotStore persists and the adapter
+    resolves back, so these pin the exact transform the adapter relies on. No ``st.*``, no PRISM."""
+
+    def test_resource_changes_rename_to_hour_to_until_hour(self, baseline):
+        """``resource_changes`` project to ``resource_updates`` renaming ``to_hour → until_hour``
+        (replan's key); an open-ended change carries ``until_hour: None``."""
+        scn = Scenario(
+            scenario_id="s", base_plan_id=baseline.plan_id, base_plan_hash=baseline.plan_hash,
+            resource_changes=(ResourceChange("MECH", 24.0, 1, to_hour=72.0),
+                              ResourceChange("MECH", 48.0, 2)))
+        ri = build_replan_inputs(scenario_payload(scn))
+        assert ri.resource_updates == (
+            {"skill_type": "MECH", "from_hour": 24.0, "new_count": 1, "until_hour": 72.0},
+            {"skill_type": "MECH", "from_hour": 48.0, "new_count": 2, "until_hour": None})
+
+    def test_equipment_changes_rename_to_hour_to_until_hour(self, baseline):
+        """``equipment_changes`` project to ``equipment_updates`` with the same ``to_hour →
+        until_hour`` rename."""
+        scn = Scenario(
+            scenario_id="s", base_plan_id=baseline.plan_id, base_plan_hash=baseline.plan_hash,
+            equipment_changes=(EquipmentChange("CRANE", 10.0, 0, to_hour=50.0),))
+        ri = build_replan_inputs(scenario_payload(scn))
+        assert ri.equipment_updates == (
+            {"equipment_id": "CRANE", "from_hour": 10.0, "new_quantity": 0, "until_hour": 50.0},)
+
+    def test_duration_overrides_pass_through_as_task_to_hours(self, baseline):
+        """``duration_overrides`` pass through unchanged as ``{task_id: hours}`` (replan mutates
+        REMAINING time as of T with exactly this map) and the checkpoint rides onto the inputs."""
+        scn = Scenario(
+            scenario_id="s", base_plan_id=baseline.plan_id, base_plan_hash=baseline.plan_hash,
+            checkpoint_hour=40.0,
+            duration_overrides=(DurationOverride("B", 9.0),))
+        ri = build_replan_inputs(scenario_payload(scn))
+        assert ri.duration_overrides == {"B": 9.0}
+        assert ri.checkpoint_hour == 40.0
+
+    def test_emergent_task_and_dependency_wiring(self, baseline):
+        """Each emergent task becomes a ``from_json``-ready spec carrying ``is_hold_point: False``
+        and its OUT-edges as ``successors``; an existing→new edge lands in ``predecessor_wiring``;
+        an existing→existing edge (unwireable by the engine) is dropped entirely."""
+        scn = app_main._add_emergent_task(None, baseline, "E1", 3.0)
+        scn = app_main._add_emergent_dependency(scn, baseline, "E1", "B")   # new → existing (out-edge)
+        scn = app_main._add_emergent_dependency(scn, baseline, "A", "E1")   # existing → new (wiring)
+        scn = app_main._add_emergent_dependency(scn, baseline, "A", "B")    # existing → existing (drop)
+        ri = build_replan_inputs(scenario_payload(scn))
+
+        assert len(ri.new_task_specs) == 1
+        spec = ri.new_task_specs[0]
+        assert spec["task_id"] == "E1"
+        assert spec["is_hold_point"] is False                # per outage-schema hold-point rule
+        assert spec["successors"] == [{"task_id": "B", "lag_hours": 0.0}]
+        assert ri.predecessor_wiring == {"E1": ["A"]}
+        # the existing→existing edge left no trace anywhere (dropped, not mis-wired)
+        assert "B" not in ri.predecessor_wiring
+
+
+class TestReplanPreflight:
+    """The WARNING-only preflight (``replan_preflight``): names what a replan will silently drop
+    but NEVER blocks (warn-and-run). Every issue is a REPLAN_UNSUPPORTED WARNING; a fully
+    supported scenario yields the empty tuple. Built off the `baseline` fixture. No ``st.*``."""
+
+    def _assert_all_warnings(self, issues):
+        assert issues                                        # non-empty
+        assert all(i.code is IssueCode.REPLAN_UNSUPPORTED for i in issues)
+        assert all(i.severity is Severity.WARNING for i in issues)
+
+    def test_location_change_warns(self, baseline):
+        scn = app_main._add_location_change(None, baseline, "BAY1", 48.0, 1)
+        self._assert_all_warnings(replan_preflight(scn, baseline))
+
+    def test_task_suppression_warns(self, baseline):
+        scn = app_main._add_task_suppression(None, baseline, "A")
+        self._assert_all_warnings(replan_preflight(scn, baseline))
+
+    def test_hold_point_release_override_warns(self, baseline):
+        scn = Scenario(
+            scenario_id="s", base_plan_id=baseline.plan_id, base_plan_hash=baseline.plan_hash,
+            hold_point_release_overrides=(HoldPointReleaseOverride("A", 12.0),))
+        self._assert_all_warnings(replan_preflight(scn, baseline))
+
+    def test_dependency_suppression_warns(self, baseline):
+        scn = app_main._add_dependency_suppression(None, baseline, "A", "B")
+        self._assert_all_warnings(replan_preflight(scn, baseline))
+
+    def test_existing_to_existing_emergent_dep_warns(self, baseline):
+        """An emergent edge whose BOTH endpoints already exist in the baseline is unwireable by
+        ``_inject_activities`` — the preflight warns it will be dropped."""
+        scn = app_main._add_emergent_dependency(None, baseline, "A", "B")   # both pre-exist
+        self._assert_all_warnings(replan_preflight(scn, baseline))
+
+    def test_nonzero_lag_existing_to_new_dep_warns(self, baseline):
+        """An existing→new emergent edge is wired lag-0; a non-zero authored lag is dropped, and
+        the preflight warns (a zero-lag edge is silent — nothing is lost)."""
+        scn = app_main._add_emergent_task(None, baseline, "E1", 3.0)
+        scn = app_main._add_emergent_dependency(scn, baseline, "A", "E1", lag_hours=5.0)
+        self._assert_all_warnings(replan_preflight(scn, baseline))
+
+    def test_fully_supported_scenario_yields_empty_tuple(self, baseline):
+        """A scenario carrying only supported deltas (a duration override + a resource change +
+        a checkpoint) drops nothing — the preflight is the empty tuple."""
+        scn = app_main._add_duration_override(None, baseline, "B", 9.0)
+        scn = app_main._add_resource_change(scn, baseline, "MECH", 48.0, 1)
+        scn = app_main._add_checkpoint_hour(scn, baseline, 40.0)
+        assert replan_preflight(scn, baseline) == ()
 
 
 class TestStageBScheduleHelpers:

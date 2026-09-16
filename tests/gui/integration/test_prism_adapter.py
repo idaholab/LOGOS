@@ -26,11 +26,12 @@ from pathlib import Path
 import pytest
 
 from prismGui.domain import serialization as ser
-from prismGui.domain.hashing import hash_bytes, run_config_snapshot
+from prismGui.domain.hashing import hash_bytes, run_config_snapshot, scenario_snapshot
 from prismGui.domain.issues import IssueCategory, Severity
 from prismGui.domain.materialize import materialize
 from prismGui.domain.results import TF_ZERO_TOL, DispositionOverall, RunResultStatus, Tri
 from prismGui.domain.run_config import RunConfig, SGSVariant
+from prismGui.domain.scenario import ResourceChange, Scenario
 from prismGui.domain.versions import CANON_VERSION, SCHEMA_VERSION
 from prismGui.infrastructure.memory_snapshot_store import InMemorySnapshotStore
 from prismGui.infrastructure.prism_adapter import InProcessPrismExecutor
@@ -58,6 +59,95 @@ def _prepare(store, example_10_path: str, run_config: RunConfig) -> RunRequest:
     return RunRequest(
         effective_plan_hash=effective_hash, run_config_hash=run_config_hash,
         provenance_inputs=provenance, request_id="ex10")
+
+
+def _prepare_replan(store, example_10_path: str, run_config: RunConfig, checkpoint_hour: float,
+                    scenario: Scenario) -> RunRequest:
+    """The replan counterpart of ``_prepare`` (exactly what ``prepare_replan`` produces): the
+    persisted effective plan is the BASELINE MIRROR (``materialize(baseline, None)``) — the
+    engine's initial ``calculateScheduleWithResources`` runs it to satisfy replan()'s
+    already-scheduled precondition — while the scenario deltas ride the persisted scenario
+    snapshot for the adapter to resolve + project onto ``replan()``. ``checkpoint_hour`` set
+    (non-None) on the ProvenanceInputs is what routes the adapter down its ``_run_replan``
+    branch."""
+    raw = json.loads(Path(example_10_path).read_text())
+    baseline = ser.build_reference_plan("ex10", raw, schema_version=SCHEMA_VERSION)
+    eff = materialize(baseline, None).effective_plan          # baseline mirror (NOT the overlay)
+    baseline_hash = store.put(baseline.raw_snapshot)
+    effective_hash = store.put(eff.raw_snapshot)
+    run_config_hash = store.put(run_config_snapshot(run_config))
+    scenario_hash = store.put(scenario_snapshot(scenario))
+    provenance = ProvenanceInputs(
+        baseline_snapshot_hash=baseline_hash,
+        effective_plan_hash=effective_hash,
+        run_config_hash=run_config_hash,
+        schema_version=SCHEMA_VERSION,
+        canonicalization_version=CANON_VERSION,
+        scenario_delta_hash=scenario_hash,
+        checkpoint_hour=checkpoint_hour,
+    )
+    return RunRequest(
+        effective_plan_hash=effective_hash, run_config_hash=run_config_hash,
+        provenance_inputs=provenance, request_id="ex10-replan")
+
+
+class TestPrismAdapterReplan:
+    """The real-engine replan branch (``_run_replan``): the adapter runs an INITIAL schedule
+    on the baseline mirror, then ``pert.replan()`` reschedules the remainder from the as-of
+    hour T. example_10's initial makespan is 85.0h (see the end-to-end test), so a mid-run T
+    freezes the work already underway and re-solves the rest."""
+
+    def test_replan_reschedules_the_remainder_from_the_as_of_hour(self, example_10_path):
+        """A checkpoint-only replan at T=40 reschedules the remaining work: the result COMPLETES,
+        the as-of hour rides the provenance, the schedule is complete (15 activities) and sorted,
+        and there is a clean frozen/rescheduled split — at least one activity stays frozen with
+        start < T while the rest are re-solved at/after T. With no deltas the tail reproduces the
+        original 85.0h makespan (a no-op replan is a faithful reschedule, not a perturbation)."""
+        store = InMemorySnapshotStore()
+        rc = RunConfig(run_config_id="rc", sgs=SGSVariant.MAX_USE_RES_RANKED,
+                       priority_rule="lf", seed=42)
+        T = 40.0
+        scenario = Scenario(scenario_id="scn-cp", base_plan_id="ex10",
+                            base_plan_hash="", checkpoint_hour=T)
+        request = _prepare_replan(store, example_10_path, rc, T, scenario)
+        ex = InProcessPrismExecutor(store)
+
+        run_id = ex.submit(request)
+        assert ex.get_status(run_id) is RunStatus.COMPLETED
+        r = ex.get_result(run_id)
+        assert r.status is RunResultStatus.COMPLETED
+
+        assert r.provenance.checkpoint_hour == T                 # the as-of hour rode through
+        s = r.schedule
+        assert len(s.activities) == 15                           # complete schedule
+        assert [a.start_hour for a in s.activities] == sorted(a.start_hour for a in s.activities)
+        assert s.makespan_hours == 85.0                          # no-delta replan == original tail
+
+        # frozen/rescheduled split: work underway at T stays put; the remainder re-solves at/after T
+        assert any(a.start_hour < T for a in s.activities)       # ≥1 frozen (pre-T) activity
+        assert any(a.start_hour >= T for a in s.activities)      # ≥1 rescheduled (at/after T)
+
+    def test_replan_applies_a_supported_resource_delta(self, example_10_path):
+        """The supported-delta path end-to-end: a resource_update (MECHANIC 6→12 from T onward)
+        is projected onto ``replan()`` and actually applied — the run COMPLETES and the extra
+        crews shorten the makespan below the 85.0h baseline (85→77 for this sample), proving the
+        delta reached the engine rather than being silently dropped. Exercises the open-ended
+        (``until_hour=None``) resource-availability update the tz-sentinel fix unblocked."""
+        store = InMemorySnapshotStore()
+        rc = RunConfig(run_config_id="rc", sgs=SGSVariant.MAX_USE_RES_RANKED,
+                       priority_rule="lf", seed=42)
+        T = 40.0
+        scenario = Scenario(
+            scenario_id="scn-res", base_plan_id="ex10", base_plan_hash="", checkpoint_hour=T,
+            resource_changes=(ResourceChange("MECHANIC", T, 12),))
+        request = _prepare_replan(store, example_10_path, rc, T, scenario)
+        ex = InProcessPrismExecutor(store)
+
+        r = ex.get_result(ex.submit(request))
+        assert r.status is RunResultStatus.COMPLETED
+        assert r.provenance.checkpoint_hour == T
+        assert len(r.schedule.activities) == 15
+        assert r.schedule.makespan_hours < 85.0                  # the added crews sped it up
 
 
 class TestPrismAdapterEndToEnd:

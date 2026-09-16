@@ -49,6 +49,10 @@ class ProvenanceInputs:
     schema_version: str
     canonicalization_version: str
     scenario_delta_hash: Optional[Hash] = None
+    # Phase 5 (replan): set (non-None) marks this request as a REPLAN — the adapter
+    # branches to its replan path and stamps Provenance.checkpoint_hour with T. None
+    # is a normal from-hour-0 run. Trailing optional → normal RunRequests unchanged.
+    checkpoint_hour: Optional[float] = None
 
 
 @dataclass(frozen=True)

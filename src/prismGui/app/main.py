@@ -73,7 +73,7 @@ from prismGui.infrastructure.validation_adapter import OutageValidatorAdapter
 # ---------------------------------------------------------------------------------------------
 from prismGui.app.pipeline import (
     REPO_ROOT, SCHEMA_PATH, EXAMPLES_DIR, discover_samples, PipelineResult, run_pipeline,
-    build_validator, _make_executor
+    run_replan_pipeline, build_validator, _make_executor
 )
 from prismGui.app.edit_model import (
     _HOLD_POINT_TYPES, _NO_VALUE, _add_availability_period_patch, _add_consumable_patch,
@@ -114,7 +114,8 @@ from prismGui.app.edit_model import (
 from prismGui.app.scenario_model import (
     _SCN_INTENTS, _is_whatif, _scenario_is_empty, _new_scenario_for, _mint_scenario,
     _clone_scenario,
-    _scenario_base, _scenario_duration_rows, _scenario_resource_rows, _add_duration_override,
+    _scenario_base, _add_checkpoint_hour, _remove_checkpoint_hour,
+    _scenario_duration_rows, _scenario_resource_rows, _add_duration_override,
     _remove_duration_override, _add_resource_change, _remove_resource_change,
     _scenario_equipment_rows, _scenario_location_rows, _add_equipment_change,
     _remove_equipment_change, _add_location_change, _remove_location_change,
@@ -295,6 +296,22 @@ def main() -> None:
             validator=validator, store=store, executor=executor, repository=repository,
             scenario=scenario)
 
+    # Replan seam (Phase 5): the Replan page's "Run replan" reschedules from the scenario's
+    # as-of hour T (services.prepare_replan → engine replan()). Runs on the SAME
+    # store+executor as the sidebar Run (ids increment, never collide) and, on success,
+    # stores + selects the result so it lands on Results like any run. Returns the
+    # PipelineResult so the page can render preflight warnings / a block reason inline.
+    def _run_replan(scenario) -> PipelineResult:
+        payload = json.loads(baseline.raw_snapshot)["payload"]
+        outcome = run_replan_pipeline(
+            payload, baseline.plan_id, live_run_config,
+            validator=validator, store=store, executor=executor, repository=repository,
+            scenario=scenario)
+        if outcome.ok:
+            session.add_run_result(outcome.result)
+            session.set_selected_result_id(outcome.result.run_id)
+        return outcome
+
     def _page_plan() -> None:
         _render_plan_page(session, baseline, validator)
 
@@ -302,7 +319,7 @@ def main() -> None:
         _render_results_page(session, baseline, result, run_config, run_plan=_run_plan)
 
     def _page_replan() -> None:
-        _render_replan(session, baseline)
+        _render_replan(session, baseline, run_replan=_run_replan)
 
     def _page_scenarios() -> None:
         _render_scenarios(session, baseline)

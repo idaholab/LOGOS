@@ -40,6 +40,7 @@ from prismGui.domain.hashing import hash_run_config, hash_scenario, run_config_s
 from prismGui.domain.issues import Issue, Severity
 from prismGui.domain.materialize import materialize, validate_run_config
 from prismGui.domain.plan import CommitOutcome, EffectivePlan, PlanDraft, ReferencePlan
+from prismGui.domain.replan import replan_preflight
 from prismGui.domain.results import Freshness, RunResult
 from prismGui.domain.run_config import RunConfig
 from prismGui.domain.scenario import Scenario
@@ -194,6 +195,88 @@ def prepare_run(
         schema_version=schema_version,
         canonicalization_version=CANON_VERSION,
         scenario_delta_hash=scenario_hash,
+    )
+    request = RunRequest(
+        effective_plan_hash=effective_hash,
+        run_config_hash=run_config_hash,
+        provenance_inputs=provenance,
+        request_id=run_config.run_config_id,
+    )
+    return PrepareOutcome(ok=True, issues=tuple(issues), run_request=request,
+                          effective_plan=effective)
+
+
+# =============================================================================
+# prepare_replan (Phase 5 CORE)
+# =============================================================================
+
+def prepare_replan(
+    reference_plan: ReferencePlan,
+    scenario: Scenario,
+    run_config: RunConfig,
+    snapshot_store: SnapshotStorePort,
+    *,
+    validator: ValidationPort,
+) -> PrepareOutcome:
+    """Sibling to ``prepare_run`` for the checkpoint-driven replan path (``pert.replan()``).
+
+    A replan runs the initial Pert on the **baseline mirror** (``materialize(plan, None)``)
+    to satisfy the engine precondition, then passes the scenario's supported deltas to
+    ``replan()`` as ARGUMENTS — it does NOT materialize them into the effective plan. This
+    is deliberate: ``replan()``'s ``duration_overrides`` mutate *remaining* time as of T,
+    whereas ``materialize`` rewrites the *pre-run* plan, so materializing AND passing the
+    deltas would double-apply them. So the persisted ``effective_plan_hash`` is the
+    baseline-mirror hash (the services test pins this), and the deltas ride the persisted
+    ``scenario_snapshot`` which the adapter resolves + projects via ``build_replan_inputs``.
+
+    Blocking is narrow: ``replan_preflight`` contributes WARNING-only issues (families /
+    edges the replan drops) that NEVER block; ``materialize(plan, scenario)`` runs solely
+    as a referential-ERROR gate (a ghost-task duration override, an emergent id collision,
+    a ghost skill on an emergent task → ``MATERIALIZE_CONFLICT`` etc. block the replan), and
+    its materialized effective plan is then DISCARDED. The mirror + run-config are validated
+    through the same port as any run. Known minor limitation (acceptable for CORE): because
+    materialize validates every family, a referentially-broken *unsupported* delta would
+    also block even though the replan ignores it."""
+    issues: list[Issue] = list(replan_preflight(scenario, reference_plan))
+
+    # Referential-ERROR gate ONLY: materialize the overlay to catch ghost/collision errors,
+    # then discard its effective plan (its baked-in deltas are wrong for a replan).
+    gate = materialize(reference_plan, scenario)
+    if _has_error(gate.issues):
+        return PrepareOutcome(ok=False, issues=tuple(issues) + tuple(gate.issues),
+                              run_request=None, effective_plan=gate.effective_plan)
+
+    # The baseline mirror is the plan the adapter's INITIAL calculateScheduleWithResources
+    # runs (to satisfy replan()'s "must have scheduled once" precondition).
+    mirror_outcome = materialize(reference_plan, None)
+    if not mirror_outcome.ok or mirror_outcome.effective_plan is None:
+        return PrepareOutcome(ok=False, issues=tuple(issues) + tuple(mirror_outcome.issues),
+                              run_request=None, effective_plan=mirror_outcome.effective_plan)
+    effective = mirror_outcome.effective_plan
+
+    effective_payload = json.loads(effective.raw_snapshot)["payload"]
+    issues.extend(validator.validate_plan(effective_payload))
+    issues.extend(validate_run_config(effective, run_config))
+    if _has_error(issues):
+        return PrepareOutcome(ok=False, issues=tuple(issues), run_request=None,
+                              effective_plan=effective)
+
+    # Persist baseline / mirror / run_config / scenario snapshots (the scenario snapshot IS
+    # the canonical payload the adapter resolves + projects onto replan()'s kwargs).
+    baseline_hash = snapshot_store.put(reference_plan.raw_snapshot)
+    effective_hash = snapshot_store.put(effective.raw_snapshot)
+    run_config_hash = snapshot_store.put(run_config_snapshot(run_config))
+    scenario_hash = snapshot_store.put(scenario_snapshot(scenario))
+
+    schema_version = json.loads(effective.raw_snapshot)["schema_version"]
+    provenance = ProvenanceInputs(
+        baseline_snapshot_hash=baseline_hash,
+        effective_plan_hash=effective_hash,
+        run_config_hash=run_config_hash,
+        schema_version=schema_version,
+        canonicalization_version=CANON_VERSION,
+        scenario_delta_hash=scenario_hash,
+        checkpoint_hour=scenario.checkpoint_hour,   # non-None → adapter takes the replan branch
     )
     request = RunRequest(
         effective_plan_hash=effective_hash,

@@ -120,6 +120,19 @@ def _scenario_base(scenario: Optional[Scenario], baseline) -> Scenario:
         return _new_scenario_for(baseline)
     return scenario
 
+def _add_checkpoint_hour(scenario: Optional[Scenario], baseline, hour: float) -> Scenario:
+    """New Scenario carrying the replan as-of hour T (``checkpoint_hour``). This is a SCALAR
+    run parameter, not a delta family: it is intentionally excluded from ``_DELTA_FIELDS`` /
+    ``_scenario_is_empty`` (a checkpoint-only scenario still reads "empty", so the sidebar's
+    normal Run treats it as the plain baseline) — the replan path triggers off
+    ``checkpoint_hour`` independently. Frozen-dataclass equality still makes staging a
+    checkpoint flip the draft ``dirty``, so Save/Discard need no special-casing."""
+    return replace(_scenario_base(scenario, baseline), checkpoint_hour=float(hour))
+
+def _remove_checkpoint_hour(scenario: Optional[Scenario], baseline) -> Scenario:
+    """New Scenario with the replan as-of hour cleared (``checkpoint_hour=None``)."""
+    return replace(_scenario_base(scenario, baseline), checkpoint_hour=None)
+
 def _scenario_duration_rows(scenario: Optional[Scenario]) -> list[dict]:
     """Duration overrides as display/removal rows ``{index, task_id, duration_hours}``."""
     if scenario is None:

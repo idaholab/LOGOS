@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 
 from prismGui.app._streamlit import st
+from prismGui.app.components import _render_issues
+from prismGui.domain.replan import replan_preflight
 from prismGui.domain.run_config import ModeSelection
 from prismGui.domain.scenario import Scenario
 from prismGui.app.edit_model import (
@@ -12,9 +14,11 @@ from prismGui.app.edit_model import (
     _resource_options, _task_options,
 )
 from prismGui.app.scenario_model import (
-    _SCN_INTENTS, _add_dependency_suppression, _add_duration_override, _add_emergent_dependency,
+    _SCN_INTENTS, _add_checkpoint_hour, _add_dependency_suppression, _add_duration_override,
+    _add_emergent_dependency,
     _add_emergent_task, _add_equipment_change, _add_location_change, _add_resource_change,
-    _add_task_suppression, _current_schedule_payload, _is_whatif, _remove_dependency_suppression,
+    _add_task_suppression, _current_schedule_payload, _is_whatif, _remove_checkpoint_hour,
+    _remove_dependency_suppression,
     _remove_duration_override, _remove_emergent_dependency, _remove_emergent_task,
     _remove_equipment_change, _remove_location_change, _remove_resource_change,
     _remove_task_suppression, _scenario_dependency_suppression_rows, _scenario_duration_rows,
@@ -508,16 +512,84 @@ def _render_mode_picker(session, baseline) -> None:
             selections.append(ModeSelection(task_id=row["task_id"], mode_name=pick))
         session.set_mode_selections(tuple(selections))
 
-def _render_replan(session, baseline) -> None:
-    """Replan page: author the SELECTED scenario's overlay (task-duration overrides, resource /
-    equipment / location what-ifs, activity add/remove) as a draft, plus its execution modes.
+def _render_checkpoint_controls(session, baseline) -> None:
+    """Author the replan **as-of hour T** (``checkpoint_hour``). Staged into the current scenario
+    DRAFT like any edit — the panel's **Save** below commits it, and the **Run replan** action is
+    enabled once the SAVED scenario carries a T. T is a scalar run parameter, NOT a delta family:
+    a checkpoint-only scenario still reads "empty", so the sidebar's normal **Run schedule** ignores
+    it (a from-hour-0 counterfactual) while **Run replan** reschedules the remainder from T. Set /
+    Clear stage into the draft (mirroring the tab add/remove buttons) so Save/Discard govern it too."""
+    cur_id = session.get_current_scenario_id()
+    draft = _current_draft(session, cur_id)
+    saved = session.get_scenario().checkpoint_hour
+
+    st.markdown("**Replan as-of hour (T)**")
+    if saved is None:
+        st.caption("No as-of hour saved yet — set one below and **Save** (panel footer) to enable "
+                   "**Run replan**. Leaving it unset keeps this a plain from-hour-0 scenario.")
+    else:
+        st.caption(f"Saved as-of hour: **{saved:g} h** — a replan freezes activities underway or "
+                   f"complete at T and reschedules the remainder under the saved supported deltas.")
+
+    default = float(draft.checkpoint_hour) if draft.checkpoint_hour is not None else 0.0
+    c1, c2 = st.columns([2, 1])
+    hour = c1.number_input(
+        "As-of hour (T)", min_value=0.0, value=default, step=1.0, key="prism_replan_asof",
+        help="Hours from outage start. Activities underway/complete at T are frozen; the rest are "
+             "rescheduled applying the staged supported deltas.")
+    if c1.button("Set as-of hour", key="prism_replan_asof_set"):
+        _draft_store()[cur_id] = _add_checkpoint_hour(draft, baseline, hour)
+        st.rerun()
+    if c2.button("Clear as-of hour", key="prism_replan_asof_clear",
+                 disabled=draft.checkpoint_hour is None):
+        _draft_store()[cur_id] = _remove_checkpoint_hour(draft, baseline)
+        st.rerun()
+
+def _render_run_replan(session, baseline, run_replan) -> None:
+    """The **Run replan** action + its warn-only preflight. Enabled ONLY when the SAVED scenario
+    carries a checkpoint (the single hard gate — unsupported families never block). The preflight
+    lists, informationally, the families / emergent edges the replan will drop (``replan_preflight``);
+    the run itself reschedules from T via ``run_replan`` (wired in ``main`` to ``prepare_replan`` →
+    engine ``replan()``) and lands the result on **Results**."""
+    st.divider()
+    st.markdown("**Run replan**")
+    scenario = session.get_scenario()
+    ready = scenario.checkpoint_hour is not None
+    if not ready:
+        st.caption("Set and **Save** an as-of hour above to enable a replan.")
+    else:
+        warnings = replan_preflight(scenario, baseline)
+        if warnings:
+            st.caption("Replan applies only the supported deltas — the following are ignored:")
+            _render_issues(warnings, empty_msg="")
+        else:
+            st.caption(f"Replan reschedules the remainder from hour {scenario.checkpoint_hour:g}, "
+                       f"applying the saved supported deltas.")
+    if st.button("▶ Run replan", key="prism_run_replan", type="primary", disabled=not ready):
+        if run_replan is None:      # not wired (headless) — nothing to run
+            return
+        outcome = run_replan(scenario)
+        if outcome.ok:
+            st.success("Replan complete — open **Results** to see the rescheduled schedule.")
+        else:
+            st.error(f"Replan blocked at {outcome.stage}.")
+            _render_issues(outcome.issues)
+
+def _render_replan(session, baseline, run_replan=None) -> None:
+    """Replan page: pick an as-of hour T, author the SELECTED scenario's overlay (task-duration
+    overrides, resource / equipment / location what-ifs, activity add/remove) as a draft, plus its
+    execution modes, then **Run replan** to reschedule the remainder from T (engine ``replan()``).
     Requires a scenario picked in the sidebar (or created on **Scenarios**); empty-state otherwise.
-    Re-run from the sidebar. (Guided resource augmentation was unwired here — its builders and
-    ``_render_run_augmentation`` remain in the results module, unused by the app.)"""
+    A from-hour-0 counterfactual is still available via the sidebar's **Run schedule** (which ignores
+    T). (Guided resource augmentation was unwired here — its builders and ``_render_run_augmentation``
+    remain in the results module, unused by the app.)"""
     st.subheader("Manual scenario")
     if session.get_current_scenario_id() is None:
         st.info("Select a scenario in the sidebar, or create one on the **Scenarios** page, to "
                 "author an overlay manually. (The baseline itself is edited on the **Plan** page.)")
         return
+    _render_checkpoint_controls(session, baseline)
+    st.divider()
     _render_scenario_panel(session, baseline)
     _render_mode_picker(session, baseline)
+    _render_run_replan(session, baseline, run_replan)

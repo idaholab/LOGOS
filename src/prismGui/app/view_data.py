@@ -181,7 +181,9 @@ _PROVENANCE_FIELD_LABELS = (
 def _provenance_rows(provenance) -> list[dict]:
     """The 10 provenance fields as streamlit-free ``{field, value}`` rows in declaration
     order. The timestamp is rendered ISO-8601; a ``None`` scenario delta (no scenario
-    applied) shows as an empty string, never the literal ``None``."""
+    applied) shows as an empty string, never the literal ``None``. A replan run appends an
+    11th "As-of hour" row (the checkpoint T it rescheduled from); a normal run has no
+    checkpoint, so it keeps its 10 rows."""
     rows: list[dict] = []
     for attr, label in _PROVENANCE_FIELD_LABELS:
         value = getattr(provenance, attr)
@@ -190,6 +192,9 @@ def _provenance_rows(provenance) -> list[dict]:
         elif value is None:
             value = ""
         rows.append({"field": label, "value": str(value)})
+    checkpoint = getattr(provenance, "checkpoint_hour", None)
+    if checkpoint is not None:
+        rows.append({"field": "As-of hour", "value": f"{checkpoint:g} h"})
     return rows
 
 def _scenario_hash_labels(scenarios) -> dict[str, str]:

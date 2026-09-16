@@ -22,16 +22,17 @@ Covered here:
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 
 from prismGui.application import services
 from prismGui.application.services import InMemorySessionState
-from prismGui.domain.hashing import hash_run_config
+from prismGui.domain.hashing import hash_run_config, hash_scenario
 from prismGui.domain.issues import IssueCode, Severity
 from prismGui.domain.materialize import materialize
 from prismGui.domain.plan import open_draft
 from prismGui.domain.results import Freshness, RunResultStatus
 from prismGui.domain.run_config import RunConfig
-from prismGui.domain.scenario import ResourceChange, Scenario
+from prismGui.domain.scenario import DurationOverride, ResourceChange, Scenario, TaskSuppression
 from prismGui.domain import serialization as ser
 from prismGui.domain.versions import SCHEMA_VERSION
 
@@ -164,6 +165,80 @@ class TestPrepareRun:
         assert outcome.run_request is None
         assert any(i.code is IssueCode.PROV_HASH_MISMATCH and i.severity is Severity.ERROR
                    for i in outcome.issues)
+        assert not snapshot_store.contains(baseline.plan_hash)
+
+
+class TestPrepareReplan:
+    """The checkpoint-driven replan preparation (``prepare_replan``). Unlike ``prepare_run``
+    the scenario deltas are NOT baked into the effective plan — the persisted effective plan
+    is the BASELINE MIRROR (``materialize(plan, None)``), and the deltas ride the scenario
+    snapshot for the adapter's ``replan()`` call. No PRISM here: these pin the prepared
+    RunRequest's shape and the persistence/blocking contract."""
+
+    def test_checkpoint_run_persists_mirror_and_carries_the_as_of_hour(
+            self, baseline, scenario, run_config, snapshot_store, validator_adapter):
+        """A checkpoint + duration-override scenario prepares ok; the persisted effective
+        plan is the BASELINE MIRROR (not the materialized-overlay plan — the guard against
+        double-applying the delta), the scenario rides as ``scenario_delta_hash``, and the
+        as-of hour flows onto ``checkpoint_hour``. Every referenced snapshot resolves."""
+        replan_scenario = replace(scenario, checkpoint_hour=8.0)
+        outcome = services.prepare_replan(baseline, replan_scenario, run_config,
+                                          snapshot_store, validator=validator_adapter)
+        assert outcome.ok
+        req = outcome.run_request
+        assert req is not None
+
+        # effective_plan_hash is the baseline mirror — NOT the materialized-overlay hash.
+        mirror_hash = materialize(baseline, None).effective_plan.effective_plan_hash
+        overlay_hash = materialize(baseline, replan_scenario).effective_plan.effective_plan_hash
+        assert req.effective_plan_hash == mirror_hash
+        assert req.effective_plan_hash != overlay_hash        # delta is NOT baked in
+
+        pin = req.provenance_inputs
+        assert pin.scenario_delta_hash == hash_scenario(replan_scenario)
+        assert pin.checkpoint_hour == replan_scenario.checkpoint_hour == 8.0
+
+        # every referenced snapshot resolves in the store (incl. the scenario delta)
+        assert snapshot_store.contains(req.effective_plan_hash)
+        assert snapshot_store.contains(req.run_config_hash)
+        assert snapshot_store.contains(pin.baseline_snapshot_hash)
+        assert snapshot_store.contains(pin.scenario_delta_hash)
+
+    def test_unsupported_family_warns_but_does_not_block(
+            self, baseline, run_config, snapshot_store, validator_adapter):
+        """A checkpoint scenario ALSO carrying an unsupported family (a task suppression the
+        engine's replan cannot honor) still prepares ok — warn-and-run — with a
+        REPLAN_UNSUPPORTED WARNING riding the issues and NO ERROR blocking it."""
+        replan_scenario = Scenario(
+            scenario_id="scn-sup", base_plan_id=baseline.plan_id,
+            base_plan_hash=baseline.plan_hash, checkpoint_hour=8.0,
+            task_suppressions=(TaskSuppression(task_id="A"),))
+        outcome = services.prepare_replan(baseline, replan_scenario, run_config,
+                                          snapshot_store, validator=validator_adapter)
+        assert outcome.ok
+        assert outcome.run_request is not None
+        warnings = [i for i in outcome.issues if i.code is IssueCode.REPLAN_UNSUPPORTED]
+        assert warnings and all(i.severity is Severity.WARNING for i in warnings)
+        assert not any(i.severity is Severity.ERROR for i in outcome.issues)
+
+    def test_broken_supported_delta_blocks_and_persists_nothing(
+            self, baseline, run_config, snapshot_store, validator_adapter):
+        """A referentially-broken SUPPORTED delta (a duration override on a ghost task) trips
+        the materialize referential-ERROR gate: no RunRequest, a MATERIALIZE_CONFLICT error,
+        and NOTHING is written to the store (persistence happens only past the gate)."""
+        replan_scenario = Scenario(
+            scenario_id="scn-ghost", base_plan_id=baseline.plan_id,
+            base_plan_hash=baseline.plan_hash, checkpoint_hour=8.0,
+            duration_overrides=(DurationOverride(task_id="GHOST", duration_hours=5.0),))
+        outcome = services.prepare_replan(baseline, replan_scenario, run_config,
+                                          snapshot_store, validator=validator_adapter)
+        assert not outcome.ok
+        assert outcome.run_request is None
+        assert any(i.code is IssueCode.MATERIALIZE_CONFLICT and i.severity is Severity.ERROR
+                   for i in outcome.issues)
+        mirror_hash = materialize(baseline, None).effective_plan.effective_plan_hash
+        assert not snapshot_store.contains(mirror_hash)
+        assert not snapshot_store.contains(hash_scenario(replan_scenario))
         assert not snapshot_store.contains(baseline.plan_hash)
 
 

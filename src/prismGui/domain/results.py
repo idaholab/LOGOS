@@ -192,6 +192,9 @@ class Provenance:
     run_id: str
     timestamp: datetime
     scenario_delta_hash: Optional[Hash] = None
+    # Phase 5 (replan): the as-of hour T a replan rescheduled from. None for a normal
+    # from-hour-0 run. Trailing optional so every existing construction stays valid.
+    checkpoint_hour: Optional[Hours] = None
 
 
 # -----------------------------------------------------------------------------

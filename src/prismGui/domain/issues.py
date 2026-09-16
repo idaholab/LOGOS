@@ -56,6 +56,12 @@ class IssueCode(str, Enum):
     EXECUTION_FAILURE = "EXECUTION_FAILURE"
     PROV_HASH_MISMATCH = "PROV_HASH_MISMATCH"
     SNAPSHOT_MISSING = "SNAPSHOT_MISSING"
+    # Phase 5 (replan): a checkpoint-bearing scenario carried a delta family that
+    # pert.replan() cannot apply (location_changes / task_suppressions /
+    # dependency_suppressions / hold_point_release_overrides) or an emergent
+    # dependency the engine cannot wire. Emitted at WARNING (category EXECUTION) —
+    # the replan runs the supported subset; it never blocks.
+    REPLAN_UNSUPPORTED = "REPLAN_UNSUPPORTED"
     # A PatchOp that is structurally malformed against the working tree: the
     # JSON-Pointer path does not resolve, or an add/replace carries no value.
     # Raised by domain.plan.apply_patch (the lightweight structural check), never

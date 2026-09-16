@@ -761,8 +761,13 @@ class ResourceAvailability:
             None = far future (year 9999 sentinel).
         """
         from_dt  = outage_start + timedelta(hours=from_hour)
+        # The far-future sentinel must carry the SAME tz-awareness as the plan's datetimes,
+        # or the ps/pe comparisons below raise "can't compare offset-naive and offset-aware".
+        # from_dt inherits outage_start's tzinfo: None for the CPM suite's naive inputs, UTC
+        # for a GUI plan whose canonical snapshot normalized timestamps to ...Z.
         until_dt = (outage_start + timedelta(hours=until_hour)
-                    if until_hour is not None else datetime(9999, 12, 31))
+                    if until_hour is not None
+                    else datetime(9999, 12, 31, tzinfo=from_dt.tzinfo))
 
         kept = []
         for p in self.periods:
@@ -930,8 +935,13 @@ class EquipmentAvailability:
             None = far future (year 9999 sentinel).
         """
         from_dt  = outage_start + timedelta(hours=from_hour)
+        # The far-future sentinel must carry the SAME tz-awareness as the plan's datetimes,
+        # or the ps/pe comparisons below raise "can't compare offset-naive and offset-aware".
+        # from_dt inherits outage_start's tzinfo: None for the CPM suite's naive inputs, UTC
+        # for a GUI plan whose canonical snapshot normalized timestamps to ...Z.
         until_dt = (outage_start + timedelta(hours=until_hour)
-                    if until_hour is not None else datetime(9999, 12, 31))
+                    if until_hour is not None
+                    else datetime(9999, 12, 31, tzinfo=from_dt.tzinfo))
 
         kept = []
         for p in self.periods:

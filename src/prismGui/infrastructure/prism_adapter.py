@@ -35,12 +35,14 @@ import json
 import logging
 from datetime import datetime, timezone
 
+from CPM.activity import Activity
 from CPM.outage_data import OutageData
 from CPM.pert import Pert
 
 from prismGui.domain import serialization as ser
 from prismGui.domain.disposition import ScheduleSummary, compute_disposition
 from prismGui.domain.hashing import q
+from prismGui.domain.replan import build_replan_inputs
 from prismGui.domain.resource_util import build_resource_utilization
 from prismGui.domain.issues import Issue, IssueCategory, IssueCode, Severity
 from prismGui.domain.results import (
@@ -118,10 +120,16 @@ class InProcessPrismExecutor:
         prov = self._provenance(run_id, request.provenance_inputs)
 
         # Resolve snapshots first: a missing hash is a storage fact (SNAPSHOT_MISSING),
-        # kept distinct from an engine failure so the UI can tell them apart.
+        # kept distinct from an engine failure so the UI can tell them apart. A replan
+        # request (checkpoint_hour set) also resolves the scenario payload — the deltas it
+        # projects onto replan()'s kwargs — from the same store (see prepare_replan).
+        pin = request.provenance_inputs
         try:
             plan_payload = self._resolve_payload(request.effective_plan_hash)
             rc_payload = self._resolve_payload(request.run_config_hash)
+            scenario_payload = (
+                self._resolve_payload(pin.scenario_delta_hash)
+                if pin.checkpoint_hour is not None else None)
         except SnapshotNotFoundError as exc:
             self._record_failed(
                 run_id, prov,
@@ -130,9 +138,15 @@ class InProcessPrismExecutor:
                       message=f"snapshot not found: {exc.snapshot_hash}"))
             return run_id
 
-        # Run PRISM behind the hard boundary: no exception escapes to the caller (§9).
+        # Run PRISM behind the hard boundary: no exception escapes to the caller (§9). A
+        # checkpoint-bearing request takes the replan branch (reschedule from T); else a
+        # normal from-hour-0 run. Both share the same COMPLETED-result assembly.
         try:
-            result = self._run(plan_payload, rc_payload, run_id, prov)
+            if scenario_payload is not None:
+                result = self._run_replan(
+                    plan_payload, rc_payload, scenario_payload, run_id, prov)
+            else:
+                result = self._run(plan_payload, rc_payload, run_id, prov)
         except Exception as exc:  # noqa: BLE001 - deliberate hard boundary
             logger.exception("PRISM execution failed for run %s", run_id)
             self._record_failed(
@@ -180,6 +194,7 @@ class InProcessPrismExecutor:
             run_id=run_id,
             timestamp=datetime.now(timezone.utc),
             scenario_delta_hash=pin.scenario_delta_hash,
+            checkpoint_hour=pin.checkpoint_hour,   # None for a normal run; T for a replan
         )
 
     def _record_failed(self, run_id: str, prov: Provenance, issue: Issue) -> None:
@@ -188,11 +203,11 @@ class InProcessPrismExecutor:
             issues=(issue,), disposition=None, schedule=None, diagnostics=None)
         self._status[run_id] = RunStatus.FAILED
 
-    def _run(self, plan_payload: dict, rc_payload: dict, run_id: str,
-             prov: Provenance) -> RunResult:
-        """Build a fresh runtime, run one schedule, and assemble a COMPLETED RunResult.
-        Any exception raised here is caught by ``submit`` and turned into EXECUTION_FAILURE."""
-        # 1-3. fresh runtime <- snapshot; apply RunConfig; run (order: modes before run).
+    def _build_pert(self, plan_payload: dict, rc_payload: dict):
+        """Steps 1-2 shared by the normal and replan paths: a FRESH runtime from the
+        snapshot, RunConfig modes applied (before any run), and the scheduling knobs pulled
+        out of the RunConfig. Returns ``(pert, sgs, priority_rule, horizon)``. A fresh Pert
+        per submit is the isolation invariant — never stored, never reused."""
         outage = OutageData.from_dict(plan_payload)
         pert = Pert(outage_data=outage, seed=int(rc_payload.get("seed", 42)))
 
@@ -203,9 +218,53 @@ class InProcessPrismExecutor:
         sgs = rc_payload.get("sgs", "max_use_res_ranked")
         priority_rule = rc_payload.get("priority_rule", "lf")
         horizon = rc_payload.get("scheduling_horizon_hours")  # None -> engine default
+        return pert, sgs, priority_rule, horizon
+
+    def _run(self, plan_payload: dict, rc_payload: dict, run_id: str,
+             prov: Provenance) -> RunResult:
+        """Build a fresh runtime, run one schedule, and assemble a COMPLETED RunResult.
+        Any exception raised here is caught by ``submit`` and turned into EXECUTION_FAILURE."""
+        # 1-3. fresh runtime <- snapshot; apply RunConfig; run (order: modes before run).
+        pert, sgs, priority_rule, horizon = self._build_pert(plan_payload, rc_payload)
         result = pert.calculateScheduleWithResources(
             sgs=sgs, max_time_hours=horizon, priority_rule=priority_rule)
+        return self._assemble_completed(pert, result, plan_payload, rc_payload, run_id, prov)
 
+    def _run_replan(self, plan_payload: dict, rc_payload: dict, scenario_payload: dict,
+                    run_id: str, prov: Provenance) -> RunResult:
+        """Phase-5 replan path. ``plan_payload`` is the BASELINE MIRROR (prepare_replan
+        persisted ``materialize(plan, None)``, NOT the materialized overlay — the deltas
+        are applied by ``replan()``, not baked into the plan, to avoid double-applying).
+
+        Run the INITIAL schedule (satisfies replan()'s "must have scheduled once"
+        precondition), project the scenario overlay onto replan()'s kwargs via
+        ``build_replan_inputs``, then ``replan()`` reschedules the remainder from the as-of
+        hour T. The COMPLETED-result assembly is shared with a normal run — every DTO helper
+        reads only result keys ``replan()`` returns unchanged."""
+        pert, sgs, priority_rule, horizon = self._build_pert(plan_payload, rc_payload)
+        # Initial run establishes the baseline schedule replan() reschedules from.
+        pert.calculateScheduleWithResources(
+            sgs=sgs, max_time_hours=horizon, priority_rule=priority_rule)
+
+        ri = build_replan_inputs(scenario_payload)
+        new_acts = [Activity.from_json(spec) for spec in ri.new_task_specs]
+        result = pert.replan(
+            current_time_hours=ri.checkpoint_hour,
+            new_activities=new_acts or None,
+            predecessor_wiring=ri.predecessor_wiring or None,
+            resource_updates=list(ri.resource_updates) or None,
+            equipment_updates=list(ri.equipment_updates) or None,
+            duration_overrides=ri.duration_overrides or None,
+            sgs=sgs, max_time_hours=horizon)
+        return self._assemble_completed(pert, result, plan_payload, rc_payload, run_id, prov)
+
+    def _assemble_completed(self, pert: Pert, result: dict, plan_payload: dict,
+                            rc_payload: dict, run_id: str, prov: Provenance) -> RunResult:
+        """Steps 4-7 shared by ``_run`` and ``_run_replan``: build the schedule DTO, run the
+        audit + dependency check once, assemble diagnostics, derive disposition. Every helper
+        here reads only ``result`` keys (``scheduled_duration`` / ``cpm_duration`` /
+        ``n_activities`` / ``n_completed``) that ``replan()`` returns unchanged, so a replan
+        result flows through byte-identically to a normal run."""
         # 4. output DTOs.
         schedule = self._build_schedule(pert, result)
 
