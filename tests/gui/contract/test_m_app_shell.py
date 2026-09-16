@@ -2815,6 +2815,176 @@ class TestWindowPreflight:
         assert all(r["fits"] for r in pf["rows"])
 
 
+class TestReplanDiff:
+    """The streamlit-free ``_replan_diff`` builder behind the Results **Replan vs original** segment
+    (Phase-5 Row 2): full-outer-join an ORIGINAL and a REPLAN schedule by task_id and report the
+    residual — frozen (started before the as-of hour T) vs rescheduled, per-task start/end slip, and
+    emergent / dropped tasks. Built from hand-made ``ScheduleDTO`` of ``ScheduledActivityDTO`` (no
+    Streamlit / PRISM). The frozen boundary is a STRICT ``start < T - tol`` (a task starting exactly at
+    T is rescheduled), a deliberate divergence from the engine's ``<= T`` — pinned here."""
+
+    @staticmethod
+    def _act(task_id, start, end):
+        return ScheduledActivityDTO(
+            task_id=task_id, start_hour=float(start), end_hour=float(end),
+            duration=float(end) - float(start), delay_hours=0.0,
+            on_constrained_chain=False, float_class=FloatClass.POSITIVE_FLOAT)
+
+    @staticmethod
+    def _sched(activities):
+        return ScheduleDTO(
+            makespan_hours=1.0, cpm_lower_bound_hours=1.0, optimism_gap_hours=0.0,
+            activities=tuple(activities), constrained_chain=(), cpm_critical_path=())
+
+    def test_builders_are_re_exported(self):
+        """Both Phase-5 Row 2 builders resolve through the app-shell seam (the re-export pattern)."""
+        assert callable(app_main._replan_diff)
+        assert callable(app_main._default_original_run_id)
+
+    def test_frozen_boundary_is_strictly_before_T(self):
+        """``frozen`` iff ``new_start < T - tol``: a task starting at 39 is frozen, one starting
+        exactly at T=40 is rescheduled, and one a half-tolerance before T is STILL rescheduled (the
+        grace does not pull it across the line). The counts split the in-replan tasks cleanly."""
+        tol = app_main._WINDOW_TOL_HOURS
+        acts = [self._act("F", 39.0, 41.0),                    # before T -> frozen
+                self._act("AT", 40.0, 42.0),                   # exactly at T -> rescheduled
+                self._act("NEAR", 40.0 - 0.5 * tol, 42.0)]     # within grace of T -> rescheduled
+        d = app_main._replan_diff(self._sched(acts), self._sched(acts), 40.0)
+        frozen = {r["task_id"]: r["frozen"] for r in d["rows"]}
+        assert frozen == {"F": True, "AT": False, "NEAR": False}
+        assert d["n_frozen"] == 1 and d["n_rescheduled"] == 2
+        assert d["checkpoint_hour"] == 40.0
+
+    def test_start_delta_and_moved_for_a_shifted_tail(self):
+        """A frozen prefix task is unchanged (Δ 0, not moved); a rescheduled tail task that slid +5 h
+        carries ``start_delta``/``end_delta`` == 5.0 and ``moved`` True, counted once in ``n_moved``."""
+        original = self._sched([self._act("F", 10.0, 20.0), self._act("T", 40.0, 50.0)])
+        replan = self._sched([self._act("F", 10.0, 20.0), self._act("T", 45.0, 55.0)])
+        d = app_main._replan_diff(original, replan, 30.0)
+        by = {r["task_id"]: r for r in d["rows"]}
+        assert by["F"]["frozen"] is True
+        assert by["F"]["start_delta"] == 0.0 and by["F"]["end_delta"] == 0.0 and by["F"]["moved"] is False
+        assert by["T"]["frozen"] is False
+        assert by["T"]["start_delta"] == 5.0 and by["T"]["end_delta"] == 5.0 and by["T"]["moved"] is True
+        assert d["n_moved"] == 1
+
+    def test_emergent_task_is_replan_only(self):
+        """A task present ONLY in the replan (new work introduced at T) counts in ``n_emergent`` with
+        ``orig_* is None`` and no delta; it is still classified frozen/rescheduled by its new start."""
+        original = self._sched([self._act("KEEP", 0.0, 5.0)])
+        replan = self._sched([self._act("KEEP", 0.0, 5.0), self._act("NEW", 45.0, 55.0)])
+        d = app_main._replan_diff(original, replan, 40.0)
+        by = {r["task_id"]: r for r in d["rows"]}
+        assert by["NEW"]["in_original"] is False and by["NEW"]["in_replan"] is True
+        assert by["NEW"]["orig_start"] is None and by["NEW"]["orig_end"] is None
+        assert by["NEW"]["start_delta"] is None and by["NEW"]["moved"] is False
+        assert by["NEW"]["frozen"] is False                    # starts at 45 (>= T)
+        assert d["n_emergent"] == 1 and d["n_dropped"] == 0
+
+    def test_dropped_task_is_original_only(self):
+        """A task present ONLY in the original (dropped by the replan) counts in ``n_dropped`` with
+        ``new_* is None``, ``frozen`` False, and no delta."""
+        original = self._sched([self._act("KEEP", 0.0, 5.0), self._act("GONE", 50.0, 60.0)])
+        replan = self._sched([self._act("KEEP", 0.0, 5.0)])
+        d = app_main._replan_diff(original, replan, 40.0)
+        by = {r["task_id"]: r for r in d["rows"]}
+        assert by["GONE"]["in_original"] is True and by["GONE"]["in_replan"] is False
+        assert by["GONE"]["new_start"] is None and by["GONE"]["new_end"] is None
+        assert by["GONE"]["frozen"] is False and by["GONE"]["start_delta"] is None
+        assert d["n_dropped"] == 1 and d["n_emergent"] == 0
+
+    def test_counts_sum_consistently(self):
+        """Every in-replan task is frozen XOR rescheduled; emergent/dropped match the join sides."""
+        original = self._sched([self._act("F", 5.0, 15.0), self._act("T", 45.0, 55.0),
+                                 self._act("GONE", 60.0, 70.0)])
+        replan = self._sched([self._act("F", 5.0, 15.0), self._act("T", 48.0, 58.0),
+                              self._act("NEW", 50.0, 60.0)])
+        d = app_main._replan_diff(original, replan, 40.0)
+        n_in_replan = sum(1 for r in d["rows"] if r["in_replan"])
+        assert d["n_frozen"] + d["n_rescheduled"] == n_in_replan
+        assert d["n_emergent"] == sum(
+            1 for r in d["rows"] if r["in_replan"] and not r["in_original"])
+        assert d["n_dropped"] == sum(
+            1 for r in d["rows"] if r["in_original"] and not r["in_replan"])
+
+    def test_rows_sorted_by_effective_start(self):
+        """Rows sort by (new_start if in_replan else orig_start, task_id): a replan-only task at 45, a
+        replan task at 5, and a dropped original at 50 → [B(5), A(45), GONE(50)]."""
+        original = self._sched([self._act("GONE", 50.0, 60.0)])
+        replan = self._sched([self._act("A", 45.0, 55.0), self._act("B", 5.0, 15.0)])
+        d = app_main._replan_diff(original, replan, 40.0)
+        assert [r["task_id"] for r in d["rows"]] == ["B", "A", "GONE"]
+
+    def test_empty_schedules_yield_zero_counts(self):
+        """Two empty schedules → no rows and every count zero; the as-of hour still rides through."""
+        empty = self._sched([])
+        d = app_main._replan_diff(empty, empty, 40.0)
+        assert d["rows"] == []
+        assert (d["n_frozen"], d["n_rescheduled"], d["n_moved"], d["n_emergent"],
+                d["n_dropped"]) == (0, 0, 0, 0, 0)
+        assert d["checkpoint_hour"] == 40.0
+
+
+class TestDefaultOriginalRunId:
+    """The streamlit-free ``_default_original_run_id`` picker behind the **Replan vs original** segment:
+    choose the default "original" to pair a replan against — the most recent COMPLETED from-hour-0 run
+    whose plan + config hashes match the replan (the exact counterfactual), else the most recent
+    from-hour-0 run, else the most recent COMPLETED run, else None. Built from hand-made ``RunResult`` /
+    ``Provenance`` (no Streamlit / PRISM)."""
+
+    @staticmethod
+    def _prov(run_id, *, checkpoint_hour=None, eff="eff-hash", cfg="cfg-hash"):
+        return Provenance(
+            baseline_snapshot_hash="base-hash", effective_plan_hash=eff, run_config_hash=cfg,
+            schema_version=SCHEMA_VERSION, canonicalization_version=CANON_VERSION,
+            app_version=APP_VERSION, prism_version="test", run_id=run_id,
+            timestamp=datetime(2025, 1, 1, tzinfo=timezone.utc), checkpoint_hour=checkpoint_hour)
+
+    def _run(self, run_id, *, status=RunResultStatus.COMPLETED, **prov_kw):
+        return RunResult(run_id=run_id, status=status, provenance=self._prov(run_id, **prov_kw))
+
+    def test_prefers_matching_baseline(self):
+        """The exact counterfactual: a from-hour-0 run (checkpoint None) sharing the replan's plan +
+        config hashes wins over an unrelated from-0 run and over the replan itself."""
+        base = self._run("run-base")                           # checkpoint None, matching hashes
+        other = self._run("run-other", eff="other-eff")        # from-0 but a different plan
+        replan = self._run("run-replan", checkpoint_hour=40.0)
+        assert app_main._default_original_run_id((base, other, replan), replan) == "run-base"
+
+    def test_prefers_the_most_recent_matching_baseline(self):
+        """Two matching baselines → the later one (insertion order is recency)."""
+        b1 = self._run("run-b1")
+        b2 = self._run("run-b2")
+        replan = self._run("run-replan", checkpoint_hour=40.0)
+        assert app_main._default_original_run_id((b1, b2, replan), replan) == "run-b2"
+
+    def test_excludes_the_replan_itself(self):
+        """The replan's own id is never the original; with no other run → None."""
+        replan = self._run("run-replan", checkpoint_hour=40.0)
+        assert app_main._default_original_run_id((replan,), replan) is None
+
+    def test_falls_back_to_recent_from_zero_when_no_hash_match(self):
+        """No baseline shares the hashes → the most recent from-hour-0 run (checkpoint None) regardless
+        of hashes, in preference to an earlier replan."""
+        earlier_replan = self._run("run-r0", checkpoint_hour=10.0)
+        from_zero = self._run("run-fz", eff="other-eff")       # from-0 but different plan
+        replan = self._run("run-replan", checkpoint_hour=40.0)
+        assert app_main._default_original_run_id(
+            (earlier_replan, from_zero, replan), replan) == "run-fz"
+
+    def test_falls_back_to_recent_completed_when_only_replans(self):
+        """No from-hour-0 run at all → the most recent remaining COMPLETED run (an earlier replan)."""
+        r0 = self._run("run-r0", checkpoint_hour=10.0)
+        replan = self._run("run-replan", checkpoint_hour=40.0)
+        assert app_main._default_original_run_id((r0, replan), replan) == "run-r0"
+
+    def test_ignores_failed_runs(self):
+        """A FAILED run is never a candidate (no schedule to pair); with only that → None."""
+        failed = self._run("run-fail", status=RunResultStatus.FAILED)
+        replan = self._run("run-replan", checkpoint_hour=40.0)
+        assert app_main._default_original_run_id((failed, replan), replan) is None
+
+
 class TestChartLayer:
     """The two streamlit-free builders behind the deferred Phase-4 visual half — the overlaid makespan
     bar chart (all three orchestration views) and the aligned multi-run Gantt (Compare runs / Augment).

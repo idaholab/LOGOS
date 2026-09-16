@@ -7,7 +7,7 @@ import math
 from itertools import product
 from typing import Optional
 
-from prismGui.domain.results import FloatClass, Freshness
+from prismGui.domain.results import FloatClass, Freshness, RunResultStatus
 from prismGui.domain.run_config import EvaluationWeights, ModeSelection
 from prismGui.domain.scenario import Scenario
 from prismGui.domain.hashing import hash_scenario
@@ -978,6 +978,109 @@ def _window_preflight(raw_tree, schedule) -> dict:
         "tol_hours": tol,
         "rows": rows,
     }
+
+def _replan_diff(original_schedule, replan_schedule, checkpoint_hour,
+                 tol=_WINDOW_TOL_HOURS) -> dict:
+    """The RESIDUAL of a replan against its original run (Phase-5 Row 2, Results **Replan vs
+    original** segment): full-outer-join the two schedules' activities by ``task_id`` and, for each
+    task, report where it landed before vs after the as-of hour ``checkpoint_hour`` (T) and how far it
+    moved. A replan freezes the work already underway at T and re-solves the remainder; when the
+    original is the matching from-hour-0 baseline (same ``effective_plan_hash`` + ``run_config_hash``),
+    the frozen prefix is byte-identical and the tail is exactly the residual of the deltas applied at T.
+
+    Returns ``{rows, n_frozen, n_rescheduled, n_moved, n_emergent, n_dropped, checkpoint_hour}`` where
+    each row is ``{task_id, in_original, in_replan, frozen, orig_start, orig_end, new_start, new_end,
+    start_delta, end_delta, moved}``:
+
+      * ``frozen = in_replan and (new_start < checkpoint_hour - tol)`` — the completed + in-progress
+        union the engine holds fixed across the reschedule (a task starting exactly at T counts as
+        RESCHEDULED, not frozen; see the module note on the boundary). ``n_rescheduled`` is the
+        in-replan complement.
+      * ``start_delta``/``end_delta`` = ``new - orig`` when the task is in BOTH schedules (else
+        ``None`` — the "no data → None cell" convention shared with ``_augmentation_delta``);
+        ``moved = in both and abs(start_delta) > tol``.
+      * ``n_emergent`` counts replan-only tasks (new work introduced at T); ``n_dropped`` counts
+        original-only tasks (present before, absent after).
+
+    Rows are sorted by ``(new_start if in_replan else orig_start, task_id)`` — every row is in at least
+    one schedule, so that key is always a real number. Pure: reads two ``ScheduleDTO`` (or ``None``)
+    plus the scalar T, no ``st``/``services``/PRISM."""
+    orig_by = {a.task_id: a for a in
+               (original_schedule.activities if original_schedule is not None else ())}
+    new_by = {a.task_id: a for a in
+              (replan_schedule.activities if replan_schedule is not None else ())}
+
+    rows: list[dict] = []
+    n_frozen = n_rescheduled = n_moved = n_emergent = n_dropped = 0
+    for tid in set(orig_by) | set(new_by):
+        o = orig_by.get(tid)
+        n = new_by.get(tid)
+        in_original = o is not None
+        in_replan = n is not None
+        orig_start = o.start_hour if in_original else None
+        orig_end = o.end_hour if in_original else None
+        new_start = n.start_hour if in_replan else None
+        new_end = n.end_hour if in_replan else None
+        frozen = in_replan and (new_start < checkpoint_hour - tol)
+        in_both = in_original and in_replan
+        start_delta = (new_start - orig_start) if in_both else None
+        end_delta = (new_end - orig_end) if in_both else None
+        moved = in_both and abs(start_delta) > tol
+
+        if in_replan and not in_original:
+            n_emergent += 1
+        elif in_original and not in_replan:
+            n_dropped += 1
+        if in_replan:
+            if frozen:
+                n_frozen += 1
+            else:
+                n_rescheduled += 1
+        if moved:
+            n_moved += 1
+
+        rows.append({
+            "task_id": tid, "in_original": in_original, "in_replan": in_replan,
+            "frozen": frozen, "orig_start": orig_start, "orig_end": orig_end,
+            "new_start": new_start, "new_end": new_end,
+            "start_delta": start_delta, "end_delta": end_delta, "moved": moved,
+        })
+
+    rows.sort(key=lambda r: (r["new_start"] if r["in_replan"] else r["orig_start"], r["task_id"]))
+    return {
+        "rows": rows, "n_frozen": n_frozen, "n_rescheduled": n_rescheduled,
+        "n_moved": n_moved, "n_emergent": n_emergent, "n_dropped": n_dropped,
+        "checkpoint_hour": checkpoint_hour,
+    }
+
+def _default_original_run_id(runs, replan_run) -> Optional[str]:
+    """Pick the DEFAULT "original" run to pair a replan against (Phase-5 Row 2). Among ``runs`` (a
+    ``list_run_results()`` tuple, insertion-ordered) excluding the replan itself and keeping only
+    COMPLETED runs, prefer — in order —
+
+      1. the most recent clean from-hour-0 baseline that IS the replan's counterfactual: its
+         ``checkpoint_hour is None`` AND both ``effective_plan_hash`` and ``run_config_hash`` equal the
+         replan's provenance (same starting plan + config → its frozen prefix aligns byte-for-byte);
+      2. else the most recent clean from-hour-0 run (``checkpoint_hour is None``) regardless of hashes;
+      3. else the most recent remaining COMPLETED run;
+
+    returning ``None`` when no candidate exists. "Most recent" is last in insertion order. Pure: reads
+    only ``RunResult`` status + provenance fields, no ``st``/``services``."""
+    prov = replan_run.provenance
+    candidates = [r for r in runs
+                  if r.run_id != replan_run.run_id and r.status is RunResultStatus.COMPLETED]
+    if not candidates:
+        return None
+    exact = [r for r in candidates
+             if r.provenance.checkpoint_hour is None
+             and r.provenance.effective_plan_hash == prov.effective_plan_hash
+             and r.provenance.run_config_hash == prov.run_config_hash]
+    if exact:
+        return exact[-1].run_id
+    non_replan = [r for r in candidates if r.provenance.checkpoint_hour is None]
+    if non_replan:
+        return non_replan[-1].run_id
+    return candidates[-1].run_id
 
 def _graph_layout(fig, height: int, x_title: str | None = None, x_ticks: dict | None = None,
                   x_range=None, rangeslider: bool = False) -> None:

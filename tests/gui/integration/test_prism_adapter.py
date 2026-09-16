@@ -25,6 +25,7 @@ from pathlib import Path
 
 import pytest
 
+from prismGui.app.view_data import _replan_diff
 from prismGui.domain import serialization as ser
 from prismGui.domain.hashing import hash_bytes, run_config_snapshot, scenario_snapshot
 from prismGui.domain.issues import IssueCategory, Severity
@@ -148,6 +149,44 @@ class TestPrismAdapterReplan:
         assert r.provenance.checkpoint_hour == T
         assert len(r.schedule.activities) == 15
         assert r.schedule.makespan_hours < 85.0                  # the added crews sped it up
+
+    def test_replan_residual_freezes_the_prefix_and_moves_the_tail(self, example_10_path):
+        """The GUI's ``_replan_diff`` residual, grounded against the real engine: run the from-hour-0
+        baseline and a replan at T=40 with a MECHANIC 6→12 delta under the SAME RunConfig, then diff
+        their schedules. Because the replan's initial schedule runs the same baseline-mirror plan +
+        config, every FROZEN row (start < T) is byte-identical to the baseline (``start_delta`` ==
+        ``end_delta`` == 0.0), while at least one RESCHEDULED row (start ≥ T) MOVED — the extra crews
+        reached the tail and dropped the makespan below 85 h. Confirms ``start < T`` reproduces the
+        engine's frozen set and that a matching baseline yields a true residual (not just any diff)."""
+        store = InMemorySnapshotStore()
+        rc = RunConfig(run_config_id="rc", sgs=SGSVariant.MAX_USE_RES_RANKED,
+                       priority_rule="lf", seed=42)
+        T = 40.0
+        baseline_req = _prepare(store, example_10_path, rc)
+        scenario = Scenario(
+            scenario_id="scn-res", base_plan_id="ex10", base_plan_hash="", checkpoint_hour=T,
+            resource_changes=(ResourceChange("MECHANIC", T, 12),))
+        replan_req = _prepare_replan(store, example_10_path, rc, T, scenario)
+        ex = InProcessPrismExecutor(store)
+
+        baseline = ex.get_result(ex.submit(baseline_req))
+        replan = ex.get_result(ex.submit(replan_req))
+        assert baseline.status is RunResultStatus.COMPLETED
+        assert replan.status is RunResultStatus.COMPLETED
+
+        # the pairing is a clean counterfactual: same starting plan + run config (baseline-mirror contract)
+        assert replan.provenance.effective_plan_hash == baseline.provenance.effective_plan_hash
+        assert replan.provenance.run_config_hash == baseline.provenance.run_config_hash
+
+        d = _replan_diff(baseline.schedule, replan.schedule, T)
+        frozen = [r for r in d["rows"] if r["frozen"]]
+        rescheduled = [r for r in d["rows"] if r["in_replan"] and not r["frozen"]]
+        assert frozen and rescheduled                            # a real split straddling T
+        # frozen prefix is byte-identical to the baseline (the residual isolates the tail)
+        assert all(r["start_delta"] == 0.0 and r["end_delta"] == 0.0 for r in frozen)
+        # ... and the delta actually reached the rescheduled tail
+        assert any(r["moved"] for r in rescheduled)
+        assert replan.schedule.makespan_hours < 85.0
 
 
 class TestPrismAdapterEndToEnd:

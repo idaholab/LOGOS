@@ -10,7 +10,7 @@ from prismGui.domain.run_config import PRIORITY_RULES, SGSVariant
 from prismGui.app.components import _render_issues
 from prismGui.app.edit_model import _mode_options
 from prismGui.app.scenario_model import _add_resource_change, _current_schedule_payload, _mint_scenario
-from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _chain_sets, _comparison_rows, _cpm_path_label, _dag_hover, _disposition_rows, _gantt_rows, _graph_layout, _makespan_bar_rows, _mode_sweep_variants, _multi_gantt_rows, _provenance_rows, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip, _window_preflight
+from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _chain_sets, _comparison_rows, _cpm_path_label, _dag_hover, _default_original_run_id, _disposition_rows, _gantt_rows, _graph_layout, _makespan_bar_rows, _mode_sweep_variants, _multi_gantt_rows, _provenance_rows, _replan_diff, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip, _window_preflight
 
 
 def _render_plots(result) -> None:
@@ -744,6 +744,81 @@ def _render_run_comparison(session, baseline, run_config) -> None:
     with st.expander("Aligned Gantt", expanded=False):
         _render_multi_gantt(labeled)
 
+def _render_replan_vs_original(session, baseline, result, run_config) -> None:
+    """Original-vs-replanned comparison (Phase-5 Row 2, Results **Replan vs original** segment): show
+    the selected REPLAN run beside an analyst-picked ORIGINAL run and surface the RESIDUAL — which work
+    froze at the as-of hour T, which rescheduled, and how far the tail moved. The original defaults to
+    the replan's matching from-hour-0 baseline (same effective-plan + run-config hash → its frozen
+    prefix aligns byte-for-byte, so the tail is a clean counterfactual of the deltas applied at T); the
+    analyst can pick any other completed run, with a caption calling out when the pick does not share
+    the replan's plan/config. ``result`` is guaranteed COMPLETED with a ``checkpoint_hour`` by the
+    dispatch gate. GUI-only: every number is read off the stored ``RunResult`` DTOs — no engine call, no
+    session-API change (mirrors ``_render_run_comparison``, reusing its label + chart helpers)."""
+    T = result.provenance.checkpoint_hour
+    runs = session.list_run_results()
+    candidates = [r for r in runs
+                  if r.run_id != result.run_id and r.status is RunResultStatus.COMPLETED]
+    if not candidates:
+        st.info("Run a baseline schedule first (sidebar → Run), then compare the replan against it.")
+        return
+
+    scenario_labels = _scenario_hash_labels(session.list_scenarios())
+
+    def _label(run_id):
+        r = session.get_run_result(run_id)
+        h = r.provenance.scenario_delta_hash if r is not None else None
+        scen = "Baseline" if h is None else scenario_labels.get(h, f"scenario {h[:8]}")
+        return f"{run_id} · {scen}"
+
+    ids = [r.run_id for r in candidates]
+    default_id = _default_original_run_id(runs, result)
+    default_index = ids.index(default_id) if default_id in ids else 0
+    chosen = st.selectbox(
+        "Original run", ids, index=default_index, format_func=_label,
+        key="prism_replan_vs_original")
+    original = session.get_run_result(chosen)
+    if original is None:
+        st.info("The selected original run is no longer available.")
+        return
+
+    # Comparability: the residual is a clean counterfactual only when the original shares the replan's
+    # starting plan + run config (then the frozen prefix is byte-identical, so the tail isolates T's deltas).
+    same_plan = original.provenance.effective_plan_hash == result.provenance.effective_plan_hash
+    same_config = original.provenance.run_config_hash == result.provenance.run_config_hash
+    if same_plan and same_config:
+        st.caption(f"Comparing the replan (as-of hour {T:g} h) against a matching original run — the "
+                   "frozen prefix aligns, so the tail is a clean residual of the deltas applied at T.")
+    else:
+        differ = " and ".join(
+            w for w, ok in (("plan", same_plan), ("run config", same_config)) if not ok)
+        st.warning(f"The selected original differs in {differ} from the replan, so the frozen prefix "
+                   "will not align — the per-task deltas below are not a clean counterfactual.")
+
+    # Headline metric delta (before = original, after = replan).
+    st.markdown("**Headline metrics**")
+    st.dataframe(_augmentation_delta(original, result), use_container_width=True, hide_index=True)
+
+    # The residual: per-task frozen/rescheduled split + slip.
+    d = _replan_diff(original.schedule, result.schedule, T)
+    st.markdown("**Per-task residual**")
+    st.caption(
+        f"{d['n_frozen']} frozen · {d['n_rescheduled']} rescheduled · {d['n_moved']} moved · "
+        f"{d['n_emergent']} emergent · {d['n_dropped']} dropped "
+        f"(frozen = starts before the as-of hour {T:g} h).")
+    st.dataframe(d["rows"], use_container_width=True, hide_index=True)
+
+    # Provenance for both runs (the replan side carries the "As-of hour" row).
+    for tag, r in (("original", original), ("replan", result)):
+        with st.expander(f"Provenance — {tag} run `{r.run_id}`", expanded=False):
+            st.dataframe(_provenance_rows(r.provenance), use_container_width=True, hide_index=True)
+
+    # Charts: overlaid makespan bars + an aligned Gantt (mirrors Compare runs).
+    labeled = [("Original", original), ("Replanned", result)]
+    st.markdown("**Makespan**")
+    _render_makespan_bars(labeled)
+    with st.expander("Aligned Gantt", expanded=False):
+        _render_multi_gantt(labeled)
+
 # Rendered on the REPLAN page (imported by pages/replan.py), NOT Results: augmentation is a replan
 # action — build a resource what-if from the run's bottlenecks and re-run. It physically stays here
 # beside the comparison renderers it reuses (_render_makespan_bars / _render_multi_gantt, shared with
@@ -1022,8 +1097,8 @@ def _render_results_page(session, baseline, result, run_config, run_plan=None) -
         st.info("Run a schedule (sidebar) to see results for the current schedule.")
     view = st.segmented_control(
         "View",
-        ["Plots", "Activity DAG", "Task inspector", "Chain sets", "Time windows", "Compare runs",
-         "Sweep"],
+        ["Plots", "Activity DAG", "Task inspector", "Chain sets", "Time windows",
+         "Replan vs original", "Compare runs", "Sweep"],
         default="Plots", key="prism_results_view")
     if view == "Activity DAG":
         _render_activity_graph(session, baseline, result)
@@ -1048,6 +1123,14 @@ def _render_results_page(session, baseline, result, run_config, run_plan=None) -
             st.info("The selected run did not complete — no schedule to check.")
         else:
             st.info("Run a schedule (sidebar) to pre-flight the time windows.")
+    elif view == "Replan vs original":
+        if result is not None and result.status is RunResultStatus.COMPLETED \
+                and result.provenance.checkpoint_hour is not None:
+            _render_replan_vs_original(session, baseline, result, run_config)
+        elif result is not None:
+            st.info("Select a replan run (Replan page → Run replan) to compare it against its original.")
+        else:
+            st.info("Run a replan (Replan page) to compare it against its original.")
     elif view == "Compare runs":
         _render_run_comparison(session, baseline, run_config)
     elif view == "Sweep":
