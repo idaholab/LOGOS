@@ -63,11 +63,14 @@ def _new_scenario_for(baseline) -> Scenario:
         name="session what-if",
     )
 
-def _mint_scenario(baseline, existing_ids=(), name: Optional[str] = None) -> Scenario:
+def _mint_scenario(baseline, existing_ids=(), name: Optional[str] = None,
+                   derived_from: Optional[str] = None) -> Scenario:
     """A fresh empty Scenario bound to ``baseline`` with a UNIQUE id, so several scenarios
     coexist (unlike ``_new_scenario_for``'s fixed per-baseline id, which would collide). When
     no ``name`` is given an auto label is chosen from how many already exist ("Scenario A",
-    "Scenario B", …). ``existing_ids`` guards the (vanishingly unlikely) id clash."""
+    "Scenario B", …). ``existing_ids`` guards the (vanishingly unlikely) id clash. ``derived_from``
+    is a non-semantic provenance label (the scenario_id this was branched from; None == from the
+    baseline) — see ``_clone_scenario``."""
     existing = tuple(existing_ids)
     scenario_id = f"scn-{uuid.uuid4().hex[:8]}"
     while scenario_id in existing:
@@ -80,6 +83,32 @@ def _mint_scenario(baseline, existing_ids=(), name: Optional[str] = None) -> Sce
         base_plan_id=baseline.plan_id,
         base_plan_hash=baseline.plan_hash,
         name=name,
+        derived_from=derived_from,
+    )
+
+def _clone_scenario(source: Scenario, baseline, existing_ids=(),
+                    name: Optional[str] = None) -> Scenario:
+    """Branch a NEW scenario off ``source``: a fresh scenario (unique id, bound to the CURRENT
+    ``baseline``) that copies every one of ``source``'s delta families as its starting point and
+    records ``derived_from=source.scenario_id`` for lineage. This is a SNAPSHOT, not a live link —
+    later edits to ``source`` do not propagate. The clone stays a flat overlay on the baseline (no
+    scenario-of-scenario chaining), so materialization and the identity hash are unaffected; only
+    the delta content is carried over and the lineage label set. ``name`` defaults to
+    "``<source name>`` (copy)"."""
+    default_name = f"{source.name or source.scenario_id} (copy)"
+    fresh = _mint_scenario(baseline, existing_ids=existing_ids, name=name or default_name,
+                           derived_from=source.scenario_id)
+    return replace(
+        fresh,
+        duration_overrides=source.duration_overrides,
+        resource_changes=source.resource_changes,
+        equipment_changes=source.equipment_changes,
+        location_changes=source.location_changes,
+        hold_point_release_overrides=source.hold_point_release_overrides,
+        emergent_tasks=source.emergent_tasks,
+        emergent_dependencies=source.emergent_dependencies,
+        task_suppressions=source.task_suppressions,
+        dependency_suppressions=source.dependency_suppressions,
     )
 
 def _scenario_base(scenario: Optional[Scenario], baseline) -> Scenario:
@@ -350,3 +379,65 @@ def _schedule_label(session, baseline) -> str:
     if scenario is None:
         return "Baseline"
     return f"Scenario “{scenario.name or scenario.scenario_id}”"
+
+def _cleared_overlay(scenario: Scenario) -> Scenario:
+    """The scenario with EVERY delta family emptied to None — kept as a named, empty overlay (a run
+    then uses the plain baseline). Identity/lineage (id, name, derived_from, binding) is preserved;
+    true deletion lives in the scenario manager."""
+    return replace(scenario, **{f: None for f in _DELTA_FIELDS})
+
+# --- human-readable delta formatting: the itemized change list (Replan draft) + the diff (Scenarios) ---
+
+def _window_text(from_hour, to_hour) -> str:
+    """A period-delta's window as text: open-ended 'from Xh' or bounded 'from Xh until Yh'."""
+    return (f"from {from_hour:g}h" if to_hour is None
+            else f"from {from_hour:g}h until {to_hour:g}h")
+
+# (family_label, field_name, formatter) per delta family, in materialize apply order. One place both
+# the staged-changes list and the scenario diff read, so their wording never drifts.
+_SCENARIO_FAMILY_FORMATS = (
+    ("duration", "duration_overrides",
+     lambda d: f"{d.task_id} → {d.duration_hours:g}h"),
+    ("skill", "resource_changes",
+     lambda d: f"{d.skill_type} → {d.new_count} {_window_text(d.from_hour, d.to_hour)}"),
+    ("equipment", "equipment_changes",
+     lambda d: f"{d.equipment_id} → {d.new_quantity} {_window_text(d.from_hour, d.to_hour)}"),
+    ("location", "location_changes",
+     lambda d: (f"{d.location_id} → {d.new_max_concurrent_tasks} tasks"
+                + ("" if d.new_max_concurrent_workers is None
+                   else f", {d.new_max_concurrent_workers} workers")
+                + f" {_window_text(d.from_hour, d.to_hour)}")),
+    ("hold-point release", "hold_point_release_overrides",
+     lambda d: f"{d.target_id} release @ {d.release_hour:g}h"),
+    ("added task", "emergent_tasks",
+     lambda d: f"{d.task_id} ({d.duration:g}h)"),
+    ("added dependency", "emergent_dependencies",
+     lambda d: f"{d.predecessor_id} → {d.successor_id} (lag {d.lag_hours:g}h)"),
+    ("removed task", "task_suppressions",
+     lambda d: d.task_id),
+    ("removed dependency", "dependency_suppressions",
+     lambda d: f"{d.predecessor_id} → {d.successor_id}"),
+)
+
+def _scenario_change_lines(scenario: Optional[Scenario]) -> list[tuple[str, str]]:
+    """Every staged delta as ``(family_label, detail)`` pairs across all families, in apply order —
+    the itemized "what will be committed" list the Replan editor shows, and the base the diff reads."""
+    if scenario is None:
+        return []
+    lines: list[tuple[str, str]] = []
+    for label, field, fmt in _SCENARIO_FAMILY_FORMATS:
+        for d in (getattr(scenario, field, None) or ()):
+            lines.append((label, fmt(d)))
+    return lines
+
+def _scenario_diff(a: Optional[Scenario], b: Optional[Scenario]) -> list[dict]:
+    """Row-per-delta comparison of two scenarios' overlays: the UNION of both scenarios' staged
+    deltas, each row ``{family, detail, in_a, in_b}``. A delta in both (identical) has both flags
+    True; one that differs (e.g. same task, different duration) surfaces as two rows — present on one
+    side each — the honest "what actually differs". Ordered by family (apply order) then detail.
+    Pure — compares the INPUT overlays, NOT the output schedules (that is ``_comparison_rows``)."""
+    la = set(_scenario_change_lines(a))
+    lb = set(_scenario_change_lines(b))
+    order = {label: i for i, (label, _field, _fmt) in enumerate(_SCENARIO_FAMILY_FORMATS)}
+    return [{"family": fam, "detail": detail, "in_a": (fam, detail) in la, "in_b": (fam, detail) in lb}
+            for fam, detail in sorted(la | lb, key=lambda kd: (order.get(kd[0], 99), kd[1]))]

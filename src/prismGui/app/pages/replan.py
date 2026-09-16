@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from dataclasses import replace
 
 from prismGui.app._streamlit import st
 from prismGui.domain.run_config import ModeSelection
@@ -21,37 +20,8 @@ from prismGui.app.scenario_model import (
     _remove_task_suppression, _scenario_dependency_suppression_rows, _scenario_duration_rows,
     _scenario_emergent_dependency_rows, _scenario_emergent_task_rows, _scenario_equipment_rows,
     _scenario_is_empty, _scenario_location_rows, _scenario_resource_rows,
-    _scenario_task_suppression_rows,
+    _scenario_task_suppression_rows, _cleared_overlay, _scenario_change_lines,
 )
-
-# Guided resource augmentation is a REPLAN action (auto-build a resource what-if + re-run). Its
-# renderer physically lives in the results module beside the comparison helpers it shares with
-# Compare runs / Sweep (_render_makespan_bars / _render_multi_gantt); we surface it here.
-from prismGui.app.pages.results import _render_run_augmentation
-
-
-# Per-family delta labels for the "Active scenario" summary caption. Grows as new what-if families
-# are added (mirrors scenario_model._DELTA_FIELDS / view_data._OVERLAY_FIELDS).
-_FAMILY_LABELS = (
-    ("duration_overrides", "duration override"),
-    ("resource_changes", "skill change"),
-    ("equipment_changes", "equipment change"),
-    ("location_changes", "location change"),
-    ("emergent_tasks", "added task"),
-    ("emergent_dependencies", "added dependency"),
-    ("task_suppressions", "removed task"),
-    ("dependency_suppressions", "removed dependency"),
-)
-
-
-def _scenario_summary(scenario) -> str:
-    """One-line count of the scenario's staged deltas across every family (for the panel caption)."""
-    parts = []
-    for field, label in _FAMILY_LABELS:
-        n = len(getattr(scenario, field, None) or ())
-        if n:
-            parts.append(f"{n} {label}{'s' if n != 1 else ''}")
-    return "Active scenario: " + (", ".join(parts) if parts else "no deltas") + "."
 
 
 def _window_inputs(key_prefix: str):
@@ -84,19 +54,38 @@ def _location_period_caption(p) -> str:
     return base if mw is None else base + f", {mw} workers"
 
 
-def _apply_scenario(session, new_scenario: Scenario, *, success_msg: str) -> None:
-    """Update the CURRENT scenario overlay in place (add-or-update by id). The panel only
-    authors when a scenario is the current schedule, so ``new_scenario`` keeps that id and the
-    current-schedule pointer never moves (moving it would fight the keyed sidebar selector). A
-    scenario is NOT a baseline edit: no draft, commit, or validator pass here — the domain
-    re-validates the EFFECTIVE plan at Run time. An emptied overlay is kept as a named, empty
-    scenario (the run then uses the plain baseline); true deletion lives in the scenario
-    manager, not here."""
-    session.add_scenario(new_scenario)
+# --- draft model -------------------------------------------------------------
+# The manual panel edits a DRAFT of the current scenario, not the stored scenario: every add/remove
+# stages into ``st.session_state[_SCN_DRAFTS][scenario_id]``, and only **Save** commits the draft to
+# the session (``add_scenario``). So an in-progress edit never affects a Run until saved, **Discard**
+# reverts to the stored overlay, and switching scenarios keeps each one's own in-progress draft.
+_SCN_DRAFTS = "prism_scn_drafts"
+
+def _draft_store() -> dict:
+    """The per-scenario draft map held on session_state ({scenario_id: draft Scenario})."""
+    return st.session_state.setdefault(_SCN_DRAFTS, {})
+
+def _current_draft(session, cur_id: str) -> Scenario:
+    """The editing draft for ``cur_id``, seeded from the stored scenario on first touch (or when the
+    stored id changed under the same slot). Always returns a Scenario bound to the current schedule."""
+    drafts = _draft_store()
+    draft = drafts.get(cur_id)
+    if draft is None or draft.scenario_id != cur_id:
+        draft = session.get_scenario()
+        drafts[cur_id] = draft
+    return draft
+
+def _stage(session, new_scenario: Scenario, *, success_msg: str) -> Scenario:
+    """Stage an edited overlay into the current scenario's DRAFT (does NOT persist to the session —
+    Save commits it) and return it, so the caller re-reads the draft within the same rerun. Shows a
+    toast; the panel writes the final draft to the store after all tabs. (``session`` is unused but
+    kept so all 16 tab call sites stay uniform.)"""
+    _draft_store()[new_scenario.scenario_id] = new_scenario
     if _scenario_is_empty(new_scenario):
-        st.info("Scenario is now empty — the run will use the plain baseline.")
+        st.info("Draft is now empty — saving would make the run use the plain baseline.")
     else:
         st.success(success_msg)
+    return new_scenario
 
 def _render_duration_tab(session, baseline, scenario, raw_tree) -> Scenario:
     """Task duration override tab. Returns the (possibly updated) scenario so the caller re-reads
@@ -113,19 +102,17 @@ def _render_duration_tab(session, baseline, scenario, raw_tree) -> Scenario:
                               value=float(_as_float(chosen_t["duration"], 1.0)),
                               step=1.0, key="prism_scn_dur_hours")
         if st.button("Add duration override", key="prism_scn_dur_add"):
-            _apply_scenario(
+            scenario = _stage(
                 session, _add_duration_override(scenario, baseline, chosen_t["task_id"], dur),
                 success_msg=f"Scenario: {chosen_t['task_id']} duration → {dur:g}h.")
-            scenario = session.get_scenario()
 
     for row in _scenario_duration_rows(scenario):
         c1, c2 = st.columns([4, 1])
         c1.caption(f"• {row['task_id']} → {row['duration_hours']:g}h")
         if c2.button("Remove", key=f"prism_scn_dur_rm_{row['task_id']}"):
-            _apply_scenario(
+            scenario = _stage(
                 session, _remove_duration_override(scenario, baseline, row["task_id"]),
                 success_msg=f"Removed duration override for {row['task_id']}.")
-            scenario = session.get_scenario()
     return scenario
 
 
@@ -152,13 +139,12 @@ def _render_skills_tab(session, baseline, scenario, raw_tree) -> Scenario:
                                     key="prism_scn_res_count")
         if _is_whatif(intent):
             if st.button("Add resource what-if", key="prism_scn_res_add"):
-                _apply_scenario(
+                scenario = _stage(
                     session,
                     _add_resource_change(scenario, baseline, chosen_r["skill_type"],
                                          from_hour, new_count, to_hour=to_hour),
                     success_msg=(f"Scenario: {chosen_r['skill_type']} → {int(new_count)} "
                                  f"{_window_label(from_hour, to_hour)}."))
-                scenario = session.get_scenario()
         else:
             st.info(
                 "A roster **correction** is a baseline change, not a what-if. Make it in the "
@@ -171,10 +157,9 @@ def _render_skills_tab(session, baseline, scenario, raw_tree) -> Scenario:
         c1.caption(f"• {row['skill_type']} → {row['new_count']} "
                    f"{_window_label(row['from_hour'], row['to_hour'])}")
         if c2.button("Remove", key=f"prism_scn_res_rm_{row['index']}"):
-            _apply_scenario(
+            scenario = _stage(
                 session, _remove_resource_change(scenario, baseline, row["index"]),
                 success_msg=f"Removed resource change for {row['skill_type']}.")
-            scenario = session.get_scenario()
     return scenario
 
 
@@ -200,23 +185,21 @@ def _render_equipment_tab(session, baseline, scenario, raw_tree) -> Scenario:
         new_qty = st.number_input("New quantity available", min_value=0, value=0, step=1,
                                   key="prism_scn_eqp_qty")
         if st.button("Add equipment what-if", key="prism_scn_eqp_add"):
-            _apply_scenario(
+            scenario = _stage(
                 session,
                 _add_equipment_change(scenario, baseline, chosen_e["equipment_id"],
                                       from_hour, new_qty, to_hour=to_hour),
                 success_msg=(f"Scenario: {chosen_e['equipment_id']} → {int(new_qty)} "
                              f"{_window_label(from_hour, to_hour)}."))
-            scenario = session.get_scenario()
 
     for row in _scenario_equipment_rows(scenario):
         c1, c2 = st.columns([4, 1])
         c1.caption(f"• {row['equipment_id']} → {row['new_quantity']} "
                    f"{_window_label(row['from_hour'], row['to_hour'])}")
         if c2.button("Remove", key=f"prism_scn_eqp_rm_{row['index']}"):
-            _apply_scenario(
+            scenario = _stage(
                 session, _remove_equipment_change(scenario, baseline, row["index"]),
                 success_msg=f"Removed equipment change for {row['equipment_id']}.")
-            scenario = session.get_scenario()
     return scenario
 
 
@@ -248,7 +231,7 @@ def _render_locations_tab(session, baseline, scenario, raw_tree) -> Scenario:
             new_workers = st.number_input("New max concurrent workers", min_value=0, value=0,
                                           step=1, key="prism_scn_loc_workers")
         if st.button("Add location what-if", key="prism_scn_loc_add"):
-            _apply_scenario(
+            scenario = _stage(
                 session,
                 _add_location_change(scenario, baseline, chosen_l["location_id"], from_hour,
                                      new_tasks, to_hour=to_hour,
@@ -256,7 +239,6 @@ def _render_locations_tab(session, baseline, scenario, raw_tree) -> Scenario:
                 success_msg=(f"Scenario: {chosen_l['location_id']} tasks → {int(new_tasks)}"
                              + ("" if new_workers is None else f", workers → {int(new_workers)}")
                              + f" {_window_label(from_hour, to_hour)}."))
-            scenario = session.get_scenario()
 
     for row in _scenario_location_rows(scenario):
         c1, c2 = st.columns([4, 1])
@@ -265,10 +247,9 @@ def _render_locations_tab(session, baseline, scenario, raw_tree) -> Scenario:
         c1.caption(f"• {row['location_id']} tasks → {row['new_max_concurrent_tasks']}{wtxt} "
                    f"{_window_label(row['from_hour'], row['to_hour'])}")
         if c2.button("Remove", key=f"prism_scn_loc_rm_{row['index']}"):
-            _apply_scenario(
+            scenario = _stage(
                 session, _remove_location_change(scenario, baseline, row["index"]),
                 success_msg=f"Removed location change for {row['location_id']}.")
-            scenario = session.get_scenario()
     return scenario
 
 
@@ -313,13 +294,12 @@ def _render_emergent_task_section(session, baseline, scenario, raw_tree) -> Scen
     if collision:
         st.warning(f"Task id “{new_id}” already exists — choose a new id.")
     if st.button("Add task", key="prism_scn_act_task_add", disabled=(not new_id or collision)):
-        _apply_scenario(
+        scenario = _stage(
             session,
             _add_emergent_task(scenario, baseline, new_id, dur, description=desc or None,
                                location_id=location_id, required_resources=req_resources,
                                required_equipment=req_equipment),
             success_msg=f"Scenario: added task {new_id} ({dur:g}h).")
-        scenario = session.get_scenario()
 
     for row in _scenario_emergent_task_rows(scenario):
         c1, c2 = st.columns([4, 1])
@@ -327,10 +307,9 @@ def _render_emergent_task_section(session, baseline, scenario, raw_tree) -> Scen
                        for r in row["required_resources"]) or "no skills"
         c1.caption(f"• {row['task_id']} ({row['duration']:g}h) — {rr}")
         if c2.button("Remove", key=f"prism_scn_act_task_rm_{row['task_id']}"):
-            _apply_scenario(
+            scenario = _stage(
                 session, _remove_emergent_task(scenario, baseline, row["task_id"]),
                 success_msg=f"Removed added task {row['task_id']}.")
-            scenario = session.get_scenario()
     return scenario
 
 
@@ -350,10 +329,9 @@ def _render_emergent_dependency_section(session, baseline, scenario) -> Scenario
         lag = c3.number_input("Lag (h)", min_value=0.0, value=0.0, step=1.0,
                               key="prism_scn_act_dep_lag")
         if st.button("Add dependency", key="prism_scn_act_dep_add", disabled=(pred == succ)):
-            _apply_scenario(
+            scenario = _stage(
                 session, _add_emergent_dependency(scenario, baseline, pred, succ, lag_hours=lag),
                 success_msg=f"Scenario: added dependency {pred} → {succ}.")
-            scenario = session.get_scenario()
         if pred == succ:
             st.caption("Predecessor and successor must differ.")
 
@@ -362,11 +340,10 @@ def _render_emergent_dependency_section(session, baseline, scenario) -> Scenario
         lag_txt = "" if not row["lag_hours"] else f" (lag {row['lag_hours']:g}h)"
         c1.caption(f"• {row['predecessor_id']} → {row['successor_id']}{lag_txt}")
         if c2.button("Remove", key=f"prism_scn_act_dep_rm_{row['index']}"):
-            _apply_scenario(
+            scenario = _stage(
                 session, _remove_emergent_dependency(scenario, baseline, row["index"]),
                 success_msg=(f"Removed added dependency {row['predecessor_id']} → "
                              f"{row['successor_id']}."))
-            scenario = session.get_scenario()
     return scenario
 
 
@@ -383,19 +360,17 @@ def _render_task_suppression_section(session, baseline, scenario) -> Scenario:
     else:
         pick = st.selectbox("Task to remove", ids, key="prism_scn_act_sup_task")
         if st.button("Remove task", key="prism_scn_act_sup_task_add"):
-            _apply_scenario(
+            scenario = _stage(
                 session, _add_task_suppression(scenario, baseline, pick),
                 success_msg=f"Scenario: task {pick} removed.")
-            scenario = session.get_scenario()
 
     for row in _scenario_task_suppression_rows(scenario):
         c1, c2 = st.columns([4, 1])
         c1.caption(f"• {row['task_id']} — removed")
         if c2.button("Undo", key=f"prism_scn_act_sup_task_rm_{row['task_id']}"):
-            _apply_scenario(
+            scenario = _stage(
                 session, _remove_task_suppression(scenario, baseline, row["task_id"]),
                 success_msg=f"Restored task {row['task_id']}.")
-            scenario = session.get_scenario()
     return scenario
 
 
@@ -413,23 +388,21 @@ def _render_dependency_suppression_section(session, baseline, scenario) -> Scena
                             format_func=lambda k: labels[k], key="prism_scn_act_sup_dep")
         chosen = edges[pick]
         if st.button("Remove dependency", key="prism_scn_act_sup_dep_add"):
-            _apply_scenario(
+            scenario = _stage(
                 session,
                 _add_dependency_suppression(scenario, baseline, chosen["predecessor"],
                                             chosen["successor"]),
                 success_msg=(f"Scenario: dependency {chosen['predecessor']} → "
                              f"{chosen['successor']} removed."))
-            scenario = session.get_scenario()
 
     for row in _scenario_dependency_suppression_rows(scenario):
         c1, c2 = st.columns([4, 1])
         c1.caption(f"• {row['predecessor_id']} → {row['successor_id']} — removed")
         if c2.button("Undo", key=f"prism_scn_act_sup_dep_rm_{row['index']}"):
-            _apply_scenario(
+            scenario = _stage(
                 session, _remove_dependency_suppression(scenario, baseline, row["index"]),
                 success_msg=(f"Restored dependency {row['predecessor_id']} → "
                              f"{row['successor_id']}."))
-            scenario = session.get_scenario()
     return scenario
 
 
@@ -449,48 +422,64 @@ def _render_activities_tab(session, baseline, scenario, raw_tree) -> Scenario:
 
 
 def _render_scenario_panel(session, baseline) -> None:
-    """Author a what-if scenario over the CURRENT session baseline. Deltas span several families —
-    task duration overrides; availability what-ifs for every time-dependent resource type
-    (skills, equipment, locations), each with an optional bounded ``[from, until)`` window; and
-    activity what-ifs (add emergent tasks & dependencies, remove tasks & dependencies). A
-    *what-if* becomes a Scenario overlay (materialized into the effective plan at Run time and
-    tracked by provenance freshness); a *baseline correction* is redirected to the Plan editor,
-    never authored here (the domain never guesses intent). Families live on separate tabs
-    (Streamlit forbids nested expanders). Empty scenario == plain baseline."""
-    with st.expander("What-if scenario (optional)", expanded=False):
-        scenario = session.get_scenario()
-        raw_tree = json.loads(baseline.raw_snapshot)["payload"]
+    """Author the CURRENT scenario's overlay as a DRAFT. Every add/remove stages into the scenario's
+    draft (``_stage`` → ``_draft_store``); the footer commits or reverts it: **Save** writes the
+    draft to the session (``add_scenario``), **Discard** reverts to the stored overlay, **Clear all**
+    empties the draft. So an in-progress edit never affects a Run until it is saved, and each scenario
+    keeps its own draft across selection changes. Deltas span several families — task duration
+    overrides; availability what-ifs for every time-dependent resource type (skills, equipment,
+    locations), each with an optional bounded ``[from, until)`` window; and activity what-ifs (add
+    emergent tasks & dependencies, remove tasks & dependencies). A *what-if* becomes a Scenario
+    overlay (materialized into the effective plan at Run time); a *baseline correction* is redirected
+    to the Plan editor, never authored here. Families live on separate tabs. Empty scenario == plain
+    baseline."""
+    cur_id = session.get_current_scenario_id()
+    stored = session.get_scenario()
+    raw_tree = json.loads(baseline.raw_snapshot)["payload"]
 
-        if not _scenario_is_empty(scenario) and scenario.base_plan_hash == baseline.plan_hash:
-            st.caption(_scenario_summary(scenario))
-        else:
-            st.caption("No scenario — the run uses the baseline as-is.")
+    st.markdown(f"**Editing scenario “{stored.name or cur_id}”**")
+    st.caption("Edits below are staged as a draft — click **Save** to commit them to this scenario. "
+               "Unsaved edits do NOT affect a Run.")
 
-        tab_dur, tab_skill, tab_equip, tab_loc, tab_act = st.tabs(
-            ["Task duration", "Skills", "Equipment", "Locations", "Activities"])
-        with tab_dur:
-            scenario = _render_duration_tab(session, baseline, scenario, raw_tree)
-        with tab_skill:
-            scenario = _render_skills_tab(session, baseline, scenario, raw_tree)
-        with tab_equip:
-            scenario = _render_equipment_tab(session, baseline, scenario, raw_tree)
-        with tab_loc:
-            scenario = _render_locations_tab(session, baseline, scenario, raw_tree)
-        with tab_act:
-            scenario = _render_activities_tab(session, baseline, scenario, raw_tree)
+    scenario = _current_draft(session, cur_id)
+    tab_dur, tab_skill, tab_equip, tab_loc, tab_act = st.tabs(
+        ["Task duration", "Skills", "Equipment", "Locations", "Activities"])
+    with tab_dur:
+        scenario = _render_duration_tab(session, baseline, scenario, raw_tree)
+    with tab_skill:
+        scenario = _render_skills_tab(session, baseline, scenario, raw_tree)
+    with tab_equip:
+        scenario = _render_equipment_tab(session, baseline, scenario, raw_tree)
+    with tab_loc:
+        scenario = _render_locations_tab(session, baseline, scenario, raw_tree)
+    with tab_act:
+        scenario = _render_activities_tab(session, baseline, scenario, raw_tree)
 
-        # --- reset overlay (keep the named scenario; empty its deltas) --------
-        if not _scenario_is_empty(scenario):
-            if st.button("Reset overlay", key="prism_scn_reset"):
-                session.add_scenario(replace(
-                    scenario, duration_overrides=None, resource_changes=None,
-                    equipment_changes=None, location_changes=None,
-                    hold_point_release_overrides=None,
-                    emergent_tasks=None, emergent_dependencies=None,
-                    task_suppressions=None, dependency_suppressions=None))
-                st.success("Overlay reset — this scenario is now empty (the run uses the plain "
-                           "baseline). Delete it in **Scenarios** to remove it entirely.")
-                st.rerun()
+    _draft_store()[cur_id] = scenario          # persist this rerun's edits back to the draft
+
+    # --- staged changes + Save / Discard / Clear -------------------------------
+    st.divider()
+    lines = _scenario_change_lines(scenario)
+    dirty = scenario != stored                 # frozen-dataclass equality: draft vs committed
+    if lines:
+        st.markdown("**Staged changes** — " + ("_unsaved_" if dirty else "_saved_"))
+        for family, detail in lines:
+            st.caption(f"• [{family}] {detail}")
+    else:
+        st.caption("No deltas staged — this scenario is empty (a Run would use the plain baseline).")
+
+    c1, c2, c3 = st.columns(3)
+    if c1.button("💾 Save to scenario", key="prism_scn_save", type="primary", disabled=not dirty):
+        session.add_scenario(scenario)
+        st.success(f"Saved to scenario “{stored.name or cur_id}”.")
+        st.rerun()
+    if c2.button("↩ Discard edits", key="prism_scn_discard", disabled=not dirty):
+        _draft_store()[cur_id] = stored
+        st.rerun()
+    if c3.button("🗑 Clear all deltas", key="prism_scn_clear",
+                 disabled=_scenario_is_empty(scenario)):
+        _draft_store()[cur_id] = _cleared_overlay(scenario)
+        st.rerun()
 
 def _render_mode_picker(session, baseline) -> None:
     """Pick an execution MODE per multi-mode task in the current schedule. The picks are held on
@@ -519,24 +508,12 @@ def _render_mode_picker(session, baseline) -> None:
             selections.append(ModeSelection(task_id=row["task_id"], mode_name=pick))
         session.set_mode_selections(tuple(selections))
 
-def _render_replan(session, baseline, result=None, run_config=None, run_plan=None) -> None:
-    """Replan page: two ways to change the plan and re-run.
-
-    (1) **Guided resource augmentation** — auto-build a resource what-if from the SELECTED run's
-    bottleneck ranking and verify it by cloning the baseline and re-running both sides. It is
-    baseline-relative (needs a completed run, NOT a selected scenario), so it renders ABOVE the
-    scenario guard and is always available once a run exists.
-
-    (2) **Manual scenario** — author the SELECTED scenario's overlay (task-duration overrides +
-    resource what-ifs) and its execution modes. Requires a scenario picked in the sidebar (or
-    created on **Scenarios**); empty-state otherwise. Re-run from the sidebar either way.
-
-    ``result`` / ``run_config`` / ``run_plan`` default to None so a bare ``_render_replan(session,
-    baseline)`` still renders the manual half (augmentation then shows its own unwired notice)."""
-    st.subheader("Guided resource augmentation")
-    _render_run_augmentation(session, baseline, result, run_config, run_plan)
-
-    st.divider()
+def _render_replan(session, baseline) -> None:
+    """Replan page: author the SELECTED scenario's overlay (task-duration overrides, resource /
+    equipment / location what-ifs, activity add/remove) as a draft, plus its execution modes.
+    Requires a scenario picked in the sidebar (or created on **Scenarios**); empty-state otherwise.
+    Re-run from the sidebar. (Guided resource augmentation was unwired here — its builders and
+    ``_render_run_augmentation`` remain in the results module, unused by the app.)"""
     st.subheader("Manual scenario")
     if session.get_current_scenario_id() is None:
         st.info("Select a scenario in the sidebar, or create one on the **Scenarios** page, to "

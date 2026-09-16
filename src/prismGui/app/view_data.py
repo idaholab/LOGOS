@@ -478,24 +478,29 @@ def _overlay_count(scenario: Scenario) -> int:
 
 def _relation_graph_data(baseline, scenarios, current_id: Optional[str]) -> dict:
     """Nodes + edges + positions for the baseline → scenarios relation graph: one central
-    baseline node and one node per scenario on a circle around it, an edge baseline→scenario
-    each. ``current_id`` (the current-schedule pointer; None == the baseline) flags exactly
-    one node ``is_current``. Pure — positions are a manual star, no layout library."""
+    baseline node and one node per scenario on a circle around it. Each scenario's edge points
+    to its LINEAGE parent — the scenario it was branched from (``derived_from``) when that parent
+    is still present, else the baseline (a root scenario, or an orphan whose parent was deleted, so
+    no node ever floats disconnected). ``current_id`` (the current-schedule pointer; None == the
+    baseline) flags exactly one node ``is_current``. Pure — positions are a manual star, no layout
+    library."""
     nodes = [{
         "id": _BASELINE_NODE_ID, "kind": "baseline", "label": baseline.plan_id,
         "is_current": current_id is None, "overlay_count": None, "x": 0.0, "y": 0.0,
     }]
     edges: list[tuple[str, str]] = []
     scenarios = tuple(scenarios)
+    present = {s.scenario_id for s in scenarios}
     n = len(scenarios)
     for k, s in enumerate(scenarios):
         angle = 2.0 * math.pi * k / n if n else 0.0
+        parent = s.derived_from if s.derived_from in present else None
         nodes.append({
             "id": s.scenario_id, "kind": "scenario", "label": s.name or s.scenario_id,
             "is_current": s.scenario_id == current_id, "overlay_count": _overlay_count(s),
-            "x": math.cos(angle), "y": math.sin(angle),
+            "derived_from": parent, "x": math.cos(angle), "y": math.sin(angle),
         })
-        edges.append((_BASELINE_NODE_ID, s.scenario_id))
+        edges.append((parent if parent is not None else _BASELINE_NODE_ID, s.scenario_id))
     return {"nodes": nodes, "edges": edges}
 
 def _activity_graph_data(raw_tree) -> dict:

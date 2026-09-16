@@ -85,6 +85,10 @@ class Scenario:
     base_plan_id: str
     base_plan_hash: Hash
     name: Optional[str] = None
+    derived_from: Optional[str] = None               # scenario_id this was cloned from (None == branched from the
+                                                     # baseline). A provenance/display label ONLY: excluded from the
+                                                     # identity hash (like scenario_id / name — see hashing.scenario_payload)
+                                                     # and ignored by materialization (a clone is a flat baseline overlay).
     checkpoint_hour: Optional[Hours] = None          # Phase 5; reserved
     duration_overrides: Optional[tuple[DurationOverride, ...]] = None
     resource_changes: Optional[tuple[ResourceChange, ...]] = None

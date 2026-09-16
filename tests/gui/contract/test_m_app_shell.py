@@ -18,6 +18,7 @@ adapter_integration backstop in ``tests/gui/integration/test_app_wiring.py``.
 from __future__ import annotations
 
 import csv
+import dataclasses
 import io
 import json
 from datetime import datetime, timezone
@@ -43,8 +44,8 @@ from prismGui.domain.results import (
 from prismGui.domain.disposition import ScheduleSummary, compute_disposition
 from prismGui.domain.hashing import hash_scenario
 from prismGui.domain.scenario import (
-    DependencySuppression, DurationOverride, EquipmentChange, LocationChange, ResourceChange,
-    Scenario, TaskSuppression,
+    DependencySuppression, DurationOverride, EquipmentChange, HoldPointReleaseOverride,
+    LocationChange, ResourceChange, Scenario, TaskSuppression,
 )
 from prismGui.domain.plan import Dependency, Task
 from prismGui.domain.versions import APP_VERSION, CANON_VERSION, SCHEMA_VERSION
@@ -1456,6 +1457,58 @@ class TestStageBScheduleHelpers:
         scn = app_main._mint_scenario(baseline, existing_ids=taken)
         assert scn.scenario_id not in taken
 
+    def test_mint_scenario_derived_from_defaults_none_and_is_settable(self, baseline):
+        """The lineage label is None by default (a scenario minted off the baseline is a root)
+        and is carried through when supplied."""
+        assert app_main._mint_scenario(baseline).derived_from is None
+        assert (app_main._mint_scenario(baseline, derived_from="scn-parent").derived_from
+                == "scn-parent")
+
+    def _source_with_every_delta(self, baseline) -> Scenario:
+        """A scenario carrying a delta in every family (values need not be materialize-valid —
+        cloning only copies the tuples), bound to ``baseline`` so a clone re-binds consistently."""
+        return Scenario(
+            scenario_id="scn-src", base_plan_id=baseline.plan_id,
+            base_plan_hash=baseline.plan_hash, name="Src",
+            duration_overrides=(DurationOverride("A", 7.0),),
+            resource_changes=(ResourceChange("MECH", 24.0, 2),),
+            equipment_changes=(EquipmentChange("CRANE", 24.0, 0),),
+            location_changes=(LocationChange("BAY1", 24.0, 1),),
+            hold_point_release_overrides=(HoldPointReleaseOverride("A", 12.0),),
+            emergent_tasks=(Task(task_id="NEW", duration=3.0),),
+            emergent_dependencies=(Dependency("A", "NEW"),),
+            task_suppressions=(TaskSuppression("B"),),
+            dependency_suppressions=(DependencySuppression("A", "B"),),
+        )
+
+    def test_clone_scenario_copies_every_delta_family_and_sets_lineage(self, baseline):
+        """Branching off a source yields a NEW scenario (unique id, bound to THIS baseline) that
+        copies ALL of the source's staged delta families verbatim and records
+        ``derived_from == source.scenario_id`` — a snapshot, not a live link."""
+        source = self._source_with_every_delta(baseline)
+        clone = app_main._clone_scenario(source, baseline, existing_ids=(source.scenario_id,))
+
+        assert clone.scenario_id != source.scenario_id
+        assert clone.scenario_id.startswith("scn-")
+        assert clone.base_plan_id == baseline.plan_id
+        assert clone.base_plan_hash == baseline.plan_hash
+        assert clone.derived_from == source.scenario_id
+        assert clone.name == "Src (copy)"
+        for f in (
+            "duration_overrides", "resource_changes", "equipment_changes", "location_changes",
+            "hold_point_release_overrides", "emergent_tasks", "emergent_dependencies",
+            "task_suppressions", "dependency_suppressions",
+        ):
+            assert getattr(clone, f) == getattr(source, f), f
+        assert app_main._scenario_is_empty(clone) is False   # it carries the copied deltas
+
+    def test_clone_scenario_honours_an_explicit_name(self, baseline):
+        """A caller-supplied name wins over the "<source> (copy)" default; lineage still set."""
+        source = self._source_with_every_delta(baseline)
+        clone = app_main._clone_scenario(source, baseline, name="Winter branch")
+        assert clone.name == "Winter branch"
+        assert clone.derived_from == source.scenario_id
+
     def test_current_schedule_payload_none_is_the_plain_baseline(self, baseline):
         """No current scenario (Baseline is current) → the plain baseline payload, no warning."""
         payload, warning = app_main._current_schedule_payload(baseline, None)
@@ -1484,6 +1537,93 @@ class TestStageBScheduleHelpers:
         assert warning is not None                # a human-readable fallback notice
         durations = {t["task_id"]: t["duration"] for t in payload["tasks"]}
         assert durations["B"] == 6                # the stale 99.0 override never leaked in
+
+
+class TestScenarioChangeLinesAndDiff:
+    """The streamlit-free helpers behind the Replan draft's itemized "staged changes" list and the
+    Scenarios page's overlay diff: ``_scenario_change_lines`` (every delta as a (family, detail)
+    pair, apply order) and ``_scenario_diff`` (row-per-delta union with per-side flags), plus
+    ``_cleared_overlay`` (empty every family, keep identity). All compare INPUT overlays, not run
+    outputs. Built off the `baseline` fixture (tasks A dur 4, B dur 6; one MECH pool). No ``st.*``."""
+
+    def _every_family(self, baseline) -> Scenario:
+        """A scenario carrying one delta in each family (values need not be materialize-valid — the
+        formatters only read fields), bound to ``baseline``."""
+        return Scenario(
+            scenario_id="scn-src", base_plan_id=baseline.plan_id,
+            base_plan_hash=baseline.plan_hash, name="Src",
+            duration_overrides=(DurationOverride("A", 7.0),),
+            resource_changes=(ResourceChange("MECH", 24.0, 2),),
+            equipment_changes=(EquipmentChange("CRANE", 24.0, 0),),
+            location_changes=(LocationChange("BAY1", 24.0, 1),),
+            hold_point_release_overrides=(HoldPointReleaseOverride("A", 12.0),),
+            emergent_tasks=(Task(task_id="NEW", duration=3.0),),
+            emergent_dependencies=(Dependency("A", "NEW", 0.0),),
+            task_suppressions=(TaskSuppression("B"),),
+            dependency_suppressions=(DependencySuppression("A", "B"),))
+
+    def test_change_lines_empty_scenario_is_empty_list(self, baseline):
+        """No scenario / an empty overlay stages nothing — an empty change list, never a crash."""
+        assert app_main._scenario_change_lines(None) == []
+        assert app_main._scenario_change_lines(app_main._mint_scenario(baseline)) == []
+
+    def test_change_lines_one_row_per_delta_in_apply_order(self, baseline):
+        """Every staged delta becomes one ``(family_label, detail)`` pair across all nine families,
+        ordered as materialize applies them (durations → skills → … → dependency suppressions)."""
+        lines = app_main._scenario_change_lines(self._every_family(baseline))
+        assert [fam for fam, _detail in lines] == [
+            "duration", "skill", "equipment", "location", "hold-point release",
+            "added task", "added dependency", "removed task", "removed dependency"]
+        detail = dict(lines)
+        assert detail["duration"] == "A → 7h"
+        assert detail["removed task"] == "B"
+        assert detail["removed dependency"] == "A → B"
+        assert detail["added task"] == "NEW (3h)"
+
+    def test_change_lines_count_two_of_a_family(self, baseline):
+        """Two deltas in one family yield two rows (no collapsing)."""
+        scn = Scenario(
+            scenario_id="scn-2", base_plan_id=baseline.plan_id, base_plan_hash=baseline.plan_hash,
+            duration_overrides=(DurationOverride("A", 7.0), DurationOverride("B", 9.0)))
+        lines = app_main._scenario_change_lines(scn)
+        assert [d for _f, d in lines] == ["A → 7h", "B → 9h"]
+
+    def test_diff_identical_overlays_have_no_one_sided_rows(self, baseline):
+        """Two scenarios staging the same deltas: every row is present on BOTH sides (no diff)."""
+        a = self._every_family(baseline)
+        b = dataclasses.replace(a, scenario_id="scn-b", name="B")   # same deltas, different identity
+        rows = app_main._scenario_diff(a, b)
+        assert rows and all(r["in_a"] and r["in_b"] for r in rows)
+
+    def test_diff_same_target_different_value_is_two_one_sided_rows(self, baseline):
+        """A delta that differs only in value (A→7h vs A→9h) is the honest "what differs": two rows,
+        each present on one side only — never a single merged row that hides the change."""
+        a = Scenario(scenario_id="scn-a", base_plan_id=baseline.plan_id,
+                     base_plan_hash=baseline.plan_hash,
+                     duration_overrides=(DurationOverride("A", 7.0),))
+        b = dataclasses.replace(a, scenario_id="scn-b",
+                                duration_overrides=(DurationOverride("A", 9.0),))
+        rows = app_main._scenario_diff(a, b)
+        assert {(r["detail"], r["in_a"], r["in_b"]) for r in rows} == {
+            ("A → 7h", True, False), ("A → 9h", False, True)}
+
+    def test_diff_against_empty_lists_all_of_one_sides_deltas(self, baseline):
+        """Diffing a scenario against an empty overlay (or None) lists all of its deltas as in_a
+        only — the "everything this scenario adds over the baseline" view."""
+        a = self._every_family(baseline)
+        rows = app_main._scenario_diff(a, None)
+        assert len(rows) == 9
+        assert all(r["in_a"] and not r["in_b"] for r in rows)
+
+    def test_cleared_overlay_empties_every_family_but_keeps_identity(self, baseline):
+        """``_cleared_overlay`` blanks all nine delta families (→ an empty overlay) while preserving
+        identity/lineage (id, name, derived_from, base binding) — the Replan "Clear all" action."""
+        src = dataclasses.replace(self._every_family(baseline), derived_from="scn-parent")
+        cleared = app_main._cleared_overlay(src)
+        assert app_main._scenario_is_empty(cleared) is True
+        assert (cleared.scenario_id, cleared.name, cleared.derived_from,
+                cleared.base_plan_hash) == (src.scenario_id, src.name, "scn-parent",
+                                            src.base_plan_hash)
 
 
 class TestRelationGraphData:
@@ -1519,6 +1659,33 @@ class TestRelationGraphData:
         assert by_id[app_main._BASELINE_NODE_ID]["is_current"] is False
         assert by_id[a.scenario_id]["overlay_count"] == 0
         assert by_id[b.scenario_id]["overlay_count"] == 1
+
+    def test_derived_scenario_edges_to_its_parent_not_the_baseline(self, baseline):
+        """A scenario branched from another (``derived_from`` set to a PRESENT scenario) draws its
+        edge to that parent, not the baseline; the parent stays a root off the baseline. This is
+        the lineage tree baseline → A → A'."""
+        a = app_main._mint_scenario(baseline, name="A")
+        child = app_main._clone_scenario(a, baseline, existing_ids=(a.scenario_id,))
+        data = app_main._relation_graph_data(baseline, (a, child), None)
+
+        edges = set(data["edges"])
+        assert (app_main._BASELINE_NODE_ID, a.scenario_id) in edges       # A is a root off baseline
+        assert (a.scenario_id, child.scenario_id) in edges                # child hangs off A
+        assert (app_main._BASELINE_NODE_ID, child.scenario_id) not in edges
+
+        by_id = {n["id"]: n for n in data["nodes"]}
+        assert by_id[a.scenario_id]["derived_from"] is None
+        assert by_id[child.scenario_id]["derived_from"] == a.scenario_id
+
+    def test_orphaned_lineage_falls_back_to_the_baseline(self, baseline):
+        """A ``derived_from`` pointing at a scenario NOT in the set (e.g. the parent was deleted)
+        falls the edge back to the baseline so the node never floats disconnected, and the node's
+        exposed ``derived_from`` is cleared to None."""
+        orphan = app_main._mint_scenario(baseline, name="Orphan", derived_from="scn-ghost")
+        data = app_main._relation_graph_data(baseline, (orphan,), None)
+        assert data["edges"] == [(app_main._BASELINE_NODE_ID, orphan.scenario_id)]
+        by_id = {n["id"]: n for n in data["nodes"]}
+        assert by_id[orphan.scenario_id]["derived_from"] is None
 
 
 class TestActivityGraphData:

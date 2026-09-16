@@ -113,6 +113,7 @@ from prismGui.app.edit_model import (
 )
 from prismGui.app.scenario_model import (
     _SCN_INTENTS, _is_whatif, _scenario_is_empty, _new_scenario_for, _mint_scenario,
+    _clone_scenario,
     _scenario_base, _scenario_duration_rows, _scenario_resource_rows, _add_duration_override,
     _remove_duration_override, _add_resource_change, _remove_resource_change,
     _scenario_equipment_rows, _scenario_location_rows, _add_equipment_change,
@@ -122,7 +123,8 @@ from prismGui.app.scenario_model import (
     _scenario_task_suppression_rows, _add_task_suppression, _remove_task_suppression,
     _scenario_dependency_suppression_rows, _add_dependency_suppression,
     _remove_dependency_suppression,
-    _current_schedule_payload, _schedule_label
+    _current_schedule_payload, _schedule_label,
+    _cleared_overlay, _scenario_change_lines, _scenario_diff,
 )
 from prismGui.app.view_data import (
     _SEVERITY_ORDER, _issue_rows, _gantt_rows, _resource_util_rows, _FLOAT_CLASS_COLORS,
@@ -300,10 +302,7 @@ def main() -> None:
         _render_results_page(session, baseline, result, run_config, run_plan=_run_plan)
 
     def _page_replan() -> None:
-        # Replan hosts the guided augmentation (moved off Results): hand it the SAME selected run,
-        # live run_config, and run-plan seam Results used, so it reads the run's bottlenecks and
-        # re-runs through the shared store+executor (run ids increment, never collide).
-        _render_replan(session, baseline, result, run_config, run_plan=_run_plan)
+        _render_replan(session, baseline)
 
     def _page_scenarios() -> None:
         _render_scenarios(session, baseline)

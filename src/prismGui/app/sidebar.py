@@ -9,7 +9,6 @@ from prismGui.app._streamlit import st
 from prismGui.domain.run_config import EvaluationWeights, PRIORITY_RULES, RunConfig, SGSVariant
 from prismGui.app.edit_model import _NO_VALUE
 from prismGui.app.pipeline import discover_samples
-from prismGui.app.scenario_model import _mint_scenario
 from prismGui.app.view_data import _evaluation_weights
 
 
@@ -87,8 +86,8 @@ def _render_schedule_selector(session, baseline) -> None:
     """Sidebar 'current schedule' picker: the baseline or one of the stored scenarios. The
     pick is the INPUT axis — it drives which schedule every tab operates on (Data viewer,
     Graphs, edit target) and what the Run button runs; the selected RUN RESULT (output) is a
-    separate axis. A [+ New scenario] button mints an empty named scenario bound to the
-    current baseline and selects it.
+    separate axis. Scenarios themselves are created / branched / renamed / deleted on the
+    Scenarios page (``baseline`` is kept for signature uniformity with the other render fns).
 
     Rerun-safety: the selectbox is keyed, so its widget value persists across reruns
     independently of the session pointer. A queued programmatic selection is applied — and any
@@ -120,14 +119,9 @@ def _render_schedule_selector(session, baseline) -> None:
         format_func=lambda sid: "Baseline" if sid is None else names.get(sid, sid),
         key=_SCHEDULE_PICK_WIDGET,
         help="The schedule every tab operates on and the Run button runs — the baseline, or a "
-             "what-if scenario. Create scenarios with the button below or in What-if / Edit.")
+             "what-if scenario. Create, branch, rename or delete scenarios on the Scenarios page.")
     if picked != current:                                # mirror the widget → the session pointer
         session.set_current_scenario_id(picked)
-
-    if st.sidebar.button("➕ New scenario", key="prism_new_scenario_sidebar"):
-        scn = _mint_scenario(baseline, existing_ids=ids)
-        session.add_scenario(scn)
-        _select_schedule_next_run(scn.scenario_id)
 
 def _pick_run_config(plan_id: str) -> RunConfig:
     """Sidebar SGS + priority-rule + seed + horizon selectors + fitness weights -> a RunConfig.

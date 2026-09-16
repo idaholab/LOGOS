@@ -89,6 +89,14 @@ class TestProvenanceAndSnapshots:
         rebound = dataclasses.replace(scenario, base_plan_hash="f" * 64)
         assert hash_scenario(rebound) != h
 
+    def test_scenario_hash_excludes_derived_from(self, scenario):
+        """The branching lineage label is non-semantic: two scenarios differing ONLY in
+        ``derived_from`` hash identically (like scenario_id / name). Cloning stamps a provenance
+        label, never a new run identity — so ``scenario_payload`` must not enumerate it."""
+        h = hash_scenario(scenario)
+        assert hash_scenario(dataclasses.replace(scenario, derived_from="scn-parent")) == h
+        assert hash_scenario(dataclasses.replace(scenario, derived_from="scn-other")) == h
+
     def test_scenario_hash_covers_increment_a_families(self, scenario):
         """Freshness gate for the Increment-A families: two scenarios differing only in
         equipment_changes or location_changes hash DIFFERENTLY, and a period change's bounded
