@@ -27,6 +27,7 @@ from prismGui.app import main as app_main
 from prismGui.domain.issues import IssueCode, Severity
 from prismGui.domain.plan import PatchAction
 from prismGui.domain.results import (
+    TF_ZERO_TOL,
     DiagnosticsDTO,
     FitnessDTO,
     FloatClass,
@@ -2983,6 +2984,174 @@ class TestDefaultOriginalRunId:
         failed = self._run("run-fail", status=RunResultStatus.FAILED)
         replan = self._run("run-replan", checkpoint_hour=40.0)
         assert app_main._default_original_run_id((failed, replan), replan) is None
+
+
+class TestBufferBurn:
+    """The streamlit-free ``_buffer_burn`` builder behind the Results **Buffer burn** segment
+    (Phase-5 Row 3): the temporal buffer-consumption series. The "buffer" is the schedule's margin
+    against the PLAN-OF-RECORD finish ``M0`` — the makespan of the session's first completed
+    from-hour-0 baseline — and the burn is ``slippage = M(T) - M0`` tracked across the anchor plus
+    every COMPLETED replan sharing its ``effective_plan_hash`` (the Row-2 comparability filter),
+    ordered by as-of hour. Built from hand-made ``RunResult`` / ``Provenance`` / ``ScheduleDTO`` /
+    ``ScheduledActivityDTO`` (no Streamlit / PRISM). The frozen fraction (``pct_complete``) uses the
+    SAME strict ``start < T - tol`` boundary as Row-2's ``_replan_diff`` — pinned here."""
+
+    @staticmethod
+    def _act(task_id, start, end, *, on_chain=False, tf=None):
+        return ScheduledActivityDTO(
+            task_id=task_id, start_hour=float(start), end_hour=float(end),
+            duration=float(end) - float(start), delay_hours=0.0,
+            on_constrained_chain=on_chain,
+            float_class=FloatClass.CRITICAL if on_chain else FloatClass.POSITIVE_FLOAT,
+            tf_actual_hours=tf)
+
+    @staticmethod
+    def _sched(makespan, *, cpm=None, activities=(), chain=()):
+        return ScheduleDTO(
+            makespan_hours=float(makespan),
+            cpm_lower_bound_hours=float(makespan if cpm is None else cpm),
+            optimism_gap_hours=0.0, activities=tuple(activities),
+            constrained_chain=tuple(chain), cpm_critical_path=())
+
+    @staticmethod
+    def _prov(run_id, *, checkpoint_hour=None, eff="eff-hash", cfg="cfg-hash"):
+        return Provenance(
+            baseline_snapshot_hash="base-hash", effective_plan_hash=eff, run_config_hash=cfg,
+            schema_version=SCHEMA_VERSION, canonicalization_version=CANON_VERSION,
+            app_version=APP_VERSION, prism_version="test", run_id=run_id,
+            timestamp=datetime(2025, 1, 1, tzinfo=timezone.utc), checkpoint_hour=checkpoint_hour)
+
+    def _run(self, run_id, schedule, *, status=RunResultStatus.COMPLETED, **prov_kw):
+        return RunResult(run_id=run_id, status=status, schedule=schedule,
+                         provenance=self._prov(run_id, **prov_kw))
+
+    def test_builder_is_re_exported(self):
+        """The Phase-5 Row 3 builder resolves through the app-shell seam (the re-export pattern)."""
+        assert callable(app_main._buffer_burn)
+
+    def test_anchor_only_is_the_reference_row(self):
+        """A plan-of-record baseline with no replans yields a single reference row: as-of 0, zero
+        slippage, no frozen work, ``on_track`` — and the summary echoes ``M0`` / ``n_replans 0``."""
+        base = self._run("base", self._sched(85, activities=[self._act("A", 0.0, 85.0)]))
+        d = app_main._buffer_burn((base,))
+        assert d["baseline_run_id"] == "base"
+        assert d["baseline_makespan"] == 85.0
+        assert d["n_replans"] == 0
+        assert d["overall_status"] == "on_track"
+        assert d["latest_makespan_hours"] == 85.0
+        assert d["peak_slippage_hours"] == 0.0
+        assert len(d["rows"]) == 1
+        row = d["rows"][0]
+        assert row["as_of_hour"] == 0.0 and row["is_baseline"] is True
+        assert row["slippage_hours"] == 0.0 and row["slippage_pct"] == 0.0
+        assert row["pct_complete"] == 0.0
+
+    def test_no_baseline_yields_empty(self):
+        """A history of only replans (no from-hour-0 anchor) → no anchor, empty result."""
+        r = self._run("r20", self._sched(90), checkpoint_hour=20.0)
+        d = app_main._buffer_burn((r,))
+        assert d["baseline_run_id"] is None
+        assert d["baseline_makespan"] is None
+        assert d["rows"] == []
+        assert d["n_replans"] == 0
+        assert d["overall_status"] is None
+        assert d["peak_slippage_hours"] is None
+
+    def test_slippage_arithmetic_and_status_bands(self):
+        """``slippage = makespan - M0`` with the heuristic bands: ``<= 0`` on_track, ``<= 0.10``
+        watch, else at_risk. M0=85 with replans at 80 (-5, on_track), 90 (+5, 5/85 ≤ .10 watch),
+        100 (+15, 15/85 > .10 at_risk)."""
+        base = self._run("base", self._sched(85))
+        faster = self._run("r10", self._sched(80), checkpoint_hour=10.0)
+        watch = self._run("r20", self._sched(90), checkpoint_hour=20.0)
+        at_risk = self._run("r30", self._sched(100), checkpoint_hour=30.0)
+        d = app_main._buffer_burn((base, faster, watch, at_risk))
+        by = {r["run_id"]: r for r in d["rows"]}
+        assert by["r10"]["slippage_hours"] == -5.0 and by["r10"]["status"] == "on_track"
+        assert by["r20"]["slippage_hours"] == 5.0 and by["r20"]["status"] == "watch"
+        assert by["r30"]["slippage_hours"] == 15.0 and by["r30"]["status"] == "at_risk"
+
+    def test_pct_complete_uses_strict_frozen_boundary(self):
+        """``pct_complete`` = fraction of activities started strictly before ``T - tol``: a task at
+        T-1 is frozen, one exactly at T and one a half-tolerance before T are NOT (the same strict
+        boundary as ``_replan_diff``). 2 of 4 activities → 0.5."""
+        tol = app_main._WINDOW_TOL_HOURS
+        base = self._run("base", self._sched(85))
+        acts = [self._act("F1", 10.0, 20.0),                   # < T -> frozen
+                self._act("F2", 39.0, 41.0),                   # < T -> frozen
+                self._act("AT", 40.0, 42.0),                   # exactly T -> not frozen
+                self._act("NEAR", 40.0 - 0.5 * tol, 42.0)]     # within grace of T -> not frozen
+        replan = self._run("r40", self._sched(85, activities=acts), checkpoint_hour=40.0)
+        d = app_main._buffer_burn((base, replan))
+        by = {r["run_id"]: r for r in d["rows"]}
+        assert by["r40"]["pct_complete"] == 0.5
+
+    def test_family_excludes_foreign_plan_replans(self):
+        """The burn family is only replans sharing the anchor's ``effective_plan_hash``; a replan of
+        a different plan (sweep / unrelated) never pollutes the trend."""
+        base = self._run("base", self._sched(85))
+        same = self._run("r20", self._sched(90), checkpoint_hour=20.0)              # same plan
+        foreign = self._run("rX", self._sched(200), checkpoint_hour=30.0, eff="other-eff")
+        d = app_main._buffer_burn((base, same, foreign))
+        assert [r["run_id"] for r in d["rows"]] == ["base", "r20"]
+        assert d["n_replans"] == 1
+
+    def test_anchor_is_the_first_from_zero_run(self):
+        """A later from-hour-0 run (e.g. a re-baseline under a different config) does NOT steal the
+        anchor from the first from-0 baseline, and is not itself part of the burn family."""
+        base = self._run("base", self._sched(85), cfg="cfg-a")
+        later_base = self._run("base2", self._sched(70), cfg="cfg-b")     # from-0, later
+        replan = self._run("r20", self._sched(88), checkpoint_hour=20.0)
+        d = app_main._buffer_burn((base, later_base, replan))
+        assert d["baseline_run_id"] == "base" and d["baseline_makespan"] == 85.0
+        assert [r["run_id"] for r in d["rows"]] == ["base", "r20"]        # later_base excluded
+
+    def test_different_config_replan_is_included_and_flagged(self):
+        """A replan run under a different ``run_config`` than the plan of record is still shown (same
+        plan of record), but flagged ``same_config`` False so the caption can warn it is not
+        like-for-like."""
+        base = self._run("base", self._sched(85), cfg="cfg-a")
+        diff = self._run("r20", self._sched(90), checkpoint_hour=20.0, cfg="cfg-b")
+        d = app_main._buffer_burn((base, diff))
+        by = {r["run_id"]: r for r in d["rows"]}
+        assert by["base"]["same_config"] is True
+        assert by["r20"]["same_config"] is False
+
+    def test_rows_order_by_as_of_hour_and_summary_keys_off_latest(self):
+        """Rows sort by as-of hour regardless of insertion order (replans inserted T=40 then T=20 →
+        [baseline, T20, T40]); ``overall_status`` is the LATEST point's, ``peak_slippage_hours`` the
+        max across the family, ``latest_makespan_hours`` the last point's."""
+        base = self._run("base", self._sched(85))
+        r40 = self._run("r40", self._sched(100), checkpoint_hour=40.0)    # inserted first
+        r20 = self._run("r20", self._sched(90), checkpoint_hour=20.0)     # inserted second
+        d = app_main._buffer_burn((base, r40, r20))
+        assert [r["run_id"] for r in d["rows"]] == ["base", "r20", "r40"]
+        assert [r["as_of_hour"] for r in d["rows"]] == [0.0, 20.0, 40.0]
+        assert d["overall_status"] == "at_risk"          # from r40 (15/85 > .10)
+        assert d["latest_makespan_hours"] == 100.0
+        assert d["peak_slippage_hours"] == 15.0
+
+    def test_secondary_fragility_signals(self):
+        """Each point carries ``constrained_chain_len`` (from the schedule's chain) and
+        ``min_positive_float_hours`` = smallest off-chain TF above ``TF_ZERO_TOL`` (the most literal
+        remaining slack buffer). On-chain and zero-float activities are excluded."""
+        acts = [self._act("C1", 0.0, 10.0, on_chain=True, tf=0.0),       # on chain -> excluded
+                self._act("Z", 0.0, 5.0, on_chain=False, tf=0.0),        # zero float -> excluded
+                self._act("P1", 0.0, 5.0, on_chain=False, tf=7.0),
+                self._act("P2", 0.0, 5.0, on_chain=False, tf=3.0)]       # smallest positive
+        base = self._run("base",
+                         self._sched(85, activities=acts, chain=("START", "C1", "END")))
+        row = app_main._buffer_burn((base,))["rows"][0]
+        assert row["constrained_chain_len"] == 3
+        assert row["min_positive_float_hours"] == 3.0
+
+    def test_min_positive_float_is_none_without_off_chain_slack(self):
+        """No off-chain activity with TF strictly above ``TF_ZERO_TOL`` → ``min_positive_float_hours``
+        is None (a positive-float task ON the chain does not count, nor one at the tolerance)."""
+        acts = [self._act("C1", 0.0, 10.0, on_chain=True, tf=5.0),           # positive but ON chain
+                self._act("Z", 0.0, 5.0, on_chain=False, tf=TF_ZERO_TOL)]    # off chain, not > tol
+        base = self._run("base", self._sched(85, activities=acts))
+        assert app_main._buffer_burn((base,))["rows"][0]["min_positive_float_hours"] is None
 
 
 class TestChartLayer:

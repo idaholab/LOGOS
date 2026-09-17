@@ -7,7 +7,7 @@ import math
 from itertools import product
 from typing import Optional
 
-from prismGui.domain.results import FloatClass, Freshness, RunResultStatus
+from prismGui.domain.results import TF_ZERO_TOL, FloatClass, Freshness, RunResultStatus
 from prismGui.domain.run_config import EvaluationWeights, ModeSelection
 from prismGui.domain.scenario import Scenario
 from prismGui.domain.hashing import hash_scenario
@@ -1081,6 +1081,96 @@ def _default_original_run_id(runs, replan_run) -> Optional[str]:
     if non_replan:
         return non_replan[-1].run_id
     return candidates[-1].run_id
+
+def _buffer_burn(runs, tol=_WINDOW_TOL_HOURS) -> dict:
+    """The temporal buffer-consumption series (Phase-5 Row 3): track, across the plan-of-record baseline
+    and its successive replans, how the projected finish burns against the committed finish — the
+    leading indicator ``notes_3`` calls "burn tracked over time".
+
+    There is **no** authored deadline and **no** CCPM buffer activity in the DTOs (that machinery is
+    Phase 6), so the "buffer" here is the schedule's margin against the **plan-of-record finish** ``M0``
+    — the makespan of the session's FIRST completed from-hour-0 baseline. Each replan at as-of hour T
+    re-projects the finish to ``M(T)``; ``slippage = M(T) - M0`` is margin consumed (negative = margin
+    recovered, e.g. added crew).
+
+    Consumes only ``RunResult`` DTOs already in the session (``list_run_results()``): the burn family is
+    the anchor baseline plus every COMPLETED replan sharing its ``effective_plan_hash`` (same
+    plan-of-record — the Row-2 comparability filter, so sweep / augmentation / unrelated-plan runs never
+    pollute the trend), ordered by ``(as_of_hour, timestamp, run_id)``. Pure — stdlib + DTO reads only,
+    no ``st``/``services``/PRISM; ``None`` cells for absent data (module convention).
+
+    Returns ``{rows, baseline_run_id, baseline_makespan, n_replans, overall_status, peak_slippage_hours,
+    latest_makespan_hours}`` where each row carries ``{run_id, as_of_hour, is_baseline, makespan_hours,
+    cpm_lower_bound_hours, slippage_hours, slippage_pct, pct_complete, constrained_chain_len,
+    min_positive_float_hours, same_config, status}``. ``status`` bands the row's ``slippage_pct``
+    (heuristic, echoed in the caption): ``<= 0`` on_track · ``<= 0.10`` watch · else at_risk; ``n/a``
+    when ``slippage_pct`` is undefined."""
+    empty = {"rows": [], "baseline_run_id": None, "baseline_makespan": None, "n_replans": 0,
+             "overall_status": None, "peak_slippage_hours": None, "latest_makespan_hours": None}
+    completed = [r for r in runs
+                 if r.status is RunResultStatus.COMPLETED and r.schedule is not None]
+    anchor = next((r for r in completed if r.provenance.checkpoint_hour is None), None)
+    if anchor is None:
+        return empty
+    m0 = anchor.schedule.makespan_hours
+    a_prov = anchor.provenance
+    family = [anchor] + [
+        r for r in completed
+        if r.provenance.checkpoint_hour is not None
+        and r.provenance.effective_plan_hash == a_prov.effective_plan_hash]
+    family.sort(key=lambda r: ((r.provenance.checkpoint_hour or 0.0),
+                               r.provenance.timestamp, r.run_id))
+
+    def _status(slip_pct):
+        if slip_pct is None:
+            return "n/a"
+        if slip_pct <= 0:
+            return "on_track"
+        if slip_pct <= 0.10:
+            return "watch"
+        return "at_risk"
+
+    rows: list[dict] = []
+    for r in family:
+        sched = r.schedule
+        as_of = r.provenance.checkpoint_hour or 0.0
+        is_baseline = r.provenance.checkpoint_hour is None
+        acts = sched.activities
+        n_acts = len(acts)
+        n_frozen = 0
+        min_pos_tf = None
+        for a in acts:
+            if not is_baseline and a.start_hour < as_of - tol:
+                n_frozen += 1
+            if (not a.on_constrained_chain and a.tf_actual_hours is not None
+                    and a.tf_actual_hours > TF_ZERO_TOL):
+                min_pos_tf = (a.tf_actual_hours if min_pos_tf is None
+                              else min(min_pos_tf, a.tf_actual_hours))
+        slip = sched.makespan_hours - m0
+        slip_pct = (slip / m0) if m0 > 0 else None
+        rows.append({
+            "run_id": r.run_id,
+            "as_of_hour": as_of,
+            "is_baseline": is_baseline,
+            "makespan_hours": sched.makespan_hours,
+            "cpm_lower_bound_hours": sched.cpm_lower_bound_hours,
+            "slippage_hours": slip,
+            "slippage_pct": slip_pct,
+            "pct_complete": (n_frozen / n_acts) if n_acts else 0.0,
+            "constrained_chain_len": len(sched.constrained_chain),
+            "min_positive_float_hours": min_pos_tf,
+            "same_config": r.provenance.run_config_hash == a_prov.run_config_hash,
+            "status": _status(slip_pct),
+        })
+    return {
+        "rows": rows,
+        "baseline_run_id": anchor.run_id,
+        "baseline_makespan": m0,
+        "n_replans": len(family) - 1,
+        "overall_status": rows[-1]["status"] if rows else None,
+        "peak_slippage_hours": max((row["slippage_hours"] for row in rows), default=None),
+        "latest_makespan_hours": rows[-1]["makespan_hours"] if rows else None,
+    }
 
 def _graph_layout(fig, height: int, x_title: str | None = None, x_ticks: dict | None = None,
                   x_range=None, rangeslider: bool = False) -> None:

@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from prismGui.app.view_data import _replan_diff
+from prismGui.app.view_data import _buffer_burn, _replan_diff
 from prismGui.domain import serialization as ser
 from prismGui.domain.hashing import hash_bytes, run_config_snapshot, scenario_snapshot
 from prismGui.domain.issues import IssueCategory, Severity
@@ -187,6 +187,52 @@ class TestPrismAdapterReplan:
         # ... and the delta actually reached the rescheduled tail
         assert any(r["moved"] for r in rescheduled)
         assert replan.schedule.makespan_hours < 85.0
+
+    def test_buffer_burn_tracks_the_finish_trajectory_across_replans(self, example_10_path):
+        """The GUI's ``_buffer_burn`` temporal series (Phase-5 Row 3), grounded on the real engine:
+        run the from-hour-0 baseline (the plan of record, 85.0 h) and TWO replans at T=20 and T=40
+        under the SAME RunConfig, each with a MECHANIC reduction from its as-of hour (fewer crews ⇒
+        the projected finish slips). Because every run's initial schedule is the same baseline-mirror
+        plan + config, all three share an ``effective_plan_hash`` and assemble into one burn family
+        ordered by as-of hour; slippage is measured against the 85.0 h plan of record and more work
+        is frozen as the as-of hour advances."""
+        store = InMemorySnapshotStore()
+        rc = RunConfig(run_config_id="rc", sgs=SGSVariant.MAX_USE_RES_RANKED,
+                       priority_rule="lf", seed=42)
+        baseline_req = _prepare(store, example_10_path, rc)
+        scn20 = Scenario(scenario_id="scn20", base_plan_id="ex10", base_plan_hash="",
+                         checkpoint_hour=20.0, resource_changes=(ResourceChange("MECHANIC", 20.0, 4),))
+        scn40 = Scenario(scenario_id="scn40", base_plan_id="ex10", base_plan_hash="",
+                         checkpoint_hour=40.0, resource_changes=(ResourceChange("MECHANIC", 40.0, 4),))
+        req20 = _prepare_replan(store, example_10_path, rc, 20.0, scn20)
+        req40 = _prepare_replan(store, example_10_path, rc, 40.0, scn40)
+        ex = InProcessPrismExecutor(store)
+
+        baseline = ex.get_result(ex.submit(baseline_req))
+        replan20 = ex.get_result(ex.submit(req20))
+        replan40 = ex.get_result(ex.submit(req40))
+        for r in (baseline, replan20, replan40):
+            assert r.status is RunResultStatus.COMPLETED
+
+        d = _buffer_burn((baseline, replan20, replan40))
+
+        # the plan of record is the from-0 baseline; all three assemble into the burn family
+        assert d["baseline_run_id"] == baseline.run_id
+        assert d["baseline_makespan"] == 85.0
+        assert d["n_replans"] == 2
+        rows = d["rows"]
+        assert len(rows) == 3
+        assert [r["as_of_hour"] for r in rows] == [0.0, 20.0, 40.0]        # ordered by as-of hour
+
+        # slippage is measured against the 85.0 h plan of record
+        assert rows[0]["slippage_hours"] == 0.0
+        assert all(abs(r["slippage_hours"] - (r["makespan_hours"] - 85.0)) <= TF_ZERO_TOL
+                   for r in rows)
+
+        # more work is frozen as the as-of hour advances (the real-schedule frozen fraction)
+        pcs = [r["pct_complete"] for r in rows]
+        assert pcs[0] == 0.0
+        assert 0.0 <= pcs[1] <= pcs[2]
 
 
 class TestPrismAdapterEndToEnd:

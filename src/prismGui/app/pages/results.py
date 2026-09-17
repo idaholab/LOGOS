@@ -10,7 +10,7 @@ from prismGui.domain.run_config import PRIORITY_RULES, SGSVariant
 from prismGui.app.components import _render_issues
 from prismGui.app.edit_model import _mode_options
 from prismGui.app.scenario_model import _add_resource_change, _current_schedule_payload, _mint_scenario
-from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _chain_sets, _comparison_rows, _cpm_path_label, _dag_hover, _default_original_run_id, _disposition_rows, _gantt_rows, _graph_layout, _makespan_bar_rows, _mode_sweep_variants, _multi_gantt_rows, _provenance_rows, _replan_diff, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip, _window_preflight
+from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _buffer_burn, _chain_sets, _comparison_rows, _cpm_path_label, _dag_hover, _default_original_run_id, _disposition_rows, _gantt_rows, _graph_layout, _makespan_bar_rows, _mode_sweep_variants, _multi_gantt_rows, _provenance_rows, _replan_diff, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip, _window_preflight
 
 
 def _render_plots(result) -> None:
@@ -819,6 +819,74 @@ def _render_replan_vs_original(session, baseline, result, run_config) -> None:
     with st.expander("Aligned Gantt", expanded=False):
         _render_multi_gantt(labeled)
 
+def _render_buffer_burn(session) -> None:
+    """Buffer-consumption early-warning monitoring (Phase-5 Row 3, Results **Buffer burn** segment):
+    track, across the plan-of-record baseline and its successive replans, how the projected finish is
+    burning against the committed finish — the temporal leading indicator, not a single snapshot. Like
+    *Compare runs* / *Sweep* this is a **history** view over ``session.list_run_results()``, NOT gated on
+    the selected run. "Buffer" here is the schedule's margin vs. the plan-of-record makespan ``M0`` (the
+    session's first completed from-hour-0 baseline) — there is no authored deadline and no CCPM project
+    buffer in the DTOs (that is Phase 6). GUI-only: every number is read off stored ``RunResult`` DTOs
+    via the pure ``_buffer_burn`` builder — no engine call, no session-API change."""
+    d = _buffer_burn(session.list_run_results())
+    if d["baseline_run_id"] is None:
+        st.info("Run a baseline schedule (sidebar → Run) to anchor buffer monitoring, then run replans "
+                "(Replan page) to track how the projected finish burns against it.")
+        return
+
+    m0 = d["baseline_makespan"]
+    latest = d["latest_makespan_hours"]
+    slip = latest - m0
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Plan-of-record finish", f"{m0:g} h")
+    c2.metric("Latest projected finish", f"{latest:g} h")
+    c3.metric("Slippage", f"{slip:+g} h", delta=f"{slip:+g} h", delta_color="inverse")
+
+    status = d["overall_status"]
+    if status == "at_risk":
+        st.error(f"⛔ At risk — projected finish has slipped {slip:+g} h vs the plan of record.")
+    elif status == "watch":
+        st.warning(f"🟠 Watch — projected finish has slipped {slip:+g} h vs the plan of record.")
+    else:  # on_track / n/a
+        st.success(f"✅ On track — projected finish is {slip:+g} h vs the plan of record.")
+
+    if d["n_replans"] == 0:
+        st.caption("No replans of this baseline yet — run a replan (Replan page → Run replan) to start "
+                   "tracking buffer burn; the row below is the reference finish.")
+
+    st.dataframe(d["rows"], use_container_width=True, hide_index=True)
+
+    # Finish-trajectory chart: projected finish vs the as-of hour, against the M0 reference + CPM floor.
+    rows = d["rows"]
+    if len(rows) >= 2:
+        import plotly.graph_objects as go
+        xs = [r["as_of_hour"] for r in rows]
+        fig = go.Figure()
+        fig.add_hline(y=m0, line=dict(color="#7f8c8d", dash="dash"),
+                      annotation_text=f"plan of record {m0:g} h", annotation_position="top left")
+        fig.add_trace(go.Scatter(
+            x=xs, y=[r["makespan_hours"] for r in rows], mode="lines+markers",
+            name="projected finish", line=dict(color="#e67e22", width=2),
+            hovertemplate="as-of %{x:g} h<br>projected finish %{y:g} h<extra></extra>"))
+        fig.add_trace(go.Scatter(
+            x=xs, y=[r["cpm_lower_bound_hours"] for r in rows], mode="lines+markers",
+            name="CPM lower bound", line=dict(color="#3498db", width=1.5, dash="dot"),
+            hovertemplate="as-of %{x:g} h<br>CPM lower bound %{y:g} h<extra></extra>"))
+        fig.update_layout(
+            height=340, margin=dict(l=10, r=10, t=30, b=10),
+            xaxis_title="as-of hour (outage progression)", yaxis_title="hours since project start",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+        st.plotly_chart(fig, use_container_width=True)
+
+    note = ("Buffer = margin vs the plan-of-record baseline finish (no authored deadline / CCPM project "
+            "buffer — that is Phase 6). Slippage > 0 means the projected finish is trending later; the "
+            "status bands (on track / watch ≤ 10% / at risk) are heuristic. “% complete” is the share "
+            "of work frozen before each replan's as-of hour.")
+    if any(not r["same_config"] for r in rows):
+        note += (" ⚠️ Some replans ran under a different run config than the plan of record, so their "
+                 "finish is not a like-for-like comparison.")
+    st.caption(note)
+
 # Rendered on the REPLAN page (imported by pages/replan.py), NOT Results: augmentation is a replan
 # action — build a resource what-if from the run's bottlenecks and re-run. It physically stays here
 # beside the comparison renderers it reuses (_render_makespan_bars / _render_multi_gantt, shared with
@@ -1098,7 +1166,7 @@ def _render_results_page(session, baseline, result, run_config, run_plan=None) -
     view = st.segmented_control(
         "View",
         ["Plots", "Activity DAG", "Task inspector", "Chain sets", "Time windows",
-         "Replan vs original", "Compare runs", "Sweep"],
+         "Replan vs original", "Buffer burn", "Compare runs", "Sweep"],
         default="Plots", key="prism_results_view")
     if view == "Activity DAG":
         _render_activity_graph(session, baseline, result)
@@ -1131,6 +1199,8 @@ def _render_results_page(session, baseline, result, run_config, run_plan=None) -
             st.info("Select a replan run (Replan page → Run replan) to compare it against its original.")
         else:
             st.info("Run a replan (Replan page) to compare it against its original.")
+    elif view == "Buffer burn":
+        _render_buffer_burn(session)
     elif view == "Compare runs":
         _render_run_comparison(session, baseline, run_config)
     elif view == "Sweep":
