@@ -10,6 +10,7 @@ from prismGui.domain.run_config import PRIORITY_RULES, SGSVariant
 from prismGui.app.components import _render_issues
 from prismGui.app.edit_model import _mode_options
 from prismGui.app.scenario_model import _add_resource_change, _current_schedule_payload, _mint_scenario
+from prismGui.app.plan_of_record_model import _por_chain_run_ids
 from prismGui.app.view_data import _FLOAT_CLASS_COLORS, _FRESHNESS_LABEL, _FRESHNESS_REASON_LABEL, _activity_graph_data, _activity_graph_enriched, _augmentation_candidates, _augmentation_delta, _buffer_burn, _chain_sets, _comparison_rows, _cpm_path_label, _dag_hover, _default_original_run_id, _disposition_rows, _gantt_rows, _graph_layout, _makespan_bar_rows, _mode_sweep_variants, _multi_gantt_rows, _provenance_rows, _replan_diff, _resource_util_rows, _saturated_skills, _scenario_hash_labels, _schedule_csv, _step_series, _sweep_rows, _task_neighbors, _task_slip, _window_preflight
 
 
@@ -827,8 +828,14 @@ def _render_buffer_burn(session) -> None:
     the selected run. "Buffer" here is the schedule's margin vs. the plan-of-record makespan ``M0`` (the
     session's first completed from-hour-0 baseline) — there is no authored deadline and no CCPM project
     buffer in the DTOs (that is Phase 6). GUI-only: every number is read off stored ``RunResult`` DTOs
-    via the pure ``_buffer_burn`` builder — no engine call, no session-API change."""
-    d = _buffer_burn(session.list_run_results())
+    via the pure ``_buffer_burn`` builder — no engine call, no session-API change.
+
+    Under a rolling plan of record the burn family is the EXPLICIT adopted chain (anchor + the
+    adopted runs in T-order), not the implicit "every replan sharing the effective hash" — so the
+    trend tracks the committed plan of record, never the rejected counterfactual replans (which all
+    share the baseline-mirror effective hash under rolling PoR). No PoR ⇒ the implicit family."""
+    d = _buffer_burn(session.list_run_results(),
+                     chain_run_ids=_por_chain_run_ids(session.get_plan_of_record()))
     if d["baseline_run_id"] is None:
         st.info("Run a baseline schedule (sidebar → Run) to anchor buffer monitoring, then run replans "
                 "(Replan page) to track how the projected finish burns against it.")

@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Protocol, runtime_checkable
 
-from prismGui.domain.results import RunResult
+from prismGui.domain.results import ReplanStep, RunResult
 
 Hash = str
 
@@ -53,6 +53,11 @@ class ProvenanceInputs:
     # branches to its replan path and stamps Provenance.checkpoint_hour with T. None
     # is a normal from-hour-0 run. Trailing optional → normal RunRequests unchanged.
     checkpoint_hour: Optional[float] = None
+    # Phase 5 (rolling plan-of-record): the adopted-replan chain to replay BEFORE the
+    # candidate replan, ordered by checkpoint_hour. Each ref's scenario snapshot is already
+    # in the SnapshotStore (prepare_replan persists it). Empty → a plain hub-and-spoke replan
+    # (identical to today). Trailing default → normal / non-rolling RunRequests unchanged.
+    prior_steps: tuple[ReplanStep, ...] = ()
 
 
 @dataclass(frozen=True)

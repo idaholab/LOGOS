@@ -37,11 +37,12 @@ from typing import Optional, Protocol, runtime_checkable
 from prismGui.domain import serialization as ser
 from prismGui.domain.freshness import assess_freshness, explain_freshness
 from prismGui.domain.hashing import hash_run_config, hash_scenario, run_config_snapshot, scenario_snapshot
-from prismGui.domain.issues import Issue, Severity
+from prismGui.domain.issues import Issue, IssueCategory, IssueCode, Severity
 from prismGui.domain.materialize import materialize, validate_run_config
 from prismGui.domain.plan import CommitOutcome, EffectivePlan, PlanDraft, ReferencePlan
+from prismGui.domain.plan_of_record import PlanOfRecord
 from prismGui.domain.replan import replan_preflight
-from prismGui.domain.results import Freshness, RunResult
+from prismGui.domain.results import Freshness, ReplanStep, RunResult
 from prismGui.domain.run_config import RunConfig
 from prismGui.domain.scenario import Scenario
 from prismGui.domain.versions import CANON_VERSION, SCHEMA_VERSION
@@ -210,6 +211,54 @@ def prepare_run(
 # prepare_replan (Phase 5 CORE)
 # =============================================================================
 
+def _chain_error(message: str) -> Issue:
+    """A blocking rolling-plan-of-record chain-ordering ERROR (category EXECUTION)."""
+    return Issue(
+        code=IssueCode.REPLAN_CHAIN_ORDER,
+        severity=Severity.ERROR,
+        category=IssueCategory.EXECUTION,
+        message=message,
+    )
+
+
+def _validate_replan_chain(
+    scenario: Scenario, plan_of_record: Optional[PlanOfRecord]
+) -> list[Issue]:
+    """ERROR issues if the rolling plan-of-record chain is invalid, else empty.
+
+    A chain is well-formed only when every adopted step is checkpoint-bearing, the adopted
+    as-of hours run forward (non-decreasing), and this replan's as-of hour is at or after the
+    last adopted step's. The chain replays as ``initial → replan(step₁) → … → replan(stepₙ) →
+    replan(candidate)`` on one Pert, and each ``replan(T)`` freezes the previous step's
+    rescheduled prefix before T — so a backwards T would try to reschedule an already-frozen
+    region and is meaningless. Empty chain (no PoR) → no constraint, returns []."""
+    if plan_of_record is None or plan_of_record.is_empty():
+        return []
+    issues: list[Issue] = []
+    prev: Optional[float] = None
+    for step in plan_of_record.steps:
+        t = step.checkpoint_hour
+        if t is None:
+            issues.append(_chain_error(
+                f"Adopted plan-of-record step (run {step.adopted_run_id}) has no as-of hour; "
+                f"a rolling chain step must be checkpoint-bearing."))
+            continue
+        if prev is not None and t < prev:
+            issues.append(_chain_error(
+                f"Plan-of-record chain runs backwards: a step at h={t:g} precedes the prior "
+                f"step at h={prev:g}. A rolling chain can only move forward in time."))
+        prev = t
+    cand = scenario.checkpoint_hour
+    if cand is None:
+        issues.append(_chain_error(
+            "A replan chained onto a plan of record must have an as-of hour."))
+    elif prev is not None and cand < prev:
+        issues.append(_chain_error(
+            f"This replan's as-of hour (h={cand:g}) is before the last adopted plan-of-record "
+            f"step (h={prev:g}); a chained replan must reschedule at or after the adopted hour."))
+    return issues
+
+
 def prepare_replan(
     reference_plan: ReferencePlan,
     scenario: Scenario,
@@ -217,6 +266,7 @@ def prepare_replan(
     snapshot_store: SnapshotStorePort,
     *,
     validator: ValidationPort,
+    plan_of_record: Optional[PlanOfRecord] = None,
 ) -> PrepareOutcome:
     """Sibling to ``prepare_run`` for the checkpoint-driven replan path (``pert.replan()``).
 
@@ -236,8 +286,22 @@ def prepare_replan(
     its materialized effective plan is then DISCARDED. The mirror + run-config are validated
     through the same port as any run. Known minor limitation (acceptable for CORE): because
     materialize validates every family, a referentially-broken *unsupported* delta would
-    also block even though the replan ignores it."""
+    also block even though the replan ignores it.
+
+    Rolling plan-of-record (Phase 5): when ``plan_of_record`` carries adopted steps, this
+    replan is scheduled ON TOP of that chain. The chain's ordering is gated first (an
+    ERROR blocks — see ``_validate_replan_chain``); on success each adopted step's scenario
+    snapshot is persisted and referenced (in T-order) from ``ProvenanceInputs.prior_steps``,
+    so the adapter can replay ``initial → replan(step₁) → … → replan(candidate)`` on one Pert.
+    An empty / absent chain leaves ``prior_steps`` empty → a plain hub-and-spoke replan,
+    byte-identical to before."""
     issues: list[Issue] = list(replan_preflight(scenario, reference_plan))
+
+    # Rolling plan-of-record chain-ordering gate (ERROR blocks; nothing persisted).
+    chain_issues = _validate_replan_chain(scenario, plan_of_record)
+    if _has_error(chain_issues):
+        return PrepareOutcome(ok=False, issues=tuple(issues) + tuple(chain_issues),
+                              run_request=None, effective_plan=None)
 
     # Referential-ERROR gate ONLY: materialize the overlay to catch ghost/collision errors,
     # then discard its effective plan (its baked-in deltas are wrong for a replan).
@@ -268,6 +332,19 @@ def prepare_replan(
     run_config_hash = snapshot_store.put(run_config_snapshot(run_config))
     scenario_hash = snapshot_store.put(scenario_snapshot(scenario))
 
+    # Rolling plan-of-record: persist each adopted step's scenario snapshot (its bytes are what
+    # the adapter resolves + projects onto replan()'s kwargs) and reference them in T-order.
+    # Empty chain → prior_steps stays (). Steps are checkpoint-bearing (chain gate passed).
+    prior_steps: tuple[ReplanStep, ...] = ()
+    if plan_of_record is not None and not plan_of_record.is_empty():
+        prior_steps = tuple(
+            ReplanStep(
+                scenario_delta_hash=snapshot_store.put(scenario_snapshot(step.scenario)),
+                checkpoint_hour=float(step.checkpoint_hour),
+            )
+            for step in plan_of_record.steps
+        )
+
     schema_version = json.loads(effective.raw_snapshot)["schema_version"]
     provenance = ProvenanceInputs(
         baseline_snapshot_hash=baseline_hash,
@@ -277,6 +354,7 @@ def prepare_replan(
         canonicalization_version=CANON_VERSION,
         scenario_delta_hash=scenario_hash,
         checkpoint_hour=scenario.checkpoint_hour,   # non-None → adapter takes the replan branch
+        prior_steps=prior_steps,                    # T-ordered chain to replay before candidate
     )
     request = RunRequest(
         effective_plan_hash=effective_hash,
@@ -401,6 +479,12 @@ class SessionState(Protocol):
     def get_selected_result_id(self) -> Optional[str]: ...
     def set_selected_result_id(self, run_id: Optional[str]) -> None: ...
 
+    # Rolling plan-of-record: the ordered chain of adopted replans the NEXT replan chains
+    # from (None == no PoR; a plain hub-and-spoke replan off the baseline). Reset when the
+    # baseline revision changes (resolve_for_new_baseline).
+    def get_plan_of_record(self) -> Optional[PlanOfRecord]: ...
+    def set_plan_of_record(self, plan_of_record: Optional[PlanOfRecord]) -> None: ...
+
 
 class InMemorySessionState:
     """Pure in-memory ``SessionState`` — the reference implementation and the test double.
@@ -415,6 +499,7 @@ class InMemorySessionState:
         self._run_config: Optional[RunConfig] = None
         self._results: dict[str, RunResult] = {}
         self._selected_id: Optional[str] = None
+        self._plan_of_record: Optional[PlanOfRecord] = None
 
     def get_baseline(self) -> Optional[ReferencePlan]:
         return self._baseline
@@ -483,6 +568,12 @@ class InMemorySessionState:
     def set_selected_result_id(self, run_id: Optional[str]) -> None:
         self._selected_id = run_id
 
+    def get_plan_of_record(self) -> Optional[PlanOfRecord]:
+        return self._plan_of_record
+
+    def set_plan_of_record(self, plan_of_record: Optional[PlanOfRecord]) -> None:
+        self._plan_of_record = plan_of_record
+
 
 # =============================================================================
 # session lifecycle — resolving a scenario / draft against a newly-loaded baseline
@@ -492,12 +583,13 @@ class InMemorySessionState:
 class BaselineResolution:
     """What survived a baseline switch: how many stored scenarios were kept (still bound to
     the new revision) vs dropped (bound to a different one), whether the current-schedule
-    pointer had to reset to the baseline (its scenario was dropped), and whether the draft
-    was kept."""
+    pointer had to reset to the baseline (its scenario was dropped), whether the draft was
+    kept, and whether the rolling plan of record was kept (still bound to the new revision)."""
     scenarios_kept: int
     scenarios_dropped: int
     current_reset: bool
     draft_kept: bool
+    plan_of_record_kept: bool = True
 
 
 def resolve_for_new_baseline(
@@ -535,5 +627,14 @@ def resolve_for_new_baseline(
     if draft is not None and not draft_kept:
         session.clear_draft()
 
+    # The rolling plan of record is bound (by base_plan_hash) to the revision it was built
+    # against; a chain of adopted replans is meaningless against a different revision. Drop it
+    # when the revision changes; keep it (or a None PoR) otherwise.
+    por = session.get_plan_of_record()
+    plan_of_record_kept = por is None or por.base_plan_hash == new_baseline.plan_hash
+    if por is not None and not plan_of_record_kept:
+        session.set_plan_of_record(None)
+
     return BaselineResolution(scenarios_kept=kept, scenarios_dropped=dropped,
-                              current_reset=current_reset, draft_kept=draft_kept)
+                              current_reset=current_reset, draft_kept=draft_kept,
+                              plan_of_record_kept=plan_of_record_kept)

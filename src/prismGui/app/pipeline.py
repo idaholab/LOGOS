@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from prismGui.application import services
+from prismGui.domain.plan_of_record import PlanOfRecord
 from prismGui.domain.run_config import RunConfig
 from prismGui.domain.scenario import Scenario
 from prismGui.infrastructure.memory_repository import InMemoryRepository
@@ -82,20 +83,26 @@ def run_replan_pipeline(
     executor,
     repository: Optional[InMemoryRepository] = None,
     scenario: Scenario,
+    plan_of_record: Optional[PlanOfRecord] = None,
 ) -> PipelineResult:
     """The replan counterpart of ``run_pipeline``: load+validate → prepare_replan → run.
     Unlike ``run_pipeline`` the ``scenario`` is REQUIRED and its deltas are NOT materialized
     into the effective plan — the engine's ``replan()`` applies them from the scenario's
     as-of hour T (``prepare_replan`` persists the baseline mirror as the effective plan and
     passes the deltas as replan arguments). ``prepare_replan``'s preflight warnings ride the
-    prepared issues; unsupported families are warned, never blocked. Blocking is reported per
-    stage; a non-ok pipeline never fabricates a result."""
+    prepared issues; unsupported families are warned, never blocked.
+
+    When ``plan_of_record`` carries adopted steps, this replan CHAINS from that rolling plan
+    of record: the adapter replays the adopted chain on one Pert before the candidate, so it
+    freezes the adopted schedule's prefix rather than the from-hour-0 baseline (an invalid /
+    backwards chain blocks at ``prepare_replan``). ``None`` / empty ⇒ a plain hub-and-spoke
+    replan. Blocking is reported per stage; a non-ok pipeline never fabricates a result."""
     load = services.load_and_validate(plan_id, raw_plan, validator)
     if not load.ok:
         return PipelineResult(ok=False, stage="load", issues=load.issues)
 
     prep = services.prepare_replan(load.reference_plan, scenario, run_config, store,
-                                   validator=validator)
+                                   validator=validator, plan_of_record=plan_of_record)
     if not prep.ok:
         return PipelineResult(ok=False, stage="prepare_replan", issues=prep.issues,
                               reference_plan=load.reference_plan)

@@ -1082,10 +1082,17 @@ def _default_original_run_id(runs, replan_run) -> Optional[str]:
         return non_replan[-1].run_id
     return candidates[-1].run_id
 
-def _buffer_burn(runs, tol=_WINDOW_TOL_HOURS) -> dict:
+def _buffer_burn(runs, tol=_WINDOW_TOL_HOURS, *, chain_run_ids=None) -> dict:
     """The temporal buffer-consumption series (Phase-5 Row 3): track, across the plan-of-record baseline
     and its successive replans, how the projected finish burns against the committed finish — the
     leading indicator ``notes_3`` calls "burn tracked over time".
+
+    ``chain_run_ids`` (rolling plan-of-record): when given, the burn family is the from-hour-0 anchor
+    plus EXACTLY the adopted-chain runs it names, in that explicit (T-ordered) order — the committed
+    plan of record. This is the correct family under rolling PoR, where every replan (adopted or a
+    rejected counterfactual) shares the baseline-mirror ``effective_plan_hash`` and the implicit filter
+    below would sweep them all in. ``None`` (no PoR) keeps the implicit behaviour: the anchor plus every
+    completed replan sharing its ``effective_plan_hash``, sorted by ``(as_of_hour, timestamp, run_id)``.
 
     There is **no** authored deadline and **no** CCPM buffer activity in the DTOs (that machinery is
     Phase 6), so the "buffer" here is the schedule's margin against the **plan-of-record finish** ``M0``
@@ -1114,12 +1121,18 @@ def _buffer_burn(runs, tol=_WINDOW_TOL_HOURS) -> dict:
         return empty
     m0 = anchor.schedule.makespan_hours
     a_prov = anchor.provenance
-    family = [anchor] + [
-        r for r in completed
-        if r.provenance.checkpoint_hour is not None
-        and r.provenance.effective_plan_hash == a_prov.effective_plan_hash]
-    family.sort(key=lambda r: ((r.provenance.checkpoint_hour or 0.0),
-                               r.provenance.timestamp, r.run_id))
+    if chain_run_ids is not None:
+        # PoR-aware: anchor + exactly the adopted-chain runs, in the given (T-ordered) order.
+        by_id = {r.run_id: r for r in completed}
+        family = [anchor] + [by_id[rid] for rid in chain_run_ids
+                             if rid in by_id and by_id[rid] is not anchor]
+    else:
+        family = [anchor] + [
+            r for r in completed
+            if r.provenance.checkpoint_hour is not None
+            and r.provenance.effective_plan_hash == a_prov.effective_plan_hash]
+        family.sort(key=lambda r: ((r.provenance.checkpoint_hour or 0.0),
+                                   r.provenance.timestamp, r.run_id))
 
     def _status(slip_pct):
         if slip_pct is None:

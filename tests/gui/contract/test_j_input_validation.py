@@ -40,6 +40,7 @@ from prismGui.domain import serialization as ser
 from prismGui.domain.issues import IssueCategory, IssueCode, Severity, has_blocking
 from prismGui.domain.materialize import materialize
 from prismGui.domain.plan import ResourceReq, Task, open_draft
+from prismGui.domain.plan_of_record import AdoptedStep, PlanOfRecord
 from prismGui.domain.scenario import Scenario
 from prismGui.domain.versions import SCHEMA_VERSION
 
@@ -212,3 +213,30 @@ class TestInputValidation:
         assert session.list_scenarios() == (keep_a, keep_b)
         assert session.get_current_scenario_id() == "scn-new-a" and session.get_scenario() is keep_a
         assert session.get_draft() is kept_draft
+
+    def test_loading_new_baseline_drops_cross_revision_plan_of_record(self, baseline, raw_plan):
+        """A rolling plan of record is bound (by ``base_plan_hash``) to the revision it was built
+        against; a chain of adopted replans is meaningless against a different revision. Loading a
+        DIFFERENT revision drops it (``plan_of_record_kept`` False, PoR cleared); loading the SAME
+        revision keeps it. Drives ``resolve_for_new_baseline`` — the app-shell source guard."""
+        session = InMemorySessionState()
+        session.set_baseline(baseline)
+        por = PlanOfRecord(base_plan_id=baseline.plan_id, base_plan_hash=baseline.plan_hash).append(
+            AdoptedStep(Scenario(scenario_id="scn-step", base_plan_id=baseline.plan_id,
+                                 base_plan_hash=baseline.plan_hash, checkpoint_hour=4.0),
+                        "prism-run-1"))
+        session.set_plan_of_record(por)
+
+        # Same revision: the PoR is kept untouched.
+        same = services.resolve_for_new_baseline(session, baseline)
+        assert same.plan_of_record_kept is True
+        assert session.get_plan_of_record() is por
+
+        # A different revision: the cross-revision PoR is dropped.
+        mutated = copy.deepcopy(raw_plan)
+        mutated["tasks"][0]["duration"] = 99
+        new_baseline = ser.build_reference_plan("baseline-1", mutated, schema_version=SCHEMA_VERSION)
+        assert new_baseline.plan_hash != baseline.plan_hash
+        resolution = services.resolve_for_new_baseline(session, new_baseline)
+        assert resolution.plan_of_record_kept is False
+        assert session.get_plan_of_record() is None

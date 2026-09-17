@@ -127,6 +127,10 @@ from prismGui.app.scenario_model import (
     _current_schedule_payload, _schedule_label,
     _cleared_overlay, _scenario_change_lines, _scenario_diff,
 )
+from prismGui.app.plan_of_record_model import (
+    _por_is_empty, _por_next_asof_floor, _por_chain_run_ids, _run_is_adoptable, _adopt_step,
+    _revert_last, _next_scenario_after_adopt, _por_timeline_rows,
+)
 from prismGui.app.view_data import (
     _SEVERITY_ORDER, _issue_rows, _gantt_rows, _resource_util_rows, _FLOAT_CLASS_COLORS,
     _step_series, _schedule_csv, _DISPOSITION_INDICATOR_LABELS, _disposition_rows,
@@ -155,6 +159,7 @@ from prismGui.app.pages.scenarios import _render_scenarios
 
 
 _RUN_ERROR = "prism_run_error"     # transient: (stage, issues) of the last blocked run, popped once shown
+_RUN_BACKEND = "prism_run_backend" # persisted (store, executor, repository) — MUST outlive a rerun
 
 def _run_and_store(session, payload, plan_id, run_config, validator, store, executor,
                    repository, scenario) -> None:
@@ -198,9 +203,16 @@ def main() -> None:
 
     session = StreamlitSessionState()
     validator = build_validator()
-    store = InMemorySnapshotStore()
-    executor = _make_executor(store)
-    repository = InMemoryRepository()
+    # Run backend (snapshot store + PRISM executor + repository), persisted across reruns in session
+    # state — NOT rebuilt each script run. ``run_id`` is a per-executor counter (prism-run-1, -2, …),
+    # so a fresh executor every rerun would reset it to prism-run-1; since run results are stored in a
+    # dict keyed by run_id, each new run would then silently OVERWRITE the previous one, leaving
+    # Compare runs / Buffer burn permanently seeing "fewer than two runs". The store must likewise
+    # outlive a rerun so a later replan can read an earlier run's frozen-prefix snapshot.
+    if _RUN_BACKEND not in st.session_state:
+        _store = InMemorySnapshotStore()
+        st.session_state[_RUN_BACKEND] = (_store, _make_executor(_store), InMemoryRepository())
+    store, executor, repository = st.session_state[_RUN_BACKEND]
 
     raw, plan_id = _pick_source()
     # Defense in depth: the durable-memo re-seed in _pick_source keeps the pick across a run / page
@@ -304,10 +316,13 @@ def main() -> None:
     # PipelineResult so the page can render preflight warnings / a block reason inline.
     def _run_replan(scenario) -> PipelineResult:
         payload = json.loads(baseline.raw_snapshot)["payload"]
+        # Chain from the session's rolling plan of record (if any adopted steps): the adapter
+        # replays the adopted chain before this candidate so it freezes the adopted schedule,
+        # not the from-hour-0 baseline. None/empty ⇒ a plain hub-and-spoke replan.
         outcome = run_replan_pipeline(
             payload, baseline.plan_id, live_run_config,
             validator=validator, store=store, executor=executor, repository=repository,
-            scenario=scenario)
+            scenario=scenario, plan_of_record=session.get_plan_of_record())
         if outcome.ok:
             session.add_run_result(outcome.result)
             session.set_selected_result_id(outcome.result.run_id)

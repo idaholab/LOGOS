@@ -22,6 +22,7 @@ class StreamlitSessionState:
     _SELECTED = "prism_selected_id"
     _SOURCE_KEY = "prism_source_key"      # signature of the last file-reloaded source
     _MODE_SELECTIONS = "prism_mode_selections"   # tuple[ModeSelection, ...] merged into RunConfig
+    _PLAN_OF_RECORD = "prism_plan_of_record"     # Optional[PlanOfRecord]: adopted-replan chain
 
     def __init__(self) -> None:
         st.session_state.setdefault(self._BASELINE, None)
@@ -33,6 +34,7 @@ class StreamlitSessionState:
         st.session_state.setdefault(self._SELECTED, None)
         st.session_state.setdefault(self._SOURCE_KEY, None)
         st.session_state.setdefault(self._MODE_SELECTIONS, ())
+        st.session_state.setdefault(self._PLAN_OF_RECORD, None)
 
     def get_baseline(self):
         return st.session_state[self._BASELINE]
@@ -119,3 +121,9 @@ class StreamlitSessionState:
 
     def set_selected_result_id(self, run_id) -> None:
         st.session_state[self._SELECTED] = run_id
+
+    def get_plan_of_record(self):
+        return st.session_state[self._PLAN_OF_RECORD]
+
+    def set_plan_of_record(self, plan_of_record) -> None:
+        st.session_state[self._PLAN_OF_RECORD] = plan_of_record

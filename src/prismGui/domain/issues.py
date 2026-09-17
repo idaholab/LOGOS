@@ -62,6 +62,12 @@ class IssueCode(str, Enum):
     # dependency the engine cannot wire. Emitted at WARNING (category EXECUTION) —
     # the replan runs the supported subset; it never blocks.
     REPLAN_UNSUPPORTED = "REPLAN_UNSUPPORTED"
+    # Phase 5 (rolling plan-of-record): the adopted-replan chain a replan was asked to
+    # build on is invalid — an adopted step (or the candidate) has no checkpoint hour, or
+    # the as-of hours do not run forward (the candidate's T is before the last adopted T, or
+    # the chain itself goes backwards). A chain can only move forward in time, so this BLOCKS
+    # the replan (ERROR, category EXECUTION); nothing is persisted.
+    REPLAN_CHAIN_ORDER = "REPLAN_CHAIN_ORDER"
     # A PatchOp that is structurally malformed against the working tree: the
     # JSON-Pointer path does not resolve, or an add/replace carries no value.
     # Raised by domain.plan.apply_patch (the lightweight structural check), never

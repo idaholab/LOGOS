@@ -26,6 +26,10 @@ from prismGui.app.scenario_model import (
     _scenario_is_empty, _scenario_location_rows, _scenario_resource_rows,
     _scenario_task_suppression_rows, _cleared_overlay, _scenario_change_lines,
 )
+from prismGui.app.plan_of_record_model import (
+    _adopt_step, _next_scenario_after_adopt, _por_is_empty, _por_next_asof_floor,
+    _por_timeline_rows, _revert_last, _run_is_adoptable,
+)
 
 
 def _window_inputs(key_prefix: str):
@@ -523,7 +527,17 @@ def _render_checkpoint_controls(session, baseline) -> None:
     draft = _current_draft(session, cur_id)
     saved = session.get_scenario().checkpoint_hour
 
+    # Rolling plan of record: a chained replan must reschedule at or after the last adopted
+    # step's as-of hour (each step freezes the previous prefix before its own T), so floor the
+    # as-of input there. None ⇒ no PoR ⇒ a plain hub-and-spoke replan from hour 0.
+    por = session.get_plan_of_record()
+    floor = _por_next_asof_floor(por)
+
     st.markdown("**Replan as-of hour (T)**")
+    if floor is not None:
+        st.caption(f"📌 Rolling plan of record active — **{len(por.steps)} adopted step(s)**. This "
+                   f"replan chains from the adopted schedule and must reschedule at or after "
+                   f"**h={floor:g}** (the last adopted as-of hour).")
     if saved is None:
         st.caption("No as-of hour saved yet — set one below and **Save** (panel footer) to enable "
                    "**Run replan**. Leaving it unset keeps this a plain from-hour-0 scenario.")
@@ -531,10 +545,13 @@ def _render_checkpoint_controls(session, baseline) -> None:
         st.caption(f"Saved as-of hour: **{saved:g} h** — a replan freezes activities underway or "
                    f"complete at T and reschedules the remainder under the saved supported deltas.")
 
-    default = float(draft.checkpoint_hour) if draft.checkpoint_hour is not None else 0.0
+    min_value = float(floor) if floor is not None else 0.0
+    default = float(draft.checkpoint_hour) if draft.checkpoint_hour is not None else min_value
+    if default < min_value:          # a pre-PoR draft T below the new floor would break number_input
+        default = min_value
     c1, c2 = st.columns([2, 1])
     hour = c1.number_input(
-        "As-of hour (T)", min_value=0.0, value=default, step=1.0, key="prism_replan_asof",
+        "As-of hour (T)", min_value=min_value, value=default, step=1.0, key="prism_replan_asof",
         help="Hours from outage start. Activities underway/complete at T are frozen; the rest are "
              "rescheduled applying the staged supported deltas.")
     if c1.button("Set as-of hour", key="prism_replan_asof_set"):
@@ -556,7 +573,11 @@ def _render_run_replan(session, baseline, run_replan) -> None:
     scenario = session.get_scenario()
     ready = scenario.checkpoint_hour is not None
     if not ready:
-        st.caption("Set and **Save** an as-of hour above to enable a replan.")
+        st.caption(
+            "This scenario has no as-of hour, so it is a **from-hour-0 counterfactual** — run it with "
+            "the sidebar’s **Run schedule** (with this scenario selected + its edits *saved*), then "
+            "compare scenarios under Results → **Compare runs**. Set and **Save** an as-of hour above "
+            "*only* to reschedule the tail mid-outage — that is what feeds Results → **Replan vs original**.")
     else:
         warnings = replan_preflight(scenario, baseline)
         if warnings:
@@ -574,6 +595,61 @@ def _render_run_replan(session, baseline, run_replan) -> None:
         else:
             st.error(f"Replan blocked at {outcome.stage}.")
             _render_issues(outcome.issues)
+
+    # --- Adopt as plan of record ------------------------------------------------
+    # Fold the SELECTED result into the rolling plan of record so the NEXT replan chains from it
+    # (freeze against the adopted schedule, layer new deltas). Gated on the selected result being
+    # THIS working scenario's own completed replan (_run_is_adoptable), so a stale / mismatched /
+    # from-hour-0 run can never be adopted (Risk #3).
+    selected_id = session.get_selected_result_id()
+    selected = session.get_run_result(selected_id) if selected_id else None
+    adoptable = _run_is_adoptable(selected, scenario)
+    help_txt = ("Make the selected replan the current plan of record; the next replan then chains "
+                "from its schedule (freeze against it, layer new deltas).")
+    if not adoptable:
+        help_txt += (" Enabled once the selected result is THIS scenario's completed replan — run "
+                     "the replan above first.")
+    if st.button("✅ Adopt as plan of record", key="prism_replan_adopt", disabled=not adoptable,
+                 help=help_txt):
+        session.set_plan_of_record(
+            _adopt_step(session.get_plan_of_record(), baseline, scenario, selected.run_id))
+        # Reset the working overlay to a fresh EMPTY scenario for the next incremental step, and
+        # drop its stale page draft so the panel re-seeds empty (a checkpoint-less overlay also
+        # re-disables Adopt until the next replan runs).
+        fresh = _next_scenario_after_adopt(baseline)
+        session.set_scenario(fresh)
+        _draft_store().pop(fresh.scenario_id, None)
+        st.success("Adopted as plan of record — the working overlay reset for the next step.")
+        st.rerun()
+
+def _render_plan_of_record_panel(session, baseline) -> None:
+    """The rolling plan-of-record timeline: the adopted steps in T-order (as-of hour, run-id,
+    makespan, incremental slip vs the prior step) with a **Revert last adoption** undo. An empty /
+    absent PoR shows a one-line explainer. Reads the stored RunResults so an adopted step whose run
+    was evicted still lists (makespan blank)."""
+    st.divider()
+    st.markdown("**Plan of record (rolling)**")
+    por = session.get_plan_of_record()
+    if _por_is_empty(por):
+        st.caption("No plan of record yet — run a replan above and **Adopt** it to start a rolling "
+                   "chain. Each adopted step becomes the starting point the next replan chains from.")
+        return
+    st.caption("The next replan chains from the last adopted step (its rescheduled prefix is frozen "
+               "before the new as-of hour). Revert drops the most recent adoption.")
+    results_by_id = {r.run_id: r for r in session.list_run_results()}
+    for row in _por_timeline_rows(por, results_by_id):
+        asof = row["as_of_hour"]
+        asof_txt = "?" if asof is None else f"{asof:g}"
+        ms = row["makespan_hours"]
+        ms_txt = "—" if ms is None else f"{ms:g} h"
+        slip = row["slip_from_prev_hours"]
+        slip_txt = "" if slip is None else f" ({'+' if slip >= 0 else ''}{slip:g} h vs prior)"
+        st.caption(f"{row['index'] + 1}. as-of **h={asof_txt}** — run `{row['run_id']}`, "
+                   f"makespan {ms_txt}{slip_txt}")
+    if st.button("↩ Revert last adoption", key="prism_por_revert"):
+        session.set_plan_of_record(_revert_last(por))
+        st.rerun()
+
 
 def _render_replan(session, baseline, run_replan=None) -> None:
     """Replan page: pick an as-of hour T, author the SELECTED scenario's overlay (task-duration
@@ -593,3 +669,4 @@ def _render_replan(session, baseline, run_replan=None) -> None:
     _render_scenario_panel(session, baseline)
     _render_mode_picker(session, baseline)
     _render_run_replan(session, baseline, run_replan)
+    _render_plan_of_record_panel(session, baseline)

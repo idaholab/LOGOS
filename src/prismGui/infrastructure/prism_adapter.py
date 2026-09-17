@@ -122,14 +122,22 @@ class InProcessPrismExecutor:
         # Resolve snapshots first: a missing hash is a storage fact (SNAPSHOT_MISSING),
         # kept distinct from an engine failure so the UI can tell them apart. A replan
         # request (checkpoint_hour set) also resolves the scenario payload — the deltas it
-        # projects onto replan()'s kwargs — from the same store (see prepare_replan).
+        # projects onto replan()'s kwargs — from the same store (see prepare_replan). A
+        # rolling replan additionally resolves each adopted step's scenario payload (the
+        # T-ordered chain replayed before the candidate); a missing one is SNAPSHOT_MISSING too.
         pin = request.provenance_inputs
         try:
             plan_payload = self._resolve_payload(request.effective_plan_hash)
             rc_payload = self._resolve_payload(request.run_config_hash)
-            scenario_payload = (
-                self._resolve_payload(pin.scenario_delta_hash)
-                if pin.checkpoint_hour is not None else None)
+            if pin.checkpoint_hour is not None:
+                scenario_payload = self._resolve_payload(pin.scenario_delta_hash)
+                prior_scenario_payloads = [
+                    self._resolve_payload(step.scenario_delta_hash)
+                    for step in pin.prior_steps
+                ]
+            else:
+                scenario_payload = None
+                prior_scenario_payloads = []
         except SnapshotNotFoundError as exc:
             self._record_failed(
                 run_id, prov,
@@ -144,7 +152,8 @@ class InProcessPrismExecutor:
         try:
             if scenario_payload is not None:
                 result = self._run_replan(
-                    plan_payload, rc_payload, scenario_payload, run_id, prov)
+                    plan_payload, rc_payload, scenario_payload, run_id, prov,
+                    prior_scenario_payloads=prior_scenario_payloads)
             else:
                 result = self._run(plan_payload, rc_payload, run_id, prov)
         except Exception as exc:  # noqa: BLE001 - deliberate hard boundary
@@ -195,6 +204,7 @@ class InProcessPrismExecutor:
             timestamp=datetime.now(timezone.utc),
             scenario_delta_hash=pin.scenario_delta_hash,
             checkpoint_hour=pin.checkpoint_hour,   # None for a normal run; T for a replan
+            prior_steps=pin.prior_steps,           # the adopted chain replayed before this candidate ('()' if none)
         )
 
     def _record_failed(self, run_id: str, prov: Provenance, issue: Issue) -> None:
@@ -231,7 +241,8 @@ class InProcessPrismExecutor:
         return self._assemble_completed(pert, result, plan_payload, rc_payload, run_id, prov)
 
     def _run_replan(self, plan_payload: dict, rc_payload: dict, scenario_payload: dict,
-                    run_id: str, prov: Provenance) -> RunResult:
+                    run_id: str, prov: Provenance, *,
+                    prior_scenario_payloads=()) -> RunResult:
         """Phase-5 replan path. ``plan_payload`` is the BASELINE MIRROR (prepare_replan
         persisted ``materialize(plan, None)``, NOT the materialized overlay — the deltas
         are applied by ``replan()``, not baked into the plan, to avoid double-applying).
@@ -240,15 +251,38 @@ class InProcessPrismExecutor:
         precondition), project the scenario overlay onto replan()'s kwargs via
         ``build_replan_inputs``, then ``replan()`` reschedules the remainder from the as-of
         hour T. The COMPLETED-result assembly is shared with a normal run — every DTO helper
-        reads only result keys ``replan()`` returns unchanged."""
+        reads only result keys ``replan()`` returns unchanged.
+
+        Rolling plan-of-record: ``prior_scenario_payloads`` is the adopted chain (T-ordered
+        by prepare_replan). Each is replayed as a ``replan()`` on the SAME Pert BEFORE the
+        candidate, so the candidate's ``replan(T)`` freezes the adopted chain's rescheduled
+        prefix rather than the original from-hour-0 baseline. ``replan()`` classifies
+        activities by their CURRENT scheduled times and fully resets+replays its state each
+        call, so chaining on one instance is safe. An EMPTY chain ⇒ exactly initial + one
+        candidate replan — byte-identical to a non-rolling replan."""
         pert, sgs, priority_rule, horizon = self._build_pert(plan_payload, rc_payload)
-        # Initial run establishes the baseline schedule replan() reschedules from.
+        # Initial run establishes the from-hour-0 baseline schedule the chain builds on.
         pert.calculateScheduleWithResources(
             sgs=sgs, max_time_hours=horizon, priority_rule=priority_rule)
 
-        ri = build_replan_inputs(scenario_payload)
+        # Replay each adopted step in T-order; each freezes the previous step's rescheduled
+        # prefix before its own T (empty chain → this loop is a no-op).
+        for payload in prior_scenario_payloads:
+            self._apply_replan(pert, build_replan_inputs(payload), sgs, horizon)
+
+        # The candidate replan reschedules the remainder from its as-of hour T on top of
+        # whatever the chain (if any) left frozen.
+        result = self._apply_replan(pert, build_replan_inputs(scenario_payload), sgs, horizon)
+        return self._assemble_completed(pert, result, plan_payload, rc_payload, run_id, prov)
+
+    @staticmethod
+    def _apply_replan(pert: Pert, ri, sgs, horizon) -> dict:
+        """One ``replan()`` step on an already-scheduled Pert: build the emergent activities
+        and pass the projected supported deltas as kwargs. Returns the engine's result dict
+        (``_assemble_completed`` consumes it unchanged). Extracted so the rolling chain and
+        the candidate share exactly one call shape."""
         new_acts = [Activity.from_json(spec) for spec in ri.new_task_specs]
-        result = pert.replan(
+        return pert.replan(
             current_time_hours=ri.checkpoint_hour,
             new_activities=new_acts or None,
             predecessor_wiring=ri.predecessor_wiring or None,
@@ -256,7 +290,6 @@ class InProcessPrismExecutor:
             equipment_updates=list(ri.equipment_updates) or None,
             duration_overrides=ri.duration_overrides or None,
             sgs=sgs, max_time_hours=horizon)
-        return self._assemble_completed(pert, result, plan_payload, rc_payload, run_id, prov)
 
     def _assemble_completed(self, pert: Pert, result: dict, plan_payload: dict,
                             rc_payload: dict, run_id: str, prov: Provenance) -> RunResult:

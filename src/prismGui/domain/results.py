@@ -175,6 +175,19 @@ class Disposition:
 # -----------------------------------------------------------------------------
 
 @dataclass(frozen=True)
+class ReplanStep:
+    """One adopted step in a rolling plan-of-record chain (Phase 5, rolling PoR).
+
+    A content-addressed reference to the scenario delta a prior replan rescheduled
+    from, plus the as-of hour T it froze at. The bytes the hash addresses live in the
+    SnapshotStore (prepare_replan persists each adopted step's scenario snapshot), so
+    the adapter can resolve the chain and replay it on one Pert. Ordered by
+    checkpoint_hour within Provenance.prior_steps."""
+    scenario_delta_hash: Hash
+    checkpoint_hour: Hours
+
+
+@dataclass(frozen=True)
 class Provenance:
     """
     Content-addressed. Each result conceptually owns the full effective-plan
@@ -195,6 +208,12 @@ class Provenance:
     # Phase 5 (replan): the as-of hour T a replan rescheduled from. None for a normal
     # from-hour-0 run. Trailing optional so every existing construction stays valid.
     checkpoint_hour: Optional[Hours] = None
+    # Phase 5 (rolling plan-of-record): the adopted-replan chain this run was scheduled
+    # ON TOP of, ordered by checkpoint_hour. Empty for a hub-and-spoke replan (no PoR) and
+    # for from-hour-0 runs. Each ref's snapshot resolves in the SnapshotStore, so the
+    # adapter can replay the chain on one Pert. Trailing default keeps every existing
+    # construction valid.
+    prior_steps: tuple[ReplanStep, ...] = ()
 
 
 # -----------------------------------------------------------------------------

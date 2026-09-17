@@ -30,9 +30,16 @@ intersections below happened incidentally and had not been written down until no
 | **Stage B** — multi-scenario storage + selector + edit-target-follows-selection + relation graph + activity graph + mode picker | commit `cf99139` | committed (implemented & verified 2026-09-10) |
 | **Phase 3 / Tier 2** — run-aware activity DAG: float-class node color, CPM ES/LS/topo layout control, resource-contention overlay, rich per-node tooltip | working tree | **committed 2026-09-11** (implemented & verified) |
 | **Restructure Phase 1** — workflow multipage nav (`st.navigation` + 4 pages: Plan/Results/Replan/Scenarios) | commit `392fe14` | committed (layout-only; 232 tests green) |
-| **Restructure Phase 2** — code split: `app/main.py` (~3,892 L) → cohesive `app` submodules (`_streamlit`, `pipeline`, `edit_model`, `scenario_model`, `view_data`, `session`, `sidebar`, `components`, `pages/{plan,results,replan,scenarios}`) + thin 246-L composition-root `main.py` that re-exports the pure surface | working tree | **implemented & verified 2026-09-11** (verbatim lift-and-shift: 187/187 nodes AST-identical, orphan `_render_disposition_panel` dropped; 232 tests green; **not yet committed**) |
+| **Restructure Phase 2** — code split: `app/main.py` (~3,892 L) → cohesive `app` submodules (`_streamlit`, `pipeline`, `edit_model`, `scenario_model`, `view_data`, `session`, `sidebar`, `components`, `pages/{plan,results,replan,scenarios}`) + thin 246-L composition-root `main.py` that re-exports the pure surface | working tree | **implemented & verified 2026-09-11** (verbatim lift-and-shift: 187/187 nodes AST-identical, orphan `_render_disposition_panel` dropped; 232 tests green; **committed** as `c284de6`) |
+| **Phase 3** — output trustworthiness: options-rich activity DAG (Tier 2), CPM-only critical-path view, dependency-violation verdict, configurable fitness weights, per-task inspector | commits `2fc610d` / `fc84f97` | committed |
+| **Phase 4** — high-value analysis: run comparison (4.1), guided augmentation (4.2), config + mode sweep (4.3), chart layer, chain sets, time-window pre-flight, review-enablement demo sample | commits `b5abae8`…`bfa35f4` | committed |
+| **Phase 5 CORE** — checkpoint-driven replan loop (the one **non-GUI-only** Phase-5 unit; enabling `outage_data.py` tz fix) | commit `823938a` | committed |
+| **Phase 5, Row 2** — original-vs-replanned comparison (residual) | commit `a87c9aa` | committed (GUI-only) |
+| **Phase 5, Row 3** — buffer-consumption monitoring | commit `c9b53e1` | committed (GUI-only) |
+| **Phase 5, Row 4** — rolling plan-of-record (chained replan) | working tree | **implemented & verified 2026-09-17** (adapter chain-replay on one Pert; new `plan_of_record.py` + `plan_of_record_model.py`; empty chain byte-identical to today; 427 island + 41 CPM green) |
 
-Stage A and Stage B were committed in `cf99139`; Tier 2 is committed on top (this change). The user
+Stage A and Stage B were committed in `cf99139`; the working-tree items listed above have since been
+committed too (see `git log`, the authoritative record), and Phases 3, 4, and 5 landed on top. The user
 performs all commits — nothing is committed without fresh explicit authorization.
 
 ---
@@ -85,12 +92,13 @@ the storage/navigation a capability needs exists, but the capability itself does
 | **Phase-4 chart layer** — the deferred visual half of 4.1 / 4.2 / 4.3 | ✅ | **Delivered 2026-09-14 — GUI-only, pure display polish, no new analysis.** Two pure list-of-dict builders in `view_data.py` (re-exported through `main.py`), each taking the same `labeled_results: list[(label, RunResult)]` primitive so **Compare runs / Augment resources / Sweep** feed them from the DTOs they already hold: **`_makespan_bar_rows`** — one stacked-bar row per run (`{label, status, cpm_lower_bound_hours, optimism_gap_hours, makespan_hours, is_best}`), the CPM-floor + optimism-gap segments summing to the makespan (read straight off `schedule`, so the split can never disagree with the total), the shortest makespan(s) flagged `is_best` (ties flag all); and **`_multi_gantt_rows`** — each run's `_gantt_rows` tagged with its `run_label` and concatenated over the shared hour-0 x-axis (every run's times are hour-offsets from project start, so no alignment transform), FAILED/no-schedule runs contributing zero rows. Two lazy-Plotly render helpers in `pages/results.py` (`_render_makespan_bars` — stacked horizontal `go.Bar` traces, `barmode="stack"`, shortest bar outlined green + a "◄ shortest" annotation; `_render_multi_gantt` — `make_subplots(rows=n, shared_xaxes=True)` faceted one subplot per run, bars colored by float class via `_FLOAT_CLASS_COLORS`, bottom-axis range slider — the `_render_plots` idiom, per-run) import Plotly **inside the body** so the modules still import with neither Streamlit nor Plotly present, and degrade to a caption (never an empty figure) when no run has a schedule. Wired: the **makespan bar chart** into all three views; the **aligned multi-run Gantt** into **Compare runs** + **Augment** only (each in a collapsed `st.expander`), **not** the Sweep (a 22-rule fan-out would be unreadable faceted — bars there echo the leaderboard order). **No engine/adapter/DTO/schema/serialization/services/session-API change.** |
 | Compare different baseline **revisions** (4b) | ⬜ | needs baseline versioning (Phase 6) |
 
-### Phase 5 — Replanning — ⬜ not started
+### Phase 5 — Replanning — ✅ complete (three original rows + a rolling plan-of-record extension)
 | Capability | Status | Where / caveat |
 |---|---|---|
-| Checkpoint; resource/equipment updates; emergent tasks; equipment OOS; duration overrides; hold-point release updates | ⬜ | The scenario overlay model *has fields* (`emergent_tasks`, `emergent_dependencies`, `hold_point_release_overrides`, `equipment_changes`, `resource_changes`, `duration_overrides`) and the what-if panel edits some — but there is **no checkpoint/replan workflow** driving `replan()`. |
-| Original-vs-replanned comparison (isolated counterfactuals + residual) | ⬜ | |
-| Buffer-consumption early-warning monitoring | ⬜ | |
+| Checkpoint; resource/equipment updates; emergent tasks; equipment OOS; duration overrides; hold-point release updates | ✅ *(supported subset; warn-and-run)* | **Delivered as Phase-5 CORE (commit `823938a`).** A **Replan** page drives the engine's `replan()` from a chosen as-of hour T: pick T, apply the supported overlay deltas, and the rescheduled remainder lands on Results like any run (as-of hour shown as a conditional **11th provenance row**; normal from-0 runs keep their 10). Two locked product decisions: **warn-and-run** — delta families `replan()` cannot honor (`location_changes`, `task_suppressions`, `dependency_suppressions`, `hold_point_release_overrides`, existing→existing / non-zero-lag emergent deps) raise `REPLAN_UNSUPPORTED` **WARNINGs and never block**; the replan runs the supported subset (resource/equipment updates, emergent tasks, duration overrides). Path domain→ports→application→adapter→app: `domain/replan.py` (`build_replan_inputs` / `replan_preflight`), `services.prepare_replan` (persists the **baseline mirror** so deltas are not double-applied), the adapter's `_run_replan` branch (the only new PRISM-touching code), the Replan-page as-of-hour control + Run-replan action. Enabling engine fix in `outage_data.py` (tz-aware far-future sentinel). **The one non-GUI-only Phase-5 unit.** |
+| Original-vs-replanned comparison (isolated counterfactuals + residual) | ✅ | **Delivered as Phase-5 Row 2 (commit `a87c9aa`, GUI-only).** A Results **Replan vs original** segment: the selected replan beside an analyst-picked original (defaulting to the matching from-0 baseline), a per-task **residual** (frozen vs rescheduled, per-task start/end slip, emergent/dropped), a headline metric delta, and aligned makespan/Gantt charts. Two pure builders `_replan_diff` / `_default_original_run_id` (`view_data.py`, re-exported) + render helper `_render_replan_vs_original`; frozen = strict `start < T − tol` (the divergence from the engine's `<= T`, pinned in tests). **No engine/adapter/DTO/ports/services/pipeline change.** |
+| Buffer-consumption early-warning monitoring | ✅ | **Delivered as Phase-5 Row 3 (commit `c9b53e1`, GUI-only).** A Results **Buffer burn** segment — a **history** view over `list_run_results()` (like Compare runs / Sweep, not gated on the selected run) tracking how the projected finish burns against the **plan-of-record** finish `M0` (the session's first completed from-0 baseline) across the replan family (anchor + replans sharing its `effective_plan_hash`, ordered by as-of hour). Per point: projected finish, slippage vs `M0`, % work frozen at T (the Row-2 `start < T − tol` boundary), constrained-chain length, min off-chain positive float, a `same_config` flag, and a heuristic status band (`on_track` / `watch` ≤ 10% / `at_risk`); headline metrics + status banner + finish-trajectory chart vs the `M0` reference and the CPM floor. **"Buffer" = margin vs the plan of record — there is no authored deadline and no CCPM project buffer (that machinery is Phase 6); no fever-chart %-consumed denominator is invented.** One pure builder `_buffer_burn` (`view_data.py`, re-exported) + render helper `_render_buffer_burn`. Deferred: cross-**revision** burn (needs Phase-6 baseline versioning). |
+| Rolling plan-of-record (adopt a replan; chain the next off it) | ✅ | **Delivered as Phase-5 Row 4 (working tree, 2026-09-17). GUI + adapter, NO CPM-engine change.** During execution an analyst adopts a completed replan as the **plan of record** so the next replan **chains** from the adopted schedule (freezes its rescheduled prefix, layers new deltas) instead of always fanning off the from-hour-0 baseline. Key enabling finding: `Pert.replan()` is safe to **chain on one instance** — `_partial_reset` classifies by CURRENT scheduled abs-times and fully resets+replays each call, so `initial → replan(T₁,Δ₁) → … → replan(candidate)` freezes PoR-1's prefix exactly. So the adapter's `_run_replan` runs `calculateScheduleWithResources()` from-0, replays each adopted step's `replan()` in T-order (`_apply_replan`), then the candidate; an **empty** chain is byte-identical to today (the regression safety net). New domain `plan_of_record.py` (`AdoptedStep`, `PlanOfRecord` with `append`/`without_last`/`step_refs`) + `ReplanStep`/`prior_steps` on `Provenance`/`ProvenanceInputs`; `services.prepare_replan` gains a T-ordering gate (`REPLAN_CHAIN_ORDER`) + persists each step's scenario snapshot; `resolve_for_new_baseline` drops a cross-revision PoR. Pure builders in `plan_of_record_model.py` (`_adopt_step`, `_revert_last`, `_run_is_adoptable`, `_por_chain_run_ids`, `_por_timeline_rows`, …, re-exported through `main.py`); Replan-page **Adopt as plan of record** + **Revert last** + as-of floor; PoR-aware `_buffer_burn(chain_run_ids=…)` anchors Buffer burn on the explicit chain. `main.py` now persists the run backend (store/executor/repository) across reruns so a later replan can resolve an earlier step's frozen-prefix snapshot. Chain rides provenance; deltas ride per-step scenario snapshots; `effective_plan_hash` stays the baseline-mirror hash. Known limitation (flagged, not fixed): freshness (`current_freshness_detail`) ignores `prior_steps`. Tests: `TestRollingReplanChain` (CPM timing), `TestPlanOfRecord` + `TestPrepareReplan` chain cases (contract), 2 `adapter_integration` chain/empty-chain tests. |
 
 ### Phases 6–7 — ⬜ not started
 GA/ALNS optimization, RAVEN Monte Carlo, CCPM buffers, domain-profile mechanism + outage-specific
@@ -162,7 +170,10 @@ for the *remaining* Phase-4 rows the work is the diagnostics, not the rendering:
   reusable substrate every remaining comparison reduces to; 4.2 is the reusable clone→rerun→delta loop, and
   4.3 generalized its seam to `run_plan` and fanned it out over an axis picker — the pattern the mode sweep
   reused as its fourth axis.
-- **Phase 5:** untouched; overlay fields exist but no replan loop.
+- **Phase 5:** ✅ **complete** — the checkpoint-driven replan loop (CORE, `823938a`, the one
+  non-GUI-only unit), the original-vs-replanned comparison (Row 2, `a87c9aa`, GUI-only), and
+  buffer-consumption monitoring (Row 3, `c9b53e1`, GUI-only) are all delivered and committed. See the
+  Phase 5 section above and the **Phase-5 reviewer walkthrough** at the end of this doc.
 
 ---
 
@@ -243,7 +254,51 @@ the mode sweep reused as its fourth axis. Candidate follow-ons, none scoped/appr
   is the first **non-GUI-only** increment in a while (engine + adapter + DTOs), so it carries more risk
   than the Tier-A / 4.1 / 4.2 / 4.3 wire-ups.
 
-This is a suggestion only — no work is authorized past the **review-enablement demo sample** (data + one
-test + docs, delivered 2026-09-14; it followed the Phase-4 time-window pre-flight, itself after the
-chain-sets increment). The demo sample closes the last review-blocker (the empty-state gap for the
-window/mode views); the branch is ready for the GUI user review.
+**Update — Phase 5 has since been delivered** (this section predates it): the checkpoint-driven replan
+loop (CORE, `823938a` — the one non-GUI-only unit), the original-vs-replanned comparison (Row 2,
+`a87c9aa`, GUI-only), and buffer-consumption monitoring (Row 3, `c9b53e1`, GUI-only) all landed after the
+review-enablement demo sample. **All of Phases 1–5 are now committed; the branch is ready for the GUI user
+review** — Phases 6–7 (GA/ALNS optimization, RAVEN Monte Carlo, CCPM buffers, baseline versioning, LLM
+interpretation) remain the only ⬜ capabilities. See the **Phase-5 reviewer walkthrough** below for the
+exact click-path to exercise all three Phase-5 rows on `example_10`.
+
+---
+
+## Phase-5 reviewer walkthrough (example_10 — no new sample needed)
+
+The three Phase-5 rows are **history-driven**: they show their substance only once a baseline and one or
+more replans exist in the session. Follow this path so no Phase-5 view opens on an empty state (the same
+first-impression trap the review-enablement demo sample fixed for the window/mode views). `example_10`
+(the primary bundled sample) exercises all three rows — **no new sample is required**; a headless smoke
+(`InProcessPrismExecutor`, baseline + two replans) reproduces the numbers below (they depend on the exact
+delta, so treat them as "≈").
+
+1. **Load + baseline.** Sidebar → load `example_10` → **Run schedule**. Lands on **Results** with the
+   plan-of-record schedule (**makespan 85.0 h**, CPM lower bound 71.0 h). This first from-0 run is the
+   buffer-burn **anchor** (`M0 = 85`).
+2. **First replan (as-of 20).** **Replan** page → set as-of hour **T = 20** → in the what-if panel add a
+   **resource change: MECHANIC → 4 crew from hour 20** (a crew shortfall part-way through the outage) →
+   **Run replan**. It reschedules the tail and lands on Results (as-of hour shown as the 11th provenance
+   row). Expected finish ≈ **109 h** (**+24 h** slippage).
+3. **Second replan (as-of 40).** **Replan** page → as-of **T = 40** → same MECHANIC → 4 (from hour 40) →
+   **Run replan**. Expected finish ≈ **101 h** (**+16 h** — *less* than the T=20 replan because more work
+   is already locked in by hour 40, so the crew cut bites a shorter remaining tail; a realistic,
+   non-monotone burn).
+4. **Row 2 — Replan vs original.** Results → **Replan vs original** (visible while a replan is the selected
+   run). Shows the selected replan beside its from-0 original: a frozen prefix (start < T, byte-identical)
+   and a rescheduled tail, per-task start/end slip, and aligned makespan/Gantt charts.
+5. **Row 3 — Buffer burn.** Results → **Buffer burn** (a history view — always available, not gated on the
+   selected run). Headline: plan-of-record **85 h**, latest projected **101 h**, slippage **+16 h**; an
+   **at-risk** banner; a three-row trend table (as-of 0 / 20 / 40, rising **% complete** 0.00 → 0.20 →
+   0.47) and a finish-trajectory chart against the 85 h reference line and the CPM floor.
+
+**Things to confirm during review (deliberate decisions, not defects):**
+- **Warn-and-run:** applying an *unsupported* delta on the Replan page (location change, task/dependency
+  suppression, hold-point-release override) surfaces a `REPLAN_UNSUPPORTED` **warning** and runs the
+  supported subset — it never blocks.
+- **Anchor stability:** buffer burn measures against the **first** from-0 baseline of the session and keeps
+  that anchor across re-runs/edits. Editing the plan and running a new baseline mid-session does **not**
+  re-anchor — the new run won't join the burn family (its `effective_plan_hash` differs). By design (a
+  stable plan of record), but worth an explicit reviewer sign-off.
+- **"Buffer" ≠ CCPM buffer:** the margin is vs the plan-of-record finish; there is no authored deadline and
+  no CCPM project/feeding buffer (that is Phase 6). The segment caption states this.

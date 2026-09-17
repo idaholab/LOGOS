@@ -33,6 +33,7 @@ from prismGui.domain.results import (
     FloatClass,
     Freshness,
     Provenance,
+    ReplanStep,
     ResourceUtilizationDTO,
     RunResult,
     RunResultStatus,
@@ -44,6 +45,7 @@ from prismGui.domain.results import (
 )
 from prismGui.domain.disposition import ScheduleSummary, compute_disposition
 from prismGui.domain.hashing import hash_scenario, scenario_payload
+from prismGui.domain.plan_of_record import AdoptedStep, PlanOfRecord
 from prismGui.domain.replan import build_replan_inputs, replan_preflight
 from prismGui.domain.scenario import (
     DependencySuppression, DurationOverride, EquipmentChange, HoldPointReleaseOverride,
@@ -3152,6 +3154,200 @@ class TestBufferBurn:
                 self._act("Z", 0.0, 5.0, on_chain=False, tf=TF_ZERO_TOL)]    # off chain, not > tol
         base = self._run("base", self._sched(85, activities=acts))
         assert app_main._buffer_burn((base,))["rows"][0]["min_positive_float_hours"] is None
+
+
+class TestPlanOfRecord:
+    """The rolling plan-of-record (Phase-5, rolling PoR): the streamlit-free pure builders behind
+    the Replan-page **Adopt** / **Revert** actions and the PoR timeline panel (re-exported through
+    the app-shell seam), plus the immutable ``PlanOfRecord`` domain chain they fold intent into.
+    All pure — domain DTOs + content hashing, no ``st`` / PRISM. The chain rides run provenance;
+    each step's incremental scenario delta rides a snapshot the adapter replays in T-order."""
+
+    @staticmethod
+    def _scn(baseline, t, dur=9.0):
+        """A non-empty working scenario at as-of hour ``t`` (a permanent B-duration override), bound
+        to ``baseline`` — the shape a session what-if takes right before its replan is adopted."""
+        return Scenario(
+            scenario_id=f"scn-{t}", base_plan_id=baseline.plan_id,
+            base_plan_hash=baseline.plan_hash, name=f"as-of {t}", checkpoint_hour=float(t),
+            duration_overrides=(DurationOverride(task_id="B", duration_hours=float(dur)),))
+
+    @staticmethod
+    def _prov(run_id, *, checkpoint_hour=None, scenario_delta_hash=None):
+        return Provenance(
+            baseline_snapshot_hash="base-hash", effective_plan_hash="eff-hash",
+            run_config_hash="cfg-hash", schema_version=SCHEMA_VERSION,
+            canonicalization_version=CANON_VERSION, app_version=APP_VERSION,
+            prism_version="test", run_id=run_id,
+            timestamp=datetime(2025, 1, 1, tzinfo=timezone.utc),
+            scenario_delta_hash=scenario_delta_hash, checkpoint_hour=checkpoint_hour)
+
+    def _run(self, run_id, *, status=RunResultStatus.COMPLETED, makespan=None, **prov_kw):
+        sched = None if makespan is None else ScheduleDTO(
+            makespan_hours=float(makespan), cpm_lower_bound_hours=float(makespan),
+            optimism_gap_hours=0.0, activities=(), constrained_chain=(), cpm_critical_path=())
+        return RunResult(run_id=run_id, status=status, schedule=sched,
+                         provenance=self._prov(run_id, **prov_kw))
+
+    def _fresh(self, baseline):
+        return PlanOfRecord(base_plan_id=baseline.plan_id, base_plan_hash=baseline.plan_hash)
+
+    # ---- PlanOfRecord domain chain -------------------------------------------------------------
+    def test_domain_append_keeps_steps_t_sorted(self, baseline):
+        """``append`` re-sorts by as-of hour regardless of adoption order (adopt T=8 then T=4 →
+        steps [4, 8], the order the adapter replays); the receiver is unchanged (pure)."""
+        first = self._fresh(baseline).append(AdoptedStep(self._scn(baseline, 8.0), "run-8"))
+        por = first.append(AdoptedStep(self._scn(baseline, 4.0), "run-4"))
+        assert [s.checkpoint_hour for s in por.steps] == [4.0, 8.0]
+        assert [s.adopted_run_id for s in por.steps] == ["run-4", "run-8"]
+        assert por.last_checkpoint_hour() == 8.0 and por.is_empty() is False
+        assert [s.adopted_run_id for s in first.steps] == ["run-8"]   # receiver untouched
+
+    def test_domain_without_last_and_empty(self, baseline):
+        """A fresh chain is empty (no last-checkpoint, no-op ``without_last``); ``without_last`` drops
+        the most-recently-adopted step, leaving the rest T-sorted."""
+        fresh = self._fresh(baseline)
+        assert fresh.is_empty() is True and fresh.last_checkpoint_hour() is None
+        assert fresh.without_last().is_empty() is True                # no-op on empty
+        two = fresh.append(AdoptedStep(self._scn(baseline, 4.0), "run-4")).append(
+            AdoptedStep(self._scn(baseline, 8.0), "run-8"))
+        one = two.without_last()
+        assert [s.adopted_run_id for s in one.steps] == ["run-4"]
+        assert two.steps[-1].adopted_run_id == "run-8"               # receiver untouched (pure)
+
+    def test_domain_step_refs_in_t_order(self, baseline):
+        """``step_refs`` yields ``ReplanStep`` refs in T-order (the hash is a placeholder services
+        fills from each persisted snapshot; here only the ordering convenience is pinned)."""
+        por = self._fresh(baseline).append(AdoptedStep(self._scn(baseline, 8.0), "run-8")).append(
+            AdoptedStep(self._scn(baseline, 4.0), "run-4"))
+        refs = por.step_refs()
+        assert all(isinstance(r, ReplanStep) for r in refs)
+        assert [r.checkpoint_hour for r in refs] == [4.0, 8.0]
+
+    # ---- pure builders (re-exported through the app-shell seam) --------------------------------
+    def test_por_is_empty(self, baseline):
+        """``None`` and a chain with no adopted steps are both empty; a one-step chain is not."""
+        assert app_main._por_is_empty(None) is True
+        assert app_main._por_is_empty(self._fresh(baseline)) is True
+        one = self._fresh(baseline).append(AdoptedStep(self._scn(baseline, 4.0), "run-4"))
+        assert app_main._por_is_empty(one) is False
+
+    def test_por_next_asof_floor(self, baseline):
+        """The next replan's as-of floor is the last adopted step's T; ``None`` when there is no PoR
+        (no floor — a plain hub-and-spoke replan may reschedule from any T)."""
+        assert app_main._por_next_asof_floor(None) is None
+        assert app_main._por_next_asof_floor(self._fresh(baseline)) is None
+        por = self._fresh(baseline).append(AdoptedStep(self._scn(baseline, 4.0), "run-4")).append(
+            AdoptedStep(self._scn(baseline, 8.0), "run-8"))
+        assert app_main._por_next_asof_floor(por) == 8.0
+
+    def test_por_chain_run_ids(self, baseline):
+        """The adopted run-ids in T-order for the PoR-aware buffer-burn family; ``None`` (not ``[]``)
+        with no PoR so ``_buffer_burn`` keeps its implicit effective-hash family."""
+        assert app_main._por_chain_run_ids(None) is None
+        assert app_main._por_chain_run_ids(self._fresh(baseline)) is None
+        por = self._fresh(baseline).append(AdoptedStep(self._scn(baseline, 8.0), "run-8")).append(
+            AdoptedStep(self._scn(baseline, 4.0), "run-4"))
+        assert app_main._por_chain_run_ids(por) == ["run-4", "run-8"]
+
+    def test_adopt_step_starts_fresh_chain_and_appends_t_sorted(self, baseline):
+        """First adoption starts a chain bound to the baseline revision; a later adoption at an
+        EARLIER T inserts in T-order. Pure — the caller stores the returned PoR."""
+        por = app_main._adopt_step(None, baseline, self._scn(baseline, 8.0), "run-8")
+        assert por.base_plan_hash == baseline.plan_hash and por.base_plan_id == baseline.plan_id
+        assert [s.adopted_run_id for s in por.steps] == ["run-8"]
+        por2 = app_main._adopt_step(por, baseline, self._scn(baseline, 4.0), "run-4")
+        assert [s.checkpoint_hour for s in por2.steps] == [4.0, 8.0]
+        assert [s.adopted_run_id for s in por2.steps] == ["run-4", "run-8"]
+
+    def test_adopt_step_rebinds_when_baseline_revision_changed(self, baseline):
+        """A PoR bound to a superseded revision is discarded — adoption starts a FRESH chain bound
+        to the current baseline (a chain can never straddle two revisions)."""
+        stale = PlanOfRecord(base_plan_id="old", base_plan_hash="old-hash").append(
+            AdoptedStep(self._scn(baseline, 4.0), "run-4"))
+        por = app_main._adopt_step(stale, baseline, self._scn(baseline, 6.0), "run-6")
+        assert por.base_plan_hash == baseline.plan_hash
+        assert [s.adopted_run_id for s in por.steps] == ["run-6"]     # stale step dropped
+
+    def test_revert_last(self, baseline):
+        """Revert drops the last adopted step, returning the shorter chain — or ``None`` once the
+        chain empties (the session then clears the PoR: a plain replan again). ``None`` in → out."""
+        assert app_main._revert_last(None) is None
+        por = app_main._adopt_step(None, baseline, self._scn(baseline, 4.0), "run-4")
+        por = app_main._adopt_step(por, baseline, self._scn(baseline, 8.0), "run-8")
+        shorter = app_main._revert_last(por)
+        assert [s.adopted_run_id for s in shorter.steps] == ["run-4"]
+        assert app_main._revert_last(shorter) is None                # last step removed -> clear
+
+    def test_next_scenario_after_adopt_is_empty_and_uncheckpointed(self, baseline):
+        """After an adoption the working scenario resets to a fresh EMPTY overlay bound to the
+        baseline with NO as-of hour — so the panel re-seeds empty and Adopt re-disables until the
+        next replan runs."""
+        fresh = app_main._next_scenario_after_adopt(baseline)
+        assert fresh.base_plan_hash == baseline.plan_hash
+        assert fresh.checkpoint_hour is None
+        assert app_main._scenario_is_empty(fresh) is True
+
+    def test_run_is_adoptable_only_matching_completed_replan(self, baseline):
+        """Adopt is gated on the selected result being THIS working scenario's own COMPLETED replan:
+        its provenance as-of hour AND scenario-delta hash must both equal the working scenario's. A
+        ``None`` run / scenario, an uncheckpointed working scenario, a FAILED run, a from-hour-0 run
+        (no provenance checkpoint), a T mismatch, and a delta-hash mismatch each fail closed."""
+        scn = self._scn(baseline, 4.0)
+        h = hash_scenario(scn)
+        good = self._run("run-4", checkpoint_hour=4.0, scenario_delta_hash=h, makespan=90.0)
+        assert app_main._run_is_adoptable(good, scn) is True
+        assert app_main._run_is_adoptable(None, scn) is False
+        assert app_main._run_is_adoptable(good, None) is False
+        uncheckpointed = Scenario(scenario_id="x", base_plan_id=baseline.plan_id,
+                                  base_plan_hash=baseline.plan_hash)
+        assert app_main._run_is_adoptable(good, uncheckpointed) is False
+        failed = self._run("run-f", status=RunResultStatus.FAILED, checkpoint_hour=4.0,
+                           scenario_delta_hash=h)
+        assert app_main._run_is_adoptable(failed, scn) is False
+        from_zero = self._run("run-0", checkpoint_hour=None, scenario_delta_hash=h, makespan=90.0)
+        assert app_main._run_is_adoptable(from_zero, scn) is False
+        wrong_t = self._run("run-t", checkpoint_hour=5.0, scenario_delta_hash=h, makespan=90.0)
+        assert app_main._run_is_adoptable(wrong_t, scn) is False
+        wrong_hash = self._run("run-h", checkpoint_hour=4.0, scenario_delta_hash="nope", makespan=90.0)
+        assert app_main._run_is_adoptable(wrong_hash, scn) is False
+
+    def test_por_timeline_rows_makespan_and_slip(self, baseline):
+        """Timeline rows in T-order carry each step's index, as-of hour, run-id, makespan (from the
+        adopted run's stored schedule) and slip-from-prev (this makespan − the previous KNOWN one).
+        The first step's slip is ``None``; a step whose run is missing has makespan ``None`` and does
+        not seed the slip baseline (so the next step's slip is measured against the last known)."""
+        por = app_main._adopt_step(None, baseline, self._scn(baseline, 4.0), "run-4")
+        por = app_main._adopt_step(por, baseline, self._scn(baseline, 8.0), "run-8")
+        por = app_main._adopt_step(por, baseline, self._scn(baseline, 12.0), "run-12")
+        results = {
+            "run-4": self._run("run-4", checkpoint_hour=4.0, makespan=90.0),
+            # run-8 intentionally absent from the map -> makespan None
+            "run-12": self._run("run-12", checkpoint_hour=12.0, makespan=97.0),
+        }
+        rows = app_main._por_timeline_rows(por, results)
+        assert [r["index"] for r in rows] == [0, 1, 2]
+        assert [r["as_of_hour"] for r in rows] == [4.0, 8.0, 12.0]
+        assert [r["run_id"] for r in rows] == ["run-4", "run-8", "run-12"]
+        assert rows[0]["makespan_hours"] == 90.0 and rows[0]["slip_from_prev_hours"] is None
+        assert rows[1]["makespan_hours"] is None and rows[1]["slip_from_prev_hours"] is None
+        assert rows[2]["makespan_hours"] == 97.0 and rows[2]["slip_from_prev_hours"] == 7.0
+        assert app_main._por_timeline_rows(None, results) == []      # empty PoR -> no rows
+
+    def test_buffer_burn_por_anchor_uses_explicit_chain(self, baseline):
+        """With a rolling PoR the committed buffer-burn family is the from-hour-0 anchor plus EXACTLY
+        the adopted runs (``chain_run_ids``), NOT every replan sharing the baseline-mirror effective
+        hash. A rejected counterfactual replan (same effective hash, never adopted) pollutes the
+        implicit family but is excluded once the explicit chain anchors it."""
+        base = self._run("base", makespan=85.0)                          # from-hour-0 anchor
+        adopted = self._run("r20", checkpoint_hour=20.0, makespan=90.0)  # adopted
+        rejected = self._run("rX", checkpoint_hour=25.0, makespan=200.0)  # same eff-hash, not adopted
+        runs = (base, adopted, rejected)
+        implicit = app_main._buffer_burn(runs)
+        assert [r["run_id"] for r in implicit["rows"]] == ["base", "r20", "rX"]
+        explicit = app_main._buffer_burn(runs, chain_run_ids=["r20"])
+        assert [r["run_id"] for r in explicit["rows"]] == ["base", "r20"]
+        assert explicit["baseline_run_id"] == "base" and explicit["n_replans"] == 1
 
 
 class TestChartLayer:

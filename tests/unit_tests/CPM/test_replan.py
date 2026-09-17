@@ -592,3 +592,78 @@ class TestPredecessorWiring:
         p.replan(4.0, new_activities=[new_act])
         assert len(p.forwardDict) == n_before + 1
         assert_valid_schedule(p, "replan wiring: none is no-op")
+
+
+# ---------------------------------------------------------------------------
+# Chained replan on ONE Pert — the load-bearing guarantee behind the GUI's
+# rolling plan-of-record (adapter replays initial -> replan(step1) -> replan(step2)).
+# No engine change: this pins that successive replan() calls on one instance freeze
+# each earlier replan's rescheduled prefix, so the chain is the exact rolling PoR.
+# ---------------------------------------------------------------------------
+
+class TestRollingReplanChain:
+    """``initial -> replan(T1, Δ1) -> replan(T2 > T1, Δ2)`` on one Pert.
+
+    The GUI's rolling plan-of-record replays the adopted chain on a single Pert; correctness
+    hinges on ``_partial_reset`` classifying activities by their CURRENT scheduled abs-times —
+    so the SECOND replan freezes the FIRST replan's rescheduled prefix (PoR-1), not the
+    from-hour-0 baseline. This pins that timing guarantee at the engine level: activities that
+    start in ``[T1, T2)`` keep their PoR-1 start times (which differ from both the from-0 and the
+    naive positions), while the tail past T2 moves under Δ2."""
+
+    @staticmethod
+    def _hours(pert, act):
+        """The activity's scheduled start hour from the outage start (``None`` if unscheduled)."""
+        st, _ = act.returnAbsTimes()
+        return None if st is None else (st - pert.startTime).total_seconds() / 3600.0
+
+    @staticmethod
+    def _end_hours(pert, act):
+        _, et = act.returnAbsTimes()
+        return None if et is None else (et - pert.startTime).total_seconds() / 3600.0
+
+    def test_second_replan_freezes_first_replans_prefix(self):
+        """A -> B -> C -> D chain, each 4h. From-0: A[0,4] B[4,8] C[8,12] D[12,16].
+
+        Δ1 at T1=2 overrides A's duration to 8 (A in-progress) -> PoR-1: A[0,8] B[8,12] C[12,16]
+        D[16,20]. Δ2 at T2=14 overrides C to 8 (C in-progress at 14). The second replan classifies
+        by PoR-1's times: B completed frozen at 8 (NOT the from-0 start 4), C in-progress frozen at
+        12 (NOT the from-0 start 8) with its end refreshed to 20, and only the tail D — pending past
+        T2 — re-solves, sliding to 20 (from PoR-1's 16 and from-0's 12)."""
+        p, (a, b, c, d) = _chain_pert(4.0, 4.0, 4.0, 4.0)
+        _run_full(p)
+        # From-0 baseline positions (the values the chain must NOT collapse back to).
+        assert self._hours(p, b) == 4.0 and self._hours(p, c) == 8.0 and self._hours(p, d) == 12.0
+
+        # --- PoR-1: replan at T1=2 with A lengthened to 8h ---
+        p.replan(2.0, duration_overrides={'A': 8.0})
+        assert self._hours(p, a) == 0.0 and self._end_hours(p, a) == 8.0
+        assert self._hours(p, b) == 8.0        # B pushed from 4 -> 8 by the longer A
+        assert self._hours(p, c) == 12.0
+        assert self._hours(p, d) == 16.0
+
+        # --- PoR-2: replan at T2=14 with C lengthened to 8h ---
+        p.replan(14.0, duration_overrides={'C': 8.0})
+        # Activities that started before T2 keep PoR-1's start times (frozen), NOT from-0's:
+        assert self._hours(p, a) == 0.0        # completed, unchanged
+        assert self._hours(p, b) == 8.0        # frozen at PoR-1's 8, not the from-0 4
+        assert self._hours(p, c) == 12.0       # in-progress, frozen at PoR-1's 12, not the from-0 8
+        assert self._end_hours(p, c) == 20.0   # C's end refreshed by the duration override (12 + 8)
+        # The tail past T2 moves under Δ2: D slides to C's new finish.
+        assert self._hours(p, d) == 20.0       # not PoR-1's 16, not the from-0 12
+        assert_valid_schedule(p, "rolling chain: second replan freezes first replan's prefix")
+
+    def test_empty_chain_matches_single_replan(self):
+        """Regression safety net: a chain with ZERO prior steps (initial + one candidate replan) is
+        identical to a lone replan. This is the empty-PoR path the adapter must keep byte-for-byte."""
+        p1, (a1, b1, c1) = _chain_pert(4.0, 4.0, 4.0)
+        _run_full(p1)
+        p1.replan(5.0, duration_overrides={'B': 6.0})
+
+        p2, (a2, b2, c2) = _chain_pert(4.0, 4.0, 4.0)
+        _run_full(p2)
+        p2.replan(5.0, duration_overrides={'B': 6.0})
+
+        for name, x, y in (('A', a1, a2), ('B', b1, b2), ('C', c1, c2)):
+            assert self._hours(p1, x) == self._hours(p2, y), f"{name} start diverged"
+            assert self._end_hours(p1, x) == self._end_hours(p2, y), f"{name} end diverged"

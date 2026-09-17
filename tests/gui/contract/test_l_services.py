@@ -30,6 +30,7 @@ from prismGui.domain.hashing import hash_run_config, hash_scenario
 from prismGui.domain.issues import IssueCode, Severity
 from prismGui.domain.materialize import materialize
 from prismGui.domain.plan import open_draft
+from prismGui.domain.plan_of_record import AdoptedStep, PlanOfRecord
 from prismGui.domain.results import Freshness, RunResultStatus
 from prismGui.domain.run_config import RunConfig
 from prismGui.domain.scenario import DurationOverride, ResourceChange, Scenario, TaskSuppression
@@ -240,6 +241,101 @@ class TestPrepareReplan:
         assert not snapshot_store.contains(mirror_hash)
         assert not snapshot_store.contains(hash_scenario(replan_scenario))
         assert not snapshot_store.contains(baseline.plan_hash)
+
+    # --- rolling plan of record (chained replan) --------------------------------
+
+    @staticmethod
+    def _step_scenario(baseline, t, dur):
+        """An adopted-step scenario: a checkpoint at ``t`` plus a duration override on B
+        (some delta so each step's snapshot is distinct)."""
+        return Scenario(
+            scenario_id=f"scn-step-{t:g}", base_plan_id=baseline.plan_id,
+            base_plan_hash=baseline.plan_hash, checkpoint_hour=t,
+            duration_overrides=(DurationOverride(task_id="B", duration_hours=dur),))
+
+    def _two_step_por(self, baseline):
+        """A 2-step rolling plan of record at T=4 then T=8 (append keeps them T-sorted)."""
+        return (PlanOfRecord(base_plan_id=baseline.plan_id, base_plan_hash=baseline.plan_hash)
+                .append(AdoptedStep(self._step_scenario(baseline, 4.0, 7.0), "prism-run-1"))
+                .append(AdoptedStep(self._step_scenario(baseline, 8.0, 8.0), "prism-run-2")))
+
+    def test_rolling_por_persists_ordered_prior_steps_and_keeps_mirror_hash(
+            self, baseline, scenario, run_config, snapshot_store, validator_adapter):
+        """A candidate replan chained onto a 2-step PoR prepares ok: ``prior_steps`` carries the
+        adopted steps in T-order (each ``scenario_delta_hash`` = that step's scenario snapshot,
+        resolving in the store), and the persisted effective plan is STILL the baseline mirror —
+        the chain rides provenance, not the effective plan (so buffer-burn family grouping holds)."""
+        por = self._two_step_por(baseline)
+        candidate = replace(scenario, checkpoint_hour=12.0)
+        outcome = services.prepare_replan(baseline, candidate, run_config, snapshot_store,
+                                          validator=validator_adapter, plan_of_record=por)
+        assert outcome.ok
+        pin = outcome.run_request.provenance_inputs
+
+        # ordered prior_steps: T-sorted, each hash = the step scenario's content hash, resolves
+        assert [s.checkpoint_hour for s in pin.prior_steps] == [4.0, 8.0]
+        assert [s.scenario_delta_hash for s in pin.prior_steps] == [
+            hash_scenario(self._step_scenario(baseline, 4.0, 7.0)),
+            hash_scenario(self._step_scenario(baseline, 8.0, 8.0))]
+        for s in pin.prior_steps:
+            assert snapshot_store.contains(s.scenario_delta_hash)
+
+        # the candidate still rides its own scenario_delta_hash + checkpoint; effective = mirror
+        assert pin.scenario_delta_hash == hash_scenario(candidate)
+        assert pin.checkpoint_hour == 12.0
+        mirror_hash = materialize(baseline, None).effective_plan.effective_plan_hash
+        assert outcome.run_request.effective_plan_hash == mirror_hash
+
+    def test_empty_por_leaves_prior_steps_empty(
+            self, baseline, scenario, run_config, snapshot_store, validator_adapter):
+        """An absent / empty PoR ⇒ ``prior_steps`` stays empty — a plain hub-and-spoke replan,
+        the load-bearing equivalence with pre-PoR behaviour."""
+        candidate = replace(scenario, checkpoint_hour=8.0)
+        none_out = services.prepare_replan(baseline, candidate, run_config, snapshot_store,
+                                           validator=validator_adapter, plan_of_record=None)
+        empty_por = PlanOfRecord(base_plan_id=baseline.plan_id, base_plan_hash=baseline.plan_hash)
+        empty_out = services.prepare_replan(baseline, candidate, run_config, snapshot_store,
+                                            validator=validator_adapter, plan_of_record=empty_por)
+        assert none_out.ok and empty_out.ok
+        assert none_out.run_request.provenance_inputs.prior_steps == ()
+        assert empty_out.run_request.provenance_inputs.prior_steps == ()
+
+    def test_candidate_before_last_step_blocks_and_persists_nothing(
+            self, baseline, scenario, run_config, snapshot_store, validator_adapter):
+        """A candidate whose as-of hour precedes the last adopted step (h=3 < h=8) is a backwards
+        chain: REPLAN_CHAIN_ORDER ERROR, no RunRequest, and NOTHING persisted (the chain gate
+        returns before any snapshot is written)."""
+        por = self._two_step_por(baseline)
+        candidate = replace(scenario, checkpoint_hour=3.0)      # < last step T (8.0)
+        outcome = services.prepare_replan(baseline, candidate, run_config, snapshot_store,
+                                          validator=validator_adapter, plan_of_record=por)
+        assert not outcome.ok
+        assert outcome.run_request is None
+        assert any(i.code is IssueCode.REPLAN_CHAIN_ORDER and i.severity is Severity.ERROR
+                   for i in outcome.issues)
+        mirror_hash = materialize(baseline, None).effective_plan.effective_plan_hash
+        assert not snapshot_store.contains(mirror_hash)
+        assert not snapshot_store.contains(hash_scenario(candidate))
+        assert not snapshot_store.contains(hash_scenario(self._step_scenario(baseline, 4.0, 7.0)))
+
+    def test_step_without_checkpoint_blocks(
+            self, baseline, scenario, run_config, snapshot_store, validator_adapter):
+        """An adopted step lacking an as-of hour is a malformed chain → REPLAN_CHAIN_ORDER ERROR,
+        nothing prepared (every chain step must be checkpoint-bearing)."""
+        step_no_t = AdoptedStep(
+            Scenario(scenario_id="scn-noT", base_plan_id=baseline.plan_id,
+                     base_plan_hash=baseline.plan_hash, checkpoint_hour=None,
+                     duration_overrides=(DurationOverride(task_id="B", duration_hours=7.0),)),
+            "prism-run-1")
+        por = PlanOfRecord(base_plan_id=baseline.plan_id,
+                           base_plan_hash=baseline.plan_hash).append(step_no_t)
+        candidate = replace(scenario, checkpoint_hour=8.0)
+        outcome = services.prepare_replan(baseline, candidate, run_config, snapshot_store,
+                                          validator=validator_adapter, plan_of_record=por)
+        assert not outcome.ok
+        assert outcome.run_request is None
+        assert any(i.code is IssueCode.REPLAN_CHAIN_ORDER and i.severity is Severity.ERROR
+                   for i in outcome.issues)
 
 
 class TestRun:

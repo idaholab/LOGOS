@@ -30,7 +30,9 @@ from prismGui.domain import serialization as ser
 from prismGui.domain.hashing import hash_bytes, run_config_snapshot, scenario_snapshot
 from prismGui.domain.issues import IssueCategory, Severity
 from prismGui.domain.materialize import materialize
-from prismGui.domain.results import TF_ZERO_TOL, DispositionOverall, RunResultStatus, Tri
+from prismGui.domain.results import (
+    TF_ZERO_TOL, DispositionOverall, ReplanStep, RunResultStatus, Tri,
+)
 from prismGui.domain.run_config import RunConfig, SGSVariant
 from prismGui.domain.scenario import ResourceChange, Scenario
 from prismGui.domain.versions import CANON_VERSION, SCHEMA_VERSION
@@ -90,6 +92,39 @@ def _prepare_replan(store, example_10_path: str, run_config: RunConfig, checkpoi
     return RunRequest(
         effective_plan_hash=effective_hash, run_config_hash=run_config_hash,
         provenance_inputs=provenance, request_id="ex10-replan")
+
+
+def _prepare_rolling_replan(store, example_10_path: str, run_config: RunConfig,
+                            checkpoint_hour: float, scenario: Scenario, steps) -> RunRequest:
+    """The rolling-plan-of-record counterpart of ``_prepare_replan`` (exactly what
+    ``prepare_replan`` produces with a non-empty plan of record). The persisted effective plan is
+    still the BASELINE MIRROR; the candidate's deltas ride ``scenario_delta_hash`` at
+    ``checkpoint_hour``; and each adopted step ``(step_scenario, step_T)`` in ``steps`` (T-ordered)
+    has its scenario snapshot persisted and is referenced by a ``ReplanStep`` on ``prior_steps`` —
+    the chain the adapter replays on ONE Pert before the candidate replan."""
+    raw = json.loads(Path(example_10_path).read_text())
+    baseline = ser.build_reference_plan("ex10", raw, schema_version=SCHEMA_VERSION)
+    eff = materialize(baseline, None).effective_plan          # baseline mirror
+    baseline_hash = store.put(baseline.raw_snapshot)
+    effective_hash = store.put(eff.raw_snapshot)
+    run_config_hash = store.put(run_config_snapshot(run_config))
+    scenario_hash = store.put(scenario_snapshot(scenario))
+    prior_steps = tuple(
+        ReplanStep(scenario_delta_hash=store.put(scenario_snapshot(s)), checkpoint_hour=float(t))
+        for s, t in steps)
+    provenance = ProvenanceInputs(
+        baseline_snapshot_hash=baseline_hash,
+        effective_plan_hash=effective_hash,
+        run_config_hash=run_config_hash,
+        schema_version=SCHEMA_VERSION,
+        canonicalization_version=CANON_VERSION,
+        scenario_delta_hash=scenario_hash,
+        checkpoint_hour=checkpoint_hour,
+        prior_steps=prior_steps,
+    )
+    return RunRequest(
+        effective_plan_hash=effective_hash, run_config_hash=run_config_hash,
+        provenance_inputs=provenance, request_id="ex10-rolling")
 
 
 class TestPrismAdapterReplan:
@@ -233,6 +268,86 @@ class TestPrismAdapterReplan:
         pcs = [r["pct_complete"] for r in rows]
         assert pcs[0] == 0.0
         assert 0.0 <= pcs[1] <= pcs[2]
+
+    def test_rolling_chain_freezes_the_adopted_step_prefix(self, example_10_path):
+        """The rolling plan-of-record end-to-end on the real engine: replay ONE adopted step before
+        the candidate on a single Pert. Step-1 (adopted) at T1=10 adds MECHANIC crews (6→12), which
+        re-solves the schedule (85→77 h) and MOVES work in the [0, 50) window; the candidate at
+        T2=50 then reduces crews (→4). The chain must freeze STEP-1's rescheduled prefix, not the
+        from-hour-0 baseline:
+
+          * every frozen row (start < T2) is byte-identical to the STANDALONE step-1 replan
+            (``start_delta == end_delta == 0``) — the chain reproduced PoR-1's arrangement, and
+          * that same frozen prefix DIFFERS from the from-0 baseline (≥1 frozen row moved) — so the
+            freeze is demonstrably against PoR-1, not the original baseline; and
+          * the chained makespan differs from the candidate applied ALONE to the baseline (step-1's
+            speed-up rode through the chain), while the adopted chain rides the result provenance."""
+        store = InMemorySnapshotStore()
+        rc = RunConfig(run_config_id="rc", sgs=SGSVariant.MAX_USE_RES_RANKED,
+                       priority_rule="lf", seed=42)
+        T1, T2 = 10.0, 50.0
+        step1 = Scenario(scenario_id="scn-step1", base_plan_id="ex10", base_plan_hash="",
+                         checkpoint_hour=T1, resource_changes=(ResourceChange("MECHANIC", T1, 12),))
+        candidate = Scenario(scenario_id="scn-cand", base_plan_id="ex10", base_plan_hash="",
+                             checkpoint_hour=T2, resource_changes=(ResourceChange("MECHANIC", T2, 4),))
+        ex = InProcessPrismExecutor(store)
+
+        baseline = ex.get_result(ex.submit(_prepare(store, example_10_path, rc)))
+        por1 = ex.get_result(ex.submit(_prepare_replan(store, example_10_path, rc, T1, step1)))
+        candidate_alone = ex.get_result(
+            ex.submit(_prepare_replan(store, example_10_path, rc, T2, candidate)))
+        chained = ex.get_result(ex.submit(
+            _prepare_rolling_replan(store, example_10_path, rc, T2, candidate, steps=[(step1, T1)])))
+        for r in (baseline, por1, candidate_alone, chained):
+            assert r.status is RunResultStatus.COMPLETED
+
+        # the adopted chain rode the result provenance (T-ordered), and the as-of hour stamped through
+        assert [s.checkpoint_hour for s in chained.provenance.prior_steps] == [T1]
+        assert chained.provenance.checkpoint_hour == T2
+
+        # (1) the chain froze PoR-1's rescheduled prefix exactly (byte-identical frozen rows)
+        d_por1 = _replan_diff(por1.schedule, chained.schedule, T2)
+        frozen_vs_por1 = [r for r in d_por1["rows"] if r["frozen"]]
+        assert frozen_vs_por1
+        assert all(r["start_delta"] == 0.0 and r["end_delta"] == 0.0 for r in frozen_vs_por1)
+
+        # (2) that frozen prefix DIFFERS from the from-0 baseline -> the freeze is PoR-1, not baseline
+        d_base = _replan_diff(baseline.schedule, chained.schedule, T2)
+        assert any(r["frozen"] and r["moved"] for r in d_base["rows"])
+
+        # (3) step-1's delta accumulated: the chained finish differs from the candidate applied ALONE
+        assert chained.schedule.makespan_hours != candidate_alone.schedule.makespan_hours
+        assert candidate_alone.schedule.makespan_hours == 85.0   # crew cut at T2 alone: no speed-up
+        assert chained.schedule.makespan_hours == 75.0           # PoR-1's earlier crews rode through
+        assert len(chained.schedule.activities) == 15
+
+    def test_empty_chain_reproduces_the_single_replan(self, example_10_path):
+        """The empty-chain safety net (Risk #1): a rolling replan whose plan of record has ZERO
+        adopted steps must be byte-identical to a plain hub-and-spoke replan — same makespan and the
+        same per-activity start/end times. This is the regression guard that a rolling PoR NEVER
+        perturbs the existing single-replan behaviour when no step has been adopted."""
+        store = InMemorySnapshotStore()
+        rc = RunConfig(run_config_id="rc", sgs=SGSVariant.MAX_USE_RES_RANKED,
+                       priority_rule="lf", seed=42)
+        T = 40.0
+        scenario = Scenario(scenario_id="scn", base_plan_id="ex10", base_plan_hash="",
+                            checkpoint_hour=T, resource_changes=(ResourceChange("MECHANIC", T, 12),))
+        ex = InProcessPrismExecutor(store)
+
+        plain = ex.get_result(ex.submit(_prepare_replan(store, example_10_path, rc, T, scenario)))
+        empty_chain = ex.get_result(ex.submit(
+            _prepare_rolling_replan(store, example_10_path, rc, T, scenario, steps=[])))
+        assert plain.status is RunResultStatus.COMPLETED
+        assert empty_chain.status is RunResultStatus.COMPLETED
+
+        assert empty_chain.provenance.prior_steps == ()          # no adopted steps
+        assert empty_chain.schedule.makespan_hours == plain.schedule.makespan_hours
+        plain_by = {a.task_id: a for a in plain.schedule.activities}
+        empty_by = {a.task_id: a for a in empty_chain.schedule.activities}
+        assert plain_by.keys() == empty_by.keys()
+        for tid, a in plain_by.items():
+            assert empty_by[tid].start_hour == a.start_hour
+            assert empty_by[tid].end_hour == a.end_hour
 
 
 class TestPrismAdapterEndToEnd:
