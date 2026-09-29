@@ -1,25 +1,19 @@
 """
-ga_priority_rule_vs_random.py - Compare mixed vs random GA initialization.
+ga_operator_test.py - Compare GA crossover/mutation operator combinations.
 
-This script fixes crossover to ``uniform_order`` and runs every selected
-mutation operator twice:
+Run this script with one RCPSP JSON input.  It executes the standard GA once for
+each selected crossover/mutation pair, plots all convergence curves in one figure,
+and prints a comparison table sorted by final GA duration.
 
-* ``initial_population_mode='mixed'``: priority-rule seeds plus random fill.
-* ``initial_population_mode='random'``: all random precedence-feasible seeds.
-
-The output is intended to isolate how much the priority-rule seeded initial
-population helps relative to fully random initialization.
-
-Usage from the repo root:
-    python -m src.CPM.ga_priority_rule_vs_random src/CPM/j1201_1.json
-
-Usage from the src/CPM directory:
-    python ga_priority_rule_vs_random.py j1201_1.json
+Usage from the repository root:
+    python doc/demos/heuristics/ga_operator_test.py j301_1.json
 
 Examples:
-    python -m src.CPM.ga_priority_rule_vs_random src/CPM/j1201_1.json --n-gen 100
-    python -m src.CPM.ga_priority_rule_vs_random j1201_1.json --mutations all
-    python -m src.CPM.ga_priority_rule_vs_random j1201_1.json --no-fb-improvement
+    python doc/demos/heuristics/ga_operator_test.py j301_1.json --n-gen 100
+    python doc/demos/heuristics/ga_operator_test.py j301_1.json \
+        --crossovers two_point --mutations swap,adjacent_swap
+    python doc/demos/heuristics/ga_operator_test.py j301_1.json \
+        --max-evals 5000 --no-fb-improvement
 """
 
 from __future__ import annotations
@@ -35,7 +29,7 @@ from typing import Any
 
 
 # Ensure repo root is on the path before project imports.
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src import Pert  # noqa: E402
@@ -49,13 +43,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-CPM_DIR = Path(__file__).parent
+CPM_DIR = REPO_ROOT / "src" / "CPM"
 EXAMPLES_DIR = REPO_ROOT / "doc" / "demos" / "rcpsp" / "examples"
-SCHEMA = CPM_DIR / "outage_schema.json"
-BEST_RESULTS_PATH = REPO_ROOT / "doc" / "demos" / "benchmarks" / "best_results.json"
-DEFAULT_OUTPUT_DIR = CPM_DIR / "results" / "ga_priority_rule_vs_random"
-FIXED_CROSSOVER = "uniform_order"
-DEFAULT_INITIAL_POPULATION_MODES = ["mixed", "random"]
+SCHEMA = (CPM_DIR / "outage_schema.json").resolve()
+BEST_RESULTS_PATH = (
+    REPO_ROOT / "doc" / "demos" / "benchmarks" / "best_results.json"
+).resolve()
+DEFAULT_OUTPUT_DIR = Path(__file__).parent / "results" / "ga_operator_test"
+
+
+def _available_crossovers() -> list[str]:
+    return list(RCPSPGeneticAlgorithm._CROSSOVER_METHODS)
 
 
 def _available_mutations() -> list[str]:
@@ -63,7 +61,7 @@ def _available_mutations() -> list[str]:
 
 
 def _parse_name_list(raw: str | list[str], choices: list[str], label: str) -> list[str]:
-    """Parse comma-separated or whitespace-separated names."""
+    """Parse comma-separated or whitespace-separated operator names."""
     raw_values = [raw] if isinstance(raw, str) else raw
     if raw_values == ["all"]:
         return choices
@@ -106,33 +104,33 @@ def _safe_float(value: float | None) -> str:
 
 
 def parse_args() -> argparse.Namespace:
+    crossovers = _available_crossovers()
     mutations = _available_mutations()
-    initial_modes = DEFAULT_INITIAL_POPULATION_MODES
 
     parser = argparse.ArgumentParser(
         description=(
-            "Compare mixed priority-rule seeding vs fully random initialization "
-            f"with fixed {FIXED_CROSSOVER!r} crossover."
+            "Run all selected GA crossover/mutation combinations for one RCPSP "
+            "JSON input and compare final results."
         )
     )
     parser.add_argument(
         "json_input",
-        help="RCPSP JSON input path. Relative paths are checked against cwd and src/CPM.",
+        help=(
+            "RCPSP JSON input path. Relative paths are checked against cwd, "
+            "src/CPM, and the bundled examples directory."
+        ),
+    )
+    parser.add_argument(
+        "--crossovers",
+        nargs="+",
+        default=["all"],
+        help=f"Selected crossovers, or 'all'. Choices: {crossovers}.",
     )
     parser.add_argument(
         "--mutations",
         nargs="+",
         default=["all"],
         help=f"Selected mutations, or 'all'. Choices: {mutations}.",
-    )
-    parser.add_argument(
-        "--initial-population-modes",
-        nargs="+",
-        default=initial_modes,
-        help=(
-            "Initialization modes to compare. Default: mixed random. "
-            f"Choices: {initial_modes}."
-        ),
     )
     parser.add_argument("--pop-size", type=int, default=50)
     parser.add_argument("--n-gen", type=int, default=100)
@@ -141,6 +139,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--n-random", type=int, default=8)
     parser.add_argument("--hof-size", type=int, default=5)
+    parser.add_argument(
+        "--initial-population-mode",
+        choices=["mixed", "random", "priority_rules"],
+        default="mixed",
+        help=(
+            "Initial GA population source: priority-rule seeds plus random fill "
+            "(mixed), all random, or deterministic priority rules only."
+        ),
+    )
     parser.add_argument(
         "--consensus-update-freq",
         type=int,
@@ -158,7 +165,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--quiet",
         action="store_true",
-        help="Disable verbose GA output for each run.",
+        help="Disable verbose GA output for each combination.",
     )
     parser.add_argument(
         "--no-fb-improvement",
@@ -196,12 +203,7 @@ def parse_args() -> argparse.Namespace:
     output.add_argument(
         "--csv-file",
         type=Path,
-        help="Path for full comparison CSV. Defaults under --output-dir.",
-    )
-    output.add_argument(
-        "--delta-csv-file",
-        type=Path,
-        help="Path for paired mixed-vs-random delta CSV. Defaults under --output-dir.",
+        help="Path for comparison CSV. Defaults under --output-dir.",
     )
     output.add_argument(
         "--no-plot",
@@ -219,12 +221,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("--target-best-known and --target-fitness are mutually exclusive.")
 
     try:
+        args.crossovers = _parse_name_list(args.crossovers, crossovers, "crossover")
         args.mutations = _parse_name_list(args.mutations, mutations, "mutation")
-        args.initial_population_modes = _parse_name_list(
-            args.initial_population_modes,
-            initial_modes,
-            "initial population mode",
-        )
         args.json_path = _resolve_json_path(args.json_input)
     except (argparse.ArgumentTypeError, FileNotFoundError) as exc:
         parser.error(str(exc))
@@ -297,21 +295,17 @@ def _best_series(log: Any) -> tuple[list[float], list[float]]:
     return gens, best
 
 
-def run_case(
+def run_operator_case(
     json_path: Path,
+    crossover: str,
     mutation: str,
-    initial_population_mode: str,
     args: argparse.Namespace,
     target_fitness: float | None,
     best_rule_overall: float,
     best_known: float | None,
 ) -> dict[str, Any]:
-    """Run one mutation/initialization-mode combination on a fresh Pert instance."""
-    print(
-        "Running GA: "
-        f"crossover={FIXED_CROSSOVER}, mutation={mutation}, "
-        f"initial_population_mode={initial_population_mode}"
-    )
+    """Run one crossover/mutation combination on a fresh Pert instance."""
+    print(f"Running GA: crossover={crossover}, mutation={mutation}")
     pert = load_pert(json_path)
     ga = RCPSPGeneticAlgorithm(
         pert,
@@ -323,11 +317,11 @@ def run_case(
         n_random=args.n_random,
         hof_size=args.hof_size,
         verbose=not args.quiet,
-        crossover=FIXED_CROSSOVER,
+        crossover=crossover,
         mutation=mutation,
         fb_improvement=not args.no_fb_improvement,
         fb_freq=args.fb_freq,
-        initial_population_mode=initial_population_mode,
+        initial_population_mode=args.initial_population_mode,
         target_fitness=target_fitness,
         max_evals=args.max_evals,
         stall_generations=args.stall_generations,
@@ -345,10 +339,9 @@ def run_case(
     gens, best_curve = _best_series(log)
 
     return {
-        "crossover": FIXED_CROSSOVER,
+        "crossover": crossover,
         "mutation": mutation,
-        "initial_population_mode": initial_population_mode,
-        "label": f"{initial_population_mode}/{mutation}",
+        "label": f"{crossover}/{mutation}",
         "best_ga": best_ga,
         "logged_best": summary["best_duration"],
         "initial_best": summary["initial_best"],
@@ -369,56 +362,13 @@ def run_case(
     }
 
 
-def build_delta_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Build paired mixed-vs-random comparisons by mutation."""
-    by_mutation: dict[str, dict[str, dict[str, Any]]] = {}
-    for result in results:
-        by_mutation.setdefault(result["mutation"], {})[
-            result["initial_population_mode"]
-        ] = result
-
-    rows: list[dict[str, Any]] = []
-    for mutation in _available_mutations():
-        pair = by_mutation.get(mutation, {})
-        mixed = pair.get("mixed")
-        random_result = pair.get("random")
-        if mixed is None or random_result is None:
-            continue
-        delta = random_result["best_ga"] - mixed["best_ga"]
-        if delta > 0:
-            winner = "mixed"
-        elif delta < 0:
-            winner = "random"
-        else:
-            winner = "tie"
-        rows.append(
-            {
-                "mutation": mutation,
-                "mixed_best_ga": mixed["best_ga"],
-                "random_best_ga": random_result["best_ga"],
-                "delta_random_minus_mixed": delta,
-                "winner": winner,
-                "mixed_gap_to_best_known": mixed["gap_to_best_known"],
-                "random_gap_to_best_known": random_result["gap_to_best_known"],
-                "mixed_initial_best": mixed["initial_best"],
-                "random_initial_best": random_result["initial_best"],
-                "mixed_n_evals": mixed["n_evals"],
-                "random_n_evals": random_result["n_evals"],
-                "mixed_stop_reason": mixed["stop_reason"],
-                "random_stop_reason": random_result["stop_reason"],
-            }
-        )
-    rows.sort(key=lambda row: abs(row["delta_random_minus_mixed"]), reverse=True)
-    return rows
-
-
 def plot_combined_convergence(
     results: list[dict[str, Any]],
     filename: Path,
     title: str,
     show: bool = False,
 ) -> None:
-    """Plot best-so-far convergence curves for all runs."""
+    """Plot best-so-far convergence curves for all operator combinations."""
     import matplotlib
 
     matplotlib.use("Agg", force=not show)
@@ -427,11 +377,9 @@ def plot_combined_convergence(
     filename.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(11, 6.5))
     for result in results:
-        linestyle = "-" if result["initial_population_mode"] == "mixed" else "--"
         ax.plot(
             result["gens"],
             result["best_curve"],
-            linestyle=linestyle,
             linewidth=1.6,
             label=result["label"],
         )
@@ -461,7 +409,6 @@ def write_csv(results: list[dict[str, Any]], filename: Path) -> None:
         "rank",
         "crossover",
         "mutation",
-        "initial_population_mode",
         "best_ga",
         "gap_to_best_known",
         "improvement_vs_seed",
@@ -484,96 +431,42 @@ def write_csv(results: list[dict[str, Any]], filename: Path) -> None:
             writer.writerow(row)
 
 
-def write_delta_csv(delta_rows: list[dict[str, Any]], filename: Path) -> None:
-    filename.parent.mkdir(parents=True, exist_ok=True)
-    fields = [
-        "mutation",
-        "mixed_best_ga",
-        "random_best_ga",
-        "delta_random_minus_mixed",
-        "winner",
-        "mixed_gap_to_best_known",
-        "random_gap_to_best_known",
-        "mixed_initial_best",
-        "random_initial_best",
-        "mixed_n_evals",
-        "random_n_evals",
-        "mixed_stop_reason",
-        "random_stop_reason",
-    ]
-    with filename.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(delta_rows)
-
-
-def print_full_comparison(
+def print_comparison(
     results: list[dict[str, Any]],
     baseline: dict[str, Any],
     best_known: float | None,
 ) -> None:
     print()
-    print("=" * 124)
-    print("GA INITIAL POPULATION COMPARISON")
-    print("=" * 124)
+    print("=" * 118)
+    print("GA OPERATOR COMPARISON")
+    print("=" * 118)
     print(f"Activities        : {baseline['n_activities']}")
     print(f"CPM duration      : {baseline['cpm_duration']:.2f} h")
     print(f"Best serial seed  : {baseline['best_serial']:.2f} h")
     print(f"Best parallel seed: {baseline['best_parallel']:.2f} h")
     print(f"Best known        : {_safe_float(best_known)} h")
-    print(f"Crossover         : {FIXED_CROSSOVER}")
-    print("-" * 124)
+    print("-" * 118)
     print(
-        f"{'Rank':>4} {'Init Mode':<10} {'Mutation':<18} "
+        f"{'Rank':>4} {'Crossover':<14} {'Mutation':<18} "
         f"{'Best':>8} {'BK Gap':>8} {'Seed Gap':>9} "
-        f"{'Initial':>8} {'Gen':>5} {'Evals':>8} {'Avg/Std':>17} {'Stop':>20}"
+        f"{'Gen':>5} {'Evals':>8} {'Avg/Std':>17} {'Stop':>20}"
     )
-    print("-" * 124)
+    print("-" * 118)
     for rank, r in enumerate(results, start=1):
         avg_std = f"{r['final_avg']:.2f}/{r['final_std']:.2f}"
         print(
-            f"{rank:>4} {r['initial_population_mode']:<10} {r['mutation']:<18} "
+            f"{rank:>4} {r['crossover']:<14} {r['mutation']:<18} "
             f"{r['best_ga']:>8.2f} {_safe_float(r['gap_to_best_known']):>8} "
-            f"{r['improvement_vs_seed']:>9.2f} {r['initial_best']:>8.2f} "
-            f"{r['n_gen_executed']:>5} {r['n_evals']:>8} "
-            f"{avg_std:>17} {r['stop_reason']:>20}"
+            f"{r['improvement_vs_seed']:>9.2f} {r['n_gen_executed']:>5} "
+            f"{r['n_evals']:>8} {avg_std:>17} {r['stop_reason']:>20}"
         )
-    print("-" * 124)
+    print("-" * 118)
     best = results[0]
     print(
-        "Best run: "
-        f"{best['initial_population_mode']} initialization + "
-        f"{best['mutation']} mutation with final duration "
-        f"{best['best_ga']:.2f} h"
+        "Best combination: "
+        f"{best['crossover']} crossover + {best['mutation']} mutation "
+        f"with final duration {best['best_ga']:.2f} h"
     )
-
-
-def print_delta_comparison(delta_rows: list[dict[str, Any]]) -> None:
-    if not delta_rows:
-        return
-
-    print()
-    print("=" * 90)
-    print("MIXED VS RANDOM BY MUTATION")
-    print("=" * 90)
-    print(
-        f"{'Mutation':<18} {'Mixed':>8} {'Random':>8} "
-        f"{'Random-Mixed':>14} {'Winner':>10} "
-        f"{'Mixed Init':>11} {'Random Init':>12}"
-    )
-    print("-" * 90)
-    for row in delta_rows:
-        print(
-            f"{row['mutation']:<18} "
-            f"{row['mixed_best_ga']:>8.2f} "
-            f"{row['random_best_ga']:>8.2f} "
-            f"{row['delta_random_minus_mixed']:>14.2f} "
-            f"{row['winner']:>10} "
-            f"{row['mixed_initial_best']:>11.2f} "
-            f"{row['random_initial_best']:>12.2f}"
-        )
-    print("-" * 90)
-    print("Positive Random-Mixed means mixed initialization produced a shorter schedule.")
 
 
 def main() -> None:
@@ -585,21 +478,20 @@ def main() -> None:
     target_fitness = best_known if args.target_best_known else args.target_fitness
     baseline = compute_priority_baseline(args.json_path)
 
-    print("=" * 84)
-    print(f"Input                    : {args.json_path}")
-    print(f"Crossover                : {FIXED_CROSSOVER}")
-    print(f"Mutations                : {', '.join(args.mutations)}")
-    print(f"Initial population modes : {', '.join(args.initial_population_modes)}")
-    print(f"Runs                     : {len(args.mutations) * len(args.initial_population_modes)}")
-    print("=" * 84)
+    print("=" * 78)
+    print(f"Input: {args.json_path}")
+    print(f"Crossovers: {', '.join(args.crossovers)}")
+    print(f"Mutations : {', '.join(args.mutations)}")
+    print(f"Runs      : {len(args.crossovers) * len(args.mutations)}")
+    print("=" * 78)
 
     results: list[dict[str, Any]] = []
-    for mutation in args.mutations:
-        for mode in args.initial_population_modes:
-            result = run_case(
+    for crossover in args.crossovers:
+        for mutation in args.mutations:
+            result = run_operator_case(
                 args.json_path,
+                crossover,
                 mutation,
-                mode,
                 args,
                 target_fitness,
                 baseline["best_rule_overall"],
@@ -611,39 +503,32 @@ def main() -> None:
         key=lambda r: (
             r["best_ga"],
             r["n_evals"],
+            r["crossover"],
             r["mutation"],
-            r["initial_population_mode"],
         )
     )
-    delta_rows = build_delta_rows(results)
 
     stem = args.json_path.stem
     plot_file = args.plot_file or (
-        args.output_dir / f"{stem}_priority_vs_random_convergence_seed{args.seed}.png"
+        args.output_dir / f"{stem}_operator_convergence_seed{args.seed}.png"
     )
     csv_file = args.csv_file or (
-        args.output_dir / f"{stem}_priority_vs_random_comparison_seed{args.seed}.csv"
-    )
-    delta_csv_file = args.delta_csv_file or (
-        args.output_dir / f"{stem}_priority_vs_random_delta_seed{args.seed}.csv"
+        args.output_dir / f"{stem}_operator_comparison_seed{args.seed}.csv"
     )
 
     if not args.no_plot:
         plot_combined_convergence(
             results,
             plot_file,
-            title=f"GA Initial Population Comparison - {stem}",
+            title=f"GA Operator Convergence - {stem}",
             show=args.show,
         )
         print(f"Combined convergence plot: {plot_file}")
 
     write_csv(results, csv_file)
     print(f"Comparison CSV: {csv_file}")
-    write_delta_csv(delta_rows, delta_csv_file)
-    print(f"Mixed-vs-random delta CSV: {delta_csv_file}")
 
-    print_full_comparison(results, baseline, best_known)
-    print_delta_comparison(delta_rows)
+    print_comparison(results, baseline, best_known)
     if not args.no_fb_improvement:
         print()
         print(

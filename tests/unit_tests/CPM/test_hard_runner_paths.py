@@ -9,7 +9,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 RUNNER_PATHS = [
     REPO_ROOT / "doc" / "demos" / "heuristics" / "ga_test_hard.py",
-    REPO_ROOT / "src" / "CPM" / "gans_test_hard.py",
+    REPO_ROOT / "doc" / "demos" / "heuristics" / "gans_test_hard.py",
 ]
 EXPECTED_CASES = {
     "j12051_6",

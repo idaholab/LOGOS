@@ -8,7 +8,8 @@ difficult PSPLIB j120 benchmark instances and prints:
   - Gap between GANS and the best-known solution
 
 Usage (from the repository root):
-    python -m src.CPM.gans_test_hard --data-dir /path/to/PSPLIB_Json
+    python doc/demos/heuristics/gans_test_hard.py \
+        --data-dir /path/to/PSPLIB_Json
 """
 
 import argparse
@@ -18,7 +19,7 @@ import sys
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src import Pert  # noqa: E402

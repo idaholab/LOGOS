@@ -5,11 +5,8 @@ The operator test writes one CSV per benchmark instance.  This script processes
 those files together so crossover/mutation combinations can be compared across
 all j120 runs.
 
-Usage from the repo root:
+Usage from the repository root:
     python src/CPM/analyze_ga_operator_results.py
-
-Usage from the src/CPM directory:
-    python analyze_ga_operator_results.py
 
 Examples:
     python src/CPM/analyze_ga_operator_results.py --top 6
@@ -30,8 +27,10 @@ from statistics import mean, median
 from typing import Any
 
 
-CPM_DIR = Path(__file__).parent
-DEFAULT_RESULTS_DIR = CPM_DIR / "results" / "ga_operator_test"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_RESULTS_DIR = (
+    REPO_ROOT / "doc" / "demos" / "heuristics" / "results" / "ga_operator_test"
+)
 DEFAULT_PATTERN = "j120*_operator_comparison_seed*.csv"
 FILENAME_RE = re.compile(
     r"(?P<instance>j120.*?)_operator_comparison_seed(?P<seed>\d+)\.csv$"

@@ -22,18 +22,15 @@ Journal of Open Source Software, 8(81): 5028.
 Goncharov, E.N. (2025). A hybrid heuristic algorithm for the
 resource-constrained project scheduling problem. arXiv:2502.18330v2.
 
-Usage (from the src/CPM directory):
-    python gans_test.py
-
-Or from the repo root:
-    python -m src.CPM.gans_test
+Usage (from the repository root):
+    python doc/demos/heuristics/gans_test.py
 """
 
 import sys
 import logging
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src import Pert  # noqa: E402
@@ -45,7 +42,7 @@ logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 EXAMPLES_DIR = REPO_ROOT / "doc" / "demos" / "rcpsp" / "examples"
-SCHEMA = Path(__file__).parent / "outage_schema.json"
+SCHEMA = (REPO_ROOT / "src" / "CPM" / "outage_schema.json").resolve()
 
 CASES = [
     ("j30",  "j301_1.json"),
