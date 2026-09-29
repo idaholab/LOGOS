@@ -42,6 +42,49 @@ def gga(pert):
     )
 
 
+@pytest.mark.parametrize(
+    ('parameter', 'value', 'message'),
+    [
+        ('ne', 1, 'ne must be at least 2'),
+        ('n_gen', -1, 'n_gen must be nonnegative'),
+        ('restart_threshold', 0, 'restart_threshold must be greater than 0'),
+        ('restart_threshold', -1, 'restart_threshold must be greater than 0'),
+        ('rho', -0.01, r'rho must be finite and in \[0, 1\]'),
+        ('rho', 1.01, r'rho must be finite and in \[0, 1\]'),
+        ('rho', math.inf, r'rho must be finite and in \[0, 1\]'),
+        ('rho', -math.inf, r'rho must be finite and in \[0, 1\]'),
+        ('rho', math.nan, r'rho must be finite and in \[0, 1\]'),
+    ],
+)
+def test_constructor_rejects_invalid_parameters(pert, parameter, value, message):
+    with pytest.raises(ValueError, match=message):
+        RCPSPGraphGeneticAlgorithm(
+            pert,
+            **{parameter: value},
+            verbose=False,
+        )
+
+
+@pytest.mark.parametrize(
+    ('parameter', 'value'),
+    [
+        ('ne', 2),
+        ('n_gen', 0),
+        ('restart_threshold', 1),
+        ('rho', 0.0),
+        ('rho', 1.0),
+    ],
+)
+def test_constructor_accepts_boundary_parameters(pert, parameter, value):
+    gga = RCPSPGraphGeneticAlgorithm(
+        pert,
+        **{parameter: value},
+        verbose=False,
+    )
+
+    assert getattr(gga, parameter) == value
+
+
 def test_zero_lag_matches_cpm_early_starts(gga, pert):
     starts = gga._lags_to_start_times([0.0] * len(gga._arcs))
     for act in gga._activities:

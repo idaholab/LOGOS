@@ -109,8 +109,20 @@ class RCPSPGraphGeneticAlgorithm:
         seed: int = 42,
         verbose: bool = True,
     ) -> None:
+        if ne < 2:
+            raise ValueError(f"ne must be at least 2; got {ne}")
+        if n_gen < 0:
+            raise ValueError(f"n_gen must be nonnegative; got {n_gen}")
+        if restart_threshold <= 0:
+            raise ValueError(
+                "restart_threshold must be greater than 0; "
+                f"got {restart_threshold}"
+            )
+        if not math.isfinite(rho) or not 0.0 <= rho <= 1.0:
+            raise ValueError(f"rho must be finite and in [0, 1]; got {rho}")
+
         self.pert = pert
-        self.ne = max(2, ne)
+        self.ne = ne
         self.n_gen = n_gen
         self.restart_threshold = restart_threshold
         self.rho = rho
