@@ -34,6 +34,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.CPM.pert import Pert                              # noqa: E402
 from src.CPM.gans import RCPSPHybridGANS, PRIORITY_RULES  # noqa: E402
+from conftest import assert_valid_schedule                 # noqa: E402
 
 # ── fixture paths ─────────────────────────────────────────────────────────────
 EXAMPLES_DIR = REPO_ROOT / 'doc' / 'demos' / 'rcpsp' / 'examples'
@@ -81,16 +82,30 @@ class TestConstructor:
     def test_activities_match_forward_dict(self, pert, gans):
         assert set(gans._activities) == set(pert.forwardDict.keys())
 
-    def test_pop_size_minimum(self, pert):
-        """pop_size is clamped to at least 4."""
-        g = RCPSPHybridGANS(pert, pop_size=1, lambda_max=50, verbose=False)
-        assert g.pop_size >= 4
+    @pytest.mark.parametrize(
+        ('kwargs', 'message'),
+        [
+            ({'pop_size': 3}, 'pop_size'),
+            ({'pop_size': 5, 'lambda_max': 4}, 'lambda_max'),
+            ({'ga_stall_limit': 0}, 'ga_stall_limit'),
+            ({'ns_steps': -1}, 'ns_steps'),
+            ({'block_size': 0}, 'block_size'),
+            ({'resource_threshold': -0.1}, 'resource_threshold'),
+            ({'resource_threshold': math.nan}, 'resource_threshold'),
+            ({'sigma1': -0.1}, 'sigma'),
+            ({'sigma1': 0.7, 'sigma2': 0.6}, 'sigma'),
+            ({'parents_size': 1}, 'parents_size'),
+            ({'pop_size': 5, 'parents_size': 6}, 'parents_size'),
+        ],
+    )
+    def test_invalid_parameters_raise(self, pert, kwargs, message):
+        params = {'pop_size': 5, 'lambda_max': 50, **kwargs}
+        with pytest.raises(ValueError, match=message):
+            RCPSPHybridGANS(pert, verbose=False, **params)
 
-    def test_parents_size_capped(self, pert):
-        """parents_size is capped to pop_size."""
-        g = RCPSPHybridGANS(pert, pop_size=5, parents_size=100,
-                             lambda_max=50, verbose=False)
-        assert g.parents_size <= g.pop_size
+    def test_default_parents_size_uses_population(self, pert):
+        g = RCPSPHybridGANS(pert, pop_size=5, lambda_max=50, verbose=False)
+        assert g.parents_size == 5
 
     def test_default_block_size_stored(self, gans):
         assert gans.block_size == 3
@@ -243,6 +258,9 @@ class TestDecodeAndOrdering:
         assert isinstance(fitness, (int, float))
         assert fitness > 0
         assert sorted(best_order) == list(range(gans._n))
+        decoded = gans._decode(best_order)
+        assert decoded['scheduled_duration'] - 2 == pytest.approx(fitness)
+        assert_valid_schedule(gans.pert, 'GANS FBI result')
 
     def test_fbi_fitness_le_plain_decode(self, gans):
         """FBI should not worsen fitness compared to a plain forward decode."""
@@ -351,6 +369,7 @@ class TestCrossoverA:
         child = gans._crossover_A(p1, p2)
         result = gans._decode(child['order'])
         assert result['scheduled_duration'] > 0
+        assert_valid_schedule(gans.pert, 'GANS crossover A child')
 
 
 class TestCrossoverB:
@@ -384,12 +403,12 @@ class TestCrossoverB:
         child = gans._crossover_B(p1, p2)
         result = gans._decode(child['order'])
         assert result['scheduled_duration'] > 0
+        assert_valid_schedule(gans.pert, 'GANS crossover B child')
 
     def test_fallback_to_crossover_a_no_genes(self, gans):
-        """When threshold is very high (no dense genes), crossover B must
-        still produce a valid individual via fallback to crossover A."""
+        """Without dense genes, crossover B uses its decoded-data fallback."""
         original = gans.resource_threshold
-        gans.resource_threshold = 1e9
+        gans.resource_threshold = 0.0
         o1 = gans._rule_to_order('lf')
         o2 = gans._rule_to_order('es')
         p1 = gans._evaluate_no_fbi(o1)
@@ -435,6 +454,7 @@ class TestMutate:
             mutant = gans._mutate(ind)
             result = gans._decode(mutant['order'])
             assert result['scheduled_duration'] > 0
+            assert_valid_schedule(gans.pert, 'GANS mutation result')
 
 
 # =============================================================================
@@ -501,15 +521,14 @@ class TestNeighborhoodNA:
     def test_returns_tuple(self, gans):
         order = gans._rule_to_order('lf')
         ind = gans._evaluate_no_fbi(order)
-        _result, evals = gans._na_neighbor(ind)
-        assert isinstance(evals, int)
-        assert evals >= 1
+        result = gans._na_neighbor(ind)
+        assert result is None or isinstance(result, dict)
 
     def test_neighbor_or_none(self, gans):
         """_na_neighbor returns either a valid Individual or None."""
         order = gans._rule_to_order('lf')
         ind = gans._evaluate_no_fbi(order)
-        neighbor, _ = gans._na_neighbor(ind)
+        neighbor = gans._na_neighbor(ind)
         if neighbor is not None:
             assert 'order' in neighbor and 'fitness' in neighbor
             assert sorted(neighbor['order']) == list(range(gans._n))
@@ -517,7 +536,7 @@ class TestNeighborhoodNA:
     def test_neighbor_fitness_finite_when_not_none(self, gans):
         order = gans._rule_to_order('lf')
         ind = gans._evaluate_no_fbi(order)
-        neighbor, _ = gans._na_neighbor(ind)
+        neighbor = gans._na_neighbor(ind)
         if neighbor is not None:
             assert neighbor['fitness'] < math.inf
 
@@ -527,7 +546,7 @@ class TestNeighborhoodNA:
         order = gans._rule_to_order('lf')
         ind = gans._evaluate_no_fbi(order)
         for _ in range(5):
-            neighbor, _ = gans._na_neighbor(ind)
+            neighbor = gans._na_neighbor(ind)
             if neighbor is None:
                 continue
             result = gans._decode(neighbor['order'])
@@ -539,14 +558,13 @@ class TestNeighborhoodNB:
     def test_returns_tuple(self, gans):
         order = gans._rule_to_order('lf')
         ind = gans._evaluate_no_fbi(order)
-        _result, evals = gans._nb_neighbor(ind)
-        assert isinstance(evals, int)
-        assert evals >= 0
+        result = gans._nb_neighbor(ind)
+        assert result is None or isinstance(result, dict)
 
     def test_neighbor_or_none(self, gans):
         order = gans._rule_to_order('lf')
         ind = gans._evaluate_no_fbi(order)
-        neighbor, _ = gans._nb_neighbor(ind)
+        neighbor = gans._nb_neighbor(ind)
         if neighbor is not None:
             assert 'order' in neighbor and 'fitness' in neighbor
             assert sorted(neighbor['order']) == list(range(gans._n))
@@ -554,7 +572,7 @@ class TestNeighborhoodNB:
     def test_neighbor_fitness_finite_when_not_none(self, gans):
         order = gans._rule_to_order('lf')
         ind = gans._evaluate_no_fbi(order)
-        neighbor, _ = gans._nb_neighbor(ind)
+        neighbor = gans._nb_neighbor(ind)
         if neighbor is not None:
             assert neighbor['fitness'] < math.inf
 
@@ -589,26 +607,40 @@ class TestUpdateBlockSize:
 
 class TestAssignSubsetParams:
 
-    def test_subset1_low_sigma(self, gans):
-        """A fitness close to CPM duration → subset 1 (high stall, low ns)."""
-        cpm = gans._cpm_duration
-        gans._assign_subset_params(cpm * 1.05)  # sigma ≈ 0.05 < sigma1=0.2
-        assert gans.ga_stall_limit == 80
-        assert gans.ns_steps == 50
+    @pytest.fixture
+    def adaptive(self, pert):
+        return RCPSPHybridGANS(
+            pert, pop_size=5, lambda_max=50, seed=0, verbose=False
+        )
 
-    def test_subset3_high_sigma(self, gans):
-        """A fitness far above CPM duration → subset 3 (low stall, high ns)."""
-        cpm = gans._cpm_duration
-        gans._assign_subset_params(cpm * 2.0)   # sigma ≈ 1.0 > sigma2=0.6
-        assert gans.ga_stall_limit == 20
-        assert gans.ns_steps == 300
+    def test_subset1_low_sigma(self, adaptive):
+        adaptive._assign_subset_params(adaptive._cpm_duration * 1.05)
+        assert adaptive.ga_stall_limit == 80
+        assert adaptive.ns_steps == 50
 
-    def test_subset2_medium_sigma(self, gans):
-        """A fitness moderately above CPM → subset 2."""
-        cpm = gans._cpm_duration
-        gans._assign_subset_params(cpm * 1.4)   # sigma ≈ 0.4, between 0.2 and 0.6
-        assert gans.ga_stall_limit == 50
-        assert gans.ns_steps == 150
+    def test_subset3_high_sigma(self, adaptive):
+        adaptive._assign_subset_params(adaptive._cpm_duration * 2.0)
+        assert adaptive.ga_stall_limit == 20
+        assert adaptive.ns_steps == 300
+
+    def test_subset2_medium_sigma(self, adaptive):
+        adaptive._assign_subset_params(adaptive._cpm_duration * 1.4)
+        assert adaptive.ga_stall_limit == 50
+        assert adaptive.ns_steps == 150
+
+    def test_explicit_values_are_preserved(self, gans):
+        gans._assign_subset_params(gans._cpm_duration * 2.0)
+        assert gans.ga_stall_limit == 10
+        assert gans.ns_steps == 5
+
+    def test_partial_override_is_preserved(self, pert):
+        instance = RCPSPHybridGANS(
+            pert, pop_size=5, lambda_max=50, ga_stall_limit=7,
+            ns_steps=None, verbose=False
+        )
+        instance._assign_subset_params(instance._cpm_duration * 1.05)
+        assert instance.ga_stall_limit == 7
+        assert instance.ns_steps == 50
 
 
 # =============================================================================
@@ -658,7 +690,10 @@ class TestRun:
 
     def test_log_entry_keys(self, run_results):
         _, _, log = run_results
-        expected_keys = {'n_evals', 'best', 'event', 'ga_stall', 'n_ns_activations'}
+        expected_keys = {
+            'n_evals', 'best', 'event', 'ga_stall', 'n_ns_activations',
+            'ga_stall_limit', 'ns_steps',
+        }
         for entry in log:
             assert expected_keys.issubset(entry.keys())
 
@@ -724,6 +759,44 @@ class TestRun:
         g, best, _ = run_results
         result = g.get_best_schedule(best)
         assert result.get('n_completed', 0) == g._n
+        assert_valid_schedule(g.pert, 'GANS final result')
+
+    def test_reported_evals_match_actual_sgs_calls(self, pert, monkeypatch):
+        calls = 0
+        original = pert.calculateSerialScheduleWithResources
+
+        def counted(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(pert, 'calculateSerialScheduleWithResources', counted)
+        instance = RCPSPHybridGANS(
+            pert, pop_size=5, lambda_max=6, ga_stall_limit=8,
+            ns_steps=5, seed=42, verbose=False
+        )
+        _, log = instance.run()
+        assert calls == log[-1]['n_evals'] == 5
+        assert calls <= instance.lambda_max
+
+    @pytest.mark.parametrize('budget', [5, 9, 10])
+    def test_budget_never_exceeded(self, pert, monkeypatch, budget):
+        calls = 0
+        original = pert.calculateSerialScheduleWithResources
+
+        def counted(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(pert, 'calculateSerialScheduleWithResources', counted)
+        instance = RCPSPHybridGANS(
+            pert, pop_size=5, lambda_max=budget, ga_stall_limit=8,
+            ns_steps=5, seed=42, verbose=False
+        )
+        _, log = instance.run()
+        assert calls == log[-1]['n_evals']
+        assert calls <= budget
 
 
 # =============================================================================

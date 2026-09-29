@@ -16,8 +16,8 @@ Key algorithmic components
 - **Crossover A**: greedy merge of dense-gene segments from both parents.
 - **Crossover B**: segment swap based on the outgoing/incoming networks of
   dense-gene activities in the schedule graph G_S.
-- **FBI**: Forward-Backward-Forward improvement (3 SGS calls); applied after
-  every crossover and mutation operator.
+- **FBI**: Forward-Backward-Forward improvement (2 SGS calls plus an
+  analytical ALAP sweep); applied after every crossover and mutation operator.
 - **Neighborhood NA**: block reschedule — P activities near a core activity
   are extracted and re-inserted at their earliest feasible positions.
 - **Neighborhood NB**: split-list schedule — list is split A1 | block | A2;
@@ -70,6 +70,11 @@ PRIORITY_RULES: List[str] = [
 
 Individual = Dict[str, Any]   # keys: 'order': List[int], 'fitness': float
 
+
+class _EvaluationBudgetExhausted(RuntimeError):
+    """Raised internally when another SGS decode would exceed lambda_max."""
+
+
 # Weight sets offered by the paper (Section 8); picked randomly each restart.
 _WEIGHT_SETS: List[Tuple[float, ...]] = [
     (1.0, 0.8, 0.6, 0.4),
@@ -91,11 +96,12 @@ class RCPSPHybridGANS:
         slots; the rest are random precedence-feasible permutations.
     lambda_max : int
         Total budget of SGS evaluations (stopping criterion).
-    ga_stall_limit : int
+    ga_stall_limit : int, optional
         Consecutive GA offspring rounds without improvement before activating NS.
-        Overridden by σ-based instance classification.
-    ns_steps : int
-        NS iterations per activation.  Overridden by σ-based classification.
+        When omitted, σ-based instance classification selects the value.
+    ns_steps : int, optional
+        NS iterations per activation.  When omitted, σ-based instance
+        classification selects the value.
     block_size : int
         Initial ``P`` (number of activities per block) for CreateBlock.
     resource_threshold : float
@@ -104,8 +110,9 @@ class RCPSPHybridGANS:
         Lower σ threshold for instance classification.
     sigma2 : float
         Upper σ threshold for instance classification.
-    parents_size : int
-        Maximum size of parent pool ``Γ'``.
+    parents_size : int, optional
+        Maximum size of parent pool ``Γ'``.  Defaults to the smaller of 10 and
+        the population size.
     seed : int
         RNG seed.
     verbose : bool
@@ -117,27 +124,51 @@ class RCPSPHybridGANS:
         pert,
         pop_size: int = 60,
         lambda_max: int = 50_000,
-        ga_stall_limit: int = 50,
-        ns_steps: int = 200,
+        ga_stall_limit: Optional[int] = None,
+        ns_steps: Optional[int] = None,
         block_size: int = 6,
         resource_threshold: float = 0.75,
         sigma1: float = 0.2,
         sigma2: float = 0.6,
-        parents_size: int = 10,
+        parents_size: Optional[int] = None,
         seed: int = 42,
         verbose: bool = True,
     ) -> None:
+        if pop_size < 4:
+            raise ValueError("pop_size must be at least 4")
+        if lambda_max < pop_size:
+            raise ValueError("lambda_max must be at least pop_size")
+        if ga_stall_limit is not None and ga_stall_limit <= 0:
+            raise ValueError("ga_stall_limit must be positive when specified")
+        if ns_steps is not None and ns_steps < 0:
+            raise ValueError("ns_steps must be non-negative when specified")
+        if block_size <= 0:
+            raise ValueError("block_size must be positive")
+        if not math.isfinite(resource_threshold) or not 0.0 <= resource_threshold <= 1.0:
+            raise ValueError("resource_threshold must be finite and in [0, 1]")
+        if (not math.isfinite(sigma1) or not math.isfinite(sigma2)
+                or sigma1 < 0.0 or sigma1 > sigma2):
+            raise ValueError("sigma thresholds must be finite and satisfy 0 <= sigma1 <= sigma2")
+        if parents_size is not None and not 2 <= parents_size <= pop_size:
+            raise ValueError("parents_size must be between 2 and pop_size")
+
         self.pert = pert
-        self.pop_size = max(4, pop_size)
+        self.pop_size = pop_size
         self.lambda_max = lambda_max
+        self._adaptive_ga_stall_limit = ga_stall_limit is None
+        self._adaptive_ns_steps = ns_steps is None
         self.ga_stall_limit = ga_stall_limit
         self.ns_steps = ns_steps
         self.block_size = block_size
         self.resource_threshold = resource_threshold
         self.sigma1 = sigma1
         self.sigma2 = sigma2
-        self.parents_size = min(parents_size, pop_size)
+        self.parents_size = min(10, pop_size) if parents_size is None else parents_size
         self.verbose = verbose
+
+        # Evaluation-budget state is active only while run() is executing.
+        self._budget_active = False
+        self._n_evals = 0
 
         random.seed(seed)
         np.random.seed(seed)
@@ -277,7 +308,23 @@ class RCPSPHybridGANS:
     # Schedule decoding and timing reads                                   #
     # ------------------------------------------------------------------ #
 
+    def _remaining_evals(self) -> int:
+        """Return the remaining run budget, or an effectively unlimited value."""
+        if not self._budget_active:
+            return math.inf
+        return self.lambda_max - self._n_evals
+
+    def _can_evaluate(self, count: int) -> bool:
+        """Return whether a complete operation using count SGS calls can start."""
+        return self._remaining_evals() >= count
+
     def _decode(self, order: List[int]) -> Dict[str, Any]:
+        if self._budget_active:
+            if not self._can_evaluate(1):
+                raise _EvaluationBudgetExhausted(
+                    f"SGS evaluation budget exhausted at {self._n_evals} calls"
+                )
+            self._n_evals += 1
         acts = self._chromosome_to_activities(order)
         return self.pert.calculateSerialScheduleWithResources(_ordered=acts)
 
@@ -318,34 +365,45 @@ class RCPSPHybridGANS:
     # Forward-Backward Improvement (FBI)                                   #
     # ------------------------------------------------------------------ #
 
+    def _compute_backward_order(
+        self, forward_order: List[int], makespan_h: float
+    ) -> List[int]:
+        """Build a precedence-feasible ALAP order from a forward chromosome."""
+        alap_ls: Dict[Any, float] = {}
+        for gene in reversed(forward_order):
+            activity = self._activities[gene]
+            duration = self.pert.infoDict[activity]['duration']
+            successor_starts = [
+                alap_ls[successor]
+                for successor in self.pert.forwardDict.get(activity, [])
+                if successor in alap_ls
+            ]
+            alap_lf = min(successor_starts) if successor_starts else makespan_h
+            alap_ls[activity] = alap_lf - duration
+
+        ranked = [(activity, alap_ls.get(activity, 0.0)) for activity in self._activities]
+        repaired = self.pert.reorder_by_dependencies(ranked, self.pert.forwardDict)
+        return [self._act_to_idx[activity] for activity, _ in repaired]
+
     def _fbi(self, order: List[int]) -> Tuple[float, List[int]]:
-        """
-        Three-pass forward-backward-forward improvement.
+        """Improve an order with two forward SGS decodes and an ALAP sweep."""
+        if not self._can_evaluate(2):
+            raise _EvaluationBudgetExhausted(
+                "Forward-backward improvement requires two SGS evaluations"
+            )
 
-        Returns the best (fitness, order) across the three schedules.
-        Each pass counts as one evaluation toward lambda_max.
-        """
-        # Pass 1: forward
-        out1 = self._decode(order)
-        f1 = out1['scheduled_duration'] - 2
-        t1 = self._get_schedule_times()
-        o1 = self._order_from_schedule(t1)
+        forward_order = self._repair(order)
+        forward_out = self._decode(forward_order)
+        forward_fitness = forward_out['scheduled_duration'] - 2
+        backward_order = self._compute_backward_order(
+            forward_order, forward_out['scheduled_duration']
+        )
 
-        # Pass 2: backward (reverse order → SGS pushes activities as late as possible)
-        out2 = self._decode(list(reversed(o1)))
-        f2 = out2['scheduled_duration'] - 2
-        t2 = self._get_schedule_times()
-        o2 = self._order_from_schedule(t2)
-
-        # Pass 3: forward again from backward-adjusted order
-        out3 = self._decode(o2)
-        f3 = out3['scheduled_duration'] - 2
-        t3 = self._get_schedule_times()
-        o3 = self._order_from_schedule(t3)
-
-        candidates = [(f1, o1), (f2, o2), (f3, o3)]
-        best_f, best_o = min(candidates, key=lambda x: x[0])
-        return best_f, best_o
+        improved_out = self._decode(backward_order)
+        improved_fitness = improved_out['scheduled_duration'] - 2
+        if improved_fitness <= forward_fitness:
+            return improved_fitness, backward_order
+        return forward_fitness, forward_order
 
     def _evaluate_with_fbi(self, order: List[int]) -> Individual:
         fitness, best_order = self._fbi(order)
@@ -451,44 +509,56 @@ class RCPSPHybridGANS:
         out2 = self._decode(p2['order']); t2 = self._get_schedule_times()
         genes2 = self._dense_activities(p2['order'], t2)
 
-        # Build a merged gene list (activity set, parent index, v_t)
-        # Recompute v_t for each gene
+        return self._crossover_A_from_decoded(
+            p1, p2, out1, out2, genes1, genes2
+        )
+
+    def _crossover_A_from_decoded(
+        self,
+        p1: Individual,
+        p2: Individual,
+        out1: Dict[str, Any],
+        out2: Dict[str, Any],
+        genes1: List[FrozenSet[Any]],
+        genes2: List[FrozenSet[Any]],
+    ) -> Individual:
+        """Complete crossover A using parent data already decoded by the caller."""
         merged: List[Tuple[FrozenSet[Any], int, float]] = []
-        for g in genes1:
-            active = list(g)
-            v = self._weighted_residual(active)
-            merged.append((g, 1, v))
-        for g in genes2:
-            active = list(g)
-            v = self._weighted_residual(active)
-            merged.append((g, 2, v))
-        merged.sort(key=lambda x: x[2])  # best (lowest) first
+        for gene in genes1:
+            merged.append((gene, 1, self._weighted_residual(list(gene))))
+        for gene in genes2:
+            merged.append((gene, 2, self._weighted_residual(list(gene))))
+        merged.sort(key=lambda item: item[2])
 
         acts1 = self._chromosome_to_activities(p1['order'])
         acts2 = self._chromosome_to_activities(p2['order'])
-
         added: Set[int] = set()
         child_acts: List[Any] = []
-
-        for gene, parent_idx, _v in merged:
+        for gene, parent_idx, _ in merged:
             parent_list = acts1 if parent_idx == 1 else acts2
-            for a in parent_list:
-                idx = self._act_to_idx[a]
-                if a in gene and idx not in added:
-                    child_acts.append(a)
+            for activity in parent_list:
+                idx = self._act_to_idx[activity]
+                if activity in gene and idx not in added:
+                    child_acts.append(activity)
                     added.add(idx)
 
-        # Fill remainder from shorter-duration parent
-        shorter = acts1 if out1.get('scheduled_duration', math.inf) <= out2.get('scheduled_duration', math.inf) else acts2
-        for a in shorter:
-            idx = self._act_to_idx[a]
+        shorter = (
+            acts1
+            if out1.get('scheduled_duration', math.inf)
+            <= out2.get('scheduled_duration', math.inf)
+            else acts2
+        )
+        for activity in shorter:
+            idx = self._act_to_idx[activity]
             if idx not in added:
-                child_acts.append(a)
+                child_acts.append(activity)
                 added.add(idx)
 
-        # Repair precedence
-        child_order = [self._act_to_idx[a] for a in child_acts if a in self._act_to_idx]
-        child_order = self._repair(child_order)
+        child_order = self._repair([
+            self._act_to_idx[activity]
+            for activity in child_acts
+            if activity in self._act_to_idx
+        ])
         return self._evaluate_with_fbi(child_order)
 
     # ------------------------------------------------------------------ #
@@ -552,8 +622,10 @@ class RCPSPHybridGANS:
         acts2 = self._chromosome_to_activities(p2['order'])
 
         if not genes1 or not genes2:
-            # Fall back to Crossover A when no dense genes found
-            return self._crossover_A(p1, p2)
+            # Fall back without repeating the two parent decodes.
+            return self._crossover_A_from_decoded(
+                p1, p2, out1, out2, genes1, genes2
+            )
 
         # Select best dense gene from each parent
         best_g1 = genes1[0]
@@ -568,7 +640,9 @@ class RCPSPHybridGANS:
         pos2 = {a: i for i, a in enumerate(acts2)}
         span_positions = [pos2[a] for a in network_in_p2 if a in pos2]
         if not span_positions:
-            return self._crossover_A(p1, p2)
+            return self._crossover_A_from_decoded(
+                p1, p2, out1, out2, genes1, genes2
+            )
 
         lo2, hi2 = min(span_positions), max(span_positions)
         segment = acts2[lo2: hi2 + 1]
@@ -682,6 +756,8 @@ class RCPSPHybridGANS:
                 ind = self._evaluate_no_fbi(order)
                 pop.append(ind)
                 seed_info[rule] = ind['fitness']
+            except _EvaluationBudgetExhausted:
+                raise
             except Exception as exc:
                 logger.warning("Skipping rule '%s': %s", rule, exc)
 
@@ -690,8 +766,18 @@ class RCPSPHybridGANS:
                 self.pert.priorities = None
                 order = self._rule_to_order('random')
                 pop.append(self._evaluate_no_fbi(order))
-            except Exception:
-                break
+            except _EvaluationBudgetExhausted:
+                raise
+            except Exception as exc:
+                raise RuntimeError(
+                    "Unable to construct a complete GANS initial population"
+                ) from exc
+
+        if len(pop) != self.pop_size:
+            raise RuntimeError(
+                f"GANS initial population is incomplete: {len(pop)} of "
+                f"{self.pop_size} individuals"
+            )
 
         n_rand = len(pop) - len(seed_info)
         if self.verbose and seed_info:
@@ -765,27 +851,26 @@ class RCPSPHybridGANS:
 
         return block
 
-    def _na_neighbor(self, ind: Individual) -> Tuple[Optional[Individual], int]:
+    def _na_neighbor(self, ind: Individual) -> Optional[Individual]:
         """
         Neighborhood NA: select core activity, extract block, reschedule it.
 
         The block activities are removed from their current order positions and
         re-inserted at their earliest feasible positions in the remaining list.
         """
-        evals_used = 1  # initial decode for timing / block construction
-        out = self._decode(ind['order'])
+        self._decode(ind['order'])
         times = self._get_schedule_times()
         order = self._order_from_schedule(times)
 
         non_dummy = [a for a in self._activities if a not in self._dummy_acts]
         if not non_dummy:
-            return None, evals_used
+            return None
         core = random.choice(non_dummy)
         block = self._create_block(core, times, self._block_size)
 
         if not block:
             self._empty_block_history.append(True)
-            return None, evals_used
+            return None
         self._empty_block_history.append(False)
 
         block_set = {self._act_to_idx[a] for a in block if a in self._act_to_idx}
@@ -819,8 +904,7 @@ class RCPSPHybridGANS:
 
         child_order = self._repair(residual)
         fitness, best_order = self._fbi(child_order)
-        evals_used += 3  # FBI
-        return self._make_individual(best_order, fitness), evals_used
+        return self._make_individual(best_order, fitness)
 
     # ------------------------------------------------------------------ #
     # Neighbourhood NB — split-list GRASP parallel SGS                    #
@@ -877,26 +961,24 @@ class RCPSPHybridGANS:
 
         return scheduled
 
-    def _nb_neighbor(self, ind: Individual) -> Tuple[Optional[Individual], int]:
+    def _nb_neighbor(self, ind: Individual) -> Optional[Individual]:
         """
         Neighborhood NB: split list L = A1 | block | A2.
 
         A1 scheduled with serial SGS; block with GRASP-parallel SGS; A2 appended.
         """
-        evals_used = 0
         order = list(ind['order'])
         n = len(order)
         non_dummy = [self._activities[i] for i in order
                      if self._activities[i] not in self._dummy_acts]
         if len(non_dummy) < 2:
-            return None, evals_used
+            return None
 
         core = random.choice(non_dummy)
         core_idx = order.index(self._act_to_idx[core])
 
         # Decode for timing to build block
         self._decode(order)
-        evals_used += 1
         times = self._get_schedule_times()
         block_acts = self._create_block(core, times, self._block_size)
 
@@ -906,7 +988,7 @@ class RCPSPHybridGANS:
         # Check: if any block member is a predecessor of core, skip
         preds_of_core = set(self.pert.backwardDict.get(core, []))
         if preds_of_core & set(block_acts):
-            return None, evals_used
+            return None
 
         # Split at core position
         a1_order = [i for i in order[:core_idx] if i not in block_idx_set]
@@ -927,8 +1009,7 @@ class RCPSPHybridGANS:
 
         child_order = self._repair(child_order)
         fitness, best_order = self._fbi(child_order)
-        evals_used += 3  # FBI
-        return self._make_individual(best_order, fitness), evals_used
+        return self._make_individual(best_order, fitness)
 
     # ------------------------------------------------------------------ #
     # Adaptive block-size update                                           #
@@ -962,11 +1043,15 @@ class RCPSPHybridGANS:
         cpm = max(self._cpm_duration, 1.0)
         sigma = (best_fitness - cpm) / cpm
         if sigma < self.sigma1:
-            subset, self.ga_stall_limit, self.ns_steps = 1, 80, 50
+            subset, adaptive_stall, adaptive_steps = 1, 80, 50
         elif sigma <= self.sigma2:
-            subset, self.ga_stall_limit, self.ns_steps = 2, 50, 150
+            subset, adaptive_stall, adaptive_steps = 2, 50, 150
         else:
-            subset, self.ga_stall_limit, self.ns_steps = 3, 20, 300
+            subset, adaptive_stall, adaptive_steps = 3, 20, 300
+        if self._adaptive_ga_stall_limit:
+            self.ga_stall_limit = adaptive_stall
+        if self._adaptive_ns_steps:
+            self.ns_steps = adaptive_steps
         if self.verbose:
             print(f"  σ = {sigma:.3f} → subset {subset} | "
                   f"ga_stall={self.ga_stall_limit} | ns_steps={self.ns_steps}")
@@ -986,143 +1071,123 @@ class RCPSPHybridGANS:
     # ------------------------------------------------------------------ #
 
     def run(self) -> Tuple[Individual, List[Dict]]:
-        """
-        Execute the GANS algorithm.
+        """Execute GANS while enforcing an exact SGS evaluation budget."""
+        self._n_evals = 0
+        self._budget_active = True
+        try:
+            pop = self._build_initial_population()
+            pop.sort(key=lambda individual: individual['fitness'])
+            best = self._make_individual(pop[0]['order'], pop[0]['fitness'])
+            self._assign_subset_params(best['fitness'])
 
-        Returns
-        -------
-        best : Individual
-            Best individual found.
-        log : list of dict
-            Per-generation records with keys:
-            ``n_evals``, ``best``, ``event``, ``ga_stall``, ``n_ns_activations``.
-        """
-        # ── Initialisation ─────────────────────────────────────────────
-        pop = self._build_initial_population()
-        pop.sort(key=lambda x: x['fitness'])
-        n_evals = len(pop)
+            ga_stall = 0
+            n_ns_activations = 0
+            p_parent = 0.25
+            log: List[Dict] = []
 
-        best = self._make_individual(pop[0]['order'], pop[0]['fitness'])
-        self._assign_subset_params(best['fitness'])
+            def _log(event: str = '') -> None:
+                log.append({
+                    'n_evals': self._n_evals,
+                    'best': best['fitness'],
+                    'event': event,
+                    'ga_stall': ga_stall,
+                    'n_ns_activations': n_ns_activations,
+                    'ga_stall_limit': self.ga_stall_limit,
+                    'ns_steps': self.ns_steps,
+                })
 
-        ga_stall = 0
-        n_ns_activations = 0
-        p_parent = 0.25
-        log: List[Dict] = []
+            _log('init')
+            if self.verbose:
+                print(f"{'n_evals':>8}  {'best (h)':>10}  {'event':<16}")
+                print("-" * 40)
+                print(f"{self._n_evals:>8}  {best['fitness']:>10.2f}  {'init':<16}")
 
-        def _log(event: str = '') -> None:
-            log.append({
-                'n_evals': n_evals,
-                'best': best['fitness'],
-                'event': event,
-                'ga_stall': ga_stall,
-                'n_ns_activations': n_ns_activations,
-            })
+            gen = 0
+            while self._can_evaluate(4):
+                gen += 1
+                parents = self._select_parents(pop, p_parent)
+                if len(parents) < 2:
+                    parents = sorted(pop, key=lambda individual: individual['fitness'])[:2]
 
-        _log('init')
-        if self.verbose:
-            print(f"{'n_evals':>8}  {'best (h)':>10}  {'event':<16}")
-            print("-" * 40)
-            print(f"{n_evals:>8}  {best['fitness']:>10.2f}  {'init':<16}")
+                p1 = random.choice(parents)
+                p2 = random.choice(parents)
+                crossover = random.choice([self._crossover_A, self._crossover_B])
+                child = crossover(p1, p2)
 
-        # ── Main loop ──────────────────────────────────────────────────
-        gen = 0
-        while n_evals < self.lambda_max:
-            gen += 1
-            parents = self._select_parents(pop, p_parent)
-            if len(parents) < 2:
-                parents = sorted(pop, key=lambda x: x['fitness'])[:2]
+                if (child['fitness'] >= min(p1['fitness'], p2['fitness'])
+                        and self._can_evaluate(2)):
+                    mutant = self._mutate(child)
+                    if mutant['fitness'] <= child['fitness']:
+                        child = mutant
 
-            # Produce offspring (one crossing per gen, per paper)
-            p1 = random.choice(parents)
-            p2 = random.choice(parents)
-            cx = random.choice([self._crossover_A, self._crossover_B])
-            child = cx(p1, p2)
-            n_evals += 3  # FBI = 3 SGS calls
+                improved = child['fitness'] < best['fitness']
+                if improved:
+                    best = self._make_individual(child['order'], child['fitness'])
+                    ga_stall = 0
+                else:
+                    ga_stall += 1
 
-            # Apply mutation only if crossing didn't improve
-            if child['fitness'] >= min(p1['fitness'], p2['fitness']):
-                mutant = self._mutate(child)
-                n_evals += 3
-                if mutant['fitness'] <= child['fitness']:
-                    child = mutant
+                pop.append(child)
+                pop.sort(key=lambda individual: individual['fitness'])
+                pop = pop[:self.pop_size]
 
-            # Update best
-            improved = child['fitness'] < best['fitness']
-            if improved:
-                best = self._make_individual(child['order'], child['fitness'])
-                ga_stall = 0
-            else:
-                ga_stall += 1
+                if ga_stall >= self.ga_stall_limit and self._can_evaluate(1):
+                    n_ns_activations += 1
+                    event = f"NS#{n_ns_activations}"
+                    ns_current = self._make_individual(best['order'], best['fitness'])
+                    tabu: List[int] = []
+                    tabu_key_current = self._tabu_key(ns_current)
 
-            # Tournament update: add child, remove worst
-            pop.append(child)
-            pop.sort(key=lambda x: x['fitness'])
-            pop = pop[:self.pop_size]
+                    for _ in range(self.ns_steps):
+                        # Each neighbor uses at most three calls and its tabu key one.
+                        if not self._can_evaluate(4):
+                            break
+                        neighbor = random.choice([
+                            self._na_neighbor, self._nb_neighbor
+                        ])(ns_current)
+                        if neighbor is None:
+                            continue
 
-            # ── NS activation ─────────────────────────────────────────
-            if ga_stall >= self.ga_stall_limit and n_evals < self.lambda_max:
-                n_ns_activations += 1
-                event = f"NS#{n_ns_activations}"
+                        tabu_key = self._tabu_key(neighbor)
+                        if tabu_key in tabu:
+                            continue
+                        if neighbor['fitness'] < ns_current['fitness']:
+                            ns_current = neighbor
+                            tabu.append(tabu_key_current)
+                            if len(tabu) > 10:
+                                tabu.pop(0)
+                            tabu_key_current = tabu_key
+                        if ns_current['fitness'] < best['fitness']:
+                            best = self._make_individual(
+                                ns_current['order'], ns_current['fitness']
+                            )
+                        self._update_block_size()
 
-                # Start NS from current best individual
-                ns_current = self._make_individual(best['order'], best['fitness'])
-                tabu: List[int] = []
-                tabu_key_current = self._tabu_key(ns_current)
-                n_evals += 1
+                    pop[0] = self._make_individual(best['order'], best['fitness'])
+                    ga_stall = 0
+                    self._randomize_weights()
+                    if self.verbose:
+                        print(
+                            f"{self._n_evals:>8}  {best['fitness']:>10.2f}  "
+                            f"{event:<16}"
+                        )
+                    _log(event)
+                    continue
 
-                for _step in range(self.ns_steps):
-                    if n_evals >= self.lambda_max:
-                        break
-                    ns_type = random.choice(['NA', 'NB'])
-                    neighbor, neighbor_evals = (
-                        self._na_neighbor(ns_current)
-                        if ns_type == 'NA'
-                        else self._nb_neighbor(ns_current)
-                    )
-                    n_evals += neighbor_evals
+                if self.verbose and (gen % 50 == 0 or improved):
+                    tag = "*" if improved else ""
+                    print(f"{self._n_evals:>8}  {best['fitness']:>10.2f}  {tag:<16}")
+                _log()
 
-                    if neighbor is None:
-                        continue
-
-                    tk = self._tabu_key(neighbor)
-                    n_evals += 1
-                    if tk in tabu:
-                        continue  # skip tabu
-
-                    if neighbor['fitness'] < ns_current['fitness']:
-                        ns_current = neighbor
-                        tabu.append(tabu_key_current)
-                        if len(tabu) > 10:
-                            tabu.pop(0)
-                        tabu_key_current = tk
-
-                    if ns_current['fitness'] < best['fitness']:
-                        best = self._make_individual(ns_current['order'], ns_current['fitness'])
-
-                    self._update_block_size()
-
-                # Reinject best into population; restart GA
-                pop[0] = self._make_individual(best['order'], best['fitness'])
-                ga_stall = 0
-                self._randomize_weights()
-
-                if self.verbose:
-                    print(f"{n_evals:>8}  {best['fitness']:>10.2f}  {event:<16}")
-                _log(event)
-                continue
-
-            if self.verbose and (gen % 50 == 0 or improved):
-                tag = "*" if improved else ""
-                print(f"{n_evals:>8}  {best['fitness']:>10.2f}  {tag:<16}")
-
-            _log()
-
-        logger.info(
-            "GANS finished | best = %.2f h | evals = %d | NS activations = %d",
-            best['fitness'], n_evals, n_ns_activations,
-        )
-        return best, log
+            if not log or log[-1]['n_evals'] != self._n_evals:
+                _log('budget')
+            logger.info(
+                "GANS finished | best = %.2f h | evals = %d | NS activations = %d",
+                best['fitness'], self._n_evals, n_ns_activations,
+            )
+            return best, log
+        finally:
+            self._budget_active = False
 
     # ------------------------------------------------------------------ #
     # Result helpers                                                       #

@@ -1,26 +1,26 @@
 """
 gans_test_hard.py — Hard-instance integration test for the RCPSP GANS solver
 
-Runs the hybrid GA + neighbourhood search algorithm on a selected set of
+Runs the hybrid GA + neighborhood search algorithm on a selected set of
 difficult PSPLIB j120 benchmark instances and prints:
   - Best GANS duration
   - Best-known PSPLIB duration
   - Gap between GANS and the best-known solution
 
-Usage (from the src/CPM directory):
-    python gans_test_hard.py
-
-Or from the repo root:
-    python -m src.CPM.gans_test_hard
+Usage (from the repository root):
+    python doc/demos/heuristics/gans_test_hard.py \
+        --data-dir /path/to/PSPLIB_Json
 """
 
-import sys
-import logging
+import argparse
 import json
+import logging
+import sys
 from pathlib import Path
 
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT))
 
 from src import Pert  # noqa: E402
 from src.CPM.gans import RCPSPHybridGANS, PRIORITY_RULES  # noqa: E402
@@ -28,20 +28,23 @@ from src.CPM.gans import RCPSPHybridGANS, PRIORITY_RULES  # noqa: E402
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-SCHEMA = Path(__file__).parent / "outage_schema.json"
-BEST_RESULTS_PATH = Path(__file__).parent / "benchmarks" / "best_results.json"
+SCHEMA = (REPO_ROOT / "src" / "CPM" / "outage_schema.json").resolve()
+BEST_RESULTS_PATH = (
+    REPO_ROOT / "doc" / "demos" / "benchmarks" / "best_results.json"
+).resolve()
 
+# Paths are relative to the external PSPLIB_Json root supplied by --data-dir.
 CASES = [
-    ("j12051_6",  "benchmarks/PSPLIB_Json/j120/j12051_6.json"),
-    ("j12031_10", "benchmarks/PSPLIB_Json/j120/j12031_10.json"),
-    ("j12036_6",  "benchmarks/PSPLIB_Json/j120/j12036_6.json"),
-    ("j12056_7",  "benchmarks/PSPLIB_Json/j120/j12056_7.json"),
-    ("j12051_5",  "benchmarks/PSPLIB_Json/j120/j12051_5.json"),
-    ("j12056_1",  "benchmarks/PSPLIB_Json/j120/j12056_1.json"),
-    ("j12026_10", "benchmarks/PSPLIB_Json/j120/j12026_10.json"),
-    ("j12051_7",  "benchmarks/PSPLIB_Json/j120/j12051_7.json"),
-    ("j12056_5",  "benchmarks/PSPLIB_Json/j120/j12056_5.json"),
-    ("j12056_9",  "benchmarks/PSPLIB_Json/j120/j12056_9.json"),
+    ("j12051_6", Path("j120/j12051_6.json")),
+    ("j12031_10", Path("j120/j12031_10.json")),
+    ("j12036_6", Path("j120/j12036_6.json")),
+    ("j12056_7", Path("j120/j12056_7.json")),
+    ("j12051_5", Path("j120/j12051_5.json")),
+    ("j12056_1", Path("j120/j12056_1.json")),
+    ("j12026_10", Path("j120/j12026_10.json")),
+    ("j12051_7", Path("j120/j12051_7.json")),
+    ("j12056_5", Path("j120/j12056_5.json")),
+    ("j12056_9", Path("j120/j12056_9.json")),
 ]
 
 # ==========================================================================================
@@ -61,21 +64,56 @@ CASES = [
 #   j12056_9        122     103.00        341.00         325.00       321.00       287.00     34.00     4.00     4
 
 
-def load_best_known_results() -> dict[str, float]:
-    """Load PSPLIB best-known results keyed by `<instance>.sm`."""
-    with BEST_RESULTS_PATH.open("r", encoding="utf-8") as f:
+def parse_args(argv=None) -> argparse.Namespace:
+    """Parse command-line options for the external hard-instance data set."""
+    parser = argparse.ArgumentParser(
+        description="Run GANS on selected hard PSPLIB j120 instances."
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        required=True,
+        help="path to the external PSPLIB_Json root (the directory containing j120/)",
+    )
+    return parser.parse_args(argv)
+
+
+def preflight_inputs(data_dir: Path) -> list[tuple[str, Path]]:
+    """Resolve all inputs and report every missing file in one actionable error."""
+    data_root = data_dir.expanduser().resolve()
+    case_paths = [(name, (data_root / relative_path).resolve()) for name, relative_path in CASES]
+    expected = [
+        ("canonical outage schema", SCHEMA),
+        ("canonical best-known results", BEST_RESULTS_PATH),
+        *((f"benchmark case {name}", path) for name, path in case_paths),
+    ]
+    missing = [(label, path) for label, path in expected if not path.is_file()]
+    if missing:
+        missing_lines = "\n".join(f"  - {label}: {path}" for label, path in missing)
+        raise FileNotFoundError(
+            "Hard-instance benchmark inputs are incomplete.\n"
+            f"Missing required files:\n{missing_lines}\n"
+            "Pass --data-dir pointing to the external PSPLIB_Json root; it must "
+            "contain the j120/ directory and the listed JSON files."
+        )
+    return case_paths
+
+
+def load_best_known_results(best_results_path: Path = BEST_RESULTS_PATH) -> dict[str, float]:
+    """Load PSPLIB best-known results keyed by ``<instance>.sm``."""
+    with best_results_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def get_best_known_result(best_results: dict[str, float], json_file: str) -> float | None:
-    """Resolve the benchmark JSON filename to the corresponding PSPLIB result key."""
-    instance_key = f"{Path(json_file).stem}.sm"
+def get_best_known_result(best_results: dict[str, float], json_path: Path) -> float | None:
+    """Resolve the benchmark JSON path to the corresponding PSPLIB result key."""
+    instance_key = f"{json_path.stem}.sm"
     return best_results.get(instance_key)
 
 
 def run_gans_case(
     case_name: str,
-    json_file: str,
+    json_path: Path,
     best_known: float | None,
     pop_size: int = 60,
     lambda_max: int = 5000,
@@ -86,19 +124,11 @@ def run_gans_case(
     seed: int = 42,
     verbose: bool = True,
 ) -> dict:
-    """
-    Run GANS on a single hard PSPLIB benchmark case.
-
-    Returns
-    -------
-    dict with keys:
-        case, n_activities, cpm_duration, best_serial_seed, best_parallel_seed,
-        best_gans, best_known, gans_vs_best_known, improvement, gans_n_ns
-    """
-    json_path = Path(__file__).parent / json_file
+    """Run GANS on one resolved PSPLIB benchmark JSON path."""
+    json_path = json_path.resolve()
 
     print("=" * 70)
-    print(f"Case: {case_name}  ({json_file})")
+    print(f"Case: {case_name}  ({json_path})")
     print("=" * 70)
 
     pert = Pert.from_json_file(str(json_path), schema_path=str(SCHEMA))
@@ -111,7 +141,6 @@ def run_gans_case(
     print(f"CPM duration    : {cpm_duration:.2f} h  (unconstrained)")
     print()
 
-    # ── Baseline: best duration from all named priority rules ─────────────────
     serial_durations = {}
     parallel_durations = {}
 
@@ -119,22 +148,18 @@ def run_gans_case(
         try:
             pert.priorities = None
             s_out = pert.calculateSerialScheduleWithResources(priority_rule=rule)
-            serial_durations[rule] = s_out['scheduled_duration'] - 2
+            serial_durations[rule] = s_out["scheduled_duration"] - 2
 
             pert.priorities = None
             p_out = pert.calculateScheduleWithResources(
-                sgs='max_use_res_ranked', priority_rule=rule
+                sgs="max_use_res_ranked", priority_rule=rule
             )
-            parallel_durations[rule] = p_out['scheduled_duration'] - 2
+            parallel_durations[rule] = p_out["scheduled_duration"] - 2
         except Exception as exc:  # noqa: BLE001
             logger.debug("Rule '%s' skipped in baseline: %s", rule, exc)
 
-    best_serial = (
-        min(serial_durations.values()) if serial_durations else float('inf')
-    )
-    best_parallel = (
-        min(parallel_durations.values()) if parallel_durations else float('inf')
-    )
+    best_serial = min(serial_durations.values()) if serial_durations else float("inf")
+    best_parallel = min(parallel_durations.values()) if parallel_durations else float("inf")
     best_rule_overall = min(best_serial, best_parallel)
 
     print(
@@ -153,11 +178,16 @@ def run_gans_case(
         verbose=verbose,
     )
     gans_best, gans_log = gans.run()
-    best_gans = gans_best['fitness']
+    best_gans = gans_best["fitness"]
     gans_summary = gans.get_convergence_summary(gans_log)
     gans_vs_best_known = (
-        best_gans - best_known if best_known is not None else float('nan')
+        best_gans - best_known if best_known is not None else float("nan")
     )
+
+    # Report the effective controls. Explicit values are preserved; omitted
+    # controls would be selected by the instance classification.
+    effective_ga_stall_limit = gans.ga_stall_limit
+    effective_ns_steps = gans.ns_steps
 
     print()
     print(f"{'─' * 60}")
@@ -168,10 +198,12 @@ def run_gans_case(
     print(f"  Improvement over best rule    : {best_rule_overall - best_gans:.2f} h")
     if best_known is not None:
         print(f"  Best-known solution           : {best_known:.2f} h")
-        print(f"  GANS - best-known            : {gans_vs_best_known:.2f} h")
+        print(f"  GANS - best-known             : {gans_vs_best_known:.2f} h")
     else:
         print("  Best-known solution           : n/a")
-        print("  GANS - best-known            : n/a")
+        print("  GANS - best-known             : n/a")
+    print(f"  Effective GA stall limit      : {effective_ga_stall_limit}")
+    print(f"  Effective NS steps            : {effective_ns_steps}")
     print(f"  GANS initial best             : {gans_summary['initial_best']:.2f} h")
     print(f"  GANS improvement              : {gans_summary['improvement']:.2f} h")
     print(f"  GANS NS activations           : {gans_summary['n_ns_activations']}")
@@ -180,29 +212,37 @@ def run_gans_case(
     print()
 
     return {
-        'case': case_name,
-        'n_activities': n_activities,
-        'cpm_duration': cpm_duration,
-        'best_serial_seed': best_serial,
-        'best_parallel_seed': best_parallel,
-        'best_gans': best_gans,
-        'best_known': best_known,
-        'gans_vs_best_known': gans_vs_best_known,
-        'improvement': best_rule_overall - best_gans,
-        'gans_n_ns': gans_summary['n_ns_activations'],
+        "case": case_name,
+        "n_activities": n_activities,
+        "cpm_duration": cpm_duration,
+        "best_serial_seed": best_serial,
+        "best_parallel_seed": best_parallel,
+        "best_gans": best_gans,
+        "best_known": best_known,
+        "gans_vs_best_known": gans_vs_best_known,
+        "improvement": best_rule_overall - best_gans,
+        "gans_n_ns": gans_summary["n_ns_activations"],
+        "effective_ga_stall_limit": effective_ga_stall_limit,
+        "effective_ns_steps": effective_ns_steps,
     }
 
 
 def main() -> None:
     """Run GANS on all hard j120 benchmark cases and print a summary table."""
-    best_results = load_best_known_results()
+    args = parse_args()
+    try:
+        case_paths = preflight_inputs(args.data_dir)
+    except FileNotFoundError as exc:
+        raise SystemExit(str(exc)) from exc
+
+    best_results = load_best_known_results(BEST_RESULTS_PATH)
     results = []
 
-    for case_name, json_file in CASES:
-        best_known = get_best_known_result(best_results, json_file)
+    for case_name, json_path in case_paths:
+        best_known = get_best_known_result(best_results, json_path)
         result = run_gans_case(
             case_name=case_name,
-            json_file=json_file,
+            json_path=json_path,
             best_known=best_known,
             pop_size=60,
             lambda_max=5000,
@@ -218,24 +258,26 @@ def main() -> None:
     print("\n" + "=" * 90)
     print("SUMMARY — GANS HARD CASES (PSPLIB j120, best-known comparison)")
     print("=" * 90)
+    print("Effective stall/NS controls are shown for each case.")
     print(
         f"  {'Case':<12} {'N':>6} {'CPM (h)':>10} {'Best Serial':>13} "
         f"{'Best Parallel':>14} {'Best GANS':>12} {'Best Known':>12} "
-        f"{'GANS-BK':>9} {'Δ (h)':>8} {'NS#':>5}"
+        f"{'GANS-BK':>9} {'Δ (h)':>8} {'NS#':>5} {'Stall':>7} {'NS Steps':>9}"
     )
-    print("  " + "-" * 116)
+    print("  " + "-" * 136)
     for r in results:
-        best_known_str = f"{r['best_known']:.2f}" if r['best_known'] is not None else "n/a"
+        best_known_str = f"{r['best_known']:.2f}" if r["best_known"] is not None else "n/a"
         gans_gap_str = (
             f"{r['gans_vs_best_known']:.2f}"
-            if r['best_known'] is not None
+            if r["best_known"] is not None
             else "n/a"
         )
         print(
             f"  {r['case']:<12} {r['n_activities']:>6} {r['cpm_duration']:>10.2f} "
             f"{r['best_serial_seed']:>13.2f} {r['best_parallel_seed']:>14.2f} "
             f"{r['best_gans']:>12.2f} {best_known_str:>12} {gans_gap_str:>9} "
-            f"{r['improvement']:>8.2f} {r['gans_n_ns']:>5}"
+            f"{r['improvement']:>8.2f} {r['gans_n_ns']:>5} "
+            f"{r['effective_ga_stall_limit']:>7} {r['effective_ns_steps']:>9}"
         )
     print()
 

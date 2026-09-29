@@ -66,6 +66,10 @@
     type  = 'RavenPython'
     input = 'run_cpm_pytests.py test_gga.py'
   [../]
+  [./cpm_hard_runner_paths]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_hard_runner_paths.py'
+  [../]
   [./cpm_interactions]
     type  = 'RavenPython'
     input = 'run_cpm_pytests.py test_interactions.py'
