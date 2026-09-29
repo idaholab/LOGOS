@@ -43,6 +43,10 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src import Pert  # noqa: E402
 from src.CPM.ga import RCPSPGeneticAlgorithm, PRIORITY_RULES  # noqa: E402
+from doc.demos.heuristics._case_selection import (  # noqa: E402
+    add_case_argument,
+    select_cases,
+)
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -50,35 +54,31 @@ SCHEMA = (CPM_DIR / "outage_schema.json").resolve()
 BEST_RESULTS_PATH = (
     REPO_ROOT / "doc" / "demos" / "benchmarks" / "best_results.json"
 ).resolve()
+BENCHMARK_DIR = (REPO_ROOT / "doc" / "demos" / "benchmarks").resolve()
 DEFAULT_PLOT_DIR = (
     Path(__file__).parent / "results" / "ga_convergence_high_mut_all_rules"
 )
 
 
 CASES = [
-    ("j12051_6",  "benchmarks/PSPLIB_Json/j120/j12051_6.json"),
-    ("j12031_10", "benchmarks/PSPLIB_Json/j120/j12031_10.json"),
-    ("j12036_6",  "benchmarks/PSPLIB_Json/j120/j12036_6.json"),
-    ("j12056_7",  "benchmarks/PSPLIB_Json/j120/j12056_7.json"),
-    ("j12051_5",  "benchmarks/PSPLIB_Json/j120/j12051_5.json"),
-    ("j12056_1",  "benchmarks/PSPLIB_Json/j120/j12056_1.json"),
-    ("j12026_10", "benchmarks/PSPLIB_Json/j120/j12026_10.json"),
-    ("j12051_7",  "benchmarks/PSPLIB_Json/j120/j12051_7.json"),
-    ("j12056_5",  "benchmarks/PSPLIB_Json/j120/j12056_5.json"),
-    ("j12056_9",  "benchmarks/PSPLIB_Json/j120/j12056_9.json"),
+    ("j12051_6", "j12051_6.json"),
+    ("j12031_10", "j12031_10.json"),
+    ("j12036_6", "j12036_6.json"),
+    ("j12056_7", "j12056_7.json"),
+    ("j12051_5", "j12051_5.json"),
+    ("j12056_1", "j12056_1.json"),
+    ("j12026_10", "j12026_10.json"),
+    ("j12051_7", "j12051_7.json"),
+    ("j12056_5", "j12056_5.json"),
+    ("j12056_9", "j12056_9.json"),
 ]
 
-def parse_args() -> argparse.Namespace:
+def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line options for integration runs."""
     parser = argparse.ArgumentParser(
         description="Run RCPSP GA benchmark cases with optional stopping criteria.",
     )
-    parser.add_argument(
-        "--case",
-        choices=[name for name, _ in CASES],
-        action="append",
-        help="Run only the selected case. May be supplied more than once.",
-    )
+    add_case_argument(parser, CASES)
     parser.add_argument("--pop-size", type=int, default=50)
     parser.add_argument("--n-gen", type=int, default=150)
     parser.add_argument("--cxpb", type=float, default=0.1)
@@ -193,7 +193,7 @@ def parse_args() -> argparse.Namespace:
         help="Stop after observing this many unique decoded schedules.",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(args)
     if args.target_best_known and args.target_fitness is not None:
         parser.error("--target-best-known and --target-fitness are mutually exclusive.")
     return args
@@ -430,7 +430,7 @@ def run_ga_case(
         case, n_activities, cpm_duration,
         best_serial_seed, best_parallel_seed, best_ga, improvement
     """
-    json_path = CPM_DIR / json_file
+    json_path = BENCHMARK_DIR / json_file
 
     print("=" * 70)
     print(f"Case: {case_name}  ({json_file})")
@@ -604,11 +604,7 @@ def main() -> None:
     args = parse_args()
     best_results = load_best_known_results()
     strategies = args.replacement_strategies or ["generational", "diverse_elitist"]
-    selected_cases = (
-        [(name, path) for name, path in CASES if name in set(args.case)]
-        if args.case
-        else CASES
-    )
+    selected_cases = select_cases(CASES, args.case)
     plot_dir = Path(args.plot_dir) if args.plot_dir is not None else DEFAULT_PLOT_DIR
 
     results: list[dict] = []

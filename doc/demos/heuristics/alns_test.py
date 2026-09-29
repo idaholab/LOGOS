@@ -19,30 +19,36 @@ Reference
 Wouda, N.A., and L. Lan (2023).  ALNS: a Python implementation.
   *Journal of Open Source Software*, 8(81): 5028.
 
-Usage (from the src/CPM directory):
-    python alns_test.py
+Usage (from the repository root):
+    python doc/demos/heuristics/alns_test.py --case j30
 
-Or from the repo root:
-    python -m src.CPM.alns_test
+Omit ``--case`` to run every configured benchmark case.
 """
 
+import argparse
 import sys
 import logging
 from pathlib import Path
 
 # Ensure repo root is on the path before project imports
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT))
 
 from src import Pert  # noqa: E402
 from src.CPM.rcpsp_alns import (  # noqa: E402
     RCPSPAdaptiveLNS,
     SEED_PRIORITY_RULES,
 )
+from doc.demos.heuristics._case_selection import (  # noqa: E402
+    add_case_argument,
+    select_cases,
+)
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-SCHEMA = Path(__file__).parent / "outage_schema.json"
+BENCHMARK_DIR = REPO_ROOT / "doc" / "demos" / "benchmarks"
+SCHEMA = (REPO_ROOT / "src" / "CPM" / "outage_schema.json").resolve()
 
 CASES = [
     ("j30",  "j301_1.json"),
@@ -50,6 +56,13 @@ CASES = [
     ("j90",  "j901_1.json"),
     ("j120", "j1201_1.json"),
 ]
+
+def parse_args(args: list[str] | None = None) -> argparse.Namespace:
+    """Parse optional benchmark case selections."""
+    parser = argparse.ArgumentParser(description="Run ALNS benchmark cases.")
+    add_case_argument(parser, CASES)
+    return parser.parse_args(args)
+
 
 # Extra priority rules for the baseline (superset of SEED_PRIORITY_RULES)
 ALL_PRIORITY_RULES = SEED_PRIORITY_RULES + [
@@ -89,7 +102,7 @@ def run_alns_case(
     case_name : str
         Human-readable label (e.g. 'j30').
     json_file : str
-        Path to the input JSON relative to this file's directory.
+        JSON filename in the demo benchmark directory.
     n_iter : int
         Total ALNS iterations.
     destroy_fraction : float
@@ -116,7 +129,7 @@ def run_alns_case(
         case, n_activities, cpm_duration,
         best_serial_seed, best_parallel_seed, best_alns, improvement
     """
-    json_path = Path(__file__).parent / json_file
+    json_path = BENCHMARK_DIR / json_file
 
     print("=" * 70)
     print(f"Case: {case_name}  ({json_file})")
@@ -209,8 +222,9 @@ def run_alns_case(
 
 def main() -> None:
     """Run the ALNS on all benchmark cases and print a summary table."""
+    args = parse_args()
     results = []
-    for case_name, json_file in CASES:
+    for case_name, json_file in select_cases(CASES, args.case):
         result = run_alns_case(
             case_name=case_name,
             json_file=json_file,

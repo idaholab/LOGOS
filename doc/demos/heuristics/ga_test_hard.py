@@ -18,7 +18,7 @@ Resource-Constrained Project Scheduling Problem. In J. Weglarz (ed.),
 Project Scheduling: Recent Models, Algorithms and Applications, 147-178.
 
 Usage (from the repository root):
-    python doc/demos/heuristics/ga_test_hard.py --data-dir /path/to/PSPLIB_Json
+    python doc/demos/heuristics/ga_test_hard.py --case j12051_6
 """
 
 import argparse
@@ -34,6 +34,10 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src import Pert  # noqa: E402
 from src.CPM.ga import RCPSPGeneticAlgorithm, PRIORITY_RULES  # noqa: E402
+from doc.demos.heuristics._case_selection import (  # noqa: E402
+    add_case_argument,
+    select_cases,
+)
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -41,19 +45,19 @@ SCHEMA = (REPO_ROOT / "src" / "CPM" / "outage_schema.json").resolve()
 BEST_RESULTS_PATH = (
     REPO_ROOT / "doc" / "demos" / "benchmarks" / "best_results.json"
 ).resolve()
+BENCHMARK_DIR = (REPO_ROOT / "doc" / "demos" / "benchmarks").resolve()
 
-# Paths are relative to the external PSPLIB_Json root supplied by --data-dir.
 CASES = [
-    ("j12051_6", Path("j120/j12051_6.json")),
-    ("j12031_10", Path("j120/j12031_10.json")),
-    ("j12036_6", Path("j120/j12036_6.json")),
-    ("j12056_7", Path("j120/j12056_7.json")),
-    ("j12051_5", Path("j120/j12051_5.json")),
-    ("j12056_1", Path("j120/j12056_1.json")),
-    ("j12026_10", Path("j120/j12026_10.json")),
-    ("j12051_7", Path("j120/j12051_7.json")),
-    ("j12056_5", Path("j120/j12056_5.json")),
-    ("j12056_9", Path("j120/j12056_9.json")),
+    ("j12051_6", Path("j12051_6.json")),
+    ("j12031_10", Path("j12031_10.json")),
+    ("j12036_6", Path("j12036_6.json")),
+    ("j12056_7", Path("j12056_7.json")),
+    ("j12051_5", Path("j12051_5.json")),
+    ("j12056_1", Path("j12056_1.json")),
+    ("j12026_10", Path("j12026_10.json")),
+    ("j12051_7", Path("j12051_7.json")),
+    ("j12056_5", Path("j12056_5.json")),
+    ("j12056_9", Path("j12056_9.json")),
 ]
 
 # ================================================================================
@@ -73,24 +77,19 @@ CASES = [
 #   j12056_9        122     103.00        341.00         325.00     314.00       287.00    27.00    11.00
 
 
-def parse_args(argv=None) -> argparse.Namespace:
-    """Parse command-line options for the external hard-instance data set."""
-    parser = argparse.ArgumentParser(
-        description="Run the GA on selected hard PSPLIB j120 instances."
-    )
-    parser.add_argument(
-        "--data-dir",
-        type=Path,
-        required=True,
-        help="path to the external PSPLIB_Json root (the directory containing j120/)",
-    )
-    return parser.parse_args(argv)
+def parse_args(args: list[str] | None = None) -> argparse.Namespace:
+    """Parse optional hard-case selections."""
+    parser = argparse.ArgumentParser(description="Run GA hard benchmark cases.")
+    add_case_argument(parser, CASES)
+    return parser.parse_args(args)
 
 
-def preflight_inputs(data_dir: Path) -> list[tuple[str, Path]]:
+def preflight_inputs(cases=CASES) -> list[tuple[str, Path]]:
     """Resolve all inputs and report every missing file in one actionable error."""
-    data_root = data_dir.expanduser().resolve()
-    case_paths = [(name, (data_root / relative_path).resolve()) for name, relative_path in CASES]
+    case_paths = [
+        (name, (BENCHMARK_DIR / relative_path).resolve())
+        for name, relative_path in cases
+    ]
     expected = [
         ("canonical outage schema", SCHEMA),
         ("canonical best-known results", BEST_RESULTS_PATH),
@@ -102,8 +101,7 @@ def preflight_inputs(data_dir: Path) -> list[tuple[str, Path]]:
         raise FileNotFoundError(
             "Hard-instance benchmark inputs are incomplete.\n"
             f"Missing required files:\n{missing_lines}\n"
-            "Pass --data-dir pointing to the external PSPLIB_Json root; it must "
-            "contain the j120/ directory and the listed JSON files."
+            f"The benchmark JSON files must be stored in {BENCHMARK_DIR}."
         )
     return case_paths
 
@@ -237,7 +235,7 @@ def main() -> None:
     """Run the GA on all hard j120 benchmark cases and print a summary table."""
     args = parse_args()
     try:
-        case_paths = preflight_inputs(args.data_dir)
+        case_paths = preflight_inputs(select_cases(CASES, args.case))
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
 

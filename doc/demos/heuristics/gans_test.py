@@ -27,6 +27,7 @@ Usage (from the repository root):
 """
 
 import sys
+import argparse
 import logging
 from pathlib import Path
 
@@ -37,11 +38,15 @@ from src import Pert  # noqa: E402
 from src.CPM.ga import RCPSPGeneticAlgorithm  # noqa: E402
 from src.CPM.rcpsp_alns import RCPSPAdaptiveLNS, SEED_PRIORITY_RULES  # noqa: E402
 from src.CPM.gans import RCPSPHybridGANS, PRIORITY_RULES  # noqa: E402
+from doc.demos.heuristics._case_selection import (  # noqa: E402
+    add_case_argument,
+    select_cases,
+)
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-EXAMPLES_DIR = REPO_ROOT / "doc" / "demos" / "rcpsp" / "examples"
+BENCHMARK_DIR = REPO_ROOT / "doc" / "demos" / "benchmarks"
 SCHEMA = (REPO_ROOT / "src" / "CPM" / "outage_schema.json").resolve()
 
 CASES = [
@@ -53,6 +58,13 @@ CASES = [
 
 # Combined rule list for serial-SGS baseline
 _ALL_RULES = list(dict.fromkeys(PRIORITY_RULES + SEED_PRIORITY_RULES))
+
+
+def parse_args(args: list[str] | None = None) -> argparse.Namespace:
+    """Parse optional benchmark case selections."""
+    parser = argparse.ArgumentParser(description="Run GA, ALNS, and GANS benchmarks.")
+    add_case_argument(parser, CASES)
+    return parser.parse_args(args)
 
 
 def _compute_serial_baseline(pert) -> dict:
@@ -100,7 +112,7 @@ def run_case(
 
     Returns a summary dict with per-algorithm best durations.
     """
-    json_path = EXAMPLES_DIR / json_file
+    json_path = BENCHMARK_DIR / json_file
 
     print("=" * 70)
     print(f"Case: {case_name}  ({json_file})")
@@ -216,8 +228,9 @@ def run_case(
 
 def main() -> None:
     """Run all benchmark cases and print a unified comparison table."""
+    args = parse_args()
     results = []
-    for case_name, json_file in CASES:
+    for case_name, json_file in select_cases(CASES, args.case):
         r = run_case(
             case_name=case_name,
             json_file=json_file,

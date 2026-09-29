@@ -34,6 +34,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src import Pert  # noqa: E402
 from src.CPM.ga import RCPSPGeneticAlgorithm, PRIORITY_RULES  # noqa: E402
+from doc.demos.heuristics._case_selection import resolve_benchmark_case  # noqa: E402
 
 
 logging.basicConfig(
@@ -44,7 +45,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 CPM_DIR = REPO_ROOT / "src" / "CPM"
-EXAMPLES_DIR = REPO_ROOT / "doc" / "demos" / "rcpsp" / "examples"
+BENCHMARK_DIR = REPO_ROOT / "doc" / "demos" / "benchmarks"
 SCHEMA = (CPM_DIR / "outage_schema.json").resolve()
 BEST_RESULTS_PATH = (
     REPO_ROOT / "doc" / "demos" / "benchmarks" / "best_results.json"
@@ -84,16 +85,13 @@ def _parse_name_list(raw: str | list[str], choices: list[str], label: str) -> li
 
 
 def _resolve_json_path(path: str | Path) -> Path:
-    """Resolve JSON input from cwd, absolute path, or src/CPM-relative path."""
+    """Resolve JSON input from cwd, absolute path, or the demo benchmark directory."""
     candidate = Path(path).expanduser()
     if candidate.exists():
         return candidate.resolve()
-    cpm_candidate = CPM_DIR / candidate
-    if cpm_candidate.exists():
-        return cpm_candidate.resolve()
-    examples_candidate = EXAMPLES_DIR / candidate
-    if examples_candidate.exists():
-        return examples_candidate.resolve()
+    benchmark_candidate = BENCHMARK_DIR / candidate
+    if benchmark_candidate.exists():
+        return benchmark_candidate.resolve()
     raise FileNotFoundError(f"Could not find JSON input: {path}")
 
 
@@ -103,7 +101,7 @@ def _safe_float(value: float | None) -> str:
     return f"{value:.2f}"
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     crossovers = _available_crossovers()
     mutations = _available_mutations()
 
@@ -113,12 +111,15 @@ def parse_args() -> argparse.Namespace:
             "JSON input and compare final results."
         )
     )
-    parser.add_argument(
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
         "json_input",
-        help=(
-            "RCPSP JSON input path. Relative paths are checked against cwd, "
-            "src/CPM, and the bundled examples directory."
-        ),
+        nargs="?",
+        help="RCPSP JSON input path, resolved from cwd or the benchmark directory.",
+    )
+    input_group.add_argument(
+        "--case",
+        help="Benchmark case stem or JSON filename in doc/demos/benchmarks.",
     )
     parser.add_argument(
         "--crossovers",
@@ -216,14 +217,18 @@ def parse_args() -> argparse.Namespace:
         help="Show the convergence plot interactively after saving.",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(args)
     if args.target_best_known and args.target_fitness is not None:
         parser.error("--target-best-known and --target-fitness are mutually exclusive.")
 
     try:
         args.crossovers = _parse_name_list(args.crossovers, crossovers, "crossover")
         args.mutations = _parse_name_list(args.mutations, mutations, "mutation")
-        args.json_path = _resolve_json_path(args.json_input)
+        args.json_path = (
+            resolve_benchmark_case(args.case, BENCHMARK_DIR)
+            if args.case
+            else _resolve_json_path(args.json_input)
+        )
     except (argparse.ArgumentTypeError, FileNotFoundError) as exc:
         parser.error(str(exc))
     return args

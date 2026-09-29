@@ -44,52 +44,41 @@ def test_runner_uses_canonical_repository_files(runner):
     assert runner.BEST_RESULTS_PATH == (
         REPO_ROOT / "doc" / "demos" / "benchmarks" / "best_results.json"
     ).resolve()
+    assert runner.BENCHMARK_DIR == (
+        REPO_ROOT / "doc" / "demos" / "benchmarks"
+    ).resolve()
     assert runner.SCHEMA.is_file()
     assert runner.BEST_RESULTS_PATH.is_file()
 
 
-def test_cases_are_relative_to_external_data_root(runner):
+def test_cases_are_benchmark_filenames(runner):
     assert {name for name, _ in runner.CASES} == EXPECTED_CASES
     for name, relative_path in runner.CASES:
         assert isinstance(relative_path, Path)
         assert not relative_path.is_absolute()
-        assert relative_path == Path("j120") / f"{name}.json"
+        assert relative_path == Path(f"{name}.json")
+        assert (runner.BENCHMARK_DIR / relative_path).is_file()
 
 
-def test_parse_args_requires_data_dir(runner):
+def test_parse_args_defaults_to_all_cases(runner):
+    assert runner.parse_args([]).case is None
+
+
+@pytest.mark.parametrize("case_value", ["j12051_6", "j12051_6.json"])
+def test_parse_args_accepts_case_stem_or_filename(runner, case_value):
+    assert runner.parse_args(["--case", case_value]).case == ["j12051_6"]
+
+
+def test_parse_args_rejects_unknown_case(runner):
     with pytest.raises(SystemExit) as exc_info:
-        runner.parse_args([])
+        runner.parse_args(["--case", "not_a_case"])
     assert exc_info.value.code == 2
 
-    data_dir = Path("somewhere/PSPLIB_Json")
-    assert runner.parse_args(["--data-dir", str(data_dir)]).data_dir == data_dir
 
-
-def test_preflight_aggregates_all_missing_cases(runner, tmp_path):
-    with pytest.raises(FileNotFoundError) as exc_info:
-        runner.preflight_inputs(tmp_path / "PSPLIB_Json")
-
-    message = str(exc_info.value)
-    assert "--data-dir" in message
-    assert "PSPLIB_Json root" in message
-    for case_name in EXPECTED_CASES:
-        assert case_name in message
-
-
-def test_preflight_returns_resolved_case_paths(runner, tmp_path):
-    data_root = tmp_path / "PSPLIB_Json"
-    for name, relative_path in runner.CASES:
-        path = data_root / relative_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("{}", encoding="utf-8")
-
-    case_paths = runner.preflight_inputs(data_root)
-
-    assert [name for name, _ in case_paths] == [name for name, _ in runner.CASES]
-    assert all(path.is_absolute() for _, path in case_paths)
-    assert case_paths == [
-        (name, (data_root / relative_path).resolve())
-        for name, relative_path in runner.CASES
+def test_preflight_returns_selected_resolved_case_path(runner):
+    selected = [("j12051_6", Path("j12051_6.json"))]
+    assert runner.preflight_inputs(selected) == [
+        ("j12051_6", (runner.BENCHMARK_DIR / "j12051_6.json").resolve())
     ]
 
 

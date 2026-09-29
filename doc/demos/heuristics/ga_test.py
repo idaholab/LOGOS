@@ -43,10 +43,14 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src import Pert  # noqa: E402
 from src.CPM.ga import RCPSPGeneticAlgorithm, PRIORITY_RULES  # noqa: E402
+from doc.demos.heuristics._case_selection import (  # noqa: E402
+    add_case_argument,
+    select_cases,
+)
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
-EXAMPLES_DIR = REPO_ROOT / "doc" / "demos" / "rcpsp" / "examples"
+BENCHMARK_DIR = REPO_ROOT / "doc" / "demos" / "benchmarks"
 SCHEMA = REPO_ROOT / "src" / "CPM" / "outage_schema.json"
 BEST_RESULTS_PATH = REPO_ROOT / "doc" / "demos" / "benchmarks" / "best_results.json"
 DEFAULT_PLOT_DIR = Path(__file__).parent / "results" / "ga_convergence"
@@ -59,17 +63,12 @@ CASES = [
 ]
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line options for integration runs."""
     parser = argparse.ArgumentParser(
         description="Run RCPSP GA benchmark cases with optional stopping criteria.",
     )
-    parser.add_argument(
-        "--case",
-        choices=[name for name, _ in CASES],
-        action="append",
-        help="Run only the selected case. May be supplied more than once.",
-    )
+    add_case_argument(parser, CASES)
     parser.add_argument("--pop-size", type=int, default=50)
     parser.add_argument("--n-gen", type=int, default=100)
     parser.add_argument("--cxpb", type=float, default=0.9)
@@ -161,7 +160,7 @@ def parse_args() -> argparse.Namespace:
         help="Stop after observing this many unique decoded schedules.",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(args)
     if args.target_best_known and args.target_fitness is not None:
         parser.error("--target-best-known and --target-fitness are mutually exclusive.")
     return args
@@ -277,7 +276,7 @@ def run_ga_case(
         case, n_activities, cpm_duration,
         best_serial_seed, best_parallel_seed, best_ga, improvement
     """
-    json_path = EXAMPLES_DIR / json_file
+    json_path = BENCHMARK_DIR / json_file
 
     print("=" * 70)
     print(f"Case: {case_name}  ({json_file})")
@@ -433,11 +432,7 @@ def main() -> None:
     args = parse_args()
     best_results = load_best_known_results()
     results = []
-    selected_cases = (
-        [(name, path) for name, path in CASES if name in set(args.case)]
-        if args.case
-        else CASES
-    )
+    selected_cases = select_cases(CASES, args.case)
     for case_name, json_file in selected_cases:
         best_known = get_best_known_result(best_results, json_file)
         target_fitness = best_known if args.target_best_known else args.target_fitness

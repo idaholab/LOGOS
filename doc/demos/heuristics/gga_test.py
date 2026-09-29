@@ -16,9 +16,10 @@ Liu, Y., Liu, X., and Huang, L. (2025). A graph-based genetic algorithm for
 resource-constrained project scheduling problems. SSRN 5851447.
 
 Usage (from the repository root):
-    python doc/demos/heuristics/gga_test.py
+    python doc/demos/heuristics/gga_test.py --case j30
 """
 
+import argparse
 import sys
 import logging
 from pathlib import Path
@@ -28,10 +29,14 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src import Pert  # noqa: E402
 from src.CPM.gga import RCPSPGraphGeneticAlgorithm, PRIORITY_RULES  # noqa: E402
+from doc.demos.heuristics._case_selection import (  # noqa: E402
+    add_case_argument,
+    select_cases,
+)
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
-EXAMPLES_DIR = REPO_ROOT / "doc" / "demos" / "rcpsp" / "examples"
+BENCHMARK_DIR = REPO_ROOT / "doc" / "demos" / "benchmarks"
 SCHEMA = (REPO_ROOT / "src" / "CPM" / "outage_schema.json").resolve()
 
 CASES = [
@@ -40,6 +45,13 @@ CASES = [
     ("j90",  "j901_1.json"),
     ("j120", "j1201_1.json"),
 ]
+
+
+def parse_args(args: list[str] | None = None) -> argparse.Namespace:
+    """Parse optional benchmark case selections."""
+    parser = argparse.ArgumentParser(description="Run GGA benchmark cases.")
+    add_case_argument(parser, CASES)
+    return parser.parse_args(args)
 
 
 def run_gga_case(
@@ -68,7 +80,7 @@ def run_gga_case(
     case_name : str
         Human-readable label (e.g. 'j30').
     json_file : str
-        Path to the input JSON relative to this file's directory.
+        JSON filename in the demo benchmark directory.
     ne : int
         Elite pool size (micro-GA).
     n_gen : int
@@ -88,7 +100,7 @@ def run_gga_case(
         case, n_activities, cpm_duration,
         best_serial_seed, best_gga, improvement, n_restarts
     """
-    json_path = EXAMPLES_DIR / json_file
+    json_path = BENCHMARK_DIR / json_file
 
     print("=" * 70)
     print(f"Case: {case_name}  ({json_file})")
@@ -170,8 +182,9 @@ def run_gga_case(
 
 def main() -> None:
     """Run the GGA on all benchmark cases and print a summary table."""
+    args = parse_args()
     results = []
-    for case_name, json_file in CASES:
+    for case_name, json_file in select_cases(CASES, args.case):
         result = run_gga_case(
             case_name=case_name,
             json_file=json_file,
