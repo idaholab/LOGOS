@@ -1107,9 +1107,8 @@ class RCPSPGeneticAlgorithm:
 
         return ind1, ind2
 
-    @staticmethod
     def _crossover_uniform_order(
-        ind1: List[int], ind2: List[int]
+        self, ind1: List[int], ind2: List[int]
     ) -> Tuple[List[int], List[int]]:
         """
         Uniform order-preserving crossover (UOX) for activity lists.
@@ -1126,10 +1125,10 @@ class RCPSPGeneticAlgorithm:
         5. Child 2 is built symmetrically (mother and father roles swapped,
            same mask).
 
-        The operator preserves precedence feasibility: masked positions copy a
-        contiguous sub-sequence from the mother in its original order, and the
-        father scan respects the father's (feasible) relative order for the
-        remaining activities.
+        Uniform-order crossover preserves permutation validity but can move a
+        successor ahead of its predecessor even when both parents are feasible.
+        Each child is therefore repaired topologically while preserving the
+        crossover order as closely as possible.
 
         Example (p=[1,0,1,0,0,1], N=6):
             λᴹ = [1, 3, 2, 5, 4, 6]
@@ -1176,6 +1175,8 @@ class RCPSPGeneticAlgorithm:
         fill2 = iter(gene for gene in orig1 if gene not in used2)
         ind2[:] = [child2[i] if child2[i] is not None else next(fill2) for i in range(n)]
 
+        ind1[:] = self._repair_chromosome(ind1)
+        ind2[:] = self._repair_chromosome(ind2)
         return ind1, ind2
 
     # ---------------------------------------------------------------------- #

@@ -22,6 +22,7 @@ Usage (from repo root):
 
 import random
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -31,8 +32,15 @@ import pytest
 # ga.py requires the optional 'deap' package; skip the whole module if absent.
 pytest.importorskip("deap", reason="ga.py requires the optional 'deap' package")
 
+from CPM.activity import Activity  # noqa: E402
 from CPM.pert import Pert  # noqa: E402
 from CPM.ga import RCPSPGeneticAlgorithm, PRIORITY_RULES  # noqa: E402
+from CPM.outage_data import (  # noqa: E402
+    EquipmentPool,
+    LocationPool,
+    ResourceAvailability,
+    ResourcePool,
+)
 
 # ── shared fixtures ───────────────────────────────────────────────────────────
 # Data paths are centralized in conftest.py (see BRANCH_ASSESSMENT / H2).
@@ -202,7 +210,7 @@ class TestCrossoverTwoPoint:
 
 class TestCrossoverUniformOrder:
 
-    def test_outputs_are_valid_permutations(self):
+    def test_outputs_are_valid_permutations(self, ga):
         """Both children must be permutations of the original gene set."""
         n = 8
         parent_set = set(range(n))
@@ -211,31 +219,31 @@ class TestCrossoverUniformOrder:
         random.seed(1)
         for _ in range(15):
             a, b = list(ind1), list(ind2)
-            RCPSPGeneticAlgorithm._crossover_uniform_order(a, b)
+            ga._crossover_uniform_order(a, b)
             assert set(a) == parent_set, f"Child1 not a permutation: {a}"
             assert set(b) == parent_set, f"Child2 not a permutation: {b}"
             assert len(a) == n
             assert len(b) == n
 
-    def test_no_duplicate_genes(self):
+    def test_no_duplicate_genes(self, ga):
         """Neither child should contain duplicate genes."""
         ind1 = [0, 1, 2, 3, 4, 5]
         ind2 = [5, 4, 3, 2, 1, 0]
         random.seed(2)
         for _ in range(10):
-            c1, c2 = RCPSPGeneticAlgorithm._crossover_uniform_order(
+            c1, c2 = ga._crossover_uniform_order(
                 list(ind1), list(ind2)
             )
             assert len(c1) == len(set(c1)), f"Duplicate in child1: {c1}"
             assert len(c2) == len(set(c2)), f"Duplicate in child2: {c2}"
 
-    def test_masked_positions_from_mother(self):
-        """Where mask=1, child1 must carry the mother's gene at that position."""
+    def test_masked_positions_from_mother(self, ga):
+        """Repair should preserve masked positions when precedence allows it."""
         ind1 = [0, 1, 2, 3, 4, 5]
         ind2 = [5, 4, 3, 2, 1, 0]
         mask = [1, 0, 1, 0, 1, 0]
         with patch('CPM.ga.random.randint', side_effect=mask):
-            c1, _ = RCPSPGeneticAlgorithm._crossover_uniform_order(
+            c1, _ = ga._crossover_uniform_order(
                 list(ind1), list(ind2)
             )
         for i, m in enumerate(mask):
@@ -244,21 +252,75 @@ class TestCrossoverUniformOrder:
                     f"Masked pos {i}: expected mother's {ind1[i]}, got {c1[i]}"
                 )
 
-    def test_trivial_length_one(self):
+    def test_trivial_length_one(self, ga):
         """A single-gene chromosome must be returned unchanged."""
-        c1, c2 = RCPSPGeneticAlgorithm._crossover_uniform_order([0], [0])
+        c1, c2 = ga._crossover_uniform_order([0], [0])
         assert c1 == [0]
         assert c2 == [0]
 
-    def test_returns_same_objects(self):
+    def test_returns_same_objects(self, ga):
         """DEAP convention: crossover modifies in-place and returns same objects."""
         ind1 = [0, 1, 2, 3]
         ind2 = [3, 2, 1, 0]
         id1, id2 = id(ind1), id(ind2)
         with patch('CPM.ga.random.randint', side_effect=[1, 0, 0, 1]):
-            r1, r2 = RCPSPGeneticAlgorithm._crossover_uniform_order(ind1, ind2)
+            r1, r2 = ga._crossover_uniform_order(ind1, ind2)
         assert id(r1) == id1
         assert id(r2) == id2
+
+    def test_repairs_precedence_counterexample(self):
+        """UOX must repair a successor placed before its predecessor."""
+        one = Activity(
+            '1',
+            2.0,
+            required_resources=[{'skill_type': 'CREW', 'crew_count': 1}],
+        )
+        two = Activity(
+            '2',
+            1.0,
+            required_resources=[{'skill_type': 'CREW', 'crew_count': 1}],
+        )
+        three = Activity(
+            '3',
+            2.0,
+            required_resources=[{'skill_type': 'CREW', 'crew_count': 1}],
+        )
+        p = Pert(graph={one: [three], two: [], three: []})
+        start_time = datetime(2026, 1, 1)
+        p.startTime = start_time
+        p.crew_pool = ResourcePool()
+        p.crew_pool.resources['CREW'] = ResourceAvailability(
+            'CREW',
+            [{
+                'start_date': start_time,
+                'end_date': start_time + timedelta(days=1),
+                'available_count': 1,
+            }],
+        )
+        p.equipment_pool = EquipmentPool()
+        p.location_pool = LocationPool()
+        p.generateInfo()
+        g = RCPSPGeneticAlgorithm(
+            p,
+            pop_size=2,
+            n_gen=1,
+            n_random=0,
+            verbose=False,
+            crossover='uniform_order',
+        )
+        mother = [g._act_to_idx[a] for a in (one, three, two)]
+        father = [g._act_to_idx[a] for a in (two, one, three)]
+
+        with patch('CPM.ga.random.randint', side_effect=[0, 1, 0]):
+            child1, child2 = g._crossover_uniform_order(mother, father)
+
+        for child in (child1, child2):
+            activities = g._chromosome_to_activities(child)
+            positions = {activity: i for i, activity in enumerate(activities)}
+            assert positions[one] < positions[three]
+
+            p.calculateSerialScheduleWithResources(_ordered=activities)
+            assert_valid_schedule(p)
 
 
 # =============================================================================
