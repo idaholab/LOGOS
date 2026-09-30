@@ -689,6 +689,41 @@ class TestFBImprovement:
                         f"Precedence violated: {pred} before {act}"
                     )
 
+    def test_backward_chromosome_uses_alap_order(self, ga):
+        chrom = ga._rule_to_chromosome('mts')
+        activities = ga._chromosome_to_activities(chrom)
+        out = ga.pert.calculateSerialScheduleWithResources(_ordered=activities)
+        makespan_h = out['scheduled_duration']
+
+        alap_ls = {}
+        for gene in reversed(chrom):
+            activity = ga._activities[gene]
+            successor_starts = [
+                alap_ls[successor]
+                for successor in ga.pert.forwardDict.get(activity, [])
+                if successor in alap_ls
+            ]
+            alap_lf = min(successor_starts) if successor_starts else makespan_h
+            alap_ls[activity] = (
+                alap_lf - ga.pert.infoDict[activity]['duration']
+            )
+
+        ranked = sorted(
+            ((activity, alap_ls[activity]) for activity in ga._activities),
+            key=lambda item: item[1],
+        )
+        expected = ga.pert.reorder_by_dependencies(
+            ranked, ga.pert.forwardDict
+        )
+        expected_chromosome = [
+            ga._act_to_idx[activity] for activity, _ in expected
+        ]
+
+        backward_chromosome, _ = ga._compute_backward_chromosome(chrom)
+
+        assert backward_chromosome == expected_chromosome
+        assert backward_chromosome != list(range(ga._n))
+
     def test_fb_improvement_returns_valid_permutation(self, ga):
         """_fb_improvement must return a full permutation and a float fitness."""
         chrom = ga._rule_to_chromosome('lf')

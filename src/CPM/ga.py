@@ -623,7 +623,10 @@ class RCPSPGeneticAlgorithm:
             alap_ls[a] = alap_lf - d
 
         # Reorder by ALAP late-start; repair for precedence feasibility.
-        ranked = [(a, alap_ls.get(a, 0.0)) for a in self._activities]
+        ranked = sorted(
+            ((a, alap_ls.get(a, 0.0)) for a in self._activities),
+            key=lambda item: item[1],
+        )
         repaired = self.pert.reorder_by_dependencies(ranked, self.pert.forwardDict)
         backward_chromosome = [self._act_to_idx[a] for a, _ in repaired]
         return backward_chromosome, makespan_h
