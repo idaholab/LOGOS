@@ -1,15 +1,14 @@
 """
-ga_test.py — Integration test for the RCPSP Genetic Algorithm (ga.py)
+ga_convergence_test.py — Compare GA convergence across replacement strategies.
 
-Runs the GA on each PSPLIB benchmark JSON (j30, j60, j90, j120) and prints
-a comparison table of:
-  - Best duration from all named priority rules (serial + parallel SGS)
-  - Best GA duration (activity list chromosome + serial SGS decoder)
-  - Improvement over the best seeded solution
-  - Convergence plot saved for each case
+For each PSPLIB benchmark case, the GA is run once per replacement strategy
+(default: ``generational`` and ``diverse_elitist``) and the best-so-far
+curves are overlaid on a single convergence plot. The plot also draws a
+horizontal reference line at the PSPLIB best-known duration so each curve's
+remaining gap is visible at a glance.
 
 The GA uses the Activity List representation with configurable crossover
-and mutation operators.  Decoding is performed by the Serial SGS.
+and mutation operators. Decoding is performed by the Serial SGS.
 Default operators: two-point crossover, adjacent-swap mutation.
 
 Reference
@@ -18,16 +17,16 @@ Kolisch, R. and Hartmann, S. (1999). Heuristic Algorithms for Solving the
 Resource-Constrained Project Scheduling Problem. In J. Weglarz (ed.),
 Project Scheduling: Recent Models, Algorithms and Applications, 147-178.
 
-Usage (from the src/CPM directory):
-    python ga_test.py
-
-Or from the repo root:
-    python -m src.CPM.ga_test
+Usage (from the repository root):
+    python doc/demos/heuristics/ga_convergence_test.py
 
 Examples:
-    python -m src.CPM.ga_test --max-evals 5000
-    python -m src.CPM.ga_test --stall-generations 25 --fitness-std-tol 0.01
-    python -m src.CPM.ga_test --target-best-known --case j30
+    python doc/demos/heuristics/ga_convergence_test.py --case j12051_6
+    python doc/demos/heuristics/ga_convergence_test.py \\
+        --replacement-strategies generational \\
+        --replacement-strategies diverse_elitist \\
+        --replacement-strategies elitist
+    python doc/demos/heuristics/ga_convergence_test.py --target-best-known
 """
 
 import argparse
@@ -39,6 +38,7 @@ from pathlib import Path
 
 # Ensure repo root is on the path before project imports
 REPO_ROOT = Path(__file__).resolve().parents[3]
+CPM_DIR = REPO_ROOT / "src" / "CPM"
 sys.path.insert(0, str(REPO_ROOT))
 
 from src import Pert  # noqa: E402
@@ -50,18 +50,28 @@ from doc.demos.heuristics._case_selection import (  # noqa: E402
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
-BENCHMARK_DIR = REPO_ROOT / "doc" / "demos" / "benchmarks"
-SCHEMA = REPO_ROOT / "src" / "CPM" / "outage_schema.json"
-BEST_RESULTS_PATH = REPO_ROOT / "doc" / "demos" / "benchmarks" / "best_results.json"
-DEFAULT_PLOT_DIR = Path(__file__).parent / "results" / "ga_convergence"
+SCHEMA = (CPM_DIR / "outage_schema.json").resolve()
+BEST_RESULTS_PATH = (
+    REPO_ROOT / "doc" / "demos" / "benchmarks" / "best_results.json"
+).resolve()
+BENCHMARK_DIR = (REPO_ROOT / "doc" / "demos" / "benchmarks").resolve()
+DEFAULT_PLOT_DIR = (
+    Path(__file__).parent / "results" / "ga_convergence_high_mut_all_rules"
+)
+
 
 CASES = [
-    ("j30",  "j301_1.json"),
-    ("j60",  "j601_1.json"),
-    ("j90",  "j901_1.json"),
-    ("j120", "j1201_1.json"),
+    ("j12051_6", "j12051_6.json"),
+    ("j12031_10", "j12031_10.json"),
+    ("j12036_6", "j12036_6.json"),
+    ("j12056_7", "j12056_7.json"),
+    ("j12051_5", "j12051_5.json"),
+    ("j12056_1", "j12056_1.json"),
+    ("j12026_10", "j12026_10.json"),
+    ("j12051_7", "j12051_7.json"),
+    ("j12056_5", "j12056_5.json"),
+    ("j12056_9", "j12056_9.json"),
 ]
-
 
 def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line options for integration runs."""
@@ -70,17 +80,18 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     )
     add_case_argument(parser, CASES)
     parser.add_argument("--pop-size", type=int, default=50)
-    parser.add_argument("--n-gen", type=int, default=100)
-    parser.add_argument("--cxpb", type=float, default=0.9)
-    parser.add_argument("--mutpb", type=float, default=0.1)
+    parser.add_argument("--n-gen", type=int, default=150)
+    parser.add_argument("--cxpb", type=float, default=0.1)
+    parser.add_argument("--mutpb", type=float, default=0.9)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--initial-population-mode",
-        choices=["mixed", "random", "priority_rules"],
-        default="mixed",
+        choices=list(RCPSPGeneticAlgorithm._INITIAL_POPULATION_MODES),
+        default="priority_rules",
         help=(
-            "Initial GA population source: priority-rule seeds plus random fill "
-            "(mixed), all random, or deterministic priority rules only."
+            "Initial GA population source: priority_rules uses best "
+            "serial/parallel priority-rule seeds plus random fill; random uses "
+            "pure random fill."
         ),
     )
     parser.add_argument(
@@ -90,13 +101,35 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--crossover",
-        default="two_point",
-        choices=["one_point", "two_point", "uniform_order"],
+        default="uniform_order",
+        choices=list(RCPSPGeneticAlgorithm._CROSSOVER_METHODS),
     )
     parser.add_argument(
         "--mutation",
-        default="adjacent_swap",
+        default="insertion_window",
         choices=["swap", "adjacent_swap", "insertion_window"],
+    )
+    parser.add_argument(
+        "--replacement-strategies",
+        action="append",
+        choices=["generational", "elitist", "steady_state", "diverse_elitist"],
+        help=(
+            "Replacement strategy to include in the convergence comparison. "
+            "May be supplied more than once. "
+            "Default: generational + diverse_elitist."
+        ),
+    )
+    parser.add_argument(
+        "--elite-size",
+        type=int,
+        default=1,
+        help="Minimum parent elites preserved by steady_state replacement.",
+    )
+    parser.add_argument(
+        "--replacement-fraction",
+        type=float,
+        default=0.5,
+        help="Population fraction replaced by offspring under steady_state.",
     )
     parser.add_argument(
         "--no-fb-improvement",
@@ -178,6 +211,116 @@ def get_best_known_result(best_results: dict[str, float], json_file: str) -> flo
     return best_results.get(instance_key)
 
 
+def _best_series(log) -> tuple[list[float], list[float]]:
+    """Return (gens, best-so-far) series from a DEAP logbook."""
+    records = list(log)
+    gens = [float(row["gen"]) for row in records]
+    if records and "best" in records[0]:
+        best = [float(row["best"]) for row in records]
+    else:
+        best = []
+        current = float("inf")
+        for row in records:
+            current = min(current, float(row["min"]))
+            best.append(current)
+    return gens, best
+
+
+def _avg_std_series(log) -> tuple[list[float], list[float]]:
+    """Return (population avg, population std) series from a DEAP logbook.
+
+    Returns empty lists if the log does not record avg/std stats.
+    """
+    records = list(log)
+    if not records or "avg" not in records[0] or "std" not in records[0]:
+        return [], []
+    avg = [float(row["avg"]) for row in records]
+    std = [float(row["std"]) for row in records]
+    return avg, std
+
+
+# Fixed color per replacement strategy so the same strategy always reads as
+# the same line across cases.
+STRATEGY_COLORS: dict[str, str] = {
+    "generational": "#1f77b4",
+    "elitist": "#ff7f0e",
+    "steady_state": "#2ca02c",
+    "diverse_elitist": "#d62728",
+}
+
+
+def plot_strategy_comparison(
+    case_name: str,
+    strategy_results: list[dict],
+    best_known: float | None,
+    out_path: Path,
+) -> None:
+    """Overlay best-so-far curves for each replacement strategy on one figure."""
+    import matplotlib
+
+    matplotlib.use("Agg", force=True)
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(11, 6.5))
+    for result in strategy_results:
+        color = STRATEGY_COLORS.get(result["replacement_strategy"], None)
+        gens = result["gens"]
+        avg = result.get("avg_curve") or []
+        std = result.get("std_curve") or []
+        if avg and std and len(avg) == len(gens):
+            lower = [a - s for a, s in zip(avg, std)]
+            upper = [a + s for a, s in zip(avg, std)]
+            ax.fill_between(
+                gens,
+                lower,
+                upper,
+                color=color,
+                alpha=0.15,
+                linewidth=0,
+                label=f"{result['replacement_strategy']} pop avg ± 1σ",
+            )
+            ax.plot(
+                gens,
+                avg,
+                color=color,
+                linestyle=":",
+                linewidth=1.2,
+                alpha=0.8,
+            )
+        ax.plot(
+            gens,
+            result["best_curve"],
+            color=color,
+            linestyle="-",
+            linewidth=1.8,
+            label=(
+                f"{result['replacement_strategy']} best-so-far "
+                f"(final={result['best_ga']:.0f})"
+            ),
+        )
+
+    if best_known is not None:
+        ax.axhline(
+            best_known,
+            color="black",
+            linestyle="--",
+            linewidth=1.2,
+            alpha=0.7,
+            label=f"best-known ({best_known:.0f})",
+        )
+
+    ax.set_title(f"{case_name}: GA convergence — replacement strategy comparison")
+    ax.set_xlabel("Generation")
+    ax.set_ylabel("Best-so-far duration (h)")
+    ax.grid(True, linestyle=":", linewidth=0.8, alpha=0.7)
+    ax.legend(fontsize=9, loc="best")
+    fig.tight_layout()
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
 def run_ga_case(
     case_name: str,
     json_file: str,
@@ -189,9 +332,12 @@ def run_ga_case(
     verbose: bool = True,
     crossover: str = 'two_point',
     mutation: str = 'adjacent_swap',
+    replacement_strategy: str = 'diverse_elitist',
+    elite_size: int = 1,
+    replacement_fraction: float = 0.5,
     fb_improvement: bool = True,
     fb_freq: int = 0,
-    initial_population_mode: str = 'mixed',
+    initial_population_mode: str = 'priority_rules',
     plot_convergence: bool = True,
     plot_dir: str | Path | None = None,
     target_fitness: float | None = None,
@@ -235,10 +381,19 @@ def run_ga_case(
         Print per-generation stats and seeding table.
     crossover : str
         Crossover operator name passed to ``RCPSPGeneticAlgorithm``.
-        One of ``'one_point'``, ``'two_point'``, ``'uniform_order'``.
+        One of ``'one_point'``, ``'two_point'``, ``'uniform_order'``,
+        ``'decuple'``.
     mutation : str
         Mutation operator name passed to ``RCPSPGeneticAlgorithm``.
         One of ``'swap'``, ``'adjacent_swap'``, ``'insertion_window'``.
+    replacement_strategy : str
+        Population update strategy passed to ``RCPSPGeneticAlgorithm``.
+        One of ``'generational'``, ``'elitist'``, ``'steady_state'``,
+        ``'diverse_elitist'``.
+    elite_size : int
+        Minimum parent elites preserved by ``steady_state`` replacement.
+    replacement_fraction : float
+        Population fraction replaced by offspring under ``steady_state``.
     fb_improvement : bool
         Apply Forward-Backward-Forward local improvement as a final
         polishing step on the full population.  Default ``True``.
@@ -246,8 +401,7 @@ def run_ga_case(
         Also apply FBF every ``fb_freq`` generations during evolution
         (``0`` = only at the end).
     initial_population_mode : str
-        Initial GA population source: ``'mixed'``, ``'random'``, or
-        ``'priority_rules'``.
+        Initial GA population source: ``'priority_rules'`` or ``'random'``.
     plot_convergence : bool
         Save a convergence plot for the GA logbook returned by ``run()``.
     plot_dir : str or Path, optional
@@ -330,7 +484,11 @@ def run_ga_case(
         print()
 
     # ── Run GA ───────────────────────────────────────────────────────────────
-    print(f"Running GA (crossover={crossover!r}, mutation={mutation!r}, Serial SGS)...")
+    print(
+        "Running GA "
+        f"(crossover={crossover!r}, mutation={mutation!r}, "
+        f"replacement={replacement_strategy!r}, Serial SGS)..."
+    )
     ga = RCPSPGeneticAlgorithm(
         pert,
         pop_size=pop_size,
@@ -341,6 +499,9 @@ def run_ga_case(
         verbose=verbose,
         crossover=crossover,
         mutation=mutation,
+        replacement_strategy=replacement_strategy,
+        elite_size=elite_size,
+        replacement_fraction=replacement_fraction,
         fb_improvement=fb_improvement,
         fb_freq=fb_freq,
         initial_population_mode=initial_population_mode,
@@ -360,7 +521,10 @@ def run_ga_case(
         out_dir.mkdir(parents=True, exist_ok=True)
         plot_path = (
             out_dir
-            / f"{case_name}_ga_convergence_{crossover}_{mutation}_seed{seed}.png"
+            / (
+                f"{case_name}_ga_convergence_{crossover}_{mutation}_"
+                f"{replacement_strategy}_seed{seed}.png"
+            )
         )
         try:
             import matplotlib
@@ -411,6 +575,9 @@ def run_ga_case(
     print(f"  Best activity list (first 10) : {first_ten}")
     print()
 
+    gens, best_curve = _best_series(log)
+    avg_curve, std_curve = _avg_std_series(log)
+
     return {
         'case': case_name,
         'n_activities': n_activities,
@@ -419,11 +586,16 @@ def run_ga_case(
         'best_parallel_seed': best_parallel,
         'best_ga': best_ga,
         'improvement': best_rule_overall - best_ga,
+        'replacement_strategy': replacement_strategy,
         'convergence_plot': str(plot_path) if plot_path else None,
         'stop_reason': summary['stop_reason'],
         'n_gen_executed': summary['n_gen'],
         'n_evals': summary['n_evals'],
         'n_unique_schedules': summary['n_unique_schedules'],
+        'gens': gens,
+        'best_curve': best_curve,
+        'avg_curve': avg_curve,
+        'std_curve': std_curve,
     }
 
 
@@ -431,63 +603,82 @@ def main() -> None:
     """Run the GA on all benchmark cases and print a summary table."""
     args = parse_args()
     best_results = load_best_known_results()
-    results = []
+    strategies = args.replacement_strategies or ["generational", "diverse_elitist"]
     selected_cases = select_cases(CASES, args.case)
+    plot_dir = Path(args.plot_dir) if args.plot_dir is not None else DEFAULT_PLOT_DIR
+
+    results: list[dict] = []
     for case_name, json_file in selected_cases:
         best_known = get_best_known_result(best_results, json_file)
         target_fitness = best_known if args.target_best_known else args.target_fitness
-        result = run_ga_case(
-            case_name=case_name,
-            json_file=json_file,
-            pop_size=args.pop_size,
-            n_gen=args.n_gen,
-            cxpb=args.cxpb,
-            mutpb=args.mutpb,
-            seed=args.seed,
-            verbose=not args.quiet,
-            crossover=args.crossover,
-            mutation=args.mutation,
-            fb_improvement=not args.no_fb_improvement,
-            fb_freq=args.fb_freq,
-            initial_population_mode=args.initial_population_mode,
-            plot_convergence=not args.no_plot,
-            plot_dir=args.plot_dir,
-            target_fitness=target_fitness,
-            max_evals=args.max_evals,
-            stall_generations=args.stall_generations,
-            stall_tolerance=args.stall_tolerance,
-            fitness_std_tol=args.fitness_std_tol,
-            std_generations=args.std_generations,
-            max_unique_schedules=args.max_unique_schedules,
-        )
-        result['best_known'] = best_known
-        result['ga_vs_best_known'] = (
-            result['best_ga'] - best_known if best_known is not None else float('nan')
-        )
-        results.append(result)
+        per_strategy: list[dict] = []
+        for strategy in strategies:
+            result = run_ga_case(
+                case_name=case_name,
+                json_file=json_file,
+                pop_size=args.pop_size,
+                n_gen=args.n_gen,
+                cxpb=args.cxpb,
+                mutpb=args.mutpb,
+                seed=args.seed,
+                verbose=not args.quiet,
+                crossover=args.crossover,
+                mutation=args.mutation,
+                replacement_strategy=strategy,
+                elite_size=args.elite_size,
+                replacement_fraction=args.replacement_fraction,
+                fb_improvement=not args.no_fb_improvement,
+                fb_freq=args.fb_freq,
+                initial_population_mode=args.initial_population_mode,
+                plot_convergence=False,
+                plot_dir=plot_dir,
+                target_fitness=target_fitness,
+                max_evals=args.max_evals,
+                stall_generations=args.stall_generations,
+                stall_tolerance=args.stall_tolerance,
+                fitness_std_tol=args.fitness_std_tol,
+                std_generations=args.std_generations,
+                max_unique_schedules=args.max_unique_schedules,
+            )
+            result['best_known'] = best_known
+            result['ga_vs_best_known'] = (
+                result['best_ga'] - best_known
+                if best_known is not None
+                else float('nan')
+            )
+            per_strategy.append(result)
+            results.append(result)
+
+        if not args.no_plot and per_strategy:
+            out_path = (
+                plot_dir
+                / f"{case_name}_strategy_compare_seed{args.seed}.png"
+            )
+            plot_strategy_comparison(case_name, per_strategy, best_known, out_path)
+            print(f"Strategy comparison plot: {out_path}")
 
     # ── Summary table ─────────────────────────────────────────────────────────
     print("\n" + "=" * 80)
     print(
         "SUMMARY — GA "
         f"(Activity List, {args.crossover} crossover, "
-        f"{args.mutation} mutation, Serial SGS)"
+        f"{args.mutation} mutation, Serial SGS) — "
+        f"strategies: {', '.join(strategies)}"
     )
     print("=" * 80)
     print(
-        f"  {'Case':<8} {'N':>6} {'CPM (h)':>10} "
-        f"{'Best Serial':>13} {'Best Parallel':>14} {'Best GA':>10} "
-        f"{'Best Known':>12} {'GA-BK':>8} {'Δ (h)':>8} "
-        f"{'Gen':>6} {'Evals':>8} {'Stop':>20}"
+        f"  {'Case':<10} {'Strategy':<18} {'N':>5} {'CPM':>8} "
+        f"{'BestGA':>9} {'BestKnown':>10} {'GA-BK':>8} {'Δ seed':>8} "
+        f"{'Gen':>5} {'Evals':>7} {'Stop':>20}"
     )
-    print("  " + "-" * 130)
+    print("  " + "-" * 120)
     for r in results:
         print(
-            f"  {r['case']:<8} {r['n_activities']:>6} {r['cpm_duration']:>10.2f} "
-            f"{r['best_serial_seed']:>13.2f} {r['best_parallel_seed']:>14.2f} "
-            f"{r['best_ga']:>10.2f} {r['best_known']:>12.2f} "
+            f"  {r['case']:<10} {r['replacement_strategy']:<18} "
+            f"{r['n_activities']:>5} {r['cpm_duration']:>8.2f} "
+            f"{r['best_ga']:>9.2f} {r['best_known']:>10.2f} "
             f"{r['ga_vs_best_known']:>8.2f} {r['improvement']:>8.2f} "
-            f"{r['n_gen_executed']:>6} {r['n_evals']:>8} "
+            f"{r['n_gen_executed']:>5} {r['n_evals']:>7} "
             f"{r['stop_reason']:>20}"
         )
     print()

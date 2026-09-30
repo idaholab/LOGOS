@@ -4,7 +4,42 @@ version = "0.1.0"
 description = "Discrete optimization models for capital budgeting and outage scheduling, usable stand-alone or interfaced with RAVEN."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "alns",
+    "deap",
+    "jsonschema",
+    "matplotlib",
+    "networkx",
+    "numpy",
+    "numpy-financial",
+    "pandas",
+    "plotly",
+    "pyomo==6.4.*",
+    "pyutilib",
+    "pyvis",
+    "scikit-learn",
+    "six",
+]
+
+[project.optional-dependencies]
+docs = [
+    "docutils",
+    "nbsphinx",
+    "sphinx",
+    "sphinx-copybutton",
+    "sphinx-rtd-theme",
+    "sphinxcontrib-bibtex",
+]
+test = [
+    "hypothesis",
+    "pytest",
+    "scipy",
+    "seaborn",
+]
+
+# Coin-OR CBC, GLPK, and IPOPT are external solver executables rather than
+# Python libraries. Install them through conda as described in dependencies.xml.
+# RAVEN supplies ravenframework when LOGOS runs as a RAVEN plugin.
 
 # The CPM unit-test suite carries its own configuration in
 # tests/unit_tests/CPM/pytest.ini (pythonpath + import mode), which pytest
