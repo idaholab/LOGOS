@@ -6,6 +6,7 @@ Run from repo root:
 """
 
 import math
+import random
 import sys
 from pathlib import Path
 
@@ -101,6 +102,29 @@ def test_corrected_lags_preserve_feasible_start_times(gga):
         assert math.isclose(restored[act], starts[act], abs_tol=1e-9)
 
 
+def test_frozen_block_is_deterministic_across_constructions():
+    blocks = []
+    keep_alive = []
+    for allocation_size in (0, 127):
+        allocation_noise = [object() for _ in range(allocation_size)]
+        p = Pert.from_json_file(JSON_PATH, schema_path=SCHEMA)
+        graph_ga = RCPSPGraphGeneticAlgorithm(
+            p,
+            ne=2,
+            n_gen=0,
+            rho=0.5,
+            seed=17,
+            verbose=False,
+        )
+        winner = graph_ga._make_individual([0.0] * len(graph_ga._arcs))
+        random.seed(23)
+        frozen = graph_ga._select_frozen_block(winner, block_type='backward')
+        blocks.append({activity.returnName() for activity in frozen})
+        keep_alive.append((allocation_noise, p, graph_ga))
+
+    assert blocks[0] == blocks[1]
+
+
 def test_priority_seed_population_uses_priority_orders(pert):
     gga = RCPSPGraphGeneticAlgorithm(
         pert,
@@ -135,3 +159,24 @@ def test_run_returns_feasible_winner(gga):
         winner['fitness'],
         abs_tol=1e-9,
     )
+
+
+def test_same_seed_reproduces_run():
+    runs = []
+    keep_alive = []
+    for allocation_size in (0, 127):
+        allocation_noise = [object() for _ in range(allocation_size)]
+        p = Pert.from_json_file(JSON_PATH, schema_path=SCHEMA)
+        graph_ga = RCPSPGraphGeneticAlgorithm(
+            p,
+            ne=5,
+            n_gen=3,
+            restart_threshold=2,
+            seed=29,
+            verbose=False,
+        )
+        winner, log = graph_ga.run()
+        runs.append((winner['fitness'], winner['lags'], log))
+        keep_alive.append((allocation_noise, p, graph_ga))
+
+    assert runs[0] == runs[1]

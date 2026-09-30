@@ -32,8 +32,10 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
-from src.CPM.pert import Pert                              # noqa: E402
+from src.CPM.activity import Activity                      # noqa: E402
 from src.CPM.gans import RCPSPHybridGANS, PRIORITY_RULES  # noqa: E402
+from src.CPM.outage_data import ResourcePool               # noqa: E402
+from src.CPM.pert import Pert                              # noqa: E402
 from conftest import assert_valid_schedule                 # noqa: E402
 
 # ── fixture paths ─────────────────────────────────────────────────────────────
@@ -127,6 +129,61 @@ class TestConstructor:
 
     def test_resource_weights_dict_exists(self, gans):
         assert isinstance(gans._resource_weights, dict)
+
+    def test_resource_info_uses_pert_crew_pool(self):
+        start = Activity('START', 0.0)
+        mechanic = Activity(
+            'MECHANIC_TASK',
+            4.0,
+            required_resources=[{'skill_type': 'MECHANIC', 'crew_count': 2}],
+        )
+        electrician = Activity(
+            'ELECTRICIAN_TASK',
+            2.0,
+            required_resources=[{'skill_type': 'ELECTRICIAN', 'crew_count': 1}],
+        )
+        end = Activity('END', 0.0)
+        graph = {
+            start: [mechanic, electrician],
+            mechanic: [end],
+            electrician: [end],
+            end: [],
+        }
+        p = Pert(graph=graph)
+        p.crew_pool = ResourcePool.from_json([
+            {
+                'skill_type': 'MECHANIC',
+                'availability_periods': [{
+                    'start_date': '2026-01-01T00:00:00',
+                    'end_date': '2026-01-02T00:00:00',
+                    'available_count': 4,
+                }],
+            },
+            {
+                'skill_type': 'ELECTRICIAN',
+                'availability_periods': [{
+                    'start_date': '2026-01-01T00:00:00',
+                    'end_date': '2026-01-02T00:00:00',
+                    'available_count': 3,
+                }],
+            },
+        ])
+
+        resource_gans = RCPSPHybridGANS(
+            p, pop_size=4, lambda_max=4, seed=0, verbose=False
+        )
+
+        assert resource_gans._skill_ids == ['MECHANIC', 'ELECTRICIAN']
+        assert resource_gans._skill_capacity == {
+            'MECHANIC': 4.0,
+            'ELECTRICIAN': 3.0,
+        }
+        assert resource_gans._activity_demand[mechanic] == {'MECHANIC': 2.0}
+        assert resource_gans._activity_demand[electrician] == {'ELECTRICIAN': 1.0}
+        assert resource_gans._rank_resources() == ['MECHANIC', 'ELECTRICIAN']
+        assert set(resource_gans._resource_weights) == {
+            'MECHANIC', 'ELECTRICIAN'
+        }
 
     def test_make_individual_defaults(self, gans):
         ind = gans._make_individual([0, 1, 2])

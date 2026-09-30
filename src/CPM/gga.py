@@ -507,8 +507,10 @@ class RCPSPGraphGeneticAlgorithm:
             if g is not None:
                 by_degree = sorted(
                     collected,
-                    key=lambda a: g.degree(a) if a in g else 0,
-                    reverse=True,
+                    key=lambda a: (
+                        -(g.degree(a) if a in g else 0),
+                        self._act_to_idx[a],
+                    ),
                 )
                 budget = max(1, q // 3)
                 to_remove.update(by_degree[:budget])
@@ -517,14 +519,17 @@ class RCPSPGraphGeneticAlgorithm:
             if len(to_remove) < q:
                 remaining = collected - to_remove
                 by_dur = sorted(
-                    remaining, key=lambda a: self._durations[a], reverse=True
+                    remaining,
+                    key=lambda a: (-self._durations[a], self._act_to_idx[a]),
                 )
                 budget = max(1, (q - len(to_remove)) // 2)
                 to_remove.update(by_dur[:budget])
 
             # 3. Random fill to reach exclusion quota
             if len(to_remove) < q:
-                remaining = list(collected - to_remove)
+                remaining = sorted(
+                    collected - to_remove, key=self._act_to_idx.__getitem__
+                )
                 random.shuffle(remaining)
                 to_remove.update(remaining[: q - len(to_remove)])
 

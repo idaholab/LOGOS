@@ -228,7 +228,7 @@ class RCPSPHybridGANS:
 
     def _build_resource_info(self) -> None:
         """Extract resource IDs, capacities, and per-activity demands."""
-        rp = getattr(self.pert, 'resource_pool', None)
+        rp = getattr(self.pert, 'crew_pool', None)
         self._skill_ids: List[str] = []
         self._skill_capacity: Dict[str, float] = {}
         self._activity_demand: Dict[Any, Dict[str, float]] = {}
