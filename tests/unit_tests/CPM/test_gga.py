@@ -102,6 +102,22 @@ def test_corrected_lags_preserve_feasible_start_times(gga):
         assert math.isclose(restored[act], starts[act], abs_tol=1e-9)
 
 
+def test_evaluation_failure_logs_warning_with_context(gga, monkeypatch, caplog):
+    def fail_improvement(_lags):
+        raise RuntimeError('synthetic decode failure')
+
+    monkeypatch.setattr(gga, '_improve', fail_improvement)
+    ind = gga._make_individual([0.0] * len(gga._arcs))
+
+    with caplog.at_level('WARNING', logger='src.CPM.gga'):
+        result = gga._evaluate(ind)
+
+    assert result['fitness'] == math.inf
+    assert f"lag chromosome with {len(gga._arcs)} arcs" in caplog.text
+    assert 'synthetic decode failure' in caplog.text
+    assert caplog.records[-1].exc_info is not None
+
+
 def test_frozen_block_is_deterministic_across_constructions():
     blocks = []
     keep_alive = []

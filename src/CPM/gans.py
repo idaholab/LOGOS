@@ -240,8 +240,15 @@ class RCPSPHybridGANS:
                     self._skill_capacity[sk] = float(
                         rp.resources[sk].get_max_availability()
                     )
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "GANS failed to read crew resource metadata; resource-aware "
+                    "ranking and dense-gene scoring will use fallback behavior: %s",
+                    exc,
+                    exc_info=True,
+                )
                 self._skill_ids = []
+                self._skill_capacity.clear()
 
         for a in self._activities:
             req = getattr(a, 'required_resources', []) or []
@@ -732,7 +739,14 @@ class RCPSPHybridGANS:
         try:
             repaired = self.pert.reorder_by_dependencies(ranked, self.pert.forwardDict)
             return [self._act_to_idx[a] for a, _ in repaired if a in self._act_to_idx]
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "GANS precedence repair failed for an order with %d genes; "
+                "returning the unrepaired order: %s",
+                len(order),
+                exc,
+                exc_info=True,
+            )
             return order
 
     # ------------------------------------------------------------------ #

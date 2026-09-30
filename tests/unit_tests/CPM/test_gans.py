@@ -130,6 +130,25 @@ class TestConstructor:
     def test_resource_weights_dict_exists(self, gans):
         assert isinstance(gans._resource_weights, dict)
 
+    def test_resource_info_failure_logs_warning_with_context(
+        self, pert, monkeypatch, caplog
+    ):
+        class BrokenCrewPool:
+            def get_all_skills(self):
+                raise RuntimeError('synthetic resource failure')
+
+        monkeypatch.setattr(pert, 'crew_pool', BrokenCrewPool())
+        with caplog.at_level('WARNING', logger='src.CPM.gans'):
+            resource_gans = RCPSPHybridGANS(
+                pert, pop_size=4, lambda_max=4, seed=0, verbose=False
+            )
+
+        assert resource_gans._skill_ids == []
+        assert resource_gans._skill_capacity == {}
+        assert 'resource-aware ranking and dense-gene scoring' in caplog.text
+        assert 'synthetic resource failure' in caplog.text
+        assert caplog.records[-1].exc_info is not None
+
     def test_resource_info_uses_pert_crew_pool(self):
         start = Activity('START', 0.0)
         mechanic = Activity(
@@ -242,6 +261,23 @@ class TestChromosomeHelpers:
                         f"Precedence violated: {pred} (pos {pos[pred]}) "
                         f"must precede {act} (pos {pos[act]})"
                     )
+
+    def test_repair_failure_logs_warning_with_context(
+        self, gans, monkeypatch, caplog
+    ):
+        def fail_repair(_ranked, _graph):
+            raise RuntimeError('synthetic repair failure')
+
+        monkeypatch.setattr(gans.pert, 'reorder_by_dependencies', fail_repair)
+        order = list(reversed(range(gans._n)))
+
+        with caplog.at_level('WARNING', logger='src.CPM.gans'):
+            repaired = gans._repair(order)
+
+        assert repaired == order
+        assert f"order with {len(order)} genes" in caplog.text
+        assert 'synthetic repair failure' in caplog.text
+        assert caplog.records[-1].exc_info is not None
 
 
 class TestResourceHelpers:

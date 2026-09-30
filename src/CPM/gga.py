@@ -355,7 +355,13 @@ class RCPSPGraphGeneticAlgorithm:
             ind['fitness'] = fitness
             ind['lags'] = corrected
         except Exception as exc:
-            logger.warning("Evaluation failed: %s", exc)
+            logger.warning(
+                "GGA evaluation failed for a lag chromosome with %d arcs; "
+                "assigning infinite fitness: %s",
+                len(ind.get('lags', [])),
+                exc,
+                exc_info=True,
+            )
             ind['fitness'] = math.inf
         return ind
 
