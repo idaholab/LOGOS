@@ -28,6 +28,7 @@ from .activity import Activity
 from .outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, load_outage_data
 from .validate_outage_data import OutageDataValidator
 from .cpm_utils import CUSTOM_PRIORITY_FUNCS, sigmoid_bipolar, sigmoid_inv, normalize_tuples
+from .priority_rules import PRIORITY_RULE_NAMES, get_rule
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -67,13 +68,8 @@ class Pert:
         self.infoDict = {}
         self.nxgraph = None
         self._max_time_factor = 10
-        self._list_priority_names = [
-            'lf', 'ls', 'ef', 'es', 'duration', 'random',
-            'mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr',
-            'maxrr', 'minrr','mehh_8000_b','mehh_3375_b',
-            'mehh_1000_b','mehh_125_b','gphh_b',
-            'wcs', 'acs', 'irsm',
-            ]
+        # Rule names accepted by priority_calculation(); see priority_rules.py
+        self._list_priority_names = list(PRIORITY_RULE_NAMES)
 
         self.task_to_activity = {} # dictionary in the form: {act_ID: act_instance}
 
@@ -6340,18 +6336,20 @@ class Pert:
         IOError
             If the priority rule is invalid.
         """
-        rule = priority_rule.lower()
-        if rule in ['lf', 'ls', 'ef', 'es', 'duration'] + list(CUSTOM_PRIORITY_FUNCS.keys()):
-            # There are tie values in the list which will cause the difference in priority orders
-            data = [(a, self.infoDict[a][rule]) for a in eligible]
-            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=lambda x:self.infoDict[x[0]]['mehh_8000_b'])
+        spec = get_rule(priority_rule)
+        rule = spec.key
+        if spec.kind == 'static':
+            # Direction and metric come from the registry (priority_rules.py).
+            # Ties are broken by mehh_8000_b; with reverse=True the tie-breaker
+            # is reversed too, which is the historical behavior.
+            data = [(a, self.infoDict[a][spec.metric]) for a in eligible]
+            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1],
+                                               tie_breaker=lambda x: self.infoDict[x[0]]['mehh_8000_b'],
+                                               reverse=(spec.direction == 'max'))
         elif rule == 'random':
             random.shuffle(eligible)
             data = [(a, i) for i, a in enumerate(eligible)]
             priority = data
-        elif rule in ['mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr', 'maxrr', 'minrr']:
-            data = [(a, self.infoDict[a][rule]) for a in eligible]
-            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1], tie_breaker=lambda x:self.infoDict[x[0]]['mehh_8000_b'],reverse=True)
         elif rule == 'wcs':
             # Worst Case Slack (Kolisch 1996, eq. 19):
             #   v(j) = LS_j - max{ E(i,j) | i ∈ D_n, i ≠ j }
@@ -6412,10 +6410,9 @@ class Pert:
             priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1],
                                                tie_breaker=lambda x: self.infoDict[x[0]]['lf'])
         else:
-            raise IOError("Invalid priority rule")
+            raise IOError(f"Priority rule '{rule}' is registered but has no implementation")
         # normalize
-        if rule in ['lf', 'ls', 'ef', 'es', 'duration', 'mts', 'mtp', 'grpw', 'grd', 'random',
-                    'wcs', 'acs', 'irsm'] + list(CUSTOM_PRIORITY_FUNCS.keys()):
+        if spec.normalize:
             priority = normalize_tuples(priority)
         # update priority based on dependencies
         new_priority = self.reorder_by_dependencies(priority, self.forwardDict)
