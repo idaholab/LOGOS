@@ -55,6 +55,15 @@ class RuleSpec:
     description: str = ''
 
 
+# Weights of the composite rules (see doc/priority_rules_doc.md §5.7–5.8).
+WRUP_W_SUCC: float = 0.7
+"""WRUP weight on the immediate-successor count (Liu et al. 2025, Table A1)."""
+WACRU_W: float = 0.3
+"""WACRU weight on successor criticality (Nekoueian et al. 2023, Table 8 footnote)."""
+WACRU_ALPHA: float = 0.5
+"""WACRU exponent on successor slack (Wang et al. 2017)."""
+
+
 def _static(key, direction, normalize=True, metric=None, table4_id=None, description=''):
     return RuleSpec(key, direction, 'static', metric or key, normalize, table4_id, description)
 
@@ -91,8 +100,67 @@ _RULES += [
     _dynamic('irsm', 'min', description='Improved resource scheduling method (Kolisch 1996)'),
 ]
 
+# Table 4 rules added in Phase 2 (static).  Appended after the legacy rules so
+# the legacy order of PRIORITY_RULE_NAMES is unchanged.
+_RULES += [
+    # Activity information
+    _static('lpt', 'max', metric='duration', table4_id=1, description='Longest processing time'),
+    _static('act_index', 'min', table4_id=43, description='Minimum task number (input order)'),
+    # Network information
+    _static('mis', 'max', metric='n_imm_succ', table4_id=3, description='Most immediate successors'),
+    _static('lis', 'min', metric='n_imm_succ', table4_id=4, description='Least immediate successors'),
+    _static('mts_exact', 'max', table4_id=5, description='Most total successors (exact count)'),
+    _static('mtp_exact', 'max', description='Most total predecessors (exact count)'),
+    _static('lts', 'min', metric='mts_exact', table4_id=6, description='Least total successors'),
+    _static('np', 'min', metric='n_imm_pred', table4_id=38,
+            description='Least immediate predecessors (activity-level adaptation)'),
+    _static('lfs', 'min', table4_id=7, description='Least float per immediate successor'),
+    _static('lnrj', 'min', table4_id=8, description='Least non-related jobs'),
+    _static('lpf', 'max', metric='level', table4_id=9,
+            description='Longest path following (activity count)'),
+    _static('ms_l', 'max', table4_id=10, description='Most total successors per level'),
+    _static('grpw_imm', 'max', table4_id=11,
+            description='Greatest rank positional weight (immediate successors)'),
+    _static('rpw', 'max', table4_id=11, description='Rank positional weight (all successors)'),
+    _static('gprpw', 'max', table4_id=12,
+            description='Greatest proportional rank positional weight'),
+    _static('lrpw', 'min', metric='rpw', table4_id=13,
+            description='Least rank positional weight (all successors)'),
+    _static('lrpw_imm', 'min', metric='grpw_imm', table4_id=13,
+            description='Least rank positional weight (immediate successors)'),
+    _static('mtspt', 'max', table4_id=19, description='Most total successors processing time'),
+    _static('tts_alb', 'max', table4_id=45, description='Task time plus total successors'),
+    _static('sts', 'max', table4_id=46, description='Maximum average time of total successors'),
+    _static('tssk', 'max', table4_id=47, description='Total successors divided by (slack + 1)'),
+    # Resource information
+    _static('grr', 'max', table4_id=20, description='Greatest resource requirement'),
+    _static('srr', 'min', metric='grr', table4_id=21, description='Smallest resource requirement'),
+    _static('srd', 'min', metric='grd', table4_id=21, description='Smallest resource demand'),
+    _static('gcrr', 'max', table4_id=22,
+            description='Greatest cumulative resource work content (immediate successors)'),
+    _static('scrr', 'min', metric='gcrr', table4_id=23,
+            description='Smallest cumulative resource work content (immediate successors)'),
+    _static('trd', 'min', metric='grr', table4_id=24, description='Total resource demand'),
+    _static('trs', 'min', table4_id=25, description='Total resource scarcity'),
+    _static('wacru', 'max', table4_id=29,
+            description='Weighted activity criticality and resource utilization'),
+    _static('wrup', 'max', table4_id=30,
+            description='Weighted resource utilization and precedence'),
+    # Scheduling information
+    _static('mslk', 'min', metric='slack', table4_id=18, description='Minimum slack'),
+    _static('max_lst', 'max', metric='ls', table4_id=54, description='Maximum latest start time'),
+    _static('max_lft', 'max', metric='lf', table4_id=55, description='Maximum latest finish time'),
+]
+
 PRIORITY_RULES: Dict[str, RuleSpec] = {spec.key: spec for spec in _RULES}
 """All rules accepted by ``Pert.priority_calculation()``, keyed by name."""
+
+EXTENDED_METRIC_KEYS: Tuple[str, ...] = (
+    'act_index', 'n_imm_succ', 'n_imm_pred', 'mts_exact', 'mtp_exact', 'level',
+    'lnrj', 'ms_l', 'lfs', 'grpw_imm', 'rpw', 'gprpw', 'mtspt', 'sts', 'tssk',
+    'tts_alb', 'grr', 'work_content', 'trs', 'gcrr', 'wrup', 'wacru',
+)
+"""infoDict keys written by ``Pert.calculate_extended_priority_metrics``."""
 
 PRIORITY_RULE_NAMES: Tuple[str, ...] = tuple(PRIORITY_RULES)
 """Rule names in registry order."""

@@ -28,7 +28,8 @@ from .activity import Activity
 from .outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, load_outage_data
 from .validate_outage_data import OutageDataValidator
 from .cpm_utils import CUSTOM_PRIORITY_FUNCS, sigmoid_bipolar, sigmoid_inv, normalize_tuples
-from .priority_rules import PRIORITY_RULE_NAMES, get_rule
+from .priority_rules import (PRIORITY_RULE_NAMES, get_rule, EXTENDED_METRIC_KEYS,
+                             WACRU_W, WACRU_ALPHA, WRUP_W_SUCC)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -444,6 +445,8 @@ class Pert:
                 "minrr":0,
                 "window_infeasible": False,
             }
+            # Table 4 metrics; filled by calculate_extended_priority_metrics()
+            self.infoDict[activity].update(dict.fromkeys(EXTENDED_METRIC_KEYS, 0))
 
     def returnGraph(self):
         """
@@ -801,6 +804,7 @@ class Pert:
         self.calculate_greatest_resource_demand()
         self.calculate_resource_requirement()
         self.calculate_gp_rules()
+        self.calculate_extended_priority_metrics(topo=topo)
 
         # 10) WBS aggregate float roll-up
         self._compute_wbs_slack()
@@ -1017,6 +1021,181 @@ class Pert:
                     self.infoDict[a]['maxrr'],
                     self.infoDict[a]['minrr'],
                 )
+
+
+    def _resource_demand_vectors(self, a, capacity: dict | None = None) -> tuple:
+        """
+        Return the raw and capacity-normalized demand of ``a`` per resource.
+
+        Uses the same resource universe as ``calculate_resource_requirement``:
+        every crew skill, equipment item and location.  An occupied zone counts
+        as a demand of 1 against a capacity of 1.
+
+        Parameters
+        ----------
+        a : Activity
+            The activity.
+        capacity : dict, optional
+            ``{resource_id: max availability}`` from
+            :meth:`_max_capacities`; built on the fly when omitted.
+
+        Returns
+        -------
+        tuple of (dict, dict)
+            ``(raw, scaled)`` where ``raw[k] = r_jk`` and
+            ``scaled[k] = r_jk / a_k`` (0 when ``a_k`` is 0), keyed by the
+            resources ``a`` actually requires.
+        """
+        if capacity is None:
+            capacity = self._max_capacities()
+        raw: dict = {}
+        demands = [(r['skill_type'], r['crew_count']) for r in a.getRequiredResources()]
+        demands += [(e['equipment_id'], e['quantity_needed']) for e in a.getRequiredEquipment()]
+        for k, q in demands:
+            if k in capacity:
+                raw[k] = raw.get(k, 0) + q
+        for zone_id in a.getZoneIds():
+            if capacity.get(zone_id) is None and zone_id in capacity:
+                raw[zone_id] = 1
+        scaled = {k: (1.0 if capacity[k] is None else
+                      (q / capacity[k] if capacity[k] != 0 else 0.0))
+                  for k, q in raw.items()}
+        return raw, scaled
+
+    def _max_capacities(self) -> dict:
+        """
+        Return ``{resource_id: max availability}`` for crew skills and
+        equipment, and ``{location_id: None}`` for locations (a zone is a
+        demand of 1 against a capacity of 1).
+        """
+        capacity: dict = {}
+        if self.crew_pool:
+            for k, ra in self.crew_pool.resources.items():
+                capacity[k] = ra.get_max_availability()
+        if self.equipment_pool:
+            for k, ea in self.equipment_pool.equipment.items():
+                capacity[k] = ea.get_max_availability()
+        if self.location_pool:
+            for k in self.location_pool.get_all_location_ids():
+                capacity.setdefault(k, None)
+        return capacity
+
+    def calculate_extended_priority_metrics(self, topo: list | None = None):
+        """
+        Compute the static metrics behind the Table 4 priority rules.
+
+        Definitions are the verified ones in ``doc/priority_rules_doc.md``.
+        Unlike the path-count DPs used for ``mts``/``mtp``/``grpw``, successor
+        and predecessor sets here are exact: each activity's transitive
+        closure is held as a Python-int bitset, so a shared descendant is
+        counted once.  Cost is O(V·E/64) for the closures plus O(V²/64) for
+        the population counts.
+
+        Keys written to ``self.infoDict[a]``:
+
+        - network: ``n_imm_succ``, ``n_imm_pred``, ``mts_exact``,
+          ``mtp_exact``, ``level``, ``lnrj``, ``ms_l``, ``lfs``;
+        - rank positional weight: ``grpw_imm``, ``rpw``, ``gprpw``,
+          ``mtspt``, ``sts``, ``tssk``, ``tts_alb``;
+        - resources: ``grr``, ``work_content``, ``trs``, ``gcrr``, ``wrup``,
+          ``wacru``;
+        - other: ``act_index`` (input order).
+
+        Parameters
+        ----------
+        topo : list or None, optional
+            Topological order of the activities, as computed by
+            ``generateInfo``.  Recomputed with networkx when omitted.
+        """
+        acts = list(self.forwardDict)
+        if not acts:
+            return
+        if topo is None or len(topo) != len(acts):
+            topo = list(nx.topological_sort(nx.DiGraph(self.forwardDict)))
+        info = self.infoDict
+        index = {a: i for i, a in enumerate(acts)}
+        n = len(acts)
+
+        preds: dict = {a: [] for a in acts}
+        for u in acts:
+            for v in self.forwardDict.get(u, []):
+                preds[v].append(u)
+
+        # Transitive closures as bitsets, built in one topological sweep each.
+        succ_bits: dict = {}
+        for u in reversed(topo):
+            bits = 0
+            for v in self.forwardDict.get(u, []):
+                bits |= (1 << index[v]) | succ_bits[v]
+            succ_bits[u] = bits
+        pred_bits: dict = {}
+        for v in topo:
+            bits = 0
+            for u in preds[v]:
+                bits |= (1 << index[u]) | pred_bits[u]
+            pred_bits[v] = bits
+
+        # Level = number of activities on the longest path from a to a sink.
+        level: dict = {}
+        for u in reversed(topo):
+            succs = self.forwardDict.get(u, [])
+            level[u] = 1 + max((level[v] for v in succs), default=0)
+
+        durations = [info[a]['duration'] for a in acts]
+        capacity = self._max_capacities()
+        demand = {a: self._resource_demand_vectors(a, capacity) for a in acts}
+
+        for a in acts:
+            d = info[a]['duration']
+            imm = self.forwardDict.get(a, [])
+            sb = succ_bits[a]
+            n_succ = sb.bit_count()
+            n_pred = pred_bits[a].bit_count()
+            tf = info[a]['ls'] - info[a]['es']
+
+            # Visit only the set bits: O(|successors|) per activity.
+            succ_dur = 0.0
+            bits = sb
+            while bits:
+                low = bits & -bits
+                succ_dur += durations[low.bit_length() - 1]
+                bits ^= low
+            imm_dur = sum(info[v]['duration'] for v in imm)
+
+            raw, scaled = demand[a]
+            res_req = float(sum(raw.values()))
+
+            entry = info[a]
+            entry['act_index'] = index[a]
+            entry['n_imm_succ'] = len(imm)
+            entry['n_imm_pred'] = len(preds[a])
+            entry['mts_exact'] = n_succ
+            entry['mtp_exact'] = n_pred
+            entry['level'] = level[a]
+            entry['lnrj'] = n - n_pred - n_succ
+            entry['ms_l'] = n_succ / level[a]
+            entry['lfs'] = tf / max(1, len(imm))
+            entry['grpw_imm'] = d + imm_dur
+            entry['rpw'] = d + succ_dur
+            entry['gprpw'] = (d + imm_dur) / d if d > 0 else 1.0 + imm_dur
+            entry['mtspt'] = succ_dur
+            entry['sts'] = succ_dur / n_succ if n_succ else 0.0
+            entry['tssk'] = n_succ / (tf + 1.0) if tf > -1.0 else float(n_succ)
+            entry['tts_alb'] = d + n_succ
+            entry['grr'] = res_req
+            entry['work_content'] = d * res_req
+            entry['trs'] = float(sum(scaled.values()))
+            entry['wrup'] = WRUP_W_SUCC * len(imm) + (1.0 - WRUP_W_SUCC) * entry['trs']
+
+        # Second pass: rules that combine a value with those of the immediate
+        # successors (needs work_content / slack of every activity first).
+        for a in acts:
+            imm = self.forwardDict.get(a, [])
+            entry = info[a]
+            entry['gcrr'] = entry['work_content'] + sum(info[v]['work_content'] for v in imm)
+            criticality = sum((1.0 + max(0.0, info[v]['ls'] - info[v]['es'])) ** (-WACRU_ALPHA)
+                              for v in imm)
+            entry['wacru'] = WACRU_W * criticality + (1.0 - WACRU_W) * entry['trs']
 
 #=========================================
 
@@ -2418,6 +2597,7 @@ class Pert:
         self.calculate_greatest_resource_demand()
         self.calculate_resource_requirement()
         self.calculate_gp_rules()
+        self.calculate_extended_priority_metrics(topo=topo)
 
         # ── 9) WBS aggregate float roll-up ───────────────────────────────
         self._compute_wbs_slack()
