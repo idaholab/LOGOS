@@ -68,8 +68,8 @@ def _static(key, direction, normalize=True, metric=None, table4_id=None, descrip
     return RuleSpec(key, direction, 'static', metric or key, normalize, table4_id, description)
 
 
-def _dynamic(key, direction, table4_id=None, description=''):
-    return RuleSpec(key, direction, 'dynamic', None, True, table4_id, description)
+def _dynamic(key, direction, table4_id=None, description='', normalize=True):
+    return RuleSpec(key, direction, 'dynamic', None, normalize, table4_id, description)
 
 
 # Insertion order is the historical order of ``Pert._list_priority_names``.
@@ -151,6 +151,25 @@ _RULES += [
     _static('max_lst', 'max', metric='ls', table4_id=54, description='Maximum latest start time'),
     _static('max_lft', 'max', metric='lf', table4_id=55, description='Maximum latest finish time'),
 ]
+
+# Table 4 dynamic rules added in Phase 3, evaluated by Pert._dynamic_rule_values.
+# Their values can be negative (msld, drc, maxsp) or infinite (drs), which
+# max-normalization would turn into flipped signs or NaN, so raw values are kept.
+_RULES += [
+    _dynamic('rsm', 'min', table4_id=36, description='Resource scheduling method', normalize=False),
+    _dynamic('estd', 'min', table4_id=31, description='Earliest start time (dynamic)', normalize=False),
+    _dynamic('eftd', 'min', table4_id=32, description='Earliest finish time (dynamic)', normalize=False),
+    _dynamic('msld', 'min', table4_id=33, description='Minimum slack (dynamic)', normalize=False),
+    _dynamic('drd', 'min', table4_id=26, description='Dynamic relative resource demand', normalize=False),
+    _dynamic('drc', 'min', table4_id=27, description='Dynamic remaining capacity', normalize=False),
+    _dynamic('drs', 'min', table4_id=28, description='Dynamic resource scarcity', normalize=False),
+    _dynamic('nondep', 'min', table4_id=34,
+             description='Least non-dependent eligible jobs (LOGOS interpretation)', normalize=False),
+    _dynamic('maxsp', 'max', table4_id=35, description='Maximum schedule pressure', normalize=False),
+]
+PHASE3_DYNAMIC_RULES = frozenset(
+    ('rsm', 'estd', 'eftd', 'msld', 'drd', 'drc', 'drs', 'nondep', 'maxsp'))
+"""Dynamic rules evaluated by ``Pert._dynamic_rule_values``."""
 
 PRIORITY_RULES: Dict[str, RuleSpec] = {spec.key: spec for spec in _RULES}
 """All rules accepted by ``Pert.priority_calculation()``, keyed by name."""

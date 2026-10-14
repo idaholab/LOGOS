@@ -29,6 +29,7 @@ from .outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, 
 from .validate_outage_data import OutageDataValidator
 from .cpm_utils import CUSTOM_PRIORITY_FUNCS, sigmoid_bipolar, sigmoid_inv, normalize_tuples
 from .priority_rules import (PRIORITY_RULE_NAMES, get_rule, EXTENDED_METRIC_KEYS,
+                             PHASE3_DYNAMIC_RULES as _PHASE3_DYNAMIC_RULES,
                              WACRU_W, WACRU_ALPHA, WRUP_W_SUCC)
 
 logging.basicConfig(level=logging.INFO)
@@ -6477,6 +6478,157 @@ class Pert:
         # GFP: i must start no earlier than when j finishes
         return j_end
 
+    def _dynamic_rule_values(self, rule: str, eligible: list, t_n: datetime) -> list:
+        """
+        Evaluate a Phase 3 dynamic priority rule for each eligible activity.
+
+        Definitions are the verified ones in ``doc/priority_rules_doc.md`` §7.
+        All times are hours since ``self.startTime``.  The rules read the
+        partial schedule: actual finishes of scheduled predecessors
+        (``Activity.endTime``) and, for ``drc``/``drs``, the capacity left
+        at ``t_n`` after the ongoing activities (``_build_capacity_snapshots``).
+        Without a schedule (e.g. the serial SGS, which ranks once before
+        scheduling) they reduce to their CPM counterparts at ``t_n``.
+
+        Parameters
+        ----------
+        rule : str
+            One of ``rsm``, ``estd``, ``eftd``, ``msld``, ``drd``, ``drc``,
+            ``drs``, ``nondep``, ``maxsp``.
+        eligible : list of Activity
+            Decision set D_t.
+        t_n : datetime
+            Current decision time.
+
+        Returns
+        -------
+        list of (Activity, float)
+        """
+        info = self.infoDict
+        t = (t_n - self.startTime).total_seconds() / 3600.0
+
+        if rule in ('estd', 'eftd', 'msld'):
+            out = []
+            for j in eligible:
+                es_dyn = max(t, info[j]['es'])
+                lead = getattr(j, 'mobilization_lead_hours', 0.0)
+                for p in self.backwardDict.get(j, []):
+                    end = p.endTime
+                    if end is not None:
+                        f = (end - self.startTime).total_seconds() / 3600.0
+                        es_dyn = max(es_dyn, f + self.lag_dict.get((p, j), 0.0) + lead)
+                if rule == 'estd':
+                    v = es_dyn
+                elif rule == 'eftd':
+                    v = es_dyn + self._effective_duration(j)
+                else:
+                    v = info[j]['ls'] - es_dyn
+                out.append((j, v))
+            return out
+
+        if rule == 'rsm':
+            # v(j) = max_{i≠j} max(0, t + d_j − LS_i)
+            ls = {a: info[a]['ls'] for a in eligible}
+            out = []
+            for j in eligible:
+                finish = t + self._effective_duration(j)
+                v = max((max(0.0, finish - ls[i]) for i in eligible if i is not j), default=0.0)
+                out.append((j, v))
+            return out
+
+        if rule == 'maxsp':
+            # v(j) = (t − LF_j) / (d_j · W_j); d_j·W_j is the remaining duration.
+            out = []
+            for j in eligible:
+                rem = self._effective_duration(j)
+                out.append((j, (t - info[j]['lf']) / (rem if rem > 0 else 1.0)))
+            return out
+
+        if rule == 'nondep':
+            # Eligible activities that are neither successors nor predecessors of j.
+            self._ensure_reachability()
+            bits = self._reach_bits
+            idx = self._reach_index
+            out = []
+            for j in eligible:
+                related = bits[j]
+                n = sum(1 for i in eligible
+                        if i is not j and not (related >> idx[i]) & 1)
+                out.append((j, float(n)))
+            return out
+
+        capacity = self._max_capacities()
+        demand = {j: self._resource_demand_vectors(j, capacity)[0] for j in eligible}
+
+        if rule == 'drd':
+            # v(j) = Σ_k r_jk / max_{h∈D_t} r_hk
+            peak: dict = {}
+            for raw in demand.values():
+                for k, q in raw.items():
+                    peak[k] = max(peak.get(k, 0), q)
+            return [(j, float(sum(q / peak[k] for k, q in demand[j].items() if peak[k] > 0)))
+                    for j in eligible]
+
+        # drc / drs: remaining capacity ã_k(t) after the ongoing activities.
+        remaining = self._remaining_capacity_at(t_n)
+        out = []
+        for j in eligible:
+            raw = demand[j]
+            if rule == 'drs':
+                v = 0.0
+                for k, q in raw.items():
+                    left = remaining.get(k, 0)
+                    v += q / left if left > 0 else math.inf
+            else:
+                # DRC: Σ_k (ã_k − r_jk) over the resources j uses.
+                v = float(sum(remaining.get(k, 0) - q for k, q in raw.items()))
+            out.append((j, v))
+        return out
+
+    def _remaining_capacity_at(self, t_n: datetime) -> dict:
+        """
+        Return ``{resource_id: units left at t_n}`` after ongoing activities.
+
+        Crew skills and equipment report units; locations report the number
+        of task slots (an activity occupies one slot per zone).  Uses
+        :meth:`_build_capacity_snapshots`, so it is consistent with the
+        feasibility checks of the parallel scheduler.
+        """
+        if not (self.crew_pool and self.equipment_pool and self.location_pool):
+            return {}
+        res_rem, eq_rem, loc_tasks_rem, _, grid = self._build_capacity_snapshots(t_n, t_n)
+        h = grid[0]
+        remaining = {k: v[h] for k, v in res_rem.items()}
+        remaining.update({k: v[h] for k, v in eq_rem.items()})
+        remaining.update({k: v[h] for k, v in loc_tasks_rem.items()})
+        return remaining
+
+    def _ensure_reachability(self) -> None:
+        """
+        Cache ``{Activity: bitset of all successors and predecessors}``.
+
+        Bit ``self._reach_index[a]`` is set when ``a`` is precedence-related
+        to the key activity.  Rebuilt when the activity set changes.
+        """
+        acts = list(self.forwardDict)
+        cached = getattr(self, '_reach_index', None)
+        if cached is not None and len(cached) == len(acts) and all(a in cached for a in acts):
+            return
+        index = {a: i for i, a in enumerate(acts)}
+        topo = list(nx.topological_sort(nx.DiGraph(self.forwardDict)))
+        succ = {}
+        for u in reversed(topo):
+            b = 0
+            for v in self.forwardDict.get(u, []):
+                b |= (1 << index[v]) | succ[v]
+            succ[u] = b
+        pred = {a: 0 for a in acts}
+        for v in topo:
+            for u in self.backwardDict.get(v, []):
+                pred[v] |= (1 << index[u]) | pred[u]
+        self._reach_index = index
+        self._reach_bits = {a: succ[a] | pred[a] for a in acts}
+
     def priority_calculation(self, eligible, priority_rule='LF', current_time: datetime = None):
         """Calculate activity priorities based on a named rule.
 
@@ -6503,6 +6655,9 @@ class Pert:
             wcs: worst case slack — LS_j - t; lower = higher urgency;
             acs: average case slack — (ES_j + LS_j) / 2 - t; lower = higher urgency;
             irsm: improved resource scheduling method — rr_j / (LS_j - t + 1); higher = higher urgency.
+            Phase 3 dynamic rules (doc/priority_rules_doc.md §7): rsm, estd,
+            eftd, msld, drd, drc, drs, nondep, maxsp.  All rules in
+            ``priority_rules.PRIORITY_RULES`` are accepted.
         current_time : datetime, optional
             Current scheduling time; required for wcs/acs/irsm.
 
@@ -6589,6 +6744,12 @@ class Pert:
                 data.append((j, v))
             priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1],
                                                tie_breaker=lambda x: self.infoDict[x[0]]['lf'])
+        elif spec.kind == 'dynamic' and rule in _PHASE3_DYNAMIC_RULES:
+            t_n = current_time if current_time else self.startTime
+            data = self._dynamic_rule_values(rule, eligible, t_n)
+            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1],
+                                               tie_breaker=lambda x: self.infoDict[x[0]]['lf'],
+                                               reverse=(spec.direction == 'max'))
         else:
             raise IOError(f"Priority rule '{rule}' is registered but has no implementation")
         # normalize

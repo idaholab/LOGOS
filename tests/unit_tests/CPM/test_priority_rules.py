@@ -226,3 +226,102 @@ def test_new_static_rule_produces_valid_schedule(rule):
     q = Pert.from_json_file(JSON_PATH, schema_path=SCHEMA)
     res = q.calculateSerialScheduleWithResources(priority_rule=rule)
     assert res['n_completed'] == res['n_activities']
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: dynamic Table 4 rules at a fixed decision time.
+# ---------------------------------------------------------------------------
+
+from src.CPM.priority_rules import PHASE3_DYNAMIC_RULES  # noqa: E402
+
+T0 = datetime(2026, 1, 1)
+
+
+def _dyn_pert():
+    """A(4)→C(3), B(2)→C, B→D(5); crew R cap 10 (A:4, B:6, C:2, D:5)."""
+    a = Activity('A', 4.0, required_resources=[{'skill_type': 'R', 'crew_count': 4}])
+    b = Activity('B', 2.0, required_resources=[{'skill_type': 'R', 'crew_count': 6}])
+    c = Activity('C', 3.0, required_resources=[{'skill_type': 'R', 'crew_count': 2}])
+    d = Activity('D', 5.0, required_resources=[{'skill_type': 'R', 'crew_count': 5}])
+    p = Pert(graph={a: [c], b: [c, d], c: [], d: []})
+    rp = ResourcePool()
+    rp.resources['R'] = ResourceAvailability(
+        'R', [{'start_date': T0, 'end_date': T0 + timedelta(days=30), 'available_count': 10}])
+    p.crew_pool, p.equipment_pool, p.location_pool = rp, EquipmentPool(), LocationPool()
+    p.startTime = T0
+    p.generateInfo()
+    p._reset_scheduling_state()
+    return p, a, b, c, d
+
+
+def _values(p, rule, eligible, hours):
+    return dict((x.name, v) for x, v in
+                p._dynamic_rule_values(rule, eligible, T0 + timedelta(hours=hours)))
+
+
+def test_dynamic_rules_registered():
+    for key in PHASE3_DYNAMIC_RULES:
+        assert PRIORITY_RULES[key].kind == 'dynamic'
+    assert PRIORITY_RULES['maxsp'].direction == 'max'
+
+
+def test_estd_eftd_msld_use_actual_finish():
+    p, a, b, c, d = _dyn_pert()
+    # CPM: ES_C = 4, LS_C = 2 (CPM horizon 7, LF_C = 7).  A actually finished late at 6.
+    a.startTime, a.endTime = T0 + timedelta(hours=2), T0 + timedelta(hours=6)
+    b.startTime, b.endTime = T0, T0 + timedelta(hours=2)
+    v = _values(p, 'estd', [c, d], 3)
+    assert v == {'C': 6.0, 'D': 3.0}            # C waits for A's actual finish; D at t
+    assert _values(p, 'eftd', [c, d], 3) == {'C': 9.0, 'D': 8.0}
+    ls_c, ls_d = p.infoDict[c]['ls'], p.infoDict[d]['ls']
+    assert _values(p, 'msld', [c, d], 3) == {'C': ls_c - 6.0, 'D': ls_d - 3.0}
+
+
+def test_rsm_and_maxsp():
+    p, a, b, c, d = _dyn_pert()
+    ls = {x.name: p.infoDict[x]['ls'] for x in (a, b)}
+    v = _values(p, 'rsm', [a, b], 1)
+    assert v['A'] == pytest.approx(max(0.0, 1 + 4 - ls['B']))
+    assert v['B'] == pytest.approx(max(0.0, 1 + 2 - ls['A']))
+    lf = {x.name: p.infoDict[x]['lf'] for x in (a, b)}
+    v = _values(p, 'maxsp', [a, b], 1)
+    assert v['A'] == pytest.approx((1 - lf['A']) / 4)
+    assert v['B'] == pytest.approx((1 - lf['B']) / 2)
+
+
+def test_drd_uses_eligible_peak():
+    p, a, b, c, d = _dyn_pert()
+    v = _values(p, 'drd', [a, b], 0)
+    assert v == {'A': pytest.approx(4 / 6), 'B': pytest.approx(1.0)}
+
+
+def test_drc_drs_use_remaining_capacity():
+    p, a, b, c, d = _dyn_pert()
+    # B is running at t=1 and holds 6 of 10 crew → 4 left.
+    b.startTime, b.endTime = T0, T0 + timedelta(hours=2)
+    p.ongoing = [b]
+    v = _values(p, 'drs', [a], 1)
+    assert v['A'] == pytest.approx(4 / 4)
+    assert _values(p, 'drc', [a], 1)['A'] == pytest.approx(4 - 4)
+    # D (5 crew) cannot fit in the 4 that remain: DRS is still finite (5/4).
+    assert _values(p, 'drs', [d], 1)['D'] == pytest.approx(5 / 4)
+
+
+def test_nondep_counts_unrelated_eligible():
+    p, a, b, c, d = _dyn_pert()
+    v = _values(p, 'nondep', [a, b, c, d], 0)
+    # A is unrelated to B and D; B to A; C to D; D to A and C.
+    assert v == {'A': 2.0, 'B': 1.0, 'C': 1.0, 'D': 2.0}
+
+
+@pytest.mark.parametrize('rule', sorted(PHASE3_DYNAMIC_RULES))
+def test_dynamic_rule_produces_valid_schedule(rule):
+    """Every dynamic rule schedules j301_1 completely (parallel and serial SGS)."""
+    from conftest import assert_valid_schedule
+    p = Pert.from_json_file(JSON_PATH, schema_path=SCHEMA)
+    p.calculateScheduleWithResources('max_use_res_ranked', priority_rule=rule)
+    assert len(p.completed) == len(p.infoDict)
+    assert_valid_schedule(p, rule)
+    q = Pert.from_json_file(JSON_PATH, schema_path=SCHEMA)
+    res = q.calculateSerialScheduleWithResources(priority_rule=rule)
+    assert res['n_completed'] == res['n_activities']
