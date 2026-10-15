@@ -45,6 +45,8 @@ class RuleSpec:
         the rule appears there.
     description : str
         Short human-readable name.
+    components : tuple of str
+        For ``kind == 'hybrid'`` only: the component rule keys.
     """
     key: str
     direction: Optional[str]
@@ -53,6 +55,7 @@ class RuleSpec:
     normalize: bool = True
     table4_id: Optional[int] = None
     description: str = ''
+    components: Tuple[str, ...] = ()
 
 
 # Weights of the composite rules (see doc/priority_rules_doc.md §5.7–5.8).
@@ -195,15 +198,62 @@ SEED_PRIORITY_RULES: Tuple[str, ...] = (
 """Rules the metaheuristics use to seed their initial populations/solutions."""
 
 
+HYBRID_PREFIX = 'hybrid:'
+"""Prefix of hybrid rule names, e.g. ``'hybrid:lrpw+scrr+ms_l'``."""
+
+
+def is_hybrid_rule(name: str) -> bool:
+    """Return True if ``name`` uses the hybrid-rule syntax."""
+    return isinstance(name, str) and name.lower().startswith(HYBRID_PREFIX)
+
+
+def _hybrid_spec(name: str) -> RuleSpec:
+    """
+    Build the :class:`RuleSpec` of a hybrid rule ``'hybrid:<a>+<b>[+<c>...]'``.
+
+    Following Nekoueian et al. (2023, §4.2), the component values are summed
+    when all components share a direction; when directions are mixed, the sum
+    of the min-rule values is divided by the sum of the max-rule values and
+    the minimum is selected.
+    """
+    body = name.lower()[len(HYBRID_PREFIX):]
+    keys = tuple(k.strip() for k in body.split('+'))
+    if len(keys) < 2 or any(not k for k in keys):
+        raise IOError(f"Invalid hybrid rule '{name}': expected 'hybrid:<rule>+<rule>[+...]'")
+    for k in keys:
+        spec = PRIORITY_RULES.get(k)
+        if spec is None:
+            raise IOError(f"Invalid hybrid rule '{name}': unknown component '{k}'")
+        if spec.kind == 'random':
+            raise IOError(f"Invalid hybrid rule '{name}': 'random' cannot be combined")
+    directions = {PRIORITY_RULES[k].direction for k in keys}
+    kinds = {PRIORITY_RULES[k].kind for k in keys}
+    return RuleSpec(
+        key=HYBRID_PREFIX + '+'.join(keys),
+        direction='max' if directions == {'max'} else 'min',
+        kind='hybrid',
+        metric=None,
+        normalize=False,
+        table4_id=None,
+        description=('dynamic ' if 'dynamic' in kinds else '') + 'hybrid of ' + ', '.join(keys),
+        components=keys,
+    )
+
+
 def get_rule(name: str) -> RuleSpec:
     """
     Return the :class:`RuleSpec` for ``name`` (case-insensitive).
 
+    ``name`` is a registered rule key or a hybrid rule
+    ``'hybrid:<a>+<b>[+<c>...]'`` built from registered keys.
+
     Raises
     ------
     IOError
-        If ``name`` is not a registered priority rule.
+        If ``name`` is not a registered priority rule or a valid hybrid.
     """
+    if is_hybrid_rule(name):
+        return _hybrid_spec(name)
     spec = PRIORITY_RULES.get(name.lower())
     if spec is None:
         raise IOError(f"Invalid priority rule: '{name}'")

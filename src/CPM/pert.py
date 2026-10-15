@@ -28,7 +28,7 @@ from .activity import Activity
 from .outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, load_outage_data
 from .validate_outage_data import OutageDataValidator
 from .cpm_utils import CUSTOM_PRIORITY_FUNCS, sigmoid_bipolar, sigmoid_inv, normalize_tuples
-from .priority_rules import (PRIORITY_RULE_NAMES, get_rule, EXTENDED_METRIC_KEYS,
+from .priority_rules import (PRIORITY_RULE_NAMES, get_rule, is_hybrid_rule, EXTENDED_METRIC_KEYS,
                              PHASE3_DYNAMIC_RULES as _PHASE3_DYNAMIC_RULES,
                              WACRU_W, WACRU_ALPHA, WRUP_W_SUCC)
 
@@ -4055,7 +4055,8 @@ class Pert:
                 act_name = act.returnName()
                 candidates[act]['value'] = self.priorities.get(act_name, 0.5)
         # use priority rules to compute candidate
-        elif value_assignment.lower() in self._list_priority_names:
+        elif (value_assignment.lower() in self._list_priority_names
+              or is_hybrid_rule(value_assignment)):
             # Sort by name first so priority_calculation receives a deterministic
             # input regardless of Python's hash-based set/dict iteration order
             # (PYTHONHASHSEED varies between process invocations).
@@ -6629,6 +6630,114 @@ class Pert:
         self._reach_index = index
         self._reach_bits = {a: succ[a] | pred[a] for a in acts}
 
+    def _rule_raw_values(self, spec, eligible: list, current_time: datetime = None) -> list:
+        """
+        Return the unsorted ``[(Activity, value), ...]`` of a non-random rule.
+
+        Shared by :meth:`priority_calculation` and the hybrid rules, so each
+        rule's value is defined in exactly one place.
+
+        Parameters
+        ----------
+        spec : RuleSpec
+            Registered rule (``kind`` is ``'static'`` or ``'dynamic'``).
+        eligible : list of Activity
+            Activities to evaluate.
+        current_time : datetime, optional
+            Decision time for dynamic rules (defaults to ``startTime``).
+        """
+        rule = spec.key
+        if spec.kind == 'static':
+            return [(a, self.infoDict[a][spec.metric]) for a in eligible]
+        t_n = current_time if current_time else self.startTime
+        if rule in _PHASE3_DYNAMIC_RULES:
+            return self._dynamic_rule_values(rule, eligible, t_n)
+        if rule == 'wcs':
+            # Worst Case Slack (Kolisch 1996, eq. 19):
+            #   v(j) = LS_j - max{ E(i,j) | i ∈ D_n, i ≠ j }
+            # Minimum v(j) → most urgent → sort ascending.
+            # When |D_n|=1 or no resource conflicts, reduces to classic MSLK (LS_j - t_n).
+            data = []
+            for j in eligible:
+                ls_j = self.infoDict[j]['ls']
+                others = [i for i in eligible if i is not j]
+                if others:
+                    worst = max(
+                        (self._compute_pairwise_E(j, i, t_n) - self.startTime).total_seconds() / 3600.0
+                        for i in others
+                    )
+                else:
+                    worst = (t_n - self.startTime).total_seconds() / 3600.0
+                data.append((j, ls_j - worst))
+            return data
+        if rule == 'acs':
+            # Average Case Slack (Kolisch 1996, eq. 23):
+            #   v(j) = LS_j - (1/|D_n|) * Σ_{i≠j} E(i,j)
+            # Minimum v(j) → most urgent → sort ascending.
+            data = []
+            for j in eligible:
+                ls_j = self.infoDict[j]['ls']
+                others = [i for i in eligible if i is not j]
+                if others:
+                    avg_displacement = sum(
+                        (self._compute_pairwise_E(j, i, t_n) - self.startTime).total_seconds() / 3600.0
+                        for i in others
+                    ) / len(eligible)   # divide by |D_n| per the paper
+                else:
+                    avg_displacement = (t_n - self.startTime).total_seconds() / 3600.0
+                data.append((j, ls_j - avg_displacement))
+            return data
+        if rule == 'irsm':
+            # Improved Resource Scheduling Method (Kolisch 1996, eq. 14):
+            #   v(j) = max{ 0, E(j,i) - LS_i | i ∈ D_n, i ≠ j }
+            # Minimum v(j) → least disruptive to others → sort ascending.
+            data = []
+            for j in eligible:
+                others = [i for i in eligible if i is not j]
+                if others:
+                    v = max(
+                        max(0.0,
+                            (self._compute_pairwise_E(i, j, t_n) - self.startTime).total_seconds() / 3600.0
+                            - self.infoDict[i]['ls'])
+                        for i in others
+                    )
+                else:
+                    v = 0.0
+                data.append((j, v))
+            return data
+        raise IOError(f"Priority rule '{rule}' is registered but has no implementation")
+
+    def _hybrid_rule_values(self, spec, eligible: list, current_time: datetime = None) -> list:
+        """
+        Combine the raw values of a hybrid rule's components.
+
+        Nekoueian et al. (2023, §4.2): when all components share a direction
+        the values are summed (``spec.direction`` is that direction); when
+        directions are mixed, the sum of the min-rule values is divided by
+        the sum of the max-rule values and the minimum is selected.  A
+        non-positive denominator gives ``+inf`` (lowest priority).
+
+        Returns
+        -------
+        list of (Activity, float)
+        """
+        mins = [0.0] * len(eligible)
+        maxs = [0.0] * len(eligible)
+        has_min = has_max = False
+        for key in spec.components:
+            comp = get_rule(key)
+            values = self._rule_raw_values(comp, eligible, current_time)
+            target = mins if comp.direction == 'min' else maxs
+            for i, (_, v) in enumerate(values):
+                target[i] += v
+            has_min |= comp.direction == 'min'
+            has_max |= comp.direction == 'max'
+        if not (has_min and has_max):
+            totals = mins if has_min else maxs
+            return [(a, totals[i]) for i, a in enumerate(eligible)]
+        return [(a, mins[i] / maxs[i] if maxs[i] > 0 else math.inf)
+                for i, a in enumerate(eligible)]
+
     def priority_calculation(self, eligible, priority_rule='LF', current_time: datetime = None):
         """Calculate activity priorities based on a named rule.
 
@@ -6677,7 +6786,7 @@ class Pert:
             # Direction and metric come from the registry (priority_rules.py).
             # Ties are broken by mehh_8000_b; with reverse=True the tie-breaker
             # is reversed too, which is the historical behavior.
-            data = [(a, self.infoDict[a][spec.metric]) for a in eligible]
+            data = self._rule_raw_values(spec, eligible)
             priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1],
                                                tie_breaker=lambda x: self.infoDict[x[0]]['mehh_8000_b'],
                                                reverse=(spec.direction == 'max'))
@@ -6685,68 +6794,16 @@ class Pert:
             random.shuffle(eligible)
             data = [(a, i) for i, a in enumerate(eligible)]
             priority = data
-        elif rule == 'wcs':
-            # Worst Case Slack (Kolisch 1996, eq. 19):
-            #   v(j) = LS_j - max{ E(i,j) | i ∈ D_n, i ≠ j }
-            # Minimum v(j) → most urgent → sort ascending.
-            # When |D_n|=1 or no resource conflicts, reduces to classic MSLK (LS_j - t_n).
-            t_n = current_time if current_time else self.startTime
-            data = []
-            for j in eligible:
-                ls_j = self.infoDict[j]['ls']
-                others = [i for i in eligible if i is not j]
-                if others:
-                    worst = max(
-                        (self._compute_pairwise_E(j, i, t_n) - self.startTime).total_seconds() / 3600.0
-                        for i in others
-                    )
-                else:
-                    worst = (t_n - self.startTime).total_seconds() / 3600.0
-                data.append((j, ls_j - worst))
+        elif rule in ('wcs', 'acs', 'irsm'):
+            # Kolisch (1996) slack rules; minimum value → most urgent.
+            data = self._rule_raw_values(spec, eligible, current_time)
             priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1],
                                                tie_breaker=lambda x: self.infoDict[x[0]]['lf'])
-        elif rule == 'acs':
-            # Average Case Slack (Kolisch 1996, eq. 23):
-            #   v(j) = LS_j - (1/|D_n|) * Σ_{i≠j} E(i,j)
-            # Minimum v(j) → most urgent → sort ascending.
-            t_n = current_time if current_time else self.startTime
-            data = []
-            for j in eligible:
-                ls_j = self.infoDict[j]['ls']
-                others = [i for i in eligible if i is not j]
-                if others:
-                    avg_displacement = sum(
-                        (self._compute_pairwise_E(j, i, t_n) - self.startTime).total_seconds() / 3600.0
-                        for i in others
-                    ) / len(eligible)   # divide by |D_n| per the paper
-                else:
-                    avg_displacement = (t_n - self.startTime).total_seconds() / 3600.0
-                data.append((j, ls_j - avg_displacement))
-            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1],
-                                               tie_breaker=lambda x: self.infoDict[x[0]]['lf'])
-        elif rule == 'irsm':
-            # Improved Resource Scheduling Method (Kolisch 1996, eq. 14):
-            #   v(j) = max{ 0, E(j,i) - LS_i | i ∈ D_n, i ≠ j }
-            # Minimum v(j) → least disruptive to others → sort ascending.
-            t_n = current_time if current_time else self.startTime
-            data = []
-            for j in eligible:
-                others = [i for i in eligible if i is not j]
-                if others:
-                    v = max(
-                        max(0.0,
-                            (self._compute_pairwise_E(i, j, t_n) - self.startTime).total_seconds() / 3600.0
-                            - self.infoDict[i]['ls'])
-                        for i in others
-                    )
-                else:
-                    v = 0.0
-                data.append((j, v))
-            priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1],
-                                               tie_breaker=lambda x: self.infoDict[x[0]]['lf'])
-        elif spec.kind == 'dynamic' and rule in _PHASE3_DYNAMIC_RULES:
-            t_n = current_time if current_time else self.startTime
-            data = self._dynamic_rule_values(rule, eligible, t_n)
+        elif spec.kind in ('dynamic', 'hybrid'):
+            if spec.kind == 'hybrid':
+                data = self._hybrid_rule_values(spec, eligible, current_time)
+            else:
+                data = self._rule_raw_values(spec, eligible, current_time)
             priority = self.sort_with_tie_rule(data, key_func=lambda x: x[1],
                                                tie_breaker=lambda x: self.infoDict[x[0]]['lf'],
                                                reverse=(spec.direction == 'max'))

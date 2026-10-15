@@ -4,6 +4,7 @@ Unit tests for priority_rules.py - the priority-rule registry.
 Run from repo root:
     pytest tests/unit_tests/CPM/test_priority_rules.py -v
 """
+import math
 import sys
 from pathlib import Path
 
@@ -317,6 +318,60 @@ def test_nondep_counts_unrelated_eligible():
 @pytest.mark.parametrize('rule', sorted(PHASE3_DYNAMIC_RULES))
 def test_dynamic_rule_produces_valid_schedule(rule):
     """Every dynamic rule schedules j301_1 completely (parallel and serial SGS)."""
+    from conftest import assert_valid_schedule
+    p = Pert.from_json_file(JSON_PATH, schema_path=SCHEMA)
+    p.calculateScheduleWithResources('max_use_res_ranked', priority_rule=rule)
+    assert len(p.completed) == len(p.infoDict)
+    assert_valid_schedule(p, rule)
+    q = Pert.from_json_file(JSON_PATH, schema_path=SCHEMA)
+    res = q.calculateSerialScheduleWithResources(priority_rule=rule)
+    assert res['n_completed'] == res['n_activities']
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: hybrid rules (Nekoueian et al. 2023, §4.2).
+# ---------------------------------------------------------------------------
+
+from src.CPM.priority_rules import is_hybrid_rule  # noqa: E402
+
+
+def test_hybrid_spec_parsing():
+    s = get_rule('hybrid:LRPW+scrr')
+    assert s.kind == 'hybrid' and s.key == 'hybrid:lrpw+scrr'
+    assert s.components == ('lrpw', 'scrr') and s.direction == 'min'
+    assert get_rule('hybrid:rpw+grr').direction == 'max'
+    assert get_rule('hybrid:lrpw+ms_l').direction == 'min'     # mixed → divide, min
+    assert is_hybrid_rule('hybrid:lf+ls') and not is_hybrid_rule('lf')
+    for bad in ('hybrid:lrpw', 'hybrid:lrpw+nope', 'hybrid:lrpw+random', 'hybrid:+lf'):
+        with pytest.raises(IOError):
+            get_rule(bad)
+
+
+def test_hybrid_same_direction_sums(fig):
+    """Same-direction hybrid sums values: paper's LRPW+SCRR example adds the two."""
+    p, info = fig
+    acts = {a.name: a for a in p.forwardDict}
+    vals = dict((a.name, v) for a, v in
+                p._hybrid_rule_values(get_rule('hybrid:lrpw+scrr'), [acts['1'], acts['5']]))
+    # Paper: (28 + 23, 25 + 59) = (51, 84) with the 3→6 link; 28 → 23 without it.
+    assert vals == {'1': pytest.approx(23 + 23), '5': pytest.approx(25 + 59)}
+    order = [a.name for a, _, _ in p.priority_calculation([acts['1'], acts['5']], 'hybrid:lrpw+scrr')]
+    assert order == ['1', '5']                                  # minimum selected first
+
+
+def test_hybrid_mixed_direction_divides(fig):
+    p, info = fig
+    acts = [a for a in p.forwardDict if a.name in ('1', '5', '12')]
+    vals = dict((a.name, v) for a, v in
+                p._hybrid_rule_values(get_rule('hybrid:lrpw+ms_l'), acts))
+    assert vals['1'] == pytest.approx(info['1']['rpw'] / info['1']['ms_l'])
+    assert vals['12'] == math.inf                               # ms_l = 0 → lowest priority
+
+
+@pytest.mark.parametrize('rule', ['hybrid:lrpw+scrr', 'hybrid:lrpw+ms_l',
+                                  'hybrid:lrpw+scrr+ms_l', 'hybrid:lrpw+ms_l+msld',
+                                  'hybrid:scrr+msld', 'hybrid:rpw+grr'])
+def test_hybrid_rule_produces_valid_schedule(rule):
     from conftest import assert_valid_schedule
     p = Pert.from_json_file(JSON_PATH, schema_path=SCHEMA)
     p.calculateScheduleWithResources('max_use_res_ranked', priority_rule=rule)
