@@ -6546,7 +6546,12 @@ class Pert:
             return out
 
         if rule == 'nondep':
-            # Eligible activities that are neither successors nor predecessors of j.
+            # LOGOS interpretation (Cooper 1976 unavailable): eligible
+            # activities that are neither successors nor predecessors of j.
+            # In a parallel SGS all eligible activities have their
+            # predecessors finished, so no two of them are precedence-related
+            # and every value is |D_t| − 1: the rule then ties throughout and
+            # ranks by its ``lf`` tie-breaker.
             self._ensure_reachability()
             bits = self._reach_bits
             idx = self._reach_index
