@@ -103,7 +103,7 @@ def test_static_rule_follows_registered_direction(pert, rule):
 
 
 # ---------------------------------------------------------------------------
-# Phase 2: static Table 4 metrics on the worked example of Nekoueian,
+# Static Table 4 metrics on the worked example of Nekoueian,
 # Servranckx & Vanhoucke (2023), Fig. 1c / Table 3, alternatives ignored.
 # ---------------------------------------------------------------------------
 
@@ -230,10 +230,10 @@ def test_new_static_rule_produces_valid_schedule(rule):
 
 
 # ---------------------------------------------------------------------------
-# Phase 3: dynamic Table 4 rules at a fixed decision time.
+# Dynamic Table 4 rules at a fixed decision time.
 # ---------------------------------------------------------------------------
 
-from src.CPM.priority_rules import PHASE3_DYNAMIC_RULES  # noqa: E402
+from src.CPM.priority_rules import DYNAMIC_RULES  # noqa: E402
 
 T0 = datetime(2026, 1, 1)
 
@@ -261,7 +261,7 @@ def _values(p, rule, eligible, hours):
 
 
 def test_dynamic_rules_registered():
-    for key in PHASE3_DYNAMIC_RULES:
+    for key in DYNAMIC_RULES:
         assert PRIORITY_RULES[key].kind == 'dynamic'
     assert PRIORITY_RULES['maxsp'].direction == 'max'
 
@@ -315,7 +315,7 @@ def test_nondep_counts_unrelated_eligible():
     assert v == {'A': 2.0, 'B': 1.0, 'C': 1.0, 'D': 2.0}
 
 
-@pytest.mark.parametrize('rule', sorted(PHASE3_DYNAMIC_RULES))
+@pytest.mark.parametrize('rule', sorted(DYNAMIC_RULES))
 def test_dynamic_rule_produces_valid_schedule(rule):
     """Every dynamic rule schedules j301_1 completely (parallel and serial SGS)."""
     from conftest import assert_valid_schedule
@@ -329,7 +329,7 @@ def test_dynamic_rule_produces_valid_schedule(rule):
 
 
 # ---------------------------------------------------------------------------
-# Phase 4: hybrid rules (Nekoueian et al. 2023, §4.2).
+# Hybrid rules (Nekoueian et al. 2023, §4.2).
 # ---------------------------------------------------------------------------
 
 from src.CPM.priority_rules import is_hybrid_rule  # noqa: E402

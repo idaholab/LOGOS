@@ -51,7 +51,7 @@ class RuleSpec:
     components: Tuple[str, ...] = ()
 
 
-# Weights of the composite rules (see doc/priority_rules_doc.md §5.7–5.8).
+# Weights of the composite rules.
 WRUP_W_SUCC: float = 0.7
 """WRUP weight on the immediate-successor count (Liu et al. 2025, Table A1)."""
 WACRU_W: float = 0.3
@@ -95,7 +95,7 @@ _RULES += [
     _dynamic('irsm', 'min', description='Improved resource scheduling method (Kolisch 1996)'),
 ]
 
-# Table 4 rules added in Phase 2 (static).  Appended after the legacy rules so
+# Static Table 4 rules.  Appended after the legacy rules so
 # the legacy order of PRIORITY_RULE_NAMES is unchanged.
 _RULES += [
     # Activity information
@@ -143,7 +143,7 @@ _RULES += [
     _static('max_lft', 'max', metric='lf', description='Maximum latest finish time'),
 ]
 
-# Table 4 dynamic rules added in Phase 3, evaluated by Pert._dynamic_rule_values.
+# Dynamic Table 4 rules, evaluated by Pert._dynamic_rule_values.
 # Their values can be negative (msld, drc, maxsp) or infinite (drs), which
 # max-normalization would turn into flipped signs or NaN, so raw values are kept.
 _RULES += [
@@ -158,7 +158,7 @@ _RULES += [
              description='Least non-dependent eligible jobs (LOGOS interpretation)', normalize=False),
     _dynamic('maxsp', 'max', description='Maximum schedule pressure', normalize=False),
 ]
-PHASE3_DYNAMIC_RULES = frozenset(
+DYNAMIC_RULES = frozenset(
     ('rsm', 'estd', 'eftd', 'msld', 'drd', 'drc', 'drs', 'nondep', 'maxsp'))
 """Dynamic rules evaluated by ``Pert._dynamic_rule_values``."""
 

@@ -29,7 +29,7 @@ from .outage_data import ResourcePool, EquipmentPool, LocationPool, OutageData, 
 from .validate_outage_data import OutageDataValidator
 from .cpm_utils import CUSTOM_PRIORITY_FUNCS, sigmoid_bipolar, sigmoid_inv, normalize_tuples
 from .priority_rules import (PRIORITY_RULE_NAMES, get_rule, is_hybrid_rule, EXTENDED_METRIC_KEYS,
-                             PHASE3_DYNAMIC_RULES as _PHASE3_DYNAMIC_RULES,
+                             DYNAMIC_RULES as _DYNAMIC_RULES,
                              WACRU_W, WACRU_ALPHA, WRUP_W_SUCC)
 
 logging.basicConfig(level=logging.INFO)
@@ -1085,7 +1085,6 @@ class Pert:
         """
         Compute the static metrics behind the Table 4 priority rules.
 
-        Definitions are the verified ones in ``doc/priority_rules_doc.md``.
         Unlike the path-count DPs used for ``mts``/``mtp``/``grpw``, successor
         and predecessor sets here are exact: each activity's transitive
         closure is held as a Python-int bitset, so a shared descendant is
@@ -6481,9 +6480,8 @@ class Pert:
 
     def _dynamic_rule_values(self, rule: str, eligible: list, t_n: datetime) -> list:
         """
-        Evaluate a Phase 3 dynamic priority rule for each eligible activity.
+        Evaluate a dynamic priority rule for each eligible activity.
 
-        Definitions are the verified ones in ``doc/priority_rules_doc.md`` §7.
         All times are hours since ``self.startTime``.  The rules read the
         partial schedule: actual finishes of scheduled predecessors
         (``Activity.endTime``) and, for ``drc``/``drs``, the capacity left
@@ -6655,7 +6653,7 @@ class Pert:
         if spec.kind == 'static':
             return [(a, self.infoDict[a][spec.metric]) for a in eligible]
         t_n = current_time if current_time else self.startTime
-        if rule in _PHASE3_DYNAMIC_RULES:
+        if rule in _DYNAMIC_RULES:
             return self._dynamic_rule_values(rule, eligible, t_n)
         if rule == 'wcs':
             # Worst Case Slack (Kolisch 1996, eq. 19):
@@ -6769,7 +6767,7 @@ class Pert:
             wcs: worst case slack — LS_j - t; lower = higher urgency;
             acs: average case slack — (ES_j + LS_j) / 2 - t; lower = higher urgency;
             irsm: improved resource scheduling method — rr_j / (LS_j - t + 1); higher = higher urgency.
-            Phase 3 dynamic rules (doc/priority_rules_doc.md §7): rsm, estd,
+            Dynamic rules: rsm, estd,
             eftd, msld, drd, drc, drs, nondep, maxsp.  All rules in
             ``priority_rules.PRIORITY_RULES`` are accepted.
         current_time : datetime, optional
