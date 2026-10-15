@@ -6,9 +6,6 @@ Single source of truth for every priority rule accepted by
 dynamic, which ``infoDict`` metric it reads, and whether the raw values are
 normalized.  The metaheuristics (``ga.py``, ``gga.py``, ``gans.py``,
 ``rcpsp_alns.py``) take their seeding rules from :data:`SEED_PRIORITY_RULES`.
-
-See ``doc/priority_rules_doc.md`` for the definition of every rule and
-``doc/priority_rules_dev.md`` for the rules still to be implemented.
 """
 from __future__ import annotations
 
@@ -40,9 +37,6 @@ class RuleSpec:
     normalize : bool
         Whether the raw values are scaled by their maximum
         (``normalize_tuples``) before being returned.
-    table4_id : int or None
-        Rule ID in Table 4 of Nekoueian, Servranckx & Vanhoucke (2023), when
-        the rule appears there.
     description : str
         Short human-readable name.
     components : tuple of str
@@ -53,7 +47,6 @@ class RuleSpec:
     kind: str
     metric: Optional[str] = None
     normalize: bool = True
-    table4_id: Optional[int] = None
     description: str = ''
     components: Tuple[str, ...] = ()
 
@@ -67,27 +60,26 @@ WACRU_ALPHA: float = 0.5
 """WACRU exponent on successor slack (Wang et al. 2017)."""
 
 
-def _static(key, direction, normalize=True, metric=None, table4_id=None, description=''):
-    return RuleSpec(key, direction, 'static', metric or key, normalize, table4_id, description)
+def _static(key, direction, normalize=True, metric=None, description=''):
+    return RuleSpec(key, direction, 'static', metric or key, normalize, description)
 
 
-def _dynamic(key, direction, table4_id=None, description='', normalize=True):
-    return RuleSpec(key, direction, 'dynamic', None, normalize, table4_id, description)
+def _dynamic(key, direction, description='', normalize=True):
+    return RuleSpec(key, direction, 'dynamic', None, normalize, description)
 
 
 # Insertion order is the historical order of ``Pert._list_priority_names``.
 _RULES: List[RuleSpec] = [
-    _static('lf', 'min', table4_id=17, description='Latest finish time'),
-    _static('ls', 'min', table4_id=16, description='Latest start time'),
-    _static('ef', 'min', table4_id=15, description='Earliest finish time'),
-    _static('es', 'min', table4_id=14, description='Earliest start time'),
-    _static('duration', 'min', table4_id=2, description='Shortest processing time'),
-    RuleSpec('random', None, 'random', None, True, 37, 'Random'),
-    _static('mts', 'max', table4_id=5, description='Most total successors (path count)'),
+    _static('lf', 'min', description='Latest finish time'),
+    _static('ls', 'min', description='Latest start time'),
+    _static('ef', 'min', description='Earliest finish time'),
+    _static('es', 'min', description='Earliest start time'),
+    _static('duration', 'min', description='Shortest processing time'),
+    RuleSpec('random', None, 'random', None, True, 'Random'),
+    _static('mts', 'max', description='Most total successors (path count)'),
     _static('mtp', 'max', description='Most total predecessors (path count)'),
-    _static('grpw', 'max', table4_id=11,
-            description='Rank positional weight over predecessors (LOGOS variant)'),
-    _static('grd', 'max', table4_id=20, description='Greatest resource demand'),
+    _static('grpw', 'max', description='Rank positional weight over predecessors (LOGOS variant)'),
+    _static('grd', 'max', description='Greatest resource demand'),
     _static('rr', 'max', normalize=False, description='Fraction of resource types required'),
     _static('avgrr', 'max', normalize=False, description='Average normalized resource requirement'),
     _static('maxrr', 'max', normalize=False, description='Maximum normalized resource requirement'),
@@ -107,68 +99,64 @@ _RULES += [
 # the legacy order of PRIORITY_RULE_NAMES is unchanged.
 _RULES += [
     # Activity information
-    _static('lpt', 'max', metric='duration', table4_id=1, description='Longest processing time'),
-    _static('act_index', 'min', table4_id=43, description='Minimum task number (input order)'),
+    _static('lpt', 'max', metric='duration', description='Longest processing time'),
+    _static('act_index', 'min', description='Minimum task number (input order)'),
     # Network information
-    _static('mis', 'max', metric='n_imm_succ', table4_id=3, description='Most immediate successors'),
-    _static('lis', 'min', metric='n_imm_succ', table4_id=4, description='Least immediate successors'),
-    _static('mts_exact', 'max', table4_id=5, description='Most total successors (exact count)'),
+    _static('mis', 'max', metric='n_imm_succ', description='Most immediate successors'),
+    _static('lis', 'min', metric='n_imm_succ', description='Least immediate successors'),
+    _static('mts_exact', 'max', description='Most total successors (exact count)'),
     _static('mtp_exact', 'max', description='Most total predecessors (exact count)'),
-    _static('lts', 'min', metric='mts_exact', table4_id=6, description='Least total successors'),
-    _static('np', 'min', metric='n_imm_pred', table4_id=38,
+    _static('lts', 'min', metric='mts_exact', description='Least total successors'),
+    _static('np', 'min', metric='n_imm_pred',
             description='Least immediate predecessors (activity-level adaptation)'),
-    _static('lfs', 'min', table4_id=7, description='Least float per immediate successor'),
-    _static('lnrj', 'min', table4_id=8, description='Least non-related jobs'),
-    _static('lpf', 'max', metric='level', table4_id=9,
-            description='Longest path following (activity count)'),
-    _static('ms_l', 'max', table4_id=10, description='Most total successors per level'),
-    _static('grpw_imm', 'max', table4_id=11,
+    _static('lfs', 'min', description='Least float per immediate successor'),
+    _static('lnrj', 'min', description='Least non-related jobs'),
+    _static('lpf', 'max', metric='level', description='Longest path following (activity count)'),
+    _static('ms_l', 'max', description='Most total successors per level'),
+    _static('grpw_imm', 'max',
             description='Greatest rank positional weight (immediate successors)'),
-    _static('rpw', 'max', table4_id=11, description='Rank positional weight (all successors)'),
-    _static('gprpw', 'max', table4_id=12,
-            description='Greatest proportional rank positional weight'),
-    _static('lrpw', 'min', metric='rpw', table4_id=13,
+    _static('rpw', 'max', description='Rank positional weight (all successors)'),
+    _static('gprpw', 'max', description='Greatest proportional rank positional weight'),
+    _static('lrpw', 'min', metric='rpw',
             description='Least rank positional weight (all successors)'),
-    _static('lrpw_imm', 'min', metric='grpw_imm', table4_id=13,
+    _static('lrpw_imm', 'min', metric='grpw_imm',
             description='Least rank positional weight (immediate successors)'),
-    _static('mtspt', 'max', table4_id=19, description='Most total successors processing time'),
-    _static('tts_alb', 'max', table4_id=45, description='Task time plus total successors'),
-    _static('sts', 'max', table4_id=46, description='Maximum average time of total successors'),
-    _static('tssk', 'max', table4_id=47, description='Total successors divided by (slack + 1)'),
+    _static('mtspt', 'max', description='Most total successors processing time'),
+    _static('tts_alb', 'max', description='Task time plus total successors'),
+    _static('sts', 'max', description='Maximum average time of total successors'),
+    _static('tssk', 'max', description='Total successors divided by (slack + 1)'),
     # Resource information
-    _static('grr', 'max', table4_id=20, description='Greatest resource requirement'),
-    _static('srr', 'min', metric='grr', table4_id=21, description='Smallest resource requirement'),
-    _static('srd', 'min', metric='grd', table4_id=21, description='Smallest resource demand'),
-    _static('gcrr', 'max', table4_id=22,
+    _static('grr', 'max', description='Greatest resource requirement'),
+    _static('srr', 'min', metric='grr', description='Smallest resource requirement'),
+    _static('srd', 'min', metric='grd', description='Smallest resource demand'),
+    _static('gcrr', 'max',
             description='Greatest cumulative resource work content (immediate successors)'),
-    _static('scrr', 'min', metric='gcrr', table4_id=23,
+    _static('scrr', 'min', metric='gcrr',
             description='Smallest cumulative resource work content (immediate successors)'),
-    _static('trd', 'min', metric='grr', table4_id=24, description='Total resource demand'),
-    _static('trs', 'min', table4_id=25, description='Total resource scarcity'),
-    _static('wacru', 'max', table4_id=29,
-            description='Weighted activity criticality and resource utilization'),
-    _static('wrup', 'max', table4_id=30,
-            description='Weighted resource utilization and precedence'),
+    _static('trd', 'min', metric='grr', description='Total resource demand'),
+    _static('trs', 'min', description='Total resource scarcity'),
+    _static('wacru', 'max', description='Weighted activity criticality and resource utilization'),
+    _static('wrup', 'max', description='Weighted resource utilization and precedence'),
     # Scheduling information
-    _static('mslk', 'min', metric='slack', table4_id=18, description='Minimum slack'),
-    _static('max_lst', 'max', metric='ls', table4_id=54, description='Maximum latest start time'),
-    _static('max_lft', 'max', metric='lf', table4_id=55, description='Maximum latest finish time'),
+    _static('mslk', 'min', metric='slack', description='Minimum slack'),
+    _static('max_lst', 'max', metric='ls', description='Maximum latest start time'),
+    _static('max_lft', 'max', metric='lf', description='Maximum latest finish time'),
 ]
 
 # Table 4 dynamic rules added in Phase 3, evaluated by Pert._dynamic_rule_values.
 # Their values can be negative (msld, drc, maxsp) or infinite (drs), which
 # max-normalization would turn into flipped signs or NaN, so raw values are kept.
 _RULES += [
-    _dynamic('rsm', 'min', table4_id=36, description='Resource scheduling method', normalize=False),
-    _dynamic('estd', 'min', table4_id=31, description='Earliest start time (dynamic)', normalize=False),
-    _dynamic('eftd', 'min', table4_id=32, description='Earliest finish time (dynamic)', normalize=False),
-    _dynamic('msld', 'min', table4_id=33, description='Minimum slack (dynamic)', normalize=False),
-    _dynamic('drd', 'min', table4_id=26, description='Dynamic relative resource demand', normalize=False),
-    _dynamic('drc', 'min', table4_id=27, description='Dynamic remaining capacity', normalize=False),
-    _dynamic('drs', 'min', table4_id=28, description='Dynamic resource scarcity', normalize=False),
-    _dynamic('nondep', 'min', table4_id=34,
+    _dynamic('rsm', 'min', description='Resource scheduling method', normalize=False),
+    _dynamic('estd', 'min', description='Earliest start time (dynamic)', normalize=False),
+    _dynamic('eftd', 'min', description='Earliest finish time (dynamic)', normalize=False),
+    _dynamic('msld', 'min', description='Minimum slack (dynamic)', normalize=False),
+    _dynamic('drd', 'min', description='Dynamic relative resource demand', normalize=False),
+    _dynamic('drc', 'min', description='Dynamic remaining capacity', normalize=False),
+    _dynamic('drs', 'min', description='Dynamic resource scarcity', normalize=False),
+    _dynamic('nondep', 'min',
              description='Least non-dependent eligible jobs (LOGOS interpretation)', normalize=False),
-    _dynamic('maxsp', 'max', table4_id=35, description='Maximum schedule pressure', normalize=False),
+    _dynamic('maxsp', 'max', description='Maximum schedule pressure', normalize=False),
 ]
 PHASE3_DYNAMIC_RULES = frozenset(
     ('rsm', 'estd', 'eftd', 'msld', 'drd', 'drc', 'drs', 'nondep', 'maxsp'))
@@ -234,7 +222,6 @@ def _hybrid_spec(name: str) -> RuleSpec:
         kind='hybrid',
         metric=None,
         normalize=False,
-        table4_id=None,
         description=('dynamic ' if 'dynamic' in kinds else '') + 'hybrid of ' + ', '.join(keys),
         components=keys,
     )
