@@ -124,6 +124,10 @@
     type  = 'RavenPython'
     input = 'run_cpm_pytests.py test_raven_interface.py'
   [../]
+  [./cpm_priority_rules]
+    type  = 'RavenPython'
+    input = 'run_cpm_pytests.py test_priority_rules.py'
+  [../]
   [./cpm_rcpsp_alns]
     type  = 'RavenPython'
     input = 'run_cpm_pytests.py test_rcpsp_alns.py'
