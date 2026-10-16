@@ -698,6 +698,10 @@ class Pert:
         - project duration is the maximum ``ef`` across all sink nodes;
         - the backward pass propagates ``lf=project_duration`` from every sink.
         """
+        # Topology may have changed (edges only, same activity set), so drop
+        # the precedence-closure cache; _ensure_reachability rebuilds it lazily.
+        self._reach_index = None
+        self._reach_bits = None
         if not self.forwardDict:
             return
 
@@ -6612,7 +6616,8 @@ class Pert:
         Cache ``{Activity: bitset of all successors and predecessors}``.
 
         Bit ``self._reach_index[a]`` is set when ``a`` is precedence-related
-        to the key activity.  Rebuilt when the activity set changes.
+        to the key activity.  Rebuilt when the activity set changes or after
+        :meth:`generateInfo` (which invalidates the cache on every call).
         """
         acts = list(self.forwardDict)
         cached = getattr(self, '_reach_index', None)
