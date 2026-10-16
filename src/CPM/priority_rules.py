@@ -95,7 +95,7 @@ _RULES += [
     _dynamic('irsm', 'min', description='Improved resource scheduling method (Kolisch 1996)'),
 ]
 
-# Static Table 4 rules.  Appended after the legacy rules so
+# Static extended rules.  Appended after the legacy rules so
 # the legacy order of PRIORITY_RULE_NAMES is unchanged.
 _RULES += [
     # Activity information
@@ -143,7 +143,7 @@ _RULES += [
     _static('max_lft', 'max', metric='lf', description='Maximum latest finish time'),
 ]
 
-# Dynamic Table 4 rules, evaluated by Pert._dynamic_rule_values.
+# Dynamic extended rules, evaluated by Pert._dynamic_rule_values.
 # Their values can be negative (msld, drc, maxsp) or infinite (drs), which
 # max-normalization would turn into flipped signs or NaN, so raw values are kept.
 _RULES += [

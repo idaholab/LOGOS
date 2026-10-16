@@ -446,7 +446,7 @@ class Pert:
                 "minrr":0,
                 "window_infeasible": False,
             }
-            # Table 4 metrics; filled by calculate_extended_priority_metrics()
+            # Extended metrics; filled by calculate_extended_priority_metrics()
             self.infoDict[activity].update(dict.fromkeys(EXTENDED_METRIC_KEYS, 0))
 
     def returnGraph(self):
@@ -1087,7 +1087,7 @@ class Pert:
 
     def calculate_extended_priority_metrics(self, topo: list | None = None):
         """
-        Compute the static metrics behind the Table 4 priority rules.
+        Compute the static metrics behind the extended priority rules.
 
         Unlike the path-count DPs used for ``mts``/``mtp``/``grpw``, successor
         and predecessor sets here are exact: each activity's transitive
