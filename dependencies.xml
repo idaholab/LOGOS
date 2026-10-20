@@ -12,6 +12,13 @@
     <networkx source='pip'/>
     <plotly source='pip'/>
     <pandas source='pip'/>
+    <!-- pyarrow 26.0 refuses to import with NumPy < 2 ("pyarrow requires NumPy 2.0 or
+         newer"), which breaks `import pandas` whenever pyarrow is installed. RAVEN pins
+         numpy 1.26, so keep pyarrow on 25.0 (supports NumPy >= 1.25, Python 3.10-3.14).
+         library_handler.py installs pins as `==25.0.*`, so this cannot be written as
+         an upper bound; revisit when RAVEN moves to NumPy 2. LOGOS does not import
+         pyarrow itself, so skip_check keeps RAVEN's startup check from requiring it. -->
+    <pyarrow source='pip' skip_check="True">25.0</pyarrow>
     <!-- Test / optional-algorithm deps. These are installed into the LOGOS env
          (so the pytest suite runs in CI and the GA/ALNS backends are available),
          but marked skip_check so RAVEN's startup library check does NOT fail when

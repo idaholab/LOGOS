@@ -57,17 +57,14 @@ from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
 import networkx as nx
 import numpy as np
 
+from .priority_rules import SEED_PRIORITY_RULES as _SEED_PRIORITY_RULES
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Priority rules for initial-population seeding (mirrors ga.py)
 # ---------------------------------------------------------------------------
-PRIORITY_RULES: List[str] = [
-    'es', 'ef', 'ls', 'lf', 'duration', 'random',
-    'mts', 'mtp', 'grpw', 'grd', 'rr', 'avgrr',
-    'maxrr', 'minrr', 'irsm', 'wcs', 'acs',
-    'mehh_8000_b', 'mehh_3375_b', 'mehh_1000_b', 'mehh_125_b', 'gphh_b',
-]
+PRIORITY_RULES: List[str] = list(_SEED_PRIORITY_RULES)  # defined in priority_rules.py
 
 # Type alias for readability
 Individual = Dict[str, Any]   # keys: 'lags': List[float], 'fitness': float
