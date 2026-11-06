@@ -3,7 +3,19 @@
  [./logos_rcpsp]
   type  = 'LogosRun'
   input = 'test_scheduling.xml'
-  UnorderedCsv = 'test_scheduling.csv'
+  output = 'test_scheduling.csv'
+  skip_if_OS = 'windows'
+ [../]
+
+ # RCPSP is a MILP; CBC can return a different but equally optimal schedule
+ # depending on solver version/platform, so comparing the full decision
+ # variable CSV (UnorderedCsv) is flaky across CI runners. This check only
+ # verifies the optimal objective value (MinCompleteTime), which is what this
+ # test is meant to verify.
+ [./logos_rcpsp_objective]
+  type  = 'RavenPython'
+  input = 'check_min_complete_time.py'
+  prereq = 'logos_rcpsp'
   skip_if_OS = 'windows'
  [../]
 

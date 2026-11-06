@@ -16,13 +16,6 @@ import six
 from six import iterkeys, iteritems, itervalues
 import pyomo.environ as pyomo
 from pyomo.opt import SolverFactory, TerminationCondition
-
-try:
-  import pyomo.pysp.util.rapper as rapper
-  from pyomo.pysp.scenariotree.tree_structure_model import CreateAbstractScenarioTreeModel
-except ImportError:
-  import pysp.util.rapper as rapper
-  from pysp.scenariotree.tree_structure_model import CreateAbstractScenarioTreeModel
 #External Modules End--------------------------------------------------------------------------------
 
 #Internal Modules------------------------------------------------------------------------------------
@@ -30,11 +23,23 @@ try:
   from CapitalInvestments.investment_utils import investmentUtils as utils
   from CapitalInvestments.investment_utils import distanceUtils
   from .ModelBase import ModelBase
+  from _py312_compat import ensureImpModule
 except ImportError:
   from LOGOS.src.CapitalInvestments.investment_utils import investmentUtils as utils
   from LOGOS.src.CapitalInvestments.investment_utils import distanceUtils
   from LOGOS.src.CapitalInvestments.PyomoModels.ModelBase import ModelBase
+  from LOGOS.src._py312_compat import ensureImpModule
 #Internal Modules End--------------------------------------------------------------------------------
+
+# pysp (and pyutilib, which it depends on) still does `import imp`, removed in
+# Python 3.12; shim it in before importing either pyomo.pysp or LOGOS's vendored pysp
+ensureImpModule()
+try:
+  import pyomo.pysp.util.rapper as rapper
+  from pyomo.pysp.scenariotree.tree_structure_model import CreateAbstractScenarioTreeModel
+except ImportError:
+  import pysp.util.rapper as rapper
+  from pysp.scenariotree.tree_structure_model import CreateAbstractScenarioTreeModel
 
 # check pyomo version
 import pyomo as pyo

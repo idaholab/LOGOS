@@ -15,13 +15,17 @@ from pyomo.opt import SolverFactory, TerminationCondition
 
 #Internal Modules------------------------------------------------------------------------------------
 try:
+  from LOGOS.src._py312_compat import ensureImpModule
   from LOGOS.src.CapitalInvestments.investment_utils import investmentUtils as utils
   from LOGOS.src.CapitalInvestments.PyomoModels.PyomoWrapper import PyomoWrapper
 except ImportError:
+  from _py312_compat import ensureImpModule
   from CapitalInvestments.investment_utils import investmentUtils as utils
   from .PyomoWrapper import PyomoWrapper
 #Internal Modules End--------------------------------------------------------------------------------
 
+# pyutilib still does `import imp`, removed in Python 3.12; shim it in before importing pyutilib
+ensureImpModule()
 import pyutilib.subprocess.GlobalData
 pyutilib.subprocess.GlobalData.DEFINE_SIGNAL_HANDLERS_DEFAULT = False
 

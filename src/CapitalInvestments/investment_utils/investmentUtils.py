@@ -14,8 +14,10 @@ warnings.simplefilter('default',DeprecationWarning)
 import numpy as np
 import logging
 import os
+import sys
 import errno
-import imp
+import importlib.util
+import importlib.machinery
 import xml.etree.ElementTree as ET
 #External Modules End--------------------------------------------------------------------------------
 
@@ -155,8 +157,12 @@ def importFromPath(filename):
   try:
     path, name = os.path.split(filename)
     name, ext = os.path.splitext(name)
-    file, filename, data = imp.find_module(name, [path])
-    importedModule = imp.load_module(name, file, filename, data)
+    spec = importlib.machinery.PathFinder().find_spec(name, [path])
+    if spec is None:
+      raise ImportError('No module named "{}"'.format(name))
+    importedModule = importlib.util.module_from_spec(spec)
+    sys.modules[name] = importedModule
+    spec.loader.exec_module(importedModule)
   except Exception as ae:
     raise Exception('Importing module '+ filename + ' at ' + path + os.sep + name + ' failed with error '+ str(ae))
   return importedModule

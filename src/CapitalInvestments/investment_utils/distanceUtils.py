@@ -6,7 +6,11 @@
 """
 #External Modules------------------------------------------------------------------------------------
 import numpy as np
-from sklearn.neighbors import DistanceMetric
+try:
+  # scikit-learn >= 1.3 moved DistanceMetric from sklearn.neighbors to sklearn.metrics
+  from sklearn.metrics import DistanceMetric
+except ImportError:
+  from sklearn.neighbors import DistanceMetric
 import logging
 import os
 #External Modules End--------------------------------------------------------------------------------
