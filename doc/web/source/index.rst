@@ -21,6 +21,7 @@ LOGOS documentation
    include/CashflowAndNPVModels
    include/Knapsack
    include/CPM
+   include/ScheduleManagement/index
 
 .. toctree::
    :maxdepth: 2
