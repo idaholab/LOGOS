@@ -99,13 +99,13 @@ And for the final year:
 All cash flows are costs and therefore negative.
 
 .. figure:: ../figures/image1.png
-   :scale: 100%
+   :scale: 30%
    :alt: Replace now timeline
 
    Graphical representation of option 1: replace now.
 
 .. figure:: ../figures/image2.png
-   :scale: 100%
+   :scale: 30%
    :alt: Replace later timeline
 
    Graphical representation of option 2: replace later.
@@ -169,7 +169,7 @@ For :math:`t = T_0`, the expected planned replacement cash flow is:
    -\left[ C_P (1-p)^{T_0 - 1} \right]
 
 .. figure:: ../figures/image3.png
-   :scale: 100%
+   :scale: 30%
    :alt: Planned replacement at T0
 
    Graphical representation of option 1: planned replacement at :math:`T_0`.
@@ -278,7 +278,7 @@ Example Incremental NPV Output CSV
    See: https://github.com/idaholab/raven/wiki/Plugins
 
 .. figure:: ../figures/image11.jpg
-   :scale: 50%
+   :scale: 70%
    :alt: RAVEN Logos workflow
 
    Risk-informed capital budgeting via RAVEN and RAVEN plugins.
