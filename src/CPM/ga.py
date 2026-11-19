@@ -3,11 +3,16 @@
 """
 ga.py — Genetic Algorithm for Resource-Constrained Project Scheduling (RCPSP)
 
-Implements the Activity List representation and one-point crossover operator
-from Hartmann (1998) / Kolisch & Hartmann (1999), using DEAP as the GA engine.
+Implements the Activity List representation and crossover operators for RCPSP,
+including Hartmann (1998) one-point crossover and a Decuple Crossover Scheme
+(DCS) adaptation, using DEAP as the GA engine.
 
 References
 ----------
+Derouiche, H., Elarbi, M. and Bechikh, S. (2026). A decuple crossover scheme
+in genetic algorithms: a step toward deep evolution. Evolutionary Intelligence
+19, 9. https://doi.org/10.1007/s12065-025-01123-w
+
 Kolisch, R. and Hartmann, S. (1999). Heuristic Algorithms for Solving the
 Resource-Constrained Project Scheduling Problem: Classification and
 Computational Analysis. In J. Weglarz (ed.), Project Scheduling: Recent
@@ -69,6 +74,16 @@ Hartmann (1998) proves that a child produced this way from two
 precedence-feasible parents is itself precedence-feasible.
 
 Two children are produced symmetrically (roles of mother and father swapped).
+
+Crossover — Decuple Crossover Scheme (DCS)
+------------------------------------------
+The ``'decuple'`` crossover implements the hierarchical scheme of Derouiche,
+Elarbi & Bechikh (2026), adapted to RCPSP activity lists.  A parent pair first
+produces two initial children.  Each initial child is then recombined with each
+original parent, yielding eight more candidates and ten offspring total.  The
+RCPSP adaptation uses the GA's uniform order-preserving activity-list crossover
+as the inner recombination operator, then keeps the two most mutually diverse
+candidates without decoding the full DCS candidate pool.
 
 Mutation — swap mutation with topological repair
 -------------------------------------------------
@@ -154,6 +169,7 @@ class RCPSPGeneticAlgorithm:
         * ``'one_point'``    — Hartmann (1998) one-point crossover
         * ``'two_point'``    — two-point crossover (default)
         * ``'uniform_order'`` — uniform order-preserving crossover (UOX)
+        * ``'decuple'``      — DCS: ten RCPSP candidates, keep diverse pair
     mutation : str
         Mutation operator to use.  Choices:
 
@@ -219,6 +235,7 @@ class RCPSPGeneticAlgorithm:
         'one_point':    '_crossover_one_point',
         'two_point':    '_crossover_two_point',
         'uniform_order': '_crossover_uniform_order',
+        'decuple':      '_crossover_decuple',
     }
     _MUTATION_METHODS: Dict[str, str] = {
         'swap':             '_mutate_swap',
@@ -1174,6 +1191,137 @@ class RCPSPGeneticAlgorithm:
 
         ind1[:] = self._repair_chromosome(ind1)
         ind2[:] = self._repair_chromosome(ind2)
+        return ind1, ind2
+
+    def _decuple_inner_crossover(
+        self,
+        parent1: List[int],
+        parent2: List[int],
+    ) -> Tuple[List[int], List[int]]:
+        """
+        Return two RCPSP-safe children for one DCS recombination edge.
+
+        The DCS paper defines a hierarchy around a standard crossover operator.
+        For this RCPSP adaptation, the inner operator is the existing uniform
+        order-preserving crossover for activity-list chromosomes.
+        """
+        child1 = list(parent1)
+        child2 = list(parent2)
+        self._crossover_uniform_order(child1, child2)
+        return child1, child2
+
+    @staticmethod
+    def _chromosome_diversity_distance(
+        chromosome1: List[int],
+        chromosome2: List[int],
+    ) -> int:
+        """Return positional diversity between two activity-list chromosomes."""
+        return (
+            sum(gene1 != gene2 for gene1, gene2 in zip(chromosome1, chromosome2))
+            + abs(len(chromosome1) - len(chromosome2))
+        )
+
+    def _select_best_decuple_candidates(
+        self,
+        candidates: List[List[int]],
+    ) -> List[List[int]]:
+        """
+        Return the two most mutually diverse DCS candidates without decoding.
+
+        Diversity is measured as positional Hamming distance between activity
+        lists.  Exact duplicate chromosomes are collapsed before selection.  If
+        multiple pairs have the same mutual distance, prefer the pair with the
+        larger total distance to the whole unique candidate pool, then the
+        earliest generated pair for deterministic tie-breaking.
+        """
+        unique: List[Tuple[int, List[int]]] = []
+        seen: set[Tuple[int, ...]] = set()
+        for i, chromosome in enumerate(candidates):
+            key = tuple(chromosome)
+            if key in seen:
+                continue
+            unique.append((i, list(chromosome)))
+            seen.add(key)
+
+        if len(unique) <= 2:
+            return [chromosome for _, chromosome in unique]
+
+        pool_diversity: List[int] = []
+        for i, (_, chromosome) in enumerate(unique):
+            pool_diversity.append(
+                sum(
+                    self._chromosome_diversity_distance(chromosome, other)
+                    for j, (_, other) in enumerate(unique)
+                    if i != j
+                )
+            )
+
+        best_pair: Optional[Tuple[int, int]] = None
+        best_key: Optional[Tuple[int, int, int, int]] = None
+        for i in range(len(unique) - 1):
+            idx_i, chromosome_i = unique[i]
+            for j in range(i + 1, len(unique)):
+                idx_j, chromosome_j = unique[j]
+                distance = self._chromosome_diversity_distance(
+                    chromosome_i,
+                    chromosome_j,
+                )
+                tie_key = (
+                    distance,
+                    pool_diversity[i] + pool_diversity[j],
+                    -idx_i,
+                    -idx_j,
+                )
+                if best_key is None or tie_key > best_key:
+                    best_key = tie_key
+                    best_pair = (i, j)
+
+        if best_pair is None:
+            return []
+
+        return [
+            list(unique[best_pair[0]][1]),
+            list(unique[best_pair[1]][1]),
+        ]
+
+    def _crossover_decuple(
+        self,
+        ind1: List[int],
+        ind2: List[int],
+    ) -> Tuple[List[int], List[int]]:
+        """
+        Decuple Crossover Scheme (DCS), adapted to RCPSP activity lists.
+
+        DCS generates ten offspring for one parent pair:
+
+        1. ``P1 x P2`` produces initial children ``Ch1`` and ``Ch2``.
+        2. ``Ch1`` is recombined with ``P1`` and ``P2``.
+        3. ``Ch2`` is recombined with ``P1`` and ``P2``.
+        4. The two most mutually diverse candidates replace ``ind1`` and
+           ``ind2``.  Fitness evaluation is left to the normal invalid-offspring
+           evaluation path.
+        """
+        if len(ind1) < 2:
+            candidates = [list(ind1), list(ind2)]
+        else:
+            parent1 = list(ind1)
+            parent2 = list(ind2)
+            ch1, ch2 = self._decuple_inner_crossover(parent1, parent2)
+
+            candidates = [ch1, ch2]
+            for initial_child in (ch1, ch2):
+                for parent in (parent1, parent2):
+                    c1, c2 = self._decuple_inner_crossover(initial_child, parent)
+                    candidates.extend([c1, c2])
+
+        selected = self._select_best_decuple_candidates(candidates)
+        if len(selected) < 2:
+            return ind1, ind2
+
+        child1, child2 = selected[:2]
+        ind1[:] = child1
+        ind2[:] = child2
+
         return ind1, ind2
 
     # ---------------------------------------------------------------------- #
