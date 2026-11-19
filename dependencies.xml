@@ -3,7 +3,7 @@
     <!-- fix the version of pyomo, this is because, in the version after 5.7.3, PySP package is moved to a independent
     lib. See https://pyomo.readthedocs.io/en/latest/modeling_extensions/stochastic_programming.html
     We need to update LOGOS to use either PySP or mpi-sppy, using 5.7 which will consistent with HERON-->
-    <pyomo source="pip">6.4</pyomo>
+    <pyomo source="pip">6.6</pyomo>
     <coincbc os="mac,linux" skip_check="True" source="forge">2.10.5</coincbc>
     <!-- Windows doesn't have coincbc, so get it through cbcpy? cbcpy doesn't exist in python newer than 3.7, so this is not a good solution. The suggestion to use cbcpy was in https://stackoverflow.com/questions/58868054/how-to-install-coincbc-using-conda-->
     <glpk skip_check="True" source="forge" />
@@ -12,13 +12,6 @@
     <networkx source='pip'/>
     <plotly source='pip'/>
     <pandas source='pip'/>
-    <!-- pyarrow 26.0 refuses to import with NumPy < 2 ("pyarrow requires NumPy 2.0 or
-         newer"), which breaks `import pandas` whenever pyarrow is installed. RAVEN pins
-         numpy 1.26, so keep pyarrow on 25.0 (supports NumPy >= 1.25, Python 3.10-3.14).
-         library_handler.py installs pins as `==25.0.*`, so this cannot be written as
-         an upper bound; revisit when RAVEN moves to NumPy 2. LOGOS does not import
-         pyarrow itself, so skip_check keeps RAVEN's startup check from requiring it. -->
-    <pyarrow source='pip' skip_check="True">25.0</pyarrow>
     <!-- Test / optional-algorithm deps. These are installed into the LOGOS env
          (so the pytest suite runs in CI and the GA/ALNS backends are available),
          but marked skip_check so RAVEN's startup library check does NOT fail when

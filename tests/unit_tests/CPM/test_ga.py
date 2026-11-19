@@ -4,7 +4,8 @@ Unit tests for ga.py — RCPSPGeneticAlgorithm
 Tests are organized in four tiers:
 
   1. Pure-function tests (no Pert required)
-       _crossover_one_point, _crossover_two_point, _crossover_uniform_order
+       _crossover_one_point, _crossover_two_point, _crossover_uniform_order,
+       _crossover_decuple
 
   2. Structural tests using a small Pert fixture (example_10.json, 12 tasks)
        __init__ (default/custom operators, invalid inputs),
@@ -324,7 +325,63 @@ class TestCrossoverUniformOrder:
 
 
 # =============================================================================
-# 4. Structural tests — constructor and chromosome helpers
+# 4. Pure-function tests — _crossover_decuple
+# =============================================================================
+
+class TestCrossoverDecuple:
+
+    def test_outputs_are_valid_permutations_without_evaluation(
+        self,
+        pert,
+        monkeypatch,
+    ):
+        """DCS must select valid children without decoding candidates."""
+        g = RCPSPGeneticAlgorithm(
+            pert,
+            pop_size=4,
+            n_gen=1,
+            crossover='decuple',
+            mutation='adjacent_swap',
+            fb_improvement=False,
+            verbose=False,
+        )
+        parent1 = g._Ind(g._rule_to_chromosome('es'))
+        parent2 = g._Ind(g._rule_to_chromosome('lf'))
+        expected = set(range(g._n))
+
+        def fail_evaluate(_):
+            raise AssertionError("_crossover_decuple must not evaluate candidates")
+
+        monkeypatch.setattr(g, "_evaluate", fail_evaluate)
+        before = g._eval_count
+        child1, child2 = g._crossover_decuple(parent1, parent2)
+
+        assert set(child1) == expected
+        assert set(child2) == expected
+        assert len(child1) == g._n
+        assert len(child2) == g._n
+        assert not child1.fitness.valid
+        assert not child2.fitness.valid
+        assert g._eval_count == before
+
+    def test_decuple_candidate_selection_maximizes_diversity(self, ga):
+        candidates = [
+            [0, 1, 2, 3],
+            [0, 1, 3, 2],
+            [3, 2, 1, 0],
+            [0, 1, 2, 3],
+        ]
+
+        selected = ga._select_best_decuple_candidates(candidates)
+
+        assert selected == [
+            [0, 1, 2, 3],
+            [3, 2, 1, 0],
+        ]
+
+
+# =============================================================================
+# 5. Structural tests — constructor and chromosome helpers
 # =============================================================================
 
 class TestConstructor:
@@ -361,7 +418,7 @@ class TestConstructor:
     def test_crossover_method_map(self):
         """_CROSSOVER_METHODS must contain all documented choices."""
         assert set(RCPSPGeneticAlgorithm._CROSSOVER_METHODS) == {
-            'one_point', 'two_point', 'uniform_order'
+            'one_point', 'two_point', 'uniform_order', 'decuple'
         }
 
     def test_mutation_method_map(self):
@@ -425,6 +482,7 @@ class TestConstructor:
         ('one_point',    'swap'),
         ('two_point',    'adjacent_swap'),
         ('uniform_order', 'insertion_window'),
+        ('decuple',      'adjacent_swap'),
         ('one_point',    'insertion_window'),
         ('uniform_order', 'swap'),
         ('two_point',    'consensus_reorder'),
@@ -441,7 +499,7 @@ class TestConstructor:
 
 
 # =============================================================================
-# 5. rule_to_chromosome tests
+# 6. rule_to_chromosome tests
 # =============================================================================
 
 class TestRuleToChromosome:
@@ -464,7 +522,7 @@ class TestRuleToChromosome:
 
 
 # =============================================================================
-# 6. generate_initial_population tests
+# 7. generate_initial_population tests
 # =============================================================================
 
 class TestInitialPopulation:
@@ -488,7 +546,7 @@ class TestInitialPopulation:
 
 
 # =============================================================================
-# 7. Fitness evaluation
+# 8. Fitness evaluation
 # =============================================================================
 
 class TestEvaluate:
@@ -513,7 +571,7 @@ class TestEvaluate:
 
 
 # =============================================================================
-# 8. Mutation — _mutate_swap
+# 9. Mutation — _mutate_swap
 # =============================================================================
 
 class TestMutateSwap:
@@ -586,7 +644,7 @@ class TestMutateSwap:
 
 
 # =============================================================================
-# 9. Mutation — _mutate_adjacent_swap
+# 10. Mutation — _mutate_adjacent_swap
 # =============================================================================
 
 class TestMutateAdjacentSwap:
@@ -651,7 +709,7 @@ class TestMutateAdjacentSwap:
 
 
 # =============================================================================
-# 10. Mutation — _mutate_insertion_window
+# 11. Mutation — _mutate_insertion_window
 # =============================================================================
 
 class TestMutateInsertionWindow:
@@ -719,7 +777,7 @@ class TestMutateInsertionWindow:
 
 
 # =============================================================================
-# 11. Forward-Backward-Forward improvement
+# 12. Forward-Backward-Forward improvement
 # =============================================================================
 
 class TestFBImprovement:
@@ -852,7 +910,7 @@ class TestFBImprovement:
 
 
 # =============================================================================
-# 12. End-to-end run
+# 13. End-to-end run
 # =============================================================================
 
 class TestRun:
@@ -1018,6 +1076,7 @@ class TestRun:
         ('one_point',    'swap'),
         ('two_point',    'adjacent_swap'),
         ('uniform_order', 'insertion_window'),
+        ('decuple',      'adjacent_swap'),
         ('two_point',    'consensus_reorder'),
     ])
     def test_all_operator_combinations_complete(self, pert, cx, mut):
